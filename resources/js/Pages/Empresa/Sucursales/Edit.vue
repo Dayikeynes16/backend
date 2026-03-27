@@ -3,6 +3,7 @@ import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import MapPicker from '@/Components/MapPicker.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 
@@ -69,19 +70,6 @@ const roleBadge = (name) => ({
                     </div>
                     <div class="grid gap-5 sm:grid-cols-2">
                         <div>
-                            <InputLabel for="latitude" value="Latitud" />
-                            <TextInput id="latitude" v-model="form.latitude" type="text" class="mt-1.5 block w-full" placeholder="17.9891" />
-                            <InputError :message="form.errors.latitude" class="mt-1" />
-                        </div>
-                        <div>
-                            <InputLabel for="longitude" value="Longitud" />
-                            <TextInput id="longitude" v-model="form.longitude" type="text" class="mt-1.5 block w-full" placeholder="-92.9475" />
-                            <InputError :message="form.errors.longitude" class="mt-1" />
-                        </div>
-                    </div>
-                    <p class="text-xs text-gray-400">Coordenadas geograficas. Puedes obtenerlas desde Google Maps haciendo click derecho en la ubicacion.</p>
-                    <div class="grid gap-5 sm:grid-cols-2">
-                        <div>
                             <InputLabel for="schedule" value="Horario" />
                             <TextInput id="schedule" v-model="form.schedule" type="text" class="mt-1.5 block w-full" />
                             <InputError :message="form.errors.schedule" class="mt-1" />
@@ -93,6 +81,29 @@ const roleBadge = (name) => ({
                                 <option value="inactive">Inactiva</option>
                             </select>
                             <InputError :message="form.errors.status" class="mt-1" />
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Ubicación -->
+            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Ubicacion</h2>
+                    <p class="mt-1 text-sm text-gray-500">Selecciona la ubicacion en el mapa o ingresa las coordenadas.</p>
+                </div>
+                <div class="space-y-5 p-6">
+                    <MapPicker v-model:latitude="form.latitude" v-model:longitude="form.longitude" />
+                    <div class="grid gap-5 sm:grid-cols-2">
+                        <div>
+                            <InputLabel for="latitude" value="Latitud" />
+                            <TextInput id="latitude" v-model="form.latitude" type="text" class="mt-1.5 block w-full" placeholder="17.9891" />
+                            <InputError :message="form.errors.latitude" class="mt-1" />
+                        </div>
+                        <div>
+                            <InputLabel for="longitude" value="Longitud" />
+                            <TextInput id="longitude" v-model="form.longitude" type="text" class="mt-1.5 block w-full" placeholder="-92.9475" />
+                            <InputError :message="form.errors.longitude" class="mt-1" />
                         </div>
                     </div>
                 </div>
