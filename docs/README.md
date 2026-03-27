@@ -28,8 +28,8 @@ Stack: Laravel 13 · Vue 3 · Inertia · PostgreSQL · Laravel Reverb.
 
 ## Frontend
 
-- Cola de Ventas — *pendiente (Fase 6)*
-- Pantallas del Cajero — *pendiente (Fase 6)*
+- [Cola de Ventas](frontend/cola-ventas.md) — composable useSaleQueue, suscripción Echo, UI de cobro
+- Pantallas del Cajero (dashboard + corte) — *pendiente (Fase 6)*
 
 ## Otros
 
@@ -45,6 +45,6 @@ Stack: Laravel 13 · Vue 3 · Inertia · PostgreSQL · Laravel Reverb.
 | 2 — Auth + roles | Spatie Permission, login multitenant, redirección por rol | Completada |
 | 3 — CRUD core | Empresas, Sucursales, Productos, Usuarios | Completada |
 | 4 — API pública | AuthenticateApiKey, 5 endpoints, API Keys, rate limiting | Completada |
-| 5 — Reverb + tiempo real | Evento broadcast, Echo en Vue, cola en tiempo real | Pendiente |
+| 5 — Reverb + tiempo real | Evento broadcast, Echo en Vue, cola en tiempo real | Completada |
 | 6 — Pantallas cajero | Cola de ventas, dashboard del día, corte de caja | Pendiente |
 | 7 — Paneles admin | Dashboard admin sucursal, reportes, superadmin | Pendiente |

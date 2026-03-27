@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\EmpresaController;
+use App\Http\Controllers\Caja\SaleController as CajaSaleController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ProfileController;
@@ -90,9 +91,8 @@ Route::prefix('{tenant}')
             ->prefix('caja')
             ->name('caja.')
             ->group(function () {
-                Route::get('/', function () {
-                    return Inertia::render('Caja/Queue');
-                })->name('queue');
+                Route::get('/', [CajaSaleController::class, 'index'])->name('queue');
+                Route::patch('sales/{sale}/complete', [CajaSaleController::class, 'complete'])->name('sales.complete');
             });
     });
 
