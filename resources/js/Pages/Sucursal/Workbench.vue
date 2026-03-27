@@ -2,6 +2,7 @@
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import PaymentForm from '@/Components/PaymentForm.vue';
+import { useSaleLock } from '@/composables/useSaleLock';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
@@ -18,6 +19,23 @@ const enabledMethods = computed(() =>
 
 const selectedId = ref(null);
 const selected = computed(() => props.sales.find(s => s.id === selectedId.value));
+
+// Concurrency lock
+const branchId = computed(() => props.sales[0]?.branch_id);
+const { lockSale, unlockSale, isLockedByOther, lockedByName } = useSaleLock(
+    branchId.value,
+    route('sucursal.sale.lock', [props.tenant.slug, '__SALE__']),
+    route('sucursal.sale.unlock', [props.tenant.slug, '__SALE__']),
+    route('sucursal.sale.heartbeat', [props.tenant.slug, '__SALE__']),
+);
+
+const selectSale = async (saleId) => {
+    const ok = await lockSale(saleId);
+    if (ok) {
+        selectedId.value = saleId;
+        showPayment.value = false;
+    }
+};
 const showNewSale = ref(false);
 const showPayment = ref(false);
 const editingPaymentId = ref(null);
@@ -130,11 +148,17 @@ const submitNewSale = () => {
                 </div>
 
                 <div class="flex-1 overflow-y-auto p-3 space-y-2">
-                    <div v-for="sale in sales" :key="sale.id" @click="selectedId = sale.id; showPayment = false; editingPaymentId = null"
-                        :class="['cursor-pointer rounded-xl p-4 transition-all', selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' : 'ring-1 ring-gray-100 hover:ring-gray-200 hover:bg-gray-50/50']">
+                    <div v-for="sale in sales" :key="sale.id" @click="selectSale(sale.id)"
+                        :class="['cursor-pointer rounded-xl p-4 transition-all',
+                            selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' :
+                            isLockedByOther(sale.id) ? 'ring-1 ring-amber-200 bg-amber-50/30 opacity-75' :
+                            'ring-1 ring-gray-100 hover:ring-gray-200 hover:bg-gray-50/50']">
                         <div class="flex items-center justify-between">
                             <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
-                            <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
+                            <div class="flex items-center gap-1.5">
+                                <span v-if="isLockedByOther(sale.id)" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">En uso por {{ lockedByName(sale.id) }}</span>
+                                <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
+                            </div>
                         </div>
                         <div class="mt-2.5 flex items-end justify-between">
                             <div>

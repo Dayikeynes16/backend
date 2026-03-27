@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Payment;
 use App\Models\Sale;
 use Illuminate\Http\RedirectResponse;
@@ -23,9 +25,20 @@ class PaymentController extends Controller
             return back()->with('error', 'No se pueden registrar pagos en esta venta.');
         }
 
+        // Concurrency guard: if locked by someone else
+        if ($sale->isLockedBy(null) && $sale->locked_by !== $user->id) {
+            return back()->with('error', 'Esta venta esta siendo operada por otro usuario.');
+        }
+
+        $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
+        $allowed = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
+        $allowedStr = implode(',', $allowed);
+
         $validated = $request->validate([
-            'method' => 'required|in:cash,card,transfer',
+            'method' => "required|in:{$allowedStr}",
             'amount' => 'required|numeric|gt:0',
+        ], [
+            'method.in' => 'El metodo de pago seleccionado no esta habilitado para esta sucursal.',
         ]);
 
         // For cash: customer may give more than pending (change).
@@ -54,9 +67,15 @@ class PaymentController extends Controller
         $user = Auth::user();
         $this->authorizePaymentAction($user, $sale, $payment);
 
+        $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
+        $allowed = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
+        $allowedStr = implode(',', $allowed);
+
         $validated = $request->validate([
-            'method' => 'required|in:cash,card,transfer',
+            'method' => "required|in:{$allowedStr}",
             'amount' => 'required|numeric|gt:0',
+        ], [
+            'method.in' => 'El metodo de pago seleccionado no esta habilitado para esta sucursal.',
         ]);
 
         $payment->update($validated);
@@ -116,5 +135,7 @@ class PaymentController extends Controller
         }
 
         $sale->update($data);
+
+        SaleUpdated::dispatch($sale->fresh());
     }
 }

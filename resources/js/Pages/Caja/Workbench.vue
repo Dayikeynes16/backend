@@ -3,6 +3,7 @@ import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import PaymentForm from '@/Components/PaymentForm.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
+import { useSaleLock } from '@/composables/useSaleLock';
 import { Head, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
@@ -13,6 +14,22 @@ const selected = computed(() => props.sales.find(s => s.id === selectedId.value)
 const showPayment = ref(false);
 const showTicket = ref(false);
 const showCancelRequest = ref(false);
+
+const { lockSale, unlockSale, isLockedByOther, lockedByName } = useSaleLock(
+    props.branchId,
+    route('caja.sale.lock', [props.tenant.slug, '__SALE__']),
+    route('caja.sale.unlock', [props.tenant.slug, '__SALE__']),
+    route('caja.sale.heartbeat', [props.tenant.slug, '__SALE__']),
+);
+
+const selectSale = async (saleId) => {
+    const ok = await lockSale(saleId);
+    if (ok) {
+        selectedId.value = saleId;
+        showPayment.value = false;
+        showCancelRequest.value = false;
+    }
+};
 
 const methodLabel = (m) => ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' }[m] || m);
 const methodColor = (m) => ({ cash: 'text-green-600', card: 'text-blue-600', transfer: 'text-purple-600' }[m]);
@@ -56,11 +73,15 @@ const submitCancelRequest = () => {
                     <p class="text-xs text-gray-400">{{ sales.length }} venta{{ sales.length !== 1 ? 's' : '' }}</p>
                 </div>
                 <div class="flex-1 overflow-y-auto p-3 space-y-2">
-                    <div v-for="sale in sales" :key="sale.id" @click="selectedId = sale.id; showPayment = false; showCancelRequest = false"
-                        :class="['cursor-pointer rounded-xl p-4 transition-all', selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' : 'ring-1 ring-gray-100 hover:ring-gray-200']">
+                    <div v-for="sale in sales" :key="sale.id" @click="selectSale(sale.id)"
+                        :class="['cursor-pointer rounded-xl p-4 transition-all',
+                            selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' :
+                            isLockedByOther(sale.id) ? 'ring-1 ring-amber-200 bg-amber-50/30 opacity-75' :
+                            'ring-1 ring-gray-100 hover:ring-gray-200']">
                         <div class="flex items-center justify-between">
                             <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
                             <div class="flex items-center gap-1.5">
+                                <span v-if="isLockedByOther(sale.id)" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">En uso por {{ lockedByName(sale.id) }}</span>
                                 <span v-if="sale.cancel_requested_at" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">Cancelacion solicitada</span>
                                 <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
                             </div>
@@ -154,6 +175,7 @@ const submitCancelRequest = () => {
                         <!-- Payment form with change -->
                         <PaymentForm v-if="showPayment" :sale="selected"
                             :payment-route="route('caja.payment.store', [tenant.slug, selected.id])"
+                            :payment-methods="paymentMethods"
                             @success="showPayment = false" @cancel="showPayment = false" />
 
                         <!-- Cancel request -->

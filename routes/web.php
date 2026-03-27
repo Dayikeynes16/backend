@@ -16,6 +16,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
 use App\Http\Controllers\Sucursal\CancelRequestController;
 use App\Http\Controllers\Sucursal\CashShiftController;
+use App\Http\Controllers\Sucursal\SaleLockController;
 use App\Http\Controllers\Sucursal\CategoryController;
 use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguracionController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
@@ -137,6 +138,11 @@ Route::prefix('{tenant}')
                 Route::patch('mesa-de-trabajo/ventas/{sale}/cancelar', [WorkbenchController::class, 'cancel'])->name('workbench.cancel');
                 Route::post('mesa-de-trabajo/ventas/{sale}/solicitar-cancelacion', [WorkbenchController::class, 'requestCancel'])->name('workbench.request-cancel');
 
+                // Sale locking
+                Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
+                Route::post('ventas/{sale}/unlock', [SaleLockController::class, 'unlock'])->name('sale.unlock');
+                Route::post('ventas/{sale}/heartbeat', [SaleLockController::class, 'heartbeat'])->name('sale.heartbeat');
+
                 // Payments
                 Route::post('mesa-de-trabajo/ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('workbench.payment');
                 Route::put('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'update'])->name('workbench.payment.update');
@@ -159,6 +165,9 @@ Route::prefix('{tenant}')
             ->group(function () {
                 Route::get('/', [CajaWorkbenchController::class, 'index'])->name('workbench');
                 Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
+                Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
+                Route::post('ventas/{sale}/unlock', [SaleLockController::class, 'unlock'])->name('sale.unlock');
+                Route::post('ventas/{sale}/heartbeat', [SaleLockController::class, 'heartbeat'])->name('sale.heartbeat');
                 Route::post('ventas/{sale}/solicitar-cancelacion', [CajaWorkbenchController::class, 'requestCancel'])->name('request-cancel');
                 Route::get('turno', [CajaTurnoController::class, 'index'])->name('turno');
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
