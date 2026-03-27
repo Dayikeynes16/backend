@@ -9,6 +9,13 @@ const visible = ref(false);
 const message = ref('');
 const type = ref('success');
 
+let timeout;
+const show = () => {
+    clearTimeout(timeout);
+    visible.value = true;
+    timeout = setTimeout(() => visible.value = false, 4000);
+};
+
 watch(flash, (val) => {
     if (val?.success) {
         message.value = val.success;
@@ -20,13 +27,6 @@ watch(flash, (val) => {
         show();
     }
 }, { deep: true, immediate: true });
-
-let timeout;
-const show = () => {
-    clearTimeout(timeout);
-    visible.value = true;
-    timeout = setTimeout(() => visible.value = false, 4000);
-};
 </script>
 
 <template>
