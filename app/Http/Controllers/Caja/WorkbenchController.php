@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Caja;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Sale;
 use Illuminate\Http\RedirectResponse;
@@ -32,10 +33,14 @@ class WorkbenchController extends Controller
             ->limit(50)
             ->get();
 
+        $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
+        $paymentMethods = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
+
         return Inertia::render('Caja/Workbench', [
             'sales' => $sales,
             'tenant' => app('tenant'),
             'branchId' => $user->branch_id,
+            'paymentMethods' => $paymentMethods,
         ]);
     }
 

@@ -1,11 +1,12 @@
 <script setup>
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
+import PaymentForm from '@/Components/PaymentForm.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
-const props = defineProps({ sales: Array, tenant: Object, branchId: Number });
+const props = defineProps({ sales: Array, tenant: Object, branchId: Number, paymentMethods: Array });
 
 const selectedId = ref(null);
 const selected = computed(() => props.sales.find(s => s.id === selectedId.value));
@@ -19,21 +20,6 @@ const originBadge = (o) => o === 'admin' ? 'bg-red-50 text-red-700' : 'bg-blue-5
 const unitLabel = (t) => ({ kg: 'kg', piece: 'pz', cut: 'pz' }[t] || t);
 const timeAgo = (d) => { const diff = Math.floor((Date.now() - new Date(d)) / 1000); if (diff < 60) return 'ahora'; if (diff < 3600) return `${Math.floor(diff / 60)}m`; return `${Math.floor(diff / 3600)}h`; };
 const paidPct = (s) => s.total > 0 ? Math.min((parseFloat(s.amount_paid) / parseFloat(s.total)) * 100, 100) : 0;
-
-// Payment with change calculation
-const paymentForm = useForm({ method: 'cash', amount: '' });
-const receivedAmount = computed(() => parseFloat(paymentForm.amount) || 0);
-const pendingAmount = computed(() => selected.value ? parseFloat(selected.value.amount_pending) : 0);
-const changeAmount = computed(() => Math.max(receivedAmount.value - pendingAmount.value, 0));
-const isOverpay = computed(() => receivedAmount.value > pendingAmount.value);
-const remaining = computed(() => Math.max(pendingAmount.value - receivedAmount.value, 0));
-
-const submitPayment = () => {
-    paymentForm.post(route('caja.payment.store', [props.tenant.slug, selected.value.id]), {
-        preserveScroll: true,
-        onSuccess: () => { paymentForm.reset('amount'); showPayment.value = false; },
-    });
-};
 
 // Cancel request
 const cancelReasons = ['Venta duplicada', 'Producto equivocado', 'Cliente ya no quiso la compra', 'Error de captura'];
@@ -166,49 +152,9 @@ const submitCancelRequest = () => {
                         </div>
 
                         <!-- Payment form with change -->
-                        <div v-if="showPayment" class="rounded-xl border-l-4 border-red-500 bg-white p-5 ring-1 ring-gray-100">
-                            <h3 class="mb-4 text-sm font-bold text-gray-900">Registrar Cobro</h3>
-                            <form @submit.prevent="submitPayment" class="space-y-4">
-                                <div class="flex gap-3">
-                                    <div class="w-36">
-                                        <label class="text-xs font-medium text-gray-500">Metodo</label>
-                                        <select v-model="paymentForm.method" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
-                                            <option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="transfer">Transferencia</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex-1">
-                                        <label class="text-xs font-medium text-gray-500">{{ paymentForm.method === 'cash' ? 'Monto recibido' : 'Monto' }}</label>
-                                        <div class="relative mt-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                                        <input v-model="paymentForm.amount" type="number" step="0.01" min="0.01" required placeholder="0.00" class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" /></div>
-                                    </div>
-                                </div>
-
-                                <!-- Change calculation -->
-                                <div v-if="paymentForm.amount && paymentForm.method === 'cash'" class="rounded-lg bg-gray-50 p-4">
-                                    <div class="grid grid-cols-3 gap-3 text-center">
-                                        <div>
-                                            <p class="text-xs text-gray-400">Pendiente</p>
-                                            <p class="text-sm font-bold text-gray-900">${{ pendingAmount.toFixed(2) }}</p>
-                                        </div>
-                                        <div>
-                                            <p class="text-xs text-gray-400">Recibido</p>
-                                            <p class="text-sm font-bold text-gray-900">${{ receivedAmount.toFixed(2) }}</p>
-                                        </div>
-                                        <div>
-                                            <p class="text-xs text-gray-400">{{ isOverpay ? 'Cambio' : 'Falta' }}</p>
-                                            <p class="text-sm font-bold" :class="isOverpay ? 'text-green-600' : 'text-amber-600'">
-                                                ${{ isOverpay ? changeAmount.toFixed(2) : remaining.toFixed(2) }}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="flex gap-3">
-                                    <button type="submit" :disabled="paymentForm.processing" class="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">Cobrar</button>
-                                    <button type="button" @click="showPayment = false" class="text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
-                                </div>
-                            </form>
-                        </div>
+                        <PaymentForm v-if="showPayment" :sale="selected"
+                            :payment-route="route('caja.payment.store', [tenant.slug, selected.id])"
+                            @success="showPayment = false" @cancel="showPayment = false" />
 
                         <!-- Cancel request -->
                         <div v-if="showCancelRequest" class="rounded-xl border-2 border-amber-200 bg-amber-50 p-5">

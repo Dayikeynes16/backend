@@ -13,6 +13,13 @@ class Branch extends Model
 {
     use BelongsToTenant;
 
+    protected function casts(): array
+    {
+        return [
+            'payment_methods_enabled' => 'array',
+        ];
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

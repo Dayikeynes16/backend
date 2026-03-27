@@ -34,7 +34,7 @@ class ConfiguracionController extends Controller
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'schedule' => 'nullable|string|max:255',
-            'payment_methods_enabled' => 'nullable|array',
+            'payment_methods_enabled' => 'required|array|min:1',
             'payment_methods_enabled.*' => 'in:cash,card,transfer',
         ]);
 

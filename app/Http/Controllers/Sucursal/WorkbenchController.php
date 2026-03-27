@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sucursal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Payment;
 use App\Models\Product;
@@ -39,11 +40,15 @@ class WorkbenchController extends Controller
             ->orderBy('name')
             ->get();
 
+        $branch = Branch::withoutGlobalScopes()->findOrFail($branchId);
+        $paymentMethods = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
+
         return Inertia::render('Sucursal/Workbench', [
             'sales' => $sales,
             'products' => $products,
             'categories' => $categories,
             'tenant' => app('tenant'),
+            'paymentMethods' => $paymentMethods,
             'canCreate' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canCancel' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canEditPayments' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),

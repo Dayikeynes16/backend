@@ -1,13 +1,20 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
+import PaymentForm from '@/Components/PaymentForm.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
     sales: Array, products: Array, categories: Array,
-    tenant: Object, canCreate: Boolean, canCancel: Boolean, canEditPayments: Boolean,
+    tenant: Object, paymentMethods: Array,
+    canCreate: Boolean, canCancel: Boolean, canEditPayments: Boolean,
 });
+
+const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
+const enabledMethods = computed(() =>
+    (props.paymentMethods || ['cash', 'card', 'transfer']).map(id => ({ id, label: allMethodLabels[id] }))
+);
 
 const selectedId = ref(null);
 const selected = computed(() => props.sales.find(s => s.id === selectedId.value));
@@ -31,14 +38,7 @@ const timeAgo = (date) => {
 
 const paidPct = (s) => s.total > 0 ? Math.min((parseFloat(s.amount_paid) / parseFloat(s.total)) * 100, 100) : 0;
 
-// Register payment
-const paymentForm = useForm({ method: 'cash', amount: '' });
-const submitPayment = () => {
-    paymentForm.post(route('sucursal.workbench.payment', [props.tenant.slug, selected.value.id]), {
-        preserveScroll: true,
-        onSuccess: () => { paymentForm.reset('amount'); showPayment.value = false; },
-    });
-};
+
 
 // Edit payment
 const editPaymentForm = useForm({ method: '', amount: '' });
@@ -213,9 +213,7 @@ const submitNewSale = () => {
                                     <!-- Edit mode -->
                                     <form v-if="editingPaymentId === p.id" @submit.prevent="submitEditPayment(p.id)" class="flex items-center gap-3">
                                         <select v-model="editPaymentForm.method" class="rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
-                                            <option value="cash">Efectivo</option>
-                                            <option value="card">Tarjeta</option>
-                                            <option value="transfer">Transferencia</option>
+                                            <option v-for="m in enabledMethods" :key="m.id" :value="m.id">{{ m.label }}</option>
                                         </select>
                                         <div class="relative flex-1">
                                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
@@ -260,29 +258,10 @@ const submitNewSale = () => {
                         </div>
 
                         <!-- Register payment inline -->
-                        <div v-if="showPayment" class="rounded-xl border-l-4 border-red-500 bg-white p-5 ring-1 ring-gray-100">
-                            <h3 class="mb-4 text-sm font-bold text-gray-900">Registrar Pago</h3>
-                            <form @submit.prevent="submitPayment" class="flex items-end gap-3">
-                                <div class="w-40">
-                                    <label class="text-xs font-medium text-gray-500">Metodo</label>
-                                    <select v-model="paymentForm.method" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
-                                        <option value="cash">Efectivo</option>
-                                        <option value="card">Tarjeta</option>
-                                        <option value="transfer">Transferencia</option>
-                                    </select>
-                                </div>
-                                <div class="flex-1">
-                                    <label class="text-xs font-medium text-gray-500">Monto</label>
-                                    <div class="relative mt-1">
-                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                                        <input v-model="paymentForm.amount" type="number" step="0.01" min="0.01" :max="selected.amount_pending" required placeholder="0.00" class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" />
-                                    </div>
-                                </div>
-                                <button type="submit" :disabled="paymentForm.processing" class="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50">Cobrar</button>
-                                <button type="button" @click="showPayment = false" class="rounded-lg px-3 py-2.5 text-sm text-gray-500 hover:bg-gray-100">Cancelar</button>
-                            </form>
-                            <p v-if="paymentForm.errors.amount" class="mt-2 text-xs text-red-600">{{ paymentForm.errors.amount }}</p>
-                        </div>
+                        <PaymentForm v-if="showPayment" :sale="selected"
+                            :payment-route="route('sucursal.workbench.payment', [tenant.slug, selected.id])"
+                            :payment-methods="paymentMethods"
+                            @success="showPayment = false" @cancel="showPayment = false" />
                     </div>
 
                     <!-- Sticky actions -->

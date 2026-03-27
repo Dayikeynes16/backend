@@ -6,6 +6,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import MapPicker from '@/Components/MapPicker.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 const props = defineProps({ branch: Object, tenant: Object });
 
@@ -19,7 +20,12 @@ const form = useForm({
     payment_methods_enabled: props.branch.payment_methods_enabled || ['cash', 'card', 'transfer'],
 });
 
-const submit = () => form.put(route('sucursal.configuracion.update', props.tenant.slug));
+const noMethodsSelected = computed(() => form.payment_methods_enabled.length === 0);
+
+const submit = () => {
+    if (noMethodsSelected.value) return;
+    form.put(route('sucursal.configuracion.update', props.tenant.slug));
+};
 </script>
 
 <template>
@@ -89,13 +95,16 @@ const submit = () => form.put(route('sucursal.configuracion.update', props.tenan
                 </div>
                 <div class="space-y-3 p-6">
                     <label v-for="method in [{id:'cash',label:'Efectivo',icon:'text-green-600'},{id:'card',label:'Tarjeta',icon:'text-blue-600'},{id:'transfer',label:'Transferencia',icon:'text-purple-600'}]"
-                        :key="method.id" class="flex items-center justify-between rounded-xl p-4 ring-1 ring-gray-100 transition hover:bg-gray-50 cursor-pointer">
+                        :key="method.id" class="flex items-center justify-between rounded-xl p-4 ring-1 transition cursor-pointer"
+                        :class="noMethodsSelected ? 'ring-red-300 bg-red-50/30' : 'ring-gray-100 hover:bg-gray-50'">
                         <div class="flex items-center gap-3">
                             <span class="text-sm font-semibold" :class="method.icon">{{ method.label }}</span>
                         </div>
                         <input type="checkbox" :value="method.id" v-model="form.payment_methods_enabled"
                             class="h-5 w-5 rounded border-gray-300 text-red-600 focus:ring-red-500" />
                     </label>
+                    <p v-if="noMethodsSelected" class="text-sm text-red-600 font-medium">Debes habilitar al menos un metodo de pago.</p>
+                    <InputError :message="form.errors.payment_methods_enabled" class="mt-1" />
                 </div>
             </section>
 
