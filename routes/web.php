@@ -1,12 +1,15 @@
 <?php
 
 use App\Http\Controllers\Admin\EmpresaController;
+use App\Http\Controllers\Caja\DashboardController as CajaDashboardController;
 use App\Http\Controllers\Caja\SaleController as CajaSaleController;
+use App\Http\Controllers\Caja\ShiftController as CajaShiftController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
 use App\Http\Controllers\Sucursal\ProductoController;
+use App\Http\Controllers\Sucursal\ShiftController as SucursalShiftController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -84,6 +87,8 @@ Route::prefix('{tenant}')
                 Route::get('api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
                 Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
                 Route::delete('api-keys/{api_key}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+
+                Route::get('cortes', [SucursalShiftController::class, 'index'])->name('cortes.index');
             });
 
         // Cajero routes
@@ -93,6 +98,13 @@ Route::prefix('{tenant}')
             ->group(function () {
                 Route::get('/', [CajaSaleController::class, 'index'])->name('queue');
                 Route::patch('sales/{sale}/complete', [CajaSaleController::class, 'complete'])->name('sales.complete');
+
+                Route::get('dashboard', [CajaDashboardController::class, 'index'])->name('dashboard');
+
+                Route::get('turno/abrir', [CajaShiftController::class, 'create'])->name('shift.create');
+                Route::post('turno', [CajaShiftController::class, 'store'])->name('shift.store');
+                Route::get('turno', [CajaShiftController::class, 'show'])->name('shift.show');
+                Route::patch('turno/cerrar', [CajaShiftController::class, 'close'])->name('shift.close');
             });
     });
 

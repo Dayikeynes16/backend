@@ -24,12 +24,12 @@ Stack: Laravel 13 · Vue 3 · Inertia · PostgreSQL · Laravel Reverb.
 - [Productos](modulos/productos.md) — CRUD admin-sucursal, tipos kg/piece/cut
 - [API Keys](modulos/api-keys.md) — generación, revocación, panel admin-sucursal
 - [Ventas](modulos/ventas.md) — flujo API → cajero, estados, folio, snapshots
-- Corte de Caja — *pendiente (Fase 6)*
+- [Corte de Caja](modulos/corte-de-caja.md) — turnos, apertura/cierre, totales, historial
 
 ## Frontend
 
 - [Cola de Ventas](frontend/cola-ventas.md) — composable useSaleQueue, suscripción Echo, UI de cobro
-- Pantallas del Cajero (dashboard + corte) — *pendiente (Fase 6)*
+- [Pantallas del Cajero](frontend/pantallas-cajero.md) — OpenShift, Queue, Dashboard, Shift
 
 ## Otros
 
@@ -46,5 +46,5 @@ Stack: Laravel 13 · Vue 3 · Inertia · PostgreSQL · Laravel Reverb.
 | 3 — CRUD core | Empresas, Sucursales, Productos, Usuarios | Completada |
 | 4 — API pública | AuthenticateApiKey, 5 endpoints, API Keys, rate limiting | Completada |
 | 5 — Reverb + tiempo real | Evento broadcast, Echo en Vue, cola en tiempo real | Completada |
-| 6 — Pantallas cajero | Cola de ventas, dashboard del día, corte de caja | Pendiente |
+| 6 — Pantallas cajero | Cola de ventas, dashboard del día, corte de caja | Completada |
 | 7 — Paneles admin | Dashboard admin sucursal, reportes, superadmin | Pendiente |

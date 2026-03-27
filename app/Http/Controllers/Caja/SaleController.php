@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Caja;
 
 use App\Http\Controllers\Controller;
+use App\Models\CashRegisterShift;
 use App\Models\Sale;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,9 +13,18 @@ use Inertia\Response;
 
 class SaleController extends Controller
 {
-    public function index(): Response
+    public function index(): Response|RedirectResponse
     {
         $user = Auth::user();
+
+        // Require open shift
+        $hasShift = CashRegisterShift::where('user_id', $user->id)
+            ->whereNull('closed_at')
+            ->exists();
+
+        if (! $hasShift) {
+            return redirect()->route('caja.shift.create', app('tenant')->slug);
+        }
 
         $pendingSales = Sale::where('branch_id', $user->branch_id)
             ->where('status', 'pending')
