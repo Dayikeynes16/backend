@@ -34,26 +34,79 @@ class PaymentController extends Controller
             'amount' => $validated['amount'],
         ]);
 
+        $this->recalculate($sale, $user);
+
+        return back()->with('success', $sale->amount_pending <= 0
+            ? "Venta {$sale->folio} cobrada completamente."
+            : "Pago registrado. Pendiente: \${$sale->amount_pending}");
+    }
+
+    public function update(Request $request, Sale $sale, Payment $payment): RedirectResponse
+    {
+        $user = Auth::user();
+        $this->authorizePaymentAction($user, $sale, $payment);
+
+        $validated = $request->validate([
+            'method' => 'required|in:cash,card,transfer',
+            'amount' => 'required|numeric|gt:0',
+        ]);
+
+        $payment->update($validated);
+        $this->recalculate($sale, $user);
+
+        return back()->with('success', 'Pago actualizado.');
+    }
+
+    public function destroy(Sale $sale, Payment $payment): RedirectResponse
+    {
+        $user = Auth::user();
+        $this->authorizePaymentAction($user, $sale, $payment);
+
+        $payment->delete();
+        $this->recalculate($sale, $user);
+
+        return back()->with('success', 'Pago eliminado.');
+    }
+
+    private function authorizePaymentAction($user, Sale $sale, Payment $payment): void
+    {
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403);
+        }
+
+        if ($payment->sale_id !== $sale->id) {
+            abort(403);
+        }
+
+        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('admin-empresa') && ! $user->hasRole('superadmin')) {
+            abort(403, 'No tienes permiso para modificar pagos.');
+        }
+    }
+
+    private function recalculate(Sale $sale, $user): void
+    {
         $totalPaid = $sale->payments()->sum('amount');
         $pending = round((float) $sale->total - $totalPaid, 2);
 
-        $updateData = [
+        $data = [
             'amount_paid' => $totalPaid,
             'amount_pending' => max($pending, 0),
         ];
 
-        if ($pending <= 0) {
-            $updateData['status'] = 'completed';
-            $updateData['completed_at'] = now();
-            $updateData['user_id'] = $user->id;
-        } elseif ($totalPaid > 0 && $sale->status === 'active') {
-            $updateData['status'] = 'pending';
+        if ($pending <= 0 && $totalPaid > 0) {
+            $data['status'] = 'completed';
+            $data['completed_at'] = now();
+            $data['user_id'] = $user->id;
+        } elseif ($totalPaid > 0) {
+            if ($sale->status === 'completed') {
+                $data['status'] = 'active';
+                $data['completed_at'] = null;
+            }
+        } elseif ($totalPaid == 0 && $sale->status !== 'cancelled') {
+            $data['status'] = 'active';
+            $data['completed_at'] = null;
         }
 
-        $sale->update($updateData);
-
-        $msg = $pending <= 0 ? "Venta {$sale->folio} cobrada completamente." : "Pago registrado. Pendiente: \${$pending}";
-
-        return back()->with('success', $msg);
+        $sale->update($data);
     }
 }

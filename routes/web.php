@@ -120,6 +120,8 @@ Route::prefix('{tenant}')
 
                 // Payments
                 Route::post('mesa-de-trabajo/ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('workbench.payment');
+                Route::put('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'update'])->name('workbench.payment.update');
+                Route::delete('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'destroy'])->name('workbench.payment.destroy');
 
                 // Config
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');

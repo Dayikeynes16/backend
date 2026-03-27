@@ -22,9 +22,8 @@ class WorkbenchController extends Controller
         $branchId = $user->branch_id;
 
         $sales = Sale::where('branch_id', $branchId)
+            ->where('status', 'active')
             ->with(['items', 'payments'])
-            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
-            ->when(!$request->status, fn ($q) => $q->whereIn('status', ['active', 'pending']))
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
@@ -44,10 +43,10 @@ class WorkbenchController extends Controller
             'sales' => $sales,
             'products' => $products,
             'categories' => $categories,
-            'filters' => $request->only('status'),
             'tenant' => app('tenant'),
             'canCreate' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canCancel' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
+            'canEditPayments' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
         ]);
     }
 
