@@ -64,7 +64,7 @@ class ProductoController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'price' => 'required|numeric|min:0.01',
             'cost_price' => 'nullable|numeric|min:0',
-            'unit_type' => 'required|in:kg,piece,cut',
+            'unit_type' => 'nullable|in:kg,piece,cut',
             'visibility' => 'required|in:public,restricted',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
         ]);
@@ -79,7 +79,7 @@ class ProductoController extends Controller
             'category_id' => $validated['category_id'] ?? null,
             'price' => $validated['price'],
             'cost_price' => $validated['cost_price'] ?? null,
-            'unit_type' => $validated['unit_type'],
+            'unit_type' => $validated['unit_type'] ?? 'piece',
             'visibility' => $validated['visibility'],
         ];
 
@@ -125,11 +125,13 @@ class ProductoController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'price' => 'required|numeric|min:0.01',
             'cost_price' => 'nullable|numeric|min:0',
-            'unit_type' => 'required|in:kg,piece,cut',
+            'unit_type' => 'nullable|in:kg,piece,cut',
             'visibility' => 'required|in:public,restricted',
             'status' => 'required|in:active,inactive',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
         ]);
+
+        $validated['unit_type'] = $validated['unit_type'] ?? $producto->unit_type;
 
         $data = collect($validated)->except('image')->toArray();
 
