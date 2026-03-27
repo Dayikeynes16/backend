@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'resolve.tenant' => \App\Http\Middleware\ResolveTenant::class,
             'ensure.tenant' => \App\Http\Middleware\EnsureUserBelongsToTenant::class,
+            'auth.apikey' => \App\Http\Middleware\AuthenticateApiKey::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
         ]);

@@ -2,7 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Models\ApiKey;
 use App\Models\Branch;
+use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -66,5 +68,32 @@ class DemoSeeder extends Seeder
             'branch_id' => $branch->id,
         ]);
         $cajero->assignRole('cajero');
+
+        // API Key for demo (raw key: csa_demo_test_key_for_development_only_1234)
+        $demoKey = 'csa_demo_test_key_for_development_only_1234';
+        ApiKey::create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branch->id,
+            'name' => 'Kiosco Demo',
+            'key_hash' => hash('sha256', $demoKey),
+        ]);
+
+        // Demo products
+        $products = [
+            ['name' => 'Bistec de res', 'price' => 180.00, 'unit_type' => 'cut'],
+            ['name' => 'Chuleta de cerdo', 'price' => 120.00, 'unit_type' => 'cut'],
+            ['name' => 'Arrachera', 'price' => 250.00, 'unit_type' => 'cut'],
+            ['name' => 'Carne molida', 'price' => 130.00, 'unit_type' => 'kg'],
+            ['name' => 'Pollo entero', 'price' => 85.00, 'unit_type' => 'piece'],
+            ['name' => 'Costilla de res', 'price' => 160.00, 'unit_type' => 'kg'],
+        ];
+
+        foreach ($products as $p) {
+            Product::create([
+                'tenant_id' => $tenant->id,
+                'branch_id' => $branch->id,
+                ...$p,
+            ]);
+        }
     }
 }
