@@ -1,13 +1,16 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Caja\DashboardController as CajaDashboardController;
 use App\Http\Controllers\Caja\SaleController as CajaSaleController;
 use App\Http\Controllers\Caja\ShiftController as CajaShiftController;
+use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
+use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
 use App\Http\Controllers\Sucursal\ProductoController;
 use App\Http\Controllers\Sucursal\ShiftController as SucursalShiftController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
@@ -39,9 +42,7 @@ Route::prefix('admin')
     ->middleware(['auth', 'role:superadmin'])
     ->name('admin.')
     ->group(function () {
-        Route::get('/', function () {
-            return Inertia::render('Admin/Dashboard');
-        })->name('dashboard');
+        Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
 
         Route::resource('empresas', EmpresaController::class)
             ->except('show');
@@ -57,9 +58,7 @@ Route::prefix('{tenant}')
             ->prefix('empresa')
             ->name('empresa.')
             ->group(function () {
-                Route::get('/', function () {
-                    return Inertia::render('Empresa/Dashboard');
-                })->name('dashboard');
+                Route::get('/', [EmpresaDashboardController::class, 'index'])->name('dashboard');
 
                 Route::resource('sucursales', SucursalController::class)
                     ->except('show')
@@ -74,9 +73,7 @@ Route::prefix('{tenant}')
             ->prefix('sucursal')
             ->name('sucursal.')
             ->group(function () {
-                Route::get('/', function () {
-                    return Inertia::render('Sucursal/Dashboard');
-                })->name('dashboard');
+                Route::get('/', [SucursalDashboardController::class, 'index'])->name('dashboard');
 
                 Route::resource('productos', ProductoController::class)
                     ->except('show');

@@ -25,6 +25,7 @@ Stack: Laravel 13 · Vue 3 · Inertia · PostgreSQL · Laravel Reverb.
 - [API Keys](modulos/api-keys.md) — generación, revocación, panel admin-sucursal
 - [Ventas](modulos/ventas.md) — flujo API → cajero, estados, folio, snapshots
 - [Corte de Caja](modulos/corte-de-caja.md) — turnos, apertura/cierre, totales, historial
+- [Paneles Admin](modulos/paneles-admin.md) — dashboards por rol, navegación contextual
 
 ## Frontend
 
@@ -47,4 +48,4 @@ Stack: Laravel 13 · Vue 3 · Inertia · PostgreSQL · Laravel Reverb.
 | 4 — API pública | AuthenticateApiKey, 5 endpoints, API Keys, rate limiting | Completada |
 | 5 — Reverb + tiempo real | Evento broadcast, Echo en Vue, cola en tiempo real | Completada |
 | 6 — Pantallas cajero | Cola de ventas, dashboard del día, corte de caja | Completada |
-| 7 — Paneles admin | Dashboard admin sucursal, reportes, superadmin | Pendiente |
+| 7 — Paneles admin | Dashboard admin sucursal, reportes, superadmin | Completada |
