@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -56,7 +57,7 @@ class EmpresaController extends Controller
             'max_sales_per_branch_month' => 'required|integer|min:1|max:10000',
             'admin_name' => 'required|string|max:255',
             'admin_email' => 'required|email|unique:users,email',
-            'admin_password' => 'required|string|min:8',
+            'admin_password' => ['required', Password::defaults()],
         ]);
 
         DB::transaction(function () use ($validated) {

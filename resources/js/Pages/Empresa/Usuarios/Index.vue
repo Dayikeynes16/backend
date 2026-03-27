@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import ResetPasswordModal from '@/Components/ResetPasswordModal.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -15,6 +16,14 @@ const roleName = (user) => {
     const role = user.roles?.[0]?.name;
     return { 'admin-sucursal': 'Admin Sucursal', 'cajero': 'Cajero', 'admin-empresa': 'Admin Empresa' }[role] || role;
 };
+
+const resetModal = ref(false);
+const resetUser = ref(null);
+
+const openResetModal = (user) => {
+    resetUser.value = user;
+    resetModal.value = true;
+};
 </script>
 
 <template>
@@ -23,7 +32,7 @@ const roleName = (user) => {
         <template #header>
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Usuarios</h2>
-                <Link :href="route('empresa.usuarios.create', tenant.slug)" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500">Nuevo Usuario</Link>
+                <Link :href="route('empresa.usuarios.create', tenant.slug)" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Nuevo Usuario</Link>
             </div>
         </template>
         <div class="py-12">
@@ -31,7 +40,7 @@ const roleName = (user) => {
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
                     <div class="p-6">
                         <input v-model="search" type="text" placeholder="Buscar usuario..."
-                            class="mb-4 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 sm:w-1/3" />
+                            class="mb-4 w-full rounded-md border-gray-300 shadow-sm focus:border-red-400 focus:ring-red-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 sm:w-1/3" />
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead>
                                 <tr>
@@ -48,8 +57,9 @@ const roleName = (user) => {
                                     <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ u.email }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ roleName(u) }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ u.branch?.name || '—' }}</td>
-                                    <td class="px-4 py-3 text-right text-sm">
-                                        <Link :href="route('empresa.usuarios.edit', [tenant.slug, u.id])" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">Editar</Link>
+                                    <td class="px-4 py-3 text-right text-sm space-x-3">
+                                        <button @click="openResetModal(u)" class="text-orange-600 hover:text-orange-700 dark:text-orange-400">Resetear</button>
+                                        <Link :href="route('empresa.usuarios.edit', [tenant.slug, u.id])" class="text-red-600 hover:text-red-700 dark:text-red-400">Editar</Link>
                                     </td>
                                 </tr>
                                 <tr v-if="usuarios.data.length === 0">
@@ -61,5 +71,13 @@ const roleName = (user) => {
                 </div>
             </div>
         </div>
+
+        <ResetPasswordModal
+            :show="resetModal"
+            :user="resetUser"
+            :send-reset-route="resetUser ? route('empresa.usuarios.send-reset', [tenant.slug, resetUser.id]) : ''"
+            :force-reset-route="resetUser ? route('empresa.usuarios.force-reset', [tenant.slug, resetUser.id]) : ''"
+            @close="resetModal = false"
+        />
     </AuthenticatedLayout>
 </template>

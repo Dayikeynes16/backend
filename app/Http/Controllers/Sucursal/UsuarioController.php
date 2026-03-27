@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,7 +49,7 @@ class UsuarioController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8',
+            'password' => ['required', Password::defaults()],
         ]);
 
         $cajero = User::create([
@@ -67,6 +68,8 @@ class UsuarioController extends Controller
 
     public function edit(User $usuario): Response
     {
+        $this->authorizeBranchAccess($usuario);
+
         return Inertia::render('Sucursal/Usuarios/Edit', [
             'usuario' => $usuario,
             'tenant' => app('tenant'),
@@ -75,10 +78,12 @@ class UsuarioController extends Controller
 
     public function update(Request $request, User $usuario): RedirectResponse
     {
+        $this->authorizeBranchAccess($usuario);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($usuario->id)],
-            'password' => 'nullable|string|min:8',
+            'password' => ['nullable', Password::defaults()],
         ]);
 
         $usuario->update([
@@ -93,9 +98,22 @@ class UsuarioController extends Controller
 
     public function destroy(User $usuario): RedirectResponse
     {
+        $this->authorizeBranchAccess($usuario);
+
         $usuario->delete();
 
         return redirect()->route('sucursal.usuarios.index', app('tenant')->slug)
             ->with('success', 'Cajero eliminado exitosamente.');
+    }
+
+    private function authorizeBranchAccess(User $usuario): void
+    {
+        $currentUser = Auth::user();
+
+        if ($usuario->branch_id !== $currentUser->branch_id) {
+            abort(403, 'Este usuario no pertenece a tu sucursal.');
+        }
+
+        $currentUser->can('update', $usuario) || abort(403);
     }
 }

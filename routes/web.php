@@ -2,10 +2,13 @@
 
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EmpresaController;
+use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
+use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\DashboardController as CajaDashboardController;
 use App\Http\Controllers\Caja\SaleController as CajaSaleController;
 use App\Http\Controllers\Caja\ShiftController as CajaShiftController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
+use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ProfileController;
@@ -35,6 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('/change-password', [ForcePasswordChangeController::class, 'show'])->name('password.force-change');
+    Route::put('/change-password', [ForcePasswordChangeController::class, 'update'])->name('password.force-change.update');
 });
 
 // Superadmin routes
@@ -46,6 +52,9 @@ Route::prefix('admin')
 
         Route::resource('empresas', EmpresaController::class)
             ->except('show');
+
+        Route::post('usuarios/{usuario}/send-reset', [AdminPasswordResetController::class, 'sendResetLink'])->name('usuarios.send-reset');
+        Route::post('usuarios/{usuario}/force-reset', [AdminPasswordResetController::class, 'forceReset'])->name('usuarios.force-reset');
     });
 
 // Tenant-scoped routes
@@ -66,6 +75,9 @@ Route::prefix('{tenant}')
 
                 Route::resource('usuarios', EmpresaUsuarioController::class)
                     ->except('show');
+
+                Route::post('usuarios/{usuario}/send-reset', [EmpresaPasswordResetController::class, 'sendResetLink'])->name('usuarios.send-reset');
+                Route::post('usuarios/{usuario}/force-reset', [EmpresaPasswordResetController::class, 'forceReset'])->name('usuarios.force-reset');
             });
 
         // Admin sucursal routes

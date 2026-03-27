@@ -7,8 +7,10 @@ use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,6 +35,7 @@ class UsuarioController extends Controller
             'sucursales' => $sucursales,
             'filters' => $request->only('search'),
             'tenant' => $tenant,
+            'canResetPassword' => true,
         ]);
     }
 
@@ -53,9 +56,9 @@ class UsuarioController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8',
+            'password' => ['required', Password::defaults()],
             'role' => 'required|in:admin-sucursal,cajero',
-            'branch_id' => 'required|exists:branches,id',
+            'branch_id' => ['required', Rule::exists('branches', 'id')->where('tenant_id', $tenant->id)],
         ]);
 
         $user = User::create([
@@ -74,6 +77,8 @@ class UsuarioController extends Controller
 
     public function edit(User $usuario): Response
     {
+        $this->authorizeUserAccess($usuario);
+
         $usuario->load('roles', 'branch');
         $sucursales = Branch::orderBy('name')->get(['id', 'name']);
 
@@ -86,14 +91,16 @@ class UsuarioController extends Controller
 
     public function update(Request $request, User $usuario): RedirectResponse
     {
+        $this->authorizeUserAccess($usuario);
+
         $tenant = app('tenant');
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($usuario->id)],
-            'password' => 'nullable|string|min:8',
+            'password' => ['nullable', Password::defaults()],
             'role' => 'required|in:admin-sucursal,cajero',
-            'branch_id' => 'required|exists:branches,id',
+            'branch_id' => ['required', Rule::exists('branches', 'id')->where('tenant_id', $tenant->id)],
         ]);
 
         $usuario->update([
@@ -111,9 +118,22 @@ class UsuarioController extends Controller
 
     public function destroy(User $usuario): RedirectResponse
     {
+        $this->authorizeUserAccess($usuario);
+
         $usuario->delete();
 
         return redirect()->route('empresa.usuarios.index', app('tenant')->slug)
             ->with('success', 'Usuario eliminado exitosamente.');
+    }
+
+    private function authorizeUserAccess(User $usuario): void
+    {
+        $tenant = app('tenant');
+
+        if ($usuario->tenant_id !== $tenant->id) {
+            abort(403, 'Este usuario no pertenece a tu empresa.');
+        }
+
+        Auth::user()->can('update', $usuario) || abort(403);
     }
 }
