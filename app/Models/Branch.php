@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['tenant_id', 'name', 'address', 'phone', 'schedule', 'status'])]
+#[Fillable(['tenant_id', 'name', 'address', 'latitude', 'longitude', 'phone', 'schedule', 'status'])]
 class Branch extends Model
 {
     use BelongsToTenant;

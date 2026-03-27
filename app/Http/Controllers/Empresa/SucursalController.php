@@ -39,6 +39,8 @@ class SucursalController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'address' => 'nullable|string|max:500',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
             'phone' => 'nullable|string|max:20',
             'schedule' => 'nullable|string|max:255',
         ]);
@@ -54,6 +56,9 @@ class SucursalController extends Controller
 
     public function edit(Branch $sucursal): Response
     {
+        $sucursal->load(['users' => fn ($q) => $q->with('roles')->orderBy('name')]);
+        $sucursal->loadCount('users');
+
         return Inertia::render('Empresa/Sucursales/Edit', [
             'sucursal' => $sucursal,
             'tenant' => app('tenant'),
@@ -65,6 +70,8 @@ class SucursalController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'address' => 'nullable|string|max:500',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
             'phone' => 'nullable|string|max:20',
             'schedule' => 'nullable|string|max:255',
             'status' => 'required|in:active,inactive',
