@@ -4,9 +4,9 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
-use App\Http\Controllers\Caja\DashboardController as CajaDashboardController;
-use App\Http\Controllers\Caja\SaleController as CajaSaleController;
-use App\Http\Controllers\Caja\ShiftController as CajaShiftController;
+use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
+use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
+use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
@@ -150,15 +150,11 @@ Route::prefix('{tenant}')
             ->prefix('caja')
             ->name('caja.')
             ->group(function () {
-                Route::get('/', [CajaSaleController::class, 'index'])->name('queue');
-                Route::patch('sales/{sale}/complete', [CajaSaleController::class, 'complete'])->name('sales.complete');
-
-                Route::get('dashboard', [CajaDashboardController::class, 'index'])->name('dashboard');
-
-                Route::get('turno/abrir', [CajaShiftController::class, 'create'])->name('shift.create');
-                Route::post('turno', [CajaShiftController::class, 'store'])->name('shift.store');
-                Route::get('turno', [CajaShiftController::class, 'show'])->name('shift.show');
-                Route::patch('turno/cerrar', [CajaShiftController::class, 'close'])->name('shift.close');
+                Route::get('/', [CajaWorkbenchController::class, 'index'])->name('workbench');
+                Route::get('turno', [CajaTurnoController::class, 'index'])->name('turno');
+                Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
+                Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');
+                Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
             });
     });
 

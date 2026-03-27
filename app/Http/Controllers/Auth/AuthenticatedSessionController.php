@@ -58,7 +58,7 @@ class AuthenticatedSessionController extends Controller
         return match (true) {
             $user->hasRole('admin-empresa') => route('empresa.dashboard', $slug),
             $user->hasRole('admin-sucursal') => route('sucursal.dashboard', $slug),
-            $user->hasRole('cajero') => route('caja.queue', $slug),
+            $user->hasRole('cajero') => route('caja.workbench', $slug),
             default => route('dashboard'),
         };
     }
