@@ -20,6 +20,7 @@ use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguraci
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
 use App\Http\Controllers\Sucursal\PaymentController;
 use App\Http\Controllers\Sucursal\ProductoController;
+use App\Http\Controllers\Sucursal\SaleHistoryController;
 use App\Http\Controllers\Sucursal\ShiftController as SucursalShiftController;
 use App\Http\Controllers\Sucursal\WithdrawalController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
@@ -115,6 +116,9 @@ Route::prefix('{tenant}')
                 // Withdrawals
                 Route::post('turno/retiros', [WithdrawalController::class, 'store'])->name('turno.withdrawal.store');
                 Route::delete('turno/retiros/{withdrawal}', [WithdrawalController::class, 'destroy'])->name('turno.withdrawal.destroy');
+
+                // Sales history
+                Route::get('historial', [SaleHistoryController::class, 'index'])->name('historial.index');
 
                 // Cortes (history)
                 Route::get('cortes', [CashShiftController::class, 'history'])->name('cortes.index');
