@@ -21,9 +21,10 @@ class ProductoController extends Controller
         $productos = Product::query()
             ->where('branch_id', $branchId)
             ->with('category:id,name')
+            ->withCount('presentations')
             ->when($request->search, fn ($q, $s) => $q->where('name', 'ilike', "%{$s}%"))
-            ->when($request->unit_type, fn ($q, $t) => $q->where('unit_type', $t))
             ->when($request->category_id, fn ($q, $c) => $q->where('category_id', $c))
+            ->when($request->sale_mode, fn ($q, $m) => $q->where('sale_mode', $m))
             ->orderBy('name')
             ->paginate(20)
             ->withQueryString();
@@ -36,7 +37,7 @@ class ProductoController extends Controller
         return Inertia::render('Sucursal/Productos/Index', [
             'productos' => $productos,
             'categories' => $categories,
-            'filters' => $request->only('search', 'unit_type', 'category_id'),
+            'filters' => $request->only('search', 'category_id', 'sale_mode'),
             'tenant' => app('tenant'),
         ]);
     }
@@ -64,9 +65,14 @@ class ProductoController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'price' => 'required|numeric|min:0.01',
             'cost_price' => 'nullable|numeric|min:0',
-            'unit_type' => 'nullable|in:kg,piece,cut',
+            'sale_mode' => 'required|in:weight,presentation',
             'visibility' => 'required|in:public,restricted',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
+            'presentations' => 'nullable|array',
+            'presentations.*.name' => 'required|string|max:255',
+            'presentations.*.content' => 'required|numeric|gt:0',
+            'presentations.*.unit' => 'required|in:g,kg,ml,l,pieza',
+            'presentations.*.price' => 'required|numeric|min:0.01',
         ]);
 
         $user = Auth::user();
@@ -79,7 +85,8 @@ class ProductoController extends Controller
             'category_id' => $validated['category_id'] ?? null,
             'price' => $validated['price'],
             'cost_price' => $validated['cost_price'] ?? null,
-            'unit_type' => $validated['unit_type'] ?? 'piece',
+            'unit_type' => $validated['sale_mode'] === 'weight' ? 'kg' : 'piece',
+            'sale_mode' => $validated['sale_mode'],
             'visibility' => $validated['visibility'],
         ];
 
@@ -87,7 +94,19 @@ class ProductoController extends Controller
             $data['image_path'] = $request->file('image')->store('products', 'public');
         }
 
-        Product::create($data);
+        $product = Product::create($data);
+
+        if ($validated['sale_mode'] === 'presentation' && ! empty($validated['presentations'])) {
+            foreach ($validated['presentations'] as $i => $p) {
+                $product->presentations()->create([
+                    'name' => $p['name'],
+                    'content' => $p['content'],
+                    'unit' => $p['unit'],
+                    'price' => $p['price'],
+                    'sort_order' => $i,
+                ]);
+            }
+        }
 
         return redirect()->route('sucursal.productos.index', app('tenant')->slug)
             ->with('success', 'Producto creado.');
@@ -105,6 +124,8 @@ class ProductoController extends Controller
             ->where('status', 'active')
             ->orderBy('name')
             ->get(['id', 'name']);
+
+        $producto->load('presentations');
 
         return Inertia::render('Sucursal/Productos/Edit', [
             'producto' => $producto,
@@ -125,15 +146,28 @@ class ProductoController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'price' => 'required|numeric|min:0.01',
             'cost_price' => 'nullable|numeric|min:0',
-            'unit_type' => 'nullable|in:kg,piece,cut',
+            'sale_mode' => 'required|in:weight,presentation',
             'visibility' => 'required|in:public,restricted',
             'status' => 'required|in:active,inactive',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
+            'presentations' => 'nullable|array',
+            'presentations.*.name' => 'required|string|max:255',
+            'presentations.*.content' => 'required|numeric|gt:0',
+            'presentations.*.unit' => 'required|in:g,kg,ml,l,pieza',
+            'presentations.*.price' => 'required|numeric|min:0.01',
         ]);
 
-        $validated['unit_type'] = $validated['unit_type'] ?? $producto->unit_type;
-
-        $data = collect($validated)->except('image')->toArray();
+        $data = [
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'category_id' => $validated['category_id'] ?? null,
+            'price' => $validated['price'],
+            'cost_price' => $validated['cost_price'] ?? null,
+            'sale_mode' => $validated['sale_mode'],
+            'unit_type' => $validated['sale_mode'] === 'weight' ? 'kg' : 'piece',
+            'visibility' => $validated['visibility'],
+            'status' => $validated['status'],
+        ];
 
         if ($request->hasFile('image')) {
             if ($producto->image_path) {
@@ -143,6 +177,22 @@ class ProductoController extends Controller
         }
 
         $producto->update($data);
+
+        // Sync presentations
+        if ($validated['sale_mode'] === 'presentation') {
+            $producto->presentations()->delete();
+            foreach (($validated['presentations'] ?? []) as $i => $p) {
+                $producto->presentations()->create([
+                    'name' => $p['name'],
+                    'content' => $p['content'],
+                    'unit' => $p['unit'],
+                    'price' => $p['price'],
+                    'sort_order' => $i,
+                ]);
+            }
+        } else {
+            $producto->presentations()->delete();
+        }
 
         return redirect()->route('sucursal.productos.index', app('tenant')->slug)
             ->with('success', 'Producto actualizado.');

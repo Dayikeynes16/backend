@@ -15,10 +15,18 @@ const form = useForm({
     description: '',
     price: '',
     cost_price: '',
+    sale_mode: 'weight',
     visibility: 'public',
     image: null,
-    unit_type: 'piece',
+    presentations: [],
 });
+
+const addPresentation = () => {
+    form.presentations.push({ name: '', content: '', unit: 'g', price: '' });
+};
+const removePresentation = (idx) => {
+    form.presentations.splice(idx, 1);
+};
 
 const imagePreview = ref(null);
 const fileInput = ref(null);
@@ -129,7 +137,78 @@ const submit = () => {
                 </div>
             </section>
 
-            <!-- 3. Visibilidad -->
+            <!-- 3. Forma de Venta -->
+            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Forma de Venta</h2>
+                    <p class="mt-1 text-sm text-gray-500">Define como se vende este producto al cliente.</p>
+                </div>
+                <div class="p-6 space-y-5">
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <button type="button" @click="form.sale_mode = 'weight'"
+                            :class="['flex items-start gap-4 rounded-xl p-5 text-left transition-all cursor-pointer',
+                                form.sale_mode === 'weight' ? 'ring-2 ring-red-500 bg-red-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
+                            <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', form.sale_mode === 'weight' ? 'bg-red-100' : 'bg-gray-100']">
+                                <svg class="h-5 w-5" :class="form.sale_mode === 'weight' ? 'text-red-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.97Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.97Z" /></svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold" :class="form.sale_mode === 'weight' ? 'text-red-800' : 'text-gray-900'">Peso variable</p>
+                                <p class="mt-0.5 text-xs" :class="form.sale_mode === 'weight' ? 'text-red-600' : 'text-gray-500'">Se pesa al momento de la venta. Precio por kg.</p>
+                            </div>
+                        </button>
+                        <button type="button" @click="form.sale_mode = 'presentation'"
+                            :class="['flex items-start gap-4 rounded-xl p-5 text-left transition-all cursor-pointer',
+                                form.sale_mode === 'presentation' ? 'ring-2 ring-orange-500 bg-orange-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
+                            <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', form.sale_mode === 'presentation' ? 'bg-orange-100' : 'bg-gray-100']">
+                                <svg class="h-5 w-5" :class="form.sale_mode === 'presentation' ? 'text-orange-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold" :class="form.sale_mode === 'presentation' ? 'text-orange-800' : 'text-gray-900'">Presentacion fija</p>
+                                <p class="mt-0.5 text-xs" :class="form.sale_mode === 'presentation' ? 'text-orange-600' : 'text-gray-500'">Se vende en presentaciones predefinidas (500g, 1kg, 1 pieza, etc.).</p>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Presentations list -->
+                    <div v-if="form.sale_mode === 'presentation'" class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm font-semibold text-gray-700">Presentaciones</p>
+                            <button type="button" @click="addPresentation" class="text-sm font-semibold text-red-600 hover:text-red-700">+ Agregar</button>
+                        </div>
+
+                        <div v-if="form.presentations.length === 0" class="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
+                            Agrega al menos una presentacion.
+                        </div>
+
+                        <div v-for="(p, idx) in form.presentations" :key="idx" class="flex items-end gap-3 rounded-lg bg-gray-50 p-4">
+                            <div class="flex-1">
+                                <label class="text-xs font-medium text-gray-500">Nombre</label>
+                                <input v-model="p.name" type="text" placeholder="500g, 1kg, 1 pieza..." class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                            </div>
+                            <div class="w-24">
+                                <label class="text-xs font-medium text-gray-500">Contenido</label>
+                                <input v-model="p.content" type="number" step="0.001" min="0.001" placeholder="500" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                            </div>
+                            <div class="w-24">
+                                <label class="text-xs font-medium text-gray-500">Unidad</label>
+                                <select v-model="p.unit" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
+                                    <option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">l</option><option value="pieza">pieza</option>
+                                </select>
+                            </div>
+                            <div class="w-28">
+                                <label class="text-xs font-medium text-gray-500">Precio</label>
+                                <div class="relative mt-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                                <input v-model="p.price" type="number" step="0.01" min="0.01" placeholder="0.00" class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" /></div>
+                            </div>
+                            <button type="button" @click="removePresentation(idx)" class="rounded-lg p-2 text-gray-400 hover:text-red-600">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. Visibilidad -->
             <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-6 py-5">
                     <h2 class="text-base font-bold text-gray-900">Visibilidad</h2>

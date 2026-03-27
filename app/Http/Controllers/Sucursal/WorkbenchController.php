@@ -30,7 +30,7 @@ class WorkbenchController extends Controller
 
         $products = Product::where('branch_id', $branchId)
             ->where('status', 'active')
-            ->with('category')
+            ->with(['category', 'presentations' => fn ($q) => $q->where('status', 'active')])
             ->orderBy('name')
             ->get();
 
@@ -62,6 +62,7 @@ class WorkbenchController extends Controller
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer',
             'items.*.quantity' => 'required|numeric|gt:0',
+            'items.*.presentation_id' => 'nullable|integer',
         ]);
 
         $branchId = $user->branch_id;
@@ -71,6 +72,7 @@ class WorkbenchController extends Controller
         $products = Product::where('branch_id', $branchId)
             ->where('status', 'active')
             ->whereIn('id', $productIds)
+            ->with('presentations')
             ->get()
             ->keyBy('id');
 
@@ -89,15 +91,26 @@ class WorkbenchController extends Controller
             foreach ($request->items as $item) {
                 $product = $products[$item['product_id']];
                 $quantity = (float) $item['quantity'];
-                $subtotal = round($quantity * (float) $product->price, 2);
+
+                // If presentation mode and presentation_id is provided
+                if ($product->sale_mode === 'presentation' && ! empty($item['presentation_id'])) {
+                    $presentation = $product->presentations->find($item['presentation_id']);
+                    $unitPrice = $presentation ? (float) $presentation->price : (float) $product->price;
+                    $productName = $product->name . ' - ' . ($presentation->name ?? '');
+                } else {
+                    $unitPrice = (float) $product->price;
+                    $productName = $product->name;
+                }
+
+                $subtotal = round($quantity * $unitPrice, 2);
                 $total += $subtotal;
 
                 $itemsData[] = [
                     'product_id' => $product->id,
-                    'product_name' => $product->name,
+                    'product_name' => $productName,
                     'unit_type' => $product->unit_type,
                     'quantity' => $quantity,
-                    'unit_price' => $product->price,
+                    'unit_price' => $unitPrice,
                     'subtotal' => $subtotal,
                 ];
             }

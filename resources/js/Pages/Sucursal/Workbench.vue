@@ -76,17 +76,32 @@ const filteredProducts = computed(() => {
     if (cartCategory.value) p = p.filter(pr => pr.category_id == cartCategory.value);
     return p;
 });
-const addToCart = (product) => {
-    const existing = cart.value.find(c => c.product_id === product.id);
+const addToCart = (product, presentation = null) => {
+    const key = presentation ? `${product.id}-${presentation.id}` : `${product.id}`;
+    const existing = cart.value.find(c => c.key === key);
     if (existing) { existing.quantity += 1; return; }
-    cart.value.push({ product_id: product.id, name: product.name, price: parseFloat(product.price), unit_type: product.unit_type, quantity: 1, image_path: product.image_path });
+
+    const price = presentation ? parseFloat(presentation.price) : parseFloat(product.price);
+    const name = presentation ? `${product.name} - ${presentation.name}` : product.name;
+
+    cart.value.push({
+        key,
+        product_id: product.id,
+        presentation_id: presentation?.id || null,
+        name,
+        price,
+        unit_type: product.unit_type,
+        sale_mode: product.sale_mode,
+        quantity: product.sale_mode === 'weight' ? 0 : 1,
+        image_path: product.image_path,
+    });
 };
 const removeFromCart = (idx) => cart.value.splice(idx, 1);
 const cartTotal = computed(() => cart.value.reduce((s, i) => s + i.price * i.quantity, 0));
 
 const newSaleForm = useForm({ items: [] });
 const submitNewSale = () => {
-    newSaleForm.items = cart.value.map(c => ({ product_id: c.product_id, quantity: c.quantity }));
+    newSaleForm.items = cart.value.map(c => ({ product_id: c.product_id, quantity: c.quantity, presentation_id: c.presentation_id }));
     newSaleForm.post(route('sucursal.workbench.store', props.tenant.slug), {
         onSuccess: () => { cart.value = []; showNewSale.value = false; },
     });
@@ -302,16 +317,32 @@ const submitNewSale = () => {
                                 </div>
                                 <div class="flex-1 overflow-y-auto p-4">
                                     <div class="grid grid-cols-2 gap-3">
-                                        <button v-for="p in filteredProducts" :key="p.id" @click="addToCart(p)" class="flex items-center gap-3 rounded-xl p-3 text-left ring-1 ring-gray-100 transition hover:bg-gray-50 hover:ring-gray-200">
-                                            <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
-                                                <img v-if="p.image_path" :src="`/storage/${p.image_path}`" class="h-full w-full object-cover" />
-                                                <svg v-else class="h-6 w-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5" /></svg>
-                                            </div>
-                                            <div class="min-w-0 flex-1">
-                                                <p class="truncate text-sm font-semibold text-gray-900">{{ p.name }}</p>
-                                                <p class="text-xs text-gray-500">${{ parseFloat(p.price).toFixed(2) }}</p>
-                                            </div>
-                                        </button>
+                                        <template v-for="p in filteredProducts" :key="p.id">
+                                            <!-- Weight mode: single button -->
+                                            <button v-if="p.sale_mode === 'weight'" @click="addToCart(p)" class="flex items-center gap-3 rounded-xl p-3 text-left ring-1 ring-gray-100 transition hover:bg-gray-50 hover:ring-gray-200">
+                                                <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+                                                    <img v-if="p.image_path" :src="`/storage/${p.image_path}`" class="h-full w-full object-cover" />
+                                                    <svg v-else class="h-6 w-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5" /></svg>
+                                                </div>
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="truncate text-sm font-semibold text-gray-900">{{ p.name }}</p>
+                                                    <p class="text-xs text-gray-500">${{ parseFloat(p.price).toFixed(2) }}/kg</p>
+                                                </div>
+                                            </button>
+                                            <!-- Presentation mode: one button per presentation -->
+                                            <template v-else>
+                                                <button v-for="pres in p.presentations" :key="pres.id" @click="addToCart(p, pres)" class="flex items-center gap-3 rounded-xl p-3 text-left ring-1 ring-orange-100 transition hover:bg-orange-50/50 hover:ring-orange-200">
+                                                    <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-orange-50">
+                                                        <img v-if="p.image_path" :src="`/storage/${p.image_path}`" class="h-full w-full object-cover" />
+                                                        <svg v-else class="h-6 w-6 text-orange-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4" /></svg>
+                                                    </div>
+                                                    <div class="min-w-0 flex-1">
+                                                        <p class="truncate text-sm font-semibold text-gray-900">{{ p.name }}</p>
+                                                        <p class="text-xs text-orange-600">{{ pres.name }} · ${{ parseFloat(pres.price).toFixed(2) }}</p>
+                                                    </div>
+                                                </button>
+                                            </template>
+                                        </template>
                                     </div>
                                     <div v-if="filteredProducts.length === 0" class="py-10 text-center text-sm text-gray-400">No hay productos.</div>
                                 </div>
