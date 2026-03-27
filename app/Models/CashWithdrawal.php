@@ -6,12 +6,14 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['sale_id', 'user_id', 'method', 'amount'])]
-class Payment extends Model
+#[Fillable(['shift_id', 'user_id', 'amount', 'reason', 'created_at'])]
+class CashWithdrawal extends Model
 {
-    public function sale(): BelongsTo
+    public $timestamps = false;
+
+    public function shift(): BelongsTo
     {
-        return $this->belongsTo(Sale::class);
+        return $this->belongsTo(CashRegisterShift::class, 'shift_id');
     }
 
     public function user(): BelongsTo
@@ -23,6 +25,7 @@ class Payment extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'created_at' => 'datetime',
         ];
     }
 }

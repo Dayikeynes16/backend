@@ -30,6 +30,7 @@ class PaymentController extends Controller
 
         Payment::create([
             'sale_id' => $sale->id,
+            'user_id' => $user->id,
             'method' => $validated['method'],
             'amount' => $validated['amount'],
         ]);

@@ -14,12 +14,14 @@ use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
+use App\Http\Controllers\Sucursal\CashShiftController;
 use App\Http\Controllers\Sucursal\CategoryController;
 use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguracionController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
 use App\Http\Controllers\Sucursal\PaymentController;
 use App\Http\Controllers\Sucursal\ProductoController;
 use App\Http\Controllers\Sucursal\ShiftController as SucursalShiftController;
+use App\Http\Controllers\Sucursal\WithdrawalController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
 use App\Http\Controllers\Sucursal\WorkbenchController;
 use Illuminate\Foundation\Application;
@@ -105,7 +107,18 @@ Route::prefix('{tenant}')
                 Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
                 Route::delete('api-keys/{api_key}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
 
-                Route::get('cortes', [SucursalShiftController::class, 'index'])->name('cortes.index');
+                // Turno (shift)
+                Route::get('turno', [CashShiftController::class, 'active'])->name('turno.active');
+                Route::post('turno/abrir', [CashShiftController::class, 'open'])->name('turno.open');
+                Route::post('turno/cerrar', [CashShiftController::class, 'close'])->name('turno.close');
+
+                // Withdrawals
+                Route::post('turno/retiros', [WithdrawalController::class, 'store'])->name('turno.withdrawal.store');
+                Route::delete('turno/retiros/{withdrawal}', [WithdrawalController::class, 'destroy'])->name('turno.withdrawal.destroy');
+
+                // Cortes (history)
+                Route::get('cortes', [CashShiftController::class, 'history'])->name('cortes.index');
+                Route::get('cortes/{shift}', [CashShiftController::class, 'show'])->name('cortes.show');
 
                 // Categories
                 Route::get('categorias', [CategoryController::class, 'index'])->name('categorias.index');
