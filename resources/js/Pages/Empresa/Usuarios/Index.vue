@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import ResetPasswordModal from '@/Components/ResetPasswordModal.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
@@ -28,7 +28,7 @@ const openResetModal = (user) => {
 
 <template>
     <Head title="Usuarios" />
-    <AuthenticatedLayout>
+    <EmpresaLayout>
         <template #header>
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Usuarios</h2>
@@ -79,5 +79,5 @@ const openResetModal = (user) => {
             :force-reset-route="resetUser ? route('empresa.usuarios.force-reset', [tenant.slug, resetUser.id]) : ''"
             @close="resetModal = false"
         />
-    </AuthenticatedLayout>
+    </EmpresaLayout>
 </template>

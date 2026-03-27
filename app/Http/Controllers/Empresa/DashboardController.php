@@ -6,20 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Sale;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $tenant = app('tenant');
         $today = now()->toDateString();
+        $branchFilter = $request->integer('branch_id') ?: null;
 
-        $salesToday = Sale::where('status', 'completed')
+        $salesQuery = Sale::where('status', 'completed')
             ->whereDate('completed_at', $today)
-            ->get();
+            ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter));
+
+        $salesToday = $salesQuery->get();
 
         $totals = [
             'total_sales' => (float) $salesToday->sum('total'),
@@ -46,7 +50,9 @@ class DashboardController extends Controller
 
         $branchCount = Branch::count();
         $userCount = User::where('tenant_id', $tenant->id)->count();
-        $pendingCount = Sale::where('status', 'pending')->count();
+        $pendingCount = Sale::where('status', 'pending')
+            ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter))
+            ->count();
 
         return Inertia::render('Empresa/Dashboard', [
             'totals' => $totals,
@@ -55,6 +61,7 @@ class DashboardController extends Controller
             'userCount' => $userCount,
             'pendingCount' => $pendingCount,
             'tenant' => $tenant,
+            'selectedBranch' => $branchFilter,
         ]);
     }
 }

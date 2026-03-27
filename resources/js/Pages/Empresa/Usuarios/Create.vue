@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -17,7 +17,7 @@ const submit = () => {
 
 <template>
     <Head title="Nuevo Usuario" />
-    <AuthenticatedLayout>
+    <EmpresaLayout>
         <template #header>
             <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Nuevo Usuario</h2>
         </template>
@@ -64,5 +64,5 @@ const submit = () => {
                 </div>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </EmpresaLayout>
 </template>

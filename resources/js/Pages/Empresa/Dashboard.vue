@@ -1,6 +1,8 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
+import FlashToast from '@/Components/FlashToast.vue';
+import { Head, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 const props = defineProps({
     totals: Object,
@@ -9,98 +11,100 @@ const props = defineProps({
     userCount: Number,
     pendingCount: Number,
     tenant: Object,
+    selectedBranch: Number,
 });
+
+const branchFilter = ref(props.selectedBranch || '');
+
+const filterByBranch = () => {
+    router.get(route('empresa.dashboard', props.tenant.slug), {
+        branch_id: branchFilter.value || undefined,
+    }, { preserveState: true, replace: true });
+};
 </script>
 
 <template>
-    <Head title="Dashboard Empresa" />
-    <AuthenticatedLayout>
+    <Head title="Dashboard" />
+    <EmpresaLayout>
         <template #header>
-            <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Dashboard Empresa</h2>
+            <h1 class="text-xl font-bold text-gray-900">Dashboard</h1>
         </template>
-        <div class="py-6">
-            <div class="mx-auto max-w-7xl sm:px-6 lg:px-8 space-y-6">
-                <!-- Stats -->
-                <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    <div class="rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Ventas hoy (total)</p>
-                        <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">${{ totals.total_sales.toFixed(2) }}</p>
-                    </div>
-                    <div class="rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Transacciones</p>
-                        <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ totals.sale_count }}</p>
-                    </div>
-                    <div class="rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Sucursales</p>
-                        <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ branchCount }}</p>
-                    </div>
-                    <div class="rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Usuarios</p>
-                        <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ userCount }}</p>
-                    </div>
-                </div>
 
-                <!-- Desglose por método -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
-                    <div class="p-6">
-                        <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Desglose del dia</h3>
-                        <div class="grid grid-cols-3 gap-4">
-                            <div class="rounded-lg bg-green-50 p-4 dark:bg-green-900/20">
-                                <p class="text-sm text-green-600 dark:text-green-400">Efectivo</p>
-                                <p class="mt-1 text-xl font-bold text-green-700 dark:text-green-300">${{ totals.total_cash.toFixed(2) }}</p>
-                            </div>
-                            <div class="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
-                                <p class="text-sm text-blue-600 dark:text-blue-400">Tarjeta</p>
-                                <p class="mt-1 text-xl font-bold text-blue-700 dark:text-blue-300">${{ totals.total_card.toFixed(2) }}</p>
-                            </div>
-                            <div class="rounded-lg bg-purple-50 p-4 dark:bg-purple-900/20">
-                                <p class="text-sm text-purple-600 dark:text-purple-400">Transferencia</p>
-                                <p class="mt-1 text-xl font-bold text-purple-700 dark:text-purple-300">${{ totals.total_transfer.toFixed(2) }}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="space-y-8">
+            <!-- Branch selector -->
+            <div class="flex items-center gap-3">
+                <label for="branch_filter" class="text-sm font-medium text-gray-600">Sucursal:</label>
+                <select id="branch_filter" v-model="branchFilter" @change="filterByBranch"
+                    class="rounded-lg border-gray-200 py-2 pl-3 pr-8 text-sm text-gray-700 focus:border-red-400 focus:ring-red-300">
+                    <option value="">Todas las sucursales</option>
+                    <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+                </select>
+            </div>
 
-                <!-- Sales by branch -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
-                    <div class="p-6">
-                        <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Ventas por sucursal (hoy)</h3>
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead>
-                                <tr>
-                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-200">Sucursal</th>
-                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-200">Estado</th>
-                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-200">Ventas</th>
-                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-200">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                <tr v-for="b in branches" :key="b.id">
-                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-200">{{ b.name }}</td>
-                                    <td class="px-4 py-3 text-sm">
-                                        <span :class="b.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'"
-                                            class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
-                                            {{ b.status === 'active' ? 'Activa' : 'Inactiva' }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3 text-right text-sm text-gray-900 dark:text-gray-200">{{ b.sale_count }}</td>
-                                    <td class="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-white">${{ b.total.toFixed(2) }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+            <!-- Stats -->
+            <div class="grid grid-cols-2 gap-5 lg:grid-cols-5">
+                <div class="rounded-xl border-l-4 border-red-500 bg-white p-5 shadow-sm">
+                    <p class="text-2xl font-bold text-gray-900">${{ totals.total_sales.toFixed(2) }}</p>
+                    <p class="text-xs font-medium text-gray-500">Ventas hoy</p>
                 </div>
-
-                <!-- Quick links -->
-                <div class="grid grid-cols-2 gap-4">
-                    <Link :href="route('empresa.sucursales.index', tenant.slug)" class="rounded-lg bg-white p-4 shadow-sm hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-center">
-                        <p class="text-sm font-medium text-indigo-600 dark:text-indigo-400">Gestionar Sucursales</p>
-                    </Link>
-                    <Link :href="route('empresa.usuarios.index', tenant.slug)" class="rounded-lg bg-white p-4 shadow-sm hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-center">
-                        <p class="text-sm font-medium text-indigo-600 dark:text-indigo-400">Gestionar Usuarios</p>
-                    </Link>
+                <div class="rounded-xl border-l-4 border-orange-500 bg-white p-5 shadow-sm">
+                    <p class="text-2xl font-bold text-gray-900">{{ totals.sale_count }}</p>
+                    <p class="text-xs font-medium text-gray-500">Transacciones</p>
+                </div>
+                <div class="rounded-xl border-l-4 border-amber-500 bg-white p-5 shadow-sm">
+                    <p class="text-2xl font-bold text-orange-600">{{ pendingCount }}</p>
+                    <p class="text-xs font-medium text-gray-500">Pendientes</p>
+                </div>
+                <div class="rounded-xl border-l-4 border-green-500 bg-white p-5 shadow-sm">
+                    <p class="text-2xl font-bold text-gray-900">{{ branchCount }}</p>
+                    <p class="text-xs font-medium text-gray-500">Sucursales</p>
+                </div>
+                <div class="rounded-xl border-l-4 border-emerald-500 bg-white p-5 shadow-sm">
+                    <p class="text-2xl font-bold text-gray-900">{{ userCount }}</p>
+                    <p class="text-xs font-medium text-gray-500">Usuarios</p>
                 </div>
             </div>
+
+            <!-- Payment breakdown -->
+            <div class="grid grid-cols-3 gap-5">
+                <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <p class="text-xs font-bold uppercase tracking-wider text-green-600">Efectivo</p>
+                    <p class="mt-2 text-2xl font-bold text-gray-900">${{ totals.total_cash.toFixed(2) }}</p>
+                </div>
+                <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <p class="text-xs font-bold uppercase tracking-wider text-blue-600">Tarjeta</p>
+                    <p class="mt-2 text-2xl font-bold text-gray-900">${{ totals.total_card.toFixed(2) }}</p>
+                </div>
+                <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <p class="text-xs font-bold uppercase tracking-wider text-purple-600">Transferencia</p>
+                    <p class="mt-2 text-2xl font-bold text-gray-900">${{ totals.total_transfer.toFixed(2) }}</p>
+                </div>
+            </div>
+
+            <!-- Branch table -->
+            <div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Ventas por sucursal (hoy)</h2>
+                </div>
+                <table class="min-w-full divide-y divide-gray-100">
+                    <thead><tr class="bg-gray-50">
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Sucursal</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Estado</th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Ventas</th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Total</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-gray-50">
+                        <tr v-for="b in branches" :key="b.id" class="transition hover:bg-gray-50">
+                            <td class="px-6 py-4 text-sm font-semibold text-gray-900">{{ b.name }}</td>
+                            <td class="px-6 py-4"><span :class="b.status === 'active' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-red-50 text-red-700 ring-red-600/20'" class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset">{{ b.status === 'active' ? 'Activa' : 'Inactiva' }}</span></td>
+                            <td class="px-6 py-4 text-right text-sm text-gray-600">{{ b.sale_count }}</td>
+                            <td class="px-6 py-4 text-right text-sm font-semibold text-gray-900">${{ b.total.toFixed(2) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </AuthenticatedLayout>
+
+        <FlashToast />
+    </EmpresaLayout>
 </template>

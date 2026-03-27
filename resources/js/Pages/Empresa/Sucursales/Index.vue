@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -22,7 +22,7 @@ watch(search, (value) => {
 <template>
     <Head title="Sucursales" />
 
-    <AuthenticatedLayout>
+    <EmpresaLayout>
         <template #header>
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Sucursales</h2>
@@ -75,5 +75,5 @@ watch(search, (value) => {
                 </div>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </EmpresaLayout>
 </template>

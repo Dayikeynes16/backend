@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\DashboardController as CajaDashboardController;
 use App\Http\Controllers\Caja\SaleController as CajaSaleController;
 use App\Http\Controllers\Caja\ShiftController as CajaShiftController;
+use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\SucursalController;
@@ -78,6 +79,9 @@ Route::prefix('{tenant}')
 
                 Route::post('usuarios/{usuario}/send-reset', [EmpresaPasswordResetController::class, 'sendResetLink'])->name('usuarios.send-reset');
                 Route::post('usuarios/{usuario}/force-reset', [EmpresaPasswordResetController::class, 'forceReset'])->name('usuarios.force-reset');
+
+                Route::get('configuracion', [ConfiguracionController::class, 'edit'])->name('configuracion');
+                Route::put('configuracion', [ConfiguracionController::class, 'update'])->name('configuracion.update');
             });
 
         // Admin sucursal routes

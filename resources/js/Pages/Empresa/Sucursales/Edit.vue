@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -30,7 +30,7 @@ const destroy = () => {
 
 <template>
     <Head title="Editar Sucursal" />
-    <AuthenticatedLayout>
+    <EmpresaLayout>
         <template #header>
             <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Editar: {{ sucursal.name }}</h2>
         </template>
@@ -77,5 +77,5 @@ const destroy = () => {
                 </div>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </EmpresaLayout>
 </template>
