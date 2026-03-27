@@ -1,7 +1,9 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import FlashToast from '@/Components/FlashToast.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import ResetPasswordModal from '@/Components/ResetPasswordModal.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
@@ -39,7 +41,6 @@ const usage = (current, max) => {
     return { current, max, pct };
 };
 const barColor = (pct) => pct >= 90 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' : 'bg-green-500';
-
 const alertText = (pct) => {
     if (pct >= 95) return { text: 'Limite casi alcanzado', cls: 'text-red-600' };
     if (pct >= 80) return { text: 'Cerca del limite', cls: 'text-amber-600' };
@@ -54,6 +55,21 @@ const roleBadge = (name) => ({
     'admin-sucursal': { label: 'Admin Sucursal', cls: 'bg-orange-50 text-orange-700 ring-orange-600/20' },
     'cajero': { label: 'Cajero', cls: 'bg-gray-100 text-gray-600 ring-gray-300/50' },
 }[name] || { label: name, cls: 'bg-gray-100 text-gray-600 ring-gray-300/50' });
+
+// --- Password reset ---
+const resetModal = ref(false);
+const resetUser = ref(null);
+const openMenuId = ref(null);
+
+const toggleMenu = (userId) => {
+    openMenuId.value = openMenuId.value === userId ? null : userId;
+};
+
+const openResetModal = (user) => {
+    resetUser.value = user;
+    resetModal.value = true;
+    openMenuId.value = null;
+};
 </script>
 
 <template>
@@ -157,53 +173,26 @@ const roleBadge = (name) => ({
                 </div>
                 <div class="p-6">
                     <div class="grid gap-8 sm:grid-cols-3">
-                        <!-- Sucursales -->
                         <div>
                             <p class="text-sm font-semibold text-gray-700">Sucursales</p>
-                            <p class="mt-2 text-2xl font-bold text-gray-900">
-                                {{ usage(empresa.branches_count, empresa.max_branches).current }}
-                                <span class="text-base font-normal text-gray-400">de {{ usage(empresa.branches_count, empresa.max_branches).max }} usadas</span>
-                            </p>
-                            <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/80 shadow-inner">
-                                <div class="h-full rounded-full transition-all duration-700" :class="barColor(usage(empresa.branches_count, empresa.max_branches).pct)" :style="{ width: Math.max(usage(empresa.branches_count, empresa.max_branches).pct, 3) + '%' }" />
-                            </div>
-                            <p v-if="alertText(usage(empresa.branches_count, empresa.max_branches).pct)" class="mt-2 text-xs font-semibold" :class="alertText(usage(empresa.branches_count, empresa.max_branches).pct).cls">
-                                {{ alertText(usage(empresa.branches_count, empresa.max_branches).pct).text }}
-                            </p>
+                            <p class="mt-2 text-2xl font-bold text-gray-900">{{ usage(empresa.branches_count, empresa.max_branches).current }} <span class="text-base font-normal text-gray-400">de {{ usage(empresa.branches_count, empresa.max_branches).max }} usadas</span></p>
+                            <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/80 shadow-inner"><div class="h-full rounded-full transition-all duration-700" :class="barColor(usage(empresa.branches_count, empresa.max_branches).pct)" :style="{ width: Math.max(usage(empresa.branches_count, empresa.max_branches).pct, 3) + '%' }" /></div>
+                            <p v-if="alertText(usage(empresa.branches_count, empresa.max_branches).pct)" class="mt-2 text-xs font-semibold" :class="alertText(usage(empresa.branches_count, empresa.max_branches).pct).cls">{{ alertText(usage(empresa.branches_count, empresa.max_branches).pct).text }}</p>
                         </div>
-                        <!-- Usuarios -->
                         <div>
                             <p class="text-sm font-semibold text-gray-700">Usuarios</p>
-                            <p class="mt-2 text-2xl font-bold text-gray-900">
-                                {{ usage(empresa.users_count, empresa.max_users).current }}
-                                <span class="text-base font-normal text-gray-400">de {{ usage(empresa.users_count, empresa.max_users).max }} usados</span>
-                            </p>
-                            <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/80 shadow-inner">
-                                <div class="h-full rounded-full transition-all duration-700" :class="barColor(usage(empresa.users_count, empresa.max_users).pct)" :style="{ width: Math.max(usage(empresa.users_count, empresa.max_users).pct, 3) + '%' }" />
-                            </div>
-                            <p v-if="alertText(usage(empresa.users_count, empresa.max_users).pct)" class="mt-2 text-xs font-semibold" :class="alertText(usage(empresa.users_count, empresa.max_users).pct).cls">
-                                {{ alertText(usage(empresa.users_count, empresa.max_users).pct).text }}
-                            </p>
+                            <p class="mt-2 text-2xl font-bold text-gray-900">{{ usage(empresa.users_count, empresa.max_users).current }} <span class="text-base font-normal text-gray-400">de {{ usage(empresa.users_count, empresa.max_users).max }} usados</span></p>
+                            <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/80 shadow-inner"><div class="h-full rounded-full transition-all duration-700" :class="barColor(usage(empresa.users_count, empresa.max_users).pct)" :style="{ width: Math.max(usage(empresa.users_count, empresa.max_users).pct, 3) + '%' }" /></div>
+                            <p v-if="alertText(usage(empresa.users_count, empresa.max_users).pct)" class="mt-2 text-xs font-semibold" :class="alertText(usage(empresa.users_count, empresa.max_users).pct).cls">{{ alertText(usage(empresa.users_count, empresa.max_users).pct).text }}</p>
                         </div>
-                        <!-- Ventas (30d, sucursal con mayor uso) -->
                         <div>
                             <p class="text-sm font-semibold text-gray-700">Ventas / 30 dias</p>
-                            <p class="mt-2 text-2xl font-bold text-gray-900">
-                                {{ usage(maxSalesBranch, empresa.max_sales_per_branch_month).current }}
-                                <span class="text-base font-normal text-gray-400">de {{ usage(maxSalesBranch, empresa.max_sales_per_branch_month).max }}</span>
-                            </p>
-                            <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/80 shadow-inner">
-                                <div class="h-full rounded-full transition-all duration-700" :class="barColor(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct)" :style="{ width: Math.max(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct, 3) + '%' }" />
-                            </div>
+                            <p class="mt-2 text-2xl font-bold text-gray-900">{{ usage(maxSalesBranch, empresa.max_sales_per_branch_month).current }} <span class="text-base font-normal text-gray-400">de {{ usage(maxSalesBranch, empresa.max_sales_per_branch_month).max }}</span></p>
+                            <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/80 shadow-inner"><div class="h-full rounded-full transition-all duration-700" :class="barColor(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct)" :style="{ width: Math.max(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct, 3) + '%' }" /></div>
                             <p class="mt-2 text-xs text-gray-400">Sucursal con mayor uso en los ultimos 30 dias.</p>
-                            <p v-if="alertText(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct)" class="mt-1 text-xs font-semibold" :class="alertText(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct).cls">
-                                {{ alertText(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct).text }}
-                            </p>
                         </div>
                     </div>
-                    <p class="mt-6 text-xs text-gray-400">
-                        Empresa creada el {{ new Date(empresa.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) }}
-                    </p>
+                    <p class="mt-6 text-xs text-gray-400">Empresa creada el {{ new Date(empresa.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) }}</p>
                 </div>
             </section>
 
@@ -211,7 +200,7 @@ const roleBadge = (name) => ({
             <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-6 py-5">
                     <h2 class="text-base font-bold text-gray-900">Estructura de la Empresa</h2>
-                    <p class="mt-1 text-sm text-gray-500">Vista jerarquica de sucursales, usuarios y sus roles dentro de la empresa.</p>
+                    <p class="mt-1 text-sm text-gray-500">Vista jerarquica de sucursales, usuarios y sus roles. Usa el menu de acciones para gestionar contrasenas.</p>
                 </div>
                 <div class="p-6">
                     <!-- Tenant admins -->
@@ -219,16 +208,26 @@ const roleBadge = (name) => ({
                         <p class="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">Administradores de empresa</p>
                         <div class="space-y-2">
                             <div v-for="admin in tenantAdmins" :key="admin.id" class="flex items-center gap-3 rounded-xl bg-red-50/50 px-4 py-3 ring-1 ring-red-100/50">
-                                <div class="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
-                                    {{ admin.name.charAt(0) }}
-                                </div>
+                                <div class="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">{{ admin.name.charAt(0) }}</div>
                                 <div class="min-w-0 flex-1">
                                     <p class="truncate text-sm font-semibold text-gray-900">{{ admin.name }}</p>
                                     <p class="truncate text-xs text-gray-500">{{ admin.email }}</p>
                                 </div>
-                                <span v-if="admin.roles?.[0]" :class="roleBadge(admin.roles[0].name).cls" class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset">
-                                    {{ roleBadge(admin.roles[0].name).label }}
-                                </span>
+                                <span v-if="admin.roles?.[0]" :class="roleBadge(admin.roles[0].name).cls" class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset">{{ roleBadge(admin.roles[0].name).label }}</span>
+                                <!-- Action menu -->
+                                <div class="relative">
+                                    <button type="button" @click.stop="toggleMenu(admin.id)" class="rounded-lg p-1.5 text-gray-400 transition hover:bg-red-100 hover:text-red-600">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" /></svg>
+                                    </button>
+                                    <Transition enter-active-class="transition duration-100" leave-active-class="transition duration-75" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
+                                        <div v-if="openMenuId === admin.id" class="absolute right-0 z-10 mt-1 w-52 origin-top-right rounded-xl bg-white py-1.5 shadow-lg ring-1 ring-gray-200">
+                                            <button type="button" @click="openResetModal(admin)" class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-gray-700 transition hover:bg-gray-50">
+                                                <svg class="h-4 w-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg>
+                                                Resetear contrasena
+                                            </button>
+                                        </div>
+                                    </Transition>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -243,12 +242,9 @@ const roleBadge = (name) => ({
 
                     <div v-else class="space-y-2">
                         <div v-for="branch in branches" :key="branch.id" class="overflow-hidden rounded-xl ring-1 ring-gray-200">
-                            <button type="button" @click="toggleBranch(branch.id)"
-                                class="flex w-full items-center justify-between bg-gray-50 px-5 py-3.5 text-left transition hover:bg-gray-100">
+                            <button type="button" @click="toggleBranch(branch.id)" class="flex w-full items-center justify-between bg-gray-50 px-5 py-3.5 text-left transition hover:bg-gray-100">
                                 <div class="flex items-center gap-3">
-                                    <svg class="h-5 w-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" />
-                                    </svg>
+                                    <svg class="h-5 w-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" /></svg>
                                     <div>
                                         <span class="text-sm font-bold text-gray-900">{{ branch.name }}</span>
                                         <span class="ml-2 text-xs text-gray-500">{{ branch.users_count }} usuario{{ branch.users_count !== 1 ? 's' : '' }}</span>
@@ -265,17 +261,27 @@ const roleBadge = (name) => ({
                                 <div v-if="expandedBranches[branch.id]" class="border-t border-gray-100 bg-white">
                                     <div v-if="branch.users.length === 0" class="px-5 py-6 text-center text-sm text-gray-400">Sin usuarios asignados a esta sucursal.</div>
                                     <div v-else class="divide-y divide-gray-50">
-                                        <div v-for="user in branch.users" :key="user.id" class="flex items-center gap-3 px-5 py-3 pl-14">
-                                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-500">
-                                                {{ user.name.charAt(0) }}
-                                            </div>
+                                        <div v-for="user in branch.users" :key="user.id" class="group flex items-center gap-3 px-5 py-3 pl-14 transition hover:bg-gray-50/80">
+                                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-500">{{ user.name.charAt(0) }}</div>
                                             <div class="min-w-0 flex-1">
                                                 <p class="truncate text-sm font-medium text-gray-800">{{ user.name }}</p>
                                                 <p class="truncate text-xs text-gray-400">{{ user.email }}</p>
                                             </div>
-                                            <span v-if="user.roles?.[0]" :class="roleBadge(user.roles[0].name).cls" class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset">
-                                                {{ roleBadge(user.roles[0].name).label }}
-                                            </span>
+                                            <span v-if="user.roles?.[0]" :class="roleBadge(user.roles[0].name).cls" class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset">{{ roleBadge(user.roles[0].name).label }}</span>
+                                            <!-- Action menu -->
+                                            <div class="relative">
+                                                <button type="button" @click.stop="toggleMenu(user.id)" class="rounded-lg p-1.5 text-gray-300 transition hover:bg-gray-100 hover:text-gray-600 group-hover:text-gray-400">
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" /></svg>
+                                                </button>
+                                                <Transition enter-active-class="transition duration-100" leave-active-class="transition duration-75" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
+                                                    <div v-if="openMenuId === user.id" class="absolute right-0 z-10 mt-1 w-52 origin-top-right rounded-xl bg-white py-1.5 shadow-lg ring-1 ring-gray-200">
+                                                        <button type="button" @click="openResetModal(user)" class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-gray-700 transition hover:bg-gray-50">
+                                                            <svg class="h-4 w-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg>
+                                                            Resetear contrasena
+                                                        </button>
+                                                    </div>
+                                                </Transition>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -288,9 +294,7 @@ const roleBadge = (name) => ({
             <!-- Actions -->
             <div class="flex items-center justify-end gap-3">
                 <Link :href="route('admin.empresas.index')" class="rounded-lg px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100">Cancelar</Link>
-                <button type="submit" :disabled="form.processing" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50">
-                    Guardar Cambios
-                </button>
+                <button type="submit" :disabled="form.processing" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50">Guardar Cambios</button>
             </div>
 
             <!-- 5. Zona de Peligro -->
@@ -305,14 +309,24 @@ const roleBadge = (name) => ({
                             <p class="text-sm font-semibold text-red-900">Eliminar empresa permanentemente</p>
                             <p class="mt-0.5 text-xs text-red-600/70">Se eliminaran todas las sucursales, productos, ventas y usuarios asociados.</p>
                         </div>
-                        <button type="button" @click="destroy" class="rounded-lg border-2 border-red-300 bg-white px-5 py-2 text-sm font-bold text-red-700 transition hover:border-red-400 hover:bg-red-50">
-                            Eliminar
-                        </button>
+                        <button type="button" @click="destroy" class="rounded-lg border-2 border-red-300 bg-white px-5 py-2 text-sm font-bold text-red-700 transition hover:border-red-400 hover:bg-red-50">Eliminar</button>
                     </div>
                 </div>
             </section>
 
             <div class="h-6"></div>
         </form>
+
+        <!-- Reset password modal -->
+        <ResetPasswordModal
+            :show="resetModal"
+            :user="resetUser"
+            :send-reset-route="resetUser ? route('admin.usuarios.send-reset', resetUser.id) : ''"
+            :force-reset-route="resetUser ? route('admin.usuarios.force-reset', resetUser.id) : ''"
+            @close="resetModal = false"
+        />
+
+        <!-- Toast notifications -->
+        <FlashToast />
     </AdminLayout>
 </template>
