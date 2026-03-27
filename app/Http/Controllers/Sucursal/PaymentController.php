@@ -25,21 +25,28 @@ class PaymentController extends Controller
 
         $validated = $request->validate([
             'method' => 'required|in:cash,card,transfer',
-            'amount' => 'required|numeric|gt:0|max:' . $sale->amount_pending,
+            'amount' => 'required|numeric|gt:0',
         ]);
+
+        // For cash: customer may give more than pending (change).
+        // We only register what's actually owed, not what was received.
+        $actualPayment = min((float) $validated['amount'], (float) $sale->amount_pending);
 
         Payment::create([
             'sale_id' => $sale->id,
             'user_id' => $user->id,
             'method' => $validated['method'],
-            'amount' => $validated['amount'],
+            'amount' => round($actualPayment, 2),
         ]);
 
         $this->recalculate($sale, $user);
 
-        return back()->with('success', $sale->amount_pending <= 0
-            ? "Venta {$sale->folio} cobrada completamente."
-            : "Pago registrado. Pendiente: \${$sale->amount_pending}");
+        $change = round((float) $validated['amount'] - $actualPayment, 2);
+        $msg = $sale->amount_pending <= 0
+            ? "Venta {$sale->folio} cobrada." . ($change > 0 ? " Cambio: \${$change}" : '')
+            : "Pago registrado. Pendiente: \${$sale->amount_pending}";
+
+        return back()->with('success', $msg);
     }
 
     public function update(Request $request, Sale $sale, Payment $payment): RedirectResponse

@@ -134,6 +134,7 @@ Route::prefix('{tenant}')
                 Route::get('mesa-de-trabajo', [WorkbenchController::class, 'index'])->name('workbench');
                 Route::post('mesa-de-trabajo/ventas', [WorkbenchController::class, 'store'])->name('workbench.store');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/cancelar', [WorkbenchController::class, 'cancel'])->name('workbench.cancel');
+                Route::post('mesa-de-trabajo/ventas/{sale}/solicitar-cancelacion', [WorkbenchController::class, 'requestCancel'])->name('workbench.request-cancel');
 
                 // Payments
                 Route::post('mesa-de-trabajo/ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('workbench.payment');
@@ -152,6 +153,7 @@ Route::prefix('{tenant}')
             ->group(function () {
                 Route::get('/', [CajaWorkbenchController::class, 'index'])->name('workbench');
                 Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
+                Route::post('ventas/{sale}/solicitar-cancelacion', [WorkbenchController::class, 'requestCancel'])->name('request-cancel');
                 Route::get('turno', [CajaTurnoController::class, 'index'])->name('turno');
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');

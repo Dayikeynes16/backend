@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['tenant_id', 'branch_id', 'user_id', 'folio', 'payment_method', 'total', 'amount_paid', 'amount_pending', 'origin', 'origin_name', 'status', 'completed_at', 'cancelled_at', 'cancelled_by'])]
+#[Fillable(['tenant_id', 'branch_id', 'user_id', 'folio', 'payment_method', 'total', 'amount_paid', 'amount_pending', 'origin', 'origin_name', 'status', 'completed_at', 'cancelled_at', 'cancelled_by', 'cancel_reason', 'cancel_requested_at', 'cancel_requested_by', 'cancel_request_reason'])]
 class Sale extends Model
 {
     use BelongsToTenant;

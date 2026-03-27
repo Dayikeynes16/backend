@@ -1,5 +1,6 @@
 <script setup>
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
+import DatePicker from '@/Components/DatePicker.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -29,7 +30,7 @@ const selected = ref(null);
         <div class="flex h-[calc(100vh-7rem)] gap-5">
             <div class="flex w-[380px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-5 py-4">
-                    <input v-model="date" type="date" class="w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                    <DatePicker v-model="date" />
                 </div>
                 <div class="flex-1 overflow-y-auto p-3 space-y-2">
                     <div v-for="sale in sales.data" :key="sale.id" @click="selected = sale"

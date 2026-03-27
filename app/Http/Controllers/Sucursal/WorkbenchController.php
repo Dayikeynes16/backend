@@ -126,7 +126,7 @@ class WorkbenchController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user->hasRole('admin-sucursal') && !$user->hasRole('admin-empresa') && !$user->hasRole('superadmin')) {
+        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('admin-empresa') && ! $user->hasRole('superadmin')) {
             abort(403, 'No tienes permiso para cancelar ventas.');
         }
 
@@ -138,12 +138,46 @@ class WorkbenchController extends Controller
             return back()->with('error', 'Esta venta no se puede cancelar.');
         }
 
+        $validated = $request->validate([
+            'cancel_reason' => 'required|string|max:500',
+        ]);
+
         $sale->update([
             'status' => 'cancelled',
             'cancelled_at' => now(),
             'cancelled_by' => $user->id,
+            'cancel_reason' => $validated['cancel_reason'],
         ]);
 
         return back()->with('success', "Venta {$sale->folio} cancelada.");
+    }
+
+    public function requestCancel(Request $request, Sale $sale): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403);
+        }
+
+        if ($sale->status === 'completed' || $sale->status === 'cancelled') {
+            return back()->with('error', 'Esta venta no se puede cancelar.');
+        }
+
+        if ($sale->cancel_requested_at) {
+            return back()->with('error', 'Ya existe una solicitud de cancelacion para esta venta.');
+        }
+
+        $validated = $request->validate([
+            'cancel_request_reason' => 'required|string|max:500',
+        ]);
+
+        $sale->update([
+            'cancel_requested_at' => now(),
+            'cancel_requested_by' => $user->id,
+            'cancel_request_reason' => $validated['cancel_request_reason'],
+        ]);
+
+        return back()->with('success', "Solicitud de cancelacion enviada para {$sale->folio}.");
     }
 }
