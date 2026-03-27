@@ -16,6 +16,7 @@ const form = useForm({
     latitude: props.branch.latitude || '',
     longitude: props.branch.longitude || '',
     schedule: props.branch.schedule || '',
+    payment_methods_enabled: props.branch.payment_methods_enabled || ['cash', 'card', 'transfer'],
 });
 
 const submit = () => form.put(route('sucursal.configuracion.update', props.tenant.slug));
@@ -77,6 +78,24 @@ const submit = () => form.put(route('sucursal.configuracion.update', props.tenan
                             <TextInput id="lng" v-model="form.longitude" type="text" class="mt-1.5 block w-full" placeholder="-92.9475" />
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- Payment Methods -->
+            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Metodos de Pago</h2>
+                    <p class="mt-1 text-sm text-gray-500">Habilita o deshabilita los metodos de pago disponibles en esta sucursal.</p>
+                </div>
+                <div class="space-y-3 p-6">
+                    <label v-for="method in [{id:'cash',label:'Efectivo',icon:'text-green-600'},{id:'card',label:'Tarjeta',icon:'text-blue-600'},{id:'transfer',label:'Transferencia',icon:'text-purple-600'}]"
+                        :key="method.id" class="flex items-center justify-between rounded-xl p-4 ring-1 ring-gray-100 transition hover:bg-gray-50 cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-semibold" :class="method.icon">{{ method.label }}</span>
+                        </div>
+                        <input type="checkbox" :value="method.id" v-model="form.payment_methods_enabled"
+                            class="h-5 w-5 rounded border-gray-300 text-red-600 focus:ring-red-500" />
+                    </label>
                 </div>
             </section>
 

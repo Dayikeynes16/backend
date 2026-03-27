@@ -33,6 +33,11 @@ class Sale extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function cancelRequestedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancel_requested_by');
+    }
+
     public function cancelledByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');

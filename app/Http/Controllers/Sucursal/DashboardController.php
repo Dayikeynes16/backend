@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -15,30 +16,30 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $branchId = Auth::user()->branch_id;
-        $today = now()->toDateString();
+        $date = $request->date ?: now()->toDateString();
 
-        $salesToday = Sale::where('branch_id', $branchId)
+        $salesForDate = Sale::where('branch_id', $branchId)
             ->where('status', 'completed')
-            ->whereDate('completed_at', $today)
+            ->whereDate('completed_at', $date)
             ->get();
 
         $totals = [
-            'total_sales' => (float) $salesToday->sum('total'),
-            'sale_count' => $salesToday->count(),
-            'total_cash' => (float) $salesToday->where('payment_method', 'cash')->sum('total'),
-            'total_card' => (float) $salesToday->where('payment_method', 'card')->sum('total'),
-            'total_transfer' => (float) $salesToday->where('payment_method', 'transfer')->sum('total'),
-            'average' => $salesToday->count() > 0 ? round((float) $salesToday->avg('total'), 2) : 0,
+            'total_sales' => (float) $salesForDate->sum('total'),
+            'sale_count' => $salesForDate->count(),
+            'total_cash' => (float) $salesForDate->where('payment_method', 'cash')->sum('total'),
+            'total_card' => (float) $salesForDate->where('payment_method', 'card')->sum('total'),
+            'total_transfer' => (float) $salesForDate->where('payment_method', 'transfer')->sum('total'),
+            'average' => $salesForDate->count() > 0 ? round((float) $salesForDate->avg('total'), 2) : 0,
         ];
 
         $topProducts = SaleItem::select('product_name', DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(subtotal) as total_revenue'))
             ->whereHas('sale', fn ($q) => $q
                 ->where('branch_id', $branchId)
                 ->where('status', 'completed')
-                ->whereDate('completed_at', $today)
+                ->whereDate('completed_at', $date)
             )
             ->groupBy('product_name')
             ->orderByDesc('total_revenue')
@@ -56,6 +57,12 @@ class DashboardController extends Controller
             ->where('status', 'pending')
             ->count();
 
+        $cancelRequestCount = Sale::where('branch_id', $branchId)
+            ->whereNotNull('cancel_requested_at')
+            ->whereNull('cancelled_at')
+            ->where('status', '!=', 'cancelled')
+            ->count();
+
         $productCount = Product::where('branch_id', $branchId)
             ->where('status', 'active')
             ->count();
@@ -69,8 +76,10 @@ class DashboardController extends Controller
             'topProducts' => $topProducts,
             'recentShifts' => $recentShifts,
             'pendingCount' => $pendingCount,
+            'cancelRequestCount' => $cancelRequestCount,
             'productCount' => $productCount,
             'cajeroCount' => $cajeroCount,
+            'selectedDate' => $date,
             'tenant' => app('tenant'),
         ]);
     }

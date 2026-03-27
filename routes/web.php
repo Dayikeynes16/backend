@@ -14,6 +14,7 @@ use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
+use App\Http\Controllers\Sucursal\CancelRequestController;
 use App\Http\Controllers\Sucursal\CashShiftController;
 use App\Http\Controllers\Sucursal\CategoryController;
 use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguracionController;
@@ -141,6 +142,11 @@ Route::prefix('{tenant}')
                 Route::put('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'update'])->name('workbench.payment.update');
                 Route::delete('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'destroy'])->name('workbench.payment.destroy');
 
+                // Cancelation requests
+                Route::get('cancelaciones', [CancelRequestController::class, 'index'])->name('cancelaciones.index');
+                Route::patch('cancelaciones/{sale}/aprobar', [CancelRequestController::class, 'approve'])->name('cancelaciones.approve');
+                Route::patch('cancelaciones/{sale}/rechazar', [CancelRequestController::class, 'reject'])->name('cancelaciones.reject');
+
                 // Config
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [SucursalConfiguracionController::class, 'update'])->name('configuracion.update');
@@ -153,7 +159,7 @@ Route::prefix('{tenant}')
             ->group(function () {
                 Route::get('/', [CajaWorkbenchController::class, 'index'])->name('workbench');
                 Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
-                Route::post('ventas/{sale}/solicitar-cancelacion', [WorkbenchController::class, 'requestCancel'])->name('request-cancel');
+                Route::post('ventas/{sale}/solicitar-cancelacion', [CajaWorkbenchController::class, 'requestCancel'])->name('request-cancel');
                 Route::get('turno', [CajaTurnoController::class, 'index'])->name('turno');
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');

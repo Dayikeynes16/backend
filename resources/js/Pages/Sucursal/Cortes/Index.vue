@@ -1,5 +1,6 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import DatePicker from '@/Components/DatePicker.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -23,7 +24,7 @@ const formatDT = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { day: '2-
         <div class="space-y-6">
             <div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-6 py-5">
-                    <input v-model="date" type="date" class="rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                    <DatePicker v-model="date" :allow-future="false" />
                 </div>
 
                 <div class="overflow-x-auto">
