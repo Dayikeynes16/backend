@@ -37,9 +37,9 @@ const navLinks = computed(() => {
             ];
         case 'cajero':
             return [
-                { label: 'Cola', route: 'caja.queue', params: [s] },
-                { label: 'Dashboard', route: 'caja.dashboard', params: [s] },
-                { label: 'Corte', route: 'caja.shift.show', params: [s] },
+                { label: 'Mesa de Trabajo', route: 'caja.workbench', params: [s] },
+                { label: 'Mi Turno', route: 'caja.turno', params: [s] },
+                { label: 'Historial', route: 'caja.historial', params: [s] },
             ];
         default:
             return [];
