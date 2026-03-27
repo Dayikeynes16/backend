@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue';
-import { Loader } from '@googlemaps/js-api-loader';
+import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 
 const props = defineProps({
     latitude: { type: [String, Number], default: '' },
@@ -32,10 +32,10 @@ onMounted(async () => {
     }
 
     try {
-        const loader = new Loader({ apiKey, version: 'weekly' });
-        const google = await loader.load();
-        const { Map } = await google.maps.importLibrary('maps');
-        const { AdvancedMarkerElement } = await google.maps.importLibrary('marker');
+        setOptions({ apiKey, version: 'weekly' });
+
+        const { Map } = await importLibrary('maps');
+        const { AdvancedMarkerElement } = await importLibrary('marker');
 
         const center = props.latitude && props.longitude
             ? { lat: parseFloat(props.latitude), lng: parseFloat(props.longitude) }
