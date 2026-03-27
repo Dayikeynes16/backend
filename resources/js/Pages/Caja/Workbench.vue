@@ -21,7 +21,7 @@ const paidPct = (s) => s.total > 0 ? Math.min((parseFloat(s.amount_paid) / parse
 
 const paymentForm = useForm({ method: 'cash', amount: '' });
 const submitPayment = () => {
-    paymentForm.post(route('sucursal.workbench.payment', [props.tenant.slug, selected.value.id]), {
+    paymentForm.post(route('caja.payment.store', [props.tenant.slug, selected.value.id]), {
         preserveScroll: true,
         onSuccess: () => { paymentForm.reset('amount'); showPayment.value = false; },
     });

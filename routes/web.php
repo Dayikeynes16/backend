@@ -151,6 +151,7 @@ Route::prefix('{tenant}')
             ->name('caja.')
             ->group(function () {
                 Route::get('/', [CajaWorkbenchController::class, 'index'])->name('workbench');
+                Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
                 Route::get('turno', [CajaTurnoController::class, 'index'])->name('turno');
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');
