@@ -1,6 +1,11 @@
 <?php
 
+use App\Http\Controllers\Admin\EmpresaController;
+use App\Http\Controllers\Empresa\SucursalController;
+use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Sucursal\ProductoController;
+use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -32,6 +37,9 @@ Route::prefix('admin')
         Route::get('/', function () {
             return Inertia::render('Admin/Dashboard');
         })->name('dashboard');
+
+        Route::resource('empresas', EmpresaController::class)
+            ->except('show');
     });
 
 // Tenant-scoped routes
@@ -47,6 +55,13 @@ Route::prefix('{tenant}')
                 Route::get('/', function () {
                     return Inertia::render('Empresa/Dashboard');
                 })->name('dashboard');
+
+                Route::resource('sucursales', SucursalController::class)
+                    ->except('show')
+                    ->parameters(['sucursales' => 'sucursal']);
+
+                Route::resource('usuarios', EmpresaUsuarioController::class)
+                    ->except('show');
             });
 
         // Admin sucursal routes
@@ -57,6 +72,12 @@ Route::prefix('{tenant}')
                 Route::get('/', function () {
                     return Inertia::render('Sucursal/Dashboard');
                 })->name('dashboard');
+
+                Route::resource('productos', ProductoController::class)
+                    ->except('show');
+
+                Route::resource('usuarios', SucursalUsuarioController::class)
+                    ->except('show');
             });
 
         // Cajero routes

@@ -1,0 +1,52 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import InputError from '@/Components/InputError.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import TextInput from '@/Components/TextInput.vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+
+const props = defineProps({ tenant: Object });
+
+const form = useForm({ name: '', email: '', password: '' });
+
+const submit = () => {
+    form.post(route('sucursal.usuarios.store', props.tenant.slug));
+};
+</script>
+
+<template>
+    <Head title="Nuevo Cajero" />
+    <AuthenticatedLayout>
+        <template #header>
+            <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Nuevo Cajero</h2>
+        </template>
+        <div class="py-12">
+            <div class="mx-auto max-w-2xl sm:px-6 lg:px-8">
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
+                    <form @submit.prevent="submit" class="space-y-6 p-6">
+                        <div>
+                            <InputLabel for="name" value="Nombre" />
+                            <TextInput id="name" v-model="form.name" type="text" class="mt-1 block w-full" required />
+                            <InputError :message="form.errors.name" class="mt-2" />
+                        </div>
+                        <div>
+                            <InputLabel for="email" value="Email" />
+                            <TextInput id="email" v-model="form.email" type="email" class="mt-1 block w-full" required />
+                            <InputError :message="form.errors.email" class="mt-2" />
+                        </div>
+                        <div>
+                            <InputLabel for="password" value="Contrasena" />
+                            <TextInput id="password" v-model="form.password" type="password" class="mt-1 block w-full" required />
+                            <InputError :message="form.errors.password" class="mt-2" />
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <PrimaryButton :disabled="form.processing">Crear Cajero</PrimaryButton>
+                            <Link :href="route('sucursal.usuarios.index', tenant.slug)" class="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">Cancelar</Link>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </AuthenticatedLayout>
+</template>
