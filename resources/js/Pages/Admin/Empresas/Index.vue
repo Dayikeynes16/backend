@@ -1,112 +1,160 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
 const props = defineProps({
     empresas: Object,
+    stats: Object,
     filters: Object,
 });
 
 const search = ref(props.filters?.search || '');
 
+let debounce;
 watch(search, (value) => {
-    router.get(route('admin.empresas.index'), { search: value }, {
-        preserveState: true,
-        replace: true,
-    });
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+        router.get(route('admin.empresas.index'), { search: value || undefined }, {
+            preserveState: true,
+            replace: true,
+        });
+    }, 300);
 });
+
+const branchUsage = (empresa) => {
+    const current = empresa.branches_count || 0;
+    const max = empresa.max_branches || 1;
+    const pct = Math.min((current / max) * 100, 100);
+    return { current, max, pct };
+};
 </script>
 
 <template>
     <Head title="Empresas" />
-
-    <AuthenticatedLayout>
+    <AdminLayout>
         <template #header>
-            <div class="flex items-center justify-between">
-                <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                    Empresas
-                </h2>
-                <Link
-                    :href="route('admin.empresas.create')"
-                    class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
-                >
-                    Nueva Empresa
-                </Link>
-            </div>
+            <h1 class="text-xl font-bold text-gray-900">Empresas</h1>
         </template>
 
-        <div class="py-12">
-            <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
-                    <div class="p-6">
+        <div class="space-y-6">
+            <!-- Stats -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <p class="text-xs font-medium uppercase tracking-wider text-gray-400">Total</p>
+                    <p class="mt-1 text-3xl font-bold text-gray-900">{{ stats.total }}</p>
+                </div>
+                <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <p class="text-xs font-medium uppercase tracking-wider text-green-600">Activas</p>
+                    <p class="mt-1 text-3xl font-bold text-green-700">{{ stats.active }}</p>
+                </div>
+                <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <p class="text-xs font-medium uppercase tracking-wider text-red-500">Inactivas</p>
+                    <p class="mt-1 text-3xl font-bold text-red-600">{{ stats.inactive }}</p>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <!-- Toolbar -->
+                <div class="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="relative">
+                        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                        </svg>
                         <input
                             v-model="search"
                             type="text"
                             placeholder="Buscar empresa..."
-                            class="mb-4 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 sm:w-1/3"
+                            class="w-full rounded-lg border-gray-200 py-2 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:border-red-300 focus:ring-red-200 sm:w-72"
                         />
+                    </div>
+                    <Link :href="route('admin.empresas.create')" class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Nueva Empresa
+                    </Link>
+                </div>
 
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead>
-                                <tr>
-                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-200">Nombre</th>
-                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-200">Slug</th>
-                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-200">RFC</th>
-                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-200">Estado</th>
-                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-200">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                <tr v-for="empresa in empresas.data" :key="empresa.id">
-                                    <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-200">{{ empresa.name }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ empresa.slug }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ empresa.rfc || '—' }}</td>
-                                    <td class="px-4 py-3 text-sm">
-                                        <span
-                                            :class="empresa.status === 'active'
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'"
-                                            class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                                        >
-                                            {{ empresa.status === 'active' ? 'Activa' : 'Inactiva' }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3 text-right text-sm">
-                                        <Link
-                                            :href="route('admin.empresas.edit', empresa.id)"
-                                            class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-                                        >
-                                            Editar
-                                        </Link>
-                                    </td>
-                                </tr>
-                                <tr v-if="empresas.data.length === 0">
-                                    <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                                        No se encontraron empresas.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <!-- Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-100">
+                        <thead>
+                            <tr class="bg-gray-50/50">
+                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Empresa</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">RFC</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Sucursales</th>
+                                <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Usuarios</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Estado</th>
+                                <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-50">
+                            <tr v-for="empresa in empresas.data" :key="empresa.id" class="transition hover:bg-gray-50/50">
+                                <td class="px-6 py-4">
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-900">{{ empresa.name }}</p>
+                                        <p class="text-xs text-gray-400">/{{ empresa.slug }}</p>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">{{ empresa.rfc || '—' }}</td>
+                                <td class="px-6 py-4">
+                                    <div class="w-32">
+                                        <div class="flex items-center justify-between text-xs">
+                                            <span class="font-medium text-gray-700">{{ branchUsage(empresa).current }} / {{ branchUsage(empresa).max }}</span>
+                                            <span class="text-gray-400">{{ Math.round(branchUsage(empresa).pct) }}%</span>
+                                        </div>
+                                        <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                                            <div
+                                                class="h-full rounded-full transition-all duration-300"
+                                                :class="branchUsage(empresa).pct >= 90 ? 'bg-red-500' : branchUsage(empresa).pct >= 60 ? 'bg-orange-400' : 'bg-green-500'"
+                                                :style="{ width: branchUsage(empresa).pct + '%' }"
+                                            />
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-right text-sm text-gray-600">{{ empresa.users_count || 0 }}</td>
+                                <td class="px-6 py-4">
+                                    <span :class="empresa.status === 'active' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-red-50 text-red-700 ring-red-600/20'"
+                                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset">
+                                        {{ empresa.status === 'active' ? 'Activa' : 'Inactiva' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <Link :href="route('admin.empresas.edit', empresa.id)" class="text-sm font-medium text-red-600 hover:text-red-500">
+                                        Editar
+                                    </Link>
+                                </td>
+                            </tr>
+                            <tr v-if="empresas.data.length === 0">
+                                <td colspan="6" class="px-6 py-12 text-center text-sm text-gray-400">
+                                    No se encontraron empresas.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <div v-if="empresas.last_page > 1" class="mt-4 flex justify-center gap-2">
-                            <Link
-                                v-for="link in empresas.links"
-                                :key="link.label"
-                                :href="link.url || '#'"
-                                :class="[
-                                    'rounded px-3 py-1 text-sm',
-                                    link.active
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
-                                    !link.url && 'pointer-events-none opacity-50',
-                                ]"
-                                v-html="link.label"
-                            />
-                        </div>
+                <!-- Pagination -->
+                <div v-if="empresas.last_page > 1" class="flex justify-center border-t border-gray-100 px-6 py-4">
+                    <div class="flex gap-1">
+                        <Link
+                            v-for="link in empresas.links"
+                            :key="link.label"
+                            :href="link.url || '#'"
+                            :class="[
+                                'rounded-md px-3 py-1.5 text-sm font-medium transition',
+                                link.active
+                                    ? 'bg-red-600 text-white'
+                                    : 'text-gray-600 hover:bg-gray-100',
+                                !link.url && 'pointer-events-none opacity-40',
+                            ]"
+                            v-html="link.label"
+                        />
                     </div>
                 </div>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </AdminLayout>
 </template>

@@ -29,6 +29,7 @@ class DemoSeeder extends Seeder
             'rfc' => 'TORO850101ABC',
             'address' => 'Av. Juárez 123, Centro',
             'phone' => '993-100-0001',
+            'max_branches' => 5,
         ]);
 
         // Branch: Sucursal Centro

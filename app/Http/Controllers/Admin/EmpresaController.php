@@ -15,13 +15,21 @@ class EmpresaController extends Controller
     public function index(Request $request): Response
     {
         $empresas = Tenant::query()
+            ->withCount('branches', 'users')
             ->when($request->search, fn ($q, $s) => $q->where('name', 'ilike', "%{$s}%"))
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString();
 
+        $stats = [
+            'total' => Tenant::count(),
+            'active' => Tenant::where('status', 'active')->count(),
+            'inactive' => Tenant::where('status', 'inactive')->count(),
+        ];
+
         return Inertia::render('Admin/Empresas/Index', [
             'empresas' => $empresas,
+            'stats' => $stats,
             'filters' => $request->only('search'),
         ]);
     }
@@ -39,6 +47,7 @@ class EmpresaController extends Controller
             'rfc' => 'nullable|string|max:13',
             'address' => 'nullable|string|max:500',
             'phone' => 'nullable|string|max:20',
+            'max_branches' => 'required|integer|min:1|max:100',
         ]);
 
         Tenant::create($validated);
@@ -49,6 +58,8 @@ class EmpresaController extends Controller
 
     public function edit(Tenant $empresa): Response
     {
+        $empresa->loadCount('branches', 'users');
+
         return Inertia::render('Admin/Empresas/Edit', [
             'empresa' => $empresa,
         ]);
@@ -62,6 +73,7 @@ class EmpresaController extends Controller
             'rfc' => 'nullable|string|max:13',
             'address' => 'nullable|string|max:500',
             'phone' => 'nullable|string|max:20',
+            'max_branches' => 'required|integer|min:1|max:100',
             'status' => 'required|in:active,inactive',
         ]);
 
