@@ -30,6 +30,8 @@ class DemoSeeder extends Seeder
             'address' => 'Av. Juárez 123, Centro',
             'phone' => '993-100-0001',
             'max_branches' => 5,
+            'max_users' => 20,
+            'max_sales_per_branch_month' => 1000,
         ]);
 
         // Branch: Sucursal Centro
