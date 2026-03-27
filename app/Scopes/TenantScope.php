@@ -10,6 +10,10 @@ class TenantScope implements Scope
 {
     public function apply(Builder $builder, Model $model): void
     {
+        if (! app()->bound('tenant')) {
+            return;
+        }
+
         $tenant = app('tenant');
 
         if ($tenant) {

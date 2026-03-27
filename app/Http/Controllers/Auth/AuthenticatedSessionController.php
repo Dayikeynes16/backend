@@ -13,9 +13,6 @@ use Inertia\Response;
 
 class AuthenticatedSessionController extends Controller
 {
-    /**
-     * Display the login view.
-     */
     public function create(): Response
     {
         return Inertia::render('Auth/Login', [
@@ -24,21 +21,15 @@ class AuthenticatedSessionController extends Controller
         ]);
     }
 
-    /**
-     * Handle an incoming authentication request.
-     */
     public function store(LoginRequest $request): RedirectResponse
     {
         $request->authenticate();
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->intended($this->redirectPath());
     }
 
-    /**
-     * Destroy an authenticated session.
-     */
     public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();
@@ -48,5 +39,27 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    protected function redirectPath(): string
+    {
+        $user = Auth::user();
+
+        if ($user->hasRole('superadmin')) {
+            return route('admin.dashboard');
+        }
+
+        $slug = $user->tenant?->slug;
+
+        if (! $slug) {
+            return route('dashboard');
+        }
+
+        return match (true) {
+            $user->hasRole('admin-empresa') => route('empresa.dashboard', $slug),
+            $user->hasRole('admin-sucursal') => route('sucursal.dashboard', $slug),
+            $user->hasRole('cajero') => route('caja.queue', $slug),
+            default => route('dashboard'),
+        };
     }
 }
