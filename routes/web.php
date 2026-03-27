@@ -14,10 +14,14 @@ use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
+use App\Http\Controllers\Sucursal\CategoryController;
+use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguracionController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
+use App\Http\Controllers\Sucursal\PaymentController;
 use App\Http\Controllers\Sucursal\ProductoController;
 use App\Http\Controllers\Sucursal\ShiftController as SucursalShiftController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
+use App\Http\Controllers\Sucursal\WorkbenchController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -102,6 +106,24 @@ Route::prefix('{tenant}')
                 Route::delete('api-keys/{api_key}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
 
                 Route::get('cortes', [SucursalShiftController::class, 'index'])->name('cortes.index');
+
+                // Categories
+                Route::get('categorias', [CategoryController::class, 'index'])->name('categorias.index');
+                Route::post('categorias', [CategoryController::class, 'store'])->name('categorias.store');
+                Route::put('categorias/{category}', [CategoryController::class, 'update'])->name('categorias.update');
+                Route::delete('categorias/{category}', [CategoryController::class, 'destroy'])->name('categorias.destroy');
+
+                // Workbench
+                Route::get('mesa-de-trabajo', [WorkbenchController::class, 'index'])->name('workbench');
+                Route::post('mesa-de-trabajo/ventas', [WorkbenchController::class, 'store'])->name('workbench.store');
+                Route::patch('mesa-de-trabajo/ventas/{sale}/cancelar', [WorkbenchController::class, 'cancel'])->name('workbench.cancel');
+
+                // Payments
+                Route::post('mesa-de-trabajo/ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('workbench.payment');
+
+                // Config
+                Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
+                Route::put('configuracion', [SucursalConfiguracionController::class, 'update'])->name('configuracion.update');
             });
 
         // Cajero routes

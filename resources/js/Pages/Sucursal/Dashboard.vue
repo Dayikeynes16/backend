@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -20,7 +20,7 @@ const formatDateTime = (iso) => {
 
 <template>
     <Head title="Dashboard Sucursal" />
-    <AuthenticatedLayout>
+    <SucursalLayout>
         <template #header>
             <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Dashboard Sucursal</h2>
         </template>
@@ -105,5 +105,5 @@ const formatDateTime = (iso) => {
                 </div>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </SucursalLayout>
 </template>

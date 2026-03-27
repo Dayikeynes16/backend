@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -19,7 +19,7 @@ const formatDateTime = (iso) => {
 
 <template>
     <Head title="Historial de Cortes" />
-    <AuthenticatedLayout>
+    <SucursalLayout>
         <template #header>
             <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Historial de Cortes</h2>
         </template>
@@ -69,5 +69,5 @@ const formatDateTime = (iso) => {
                 </div>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </SucursalLayout>
 </template>

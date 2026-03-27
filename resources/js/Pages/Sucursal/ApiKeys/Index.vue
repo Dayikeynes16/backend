@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -43,7 +43,7 @@ const copyKey = () => {
 
 <template>
     <Head title="API Keys" />
-    <AuthenticatedLayout>
+    <SucursalLayout>
         <template #header>
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">API Keys</h2>
@@ -126,5 +126,5 @@ const copyKey = () => {
                 </div>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </SucursalLayout>
 </template>
