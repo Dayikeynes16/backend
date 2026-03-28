@@ -42,7 +42,11 @@ class Product extends Model
             $disk = config('filesystems.default');
 
             if ($disk === 's3') {
-                return Storage::url($this->image_path);
+                try {
+                    return Storage::temporaryUrl($this->image_path, now()->addHour());
+                } catch (\Throwable) {
+                    return Storage::url($this->image_path);
+                }
             }
 
             return '/storage/' . $this->image_path;

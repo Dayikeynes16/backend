@@ -97,7 +97,7 @@ class ProductoController extends Controller
         ];
 
         if ($request->hasFile('image')) {
-            $data['image_path'] = $request->file('image')->store('products');
+            $data['image_path'] = $request->file('image')->storePublicly('products');
         }
 
         $product = Product::create($data);
@@ -184,7 +184,7 @@ class ProductoController extends Controller
             if ($producto->image_path) {
                 Storage::delete($producto->image_path);
             }
-            $data['image_path'] = $request->file('image')->store('products');
+            $data['image_path'] = $request->file('image')->storePublicly('products');
         }
 
         $producto->update($data);
