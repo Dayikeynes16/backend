@@ -3,12 +3,13 @@ import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import PaymentForm from '@/Components/PaymentForm.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
+import { useSaleQueue } from '@/composables/useSaleQueue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
     sales: Array, products: Array, categories: Array,
-    tenant: Object, paymentMethods: Array,
+    tenant: Object, branchId: Number, paymentMethods: Array,
     canCreate: Boolean, canCancel: Boolean, canEditPayments: Boolean,
 });
 
@@ -20,10 +21,32 @@ const enabledMethods = computed(() =>
 const selectedId = ref(null);
 const selected = computed(() => props.sales.find(s => s.id === selectedId.value));
 
+// Real-time: listen for new sales from API/kiosk
+const { sales: queuedSales } = useSaleQueue(props.branchId);
+
+// When a new sale arrives via WebSocket, reload sales from server
+watch(queuedSales, () => {
+    router.reload({ only: ['sales'], preserveScroll: true });
+}, { deep: true });
+
+// Real-time: listen for sale updates (payments, status changes)
+let saleUpdateChannel = null;
+onMounted(() => {
+    if (!props.branchId || !window.Echo) return;
+    saleUpdateChannel = window.Echo.private(`sucursal.${props.branchId}`);
+    saleUpdateChannel.listen('SaleUpdated', () => {
+        router.reload({ only: ['sales'], preserveScroll: true });
+    });
+});
+onUnmounted(() => {
+    if (saleUpdateChannel) {
+        saleUpdateChannel.stopListening('SaleUpdated');
+    }
+});
+
 // Concurrency lock
-const branchId = computed(() => props.sales[0]?.branch_id);
 const { lockSale, unlockSale, isLockedByOther, lockedByName } = useSaleLock(
-    branchId.value,
+    props.branchId,
     route('sucursal.sale.lock', [props.tenant.slug, '__SALE__']),
     route('sucursal.sale.unlock', [props.tenant.slug, '__SALE__']),
     route('sucursal.sale.heartbeat', [props.tenant.slug, '__SALE__']),
@@ -81,8 +104,11 @@ const deletePayment = (paymentId) => {
 
 // Cancel sale
 const cancelSale = () => {
-    if (confirm(`¿Cancelar venta ${selected.value.folio}?`)) {
-        router.patch(route('sucursal.workbench.cancel', [props.tenant.slug, selected.value.id]), {}, { preserveScroll: true });
+    const reason = prompt(`¿Cancelar venta ${selected.value.folio}?\n\nEscribe el motivo de cancelacion:`);
+    if (reason && reason.trim()) {
+        router.patch(route('sucursal.workbench.cancel', [props.tenant.slug, selected.value.id]), {
+            cancel_reason: reason.trim(),
+        }, { preserveScroll: true });
     }
 };
 
