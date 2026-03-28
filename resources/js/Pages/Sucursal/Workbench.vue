@@ -2,6 +2,7 @@
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import PaymentForm from '@/Components/PaymentForm.vue';
+import TicketPrinter from '@/Components/TicketPrinter.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { Head, router, useForm } from '@inertiajs/vue3';
@@ -61,6 +62,7 @@ const selectSale = async (saleId) => {
 };
 const showNewSale = ref(false);
 const showPayment = ref(false);
+const showTicket = ref(false);
 const editingPaymentId = ref(null);
 
 // Helpers
@@ -99,6 +101,13 @@ const submitEditPayment = (paymentId) => {
 const deletePayment = (paymentId) => {
     if (confirm('¿Eliminar este pago? Se recalculara el saldo de la venta.')) {
         router.delete(route('sucursal.workbench.payment.destroy', [props.tenant.slug, selected.value.id, paymentId]), { preserveScroll: true });
+    }
+};
+
+// Send completed sale back to pending (reopen)
+const sendToPending = () => {
+    if (confirm(`¿Enviar venta ${selected.value.folio} a pendiente? Se reabrira para seguir operandola.`)) {
+        router.patch(route('sucursal.workbench.reopen', [props.tenant.slug, selected.value.id]), {}, { preserveScroll: true });
     }
 };
 
@@ -189,7 +198,8 @@ const submitNewSale = () => {
                         <div class="mt-2.5 flex items-end justify-between">
                             <div>
                                 <p class="text-xl font-bold text-gray-900">${{ parseFloat(sale.total).toFixed(2) }}</p>
-                                <p v-if="parseFloat(sale.amount_pending) > 0" class="mt-0.5 text-xs font-semibold text-amber-600">
+                                <p v-if="sale.status === 'completed'" class="mt-0.5 text-xs font-semibold text-green-600">Cobrada</p>
+                                <p v-else-if="parseFloat(sale.amount_pending) > 0" class="mt-0.5 text-xs font-semibold text-amber-600">
                                     Pendiente: ${{ parseFloat(sale.amount_pending).toFixed(2) }}
                                 </p>
                                 <p v-else class="mt-0.5 text-xs font-semibold text-green-600">Pagada</p>
@@ -223,7 +233,13 @@ const submitNewSale = () => {
                                 <h2 class="text-lg font-bold text-gray-900">{{ selected.folio }}</h2>
                                 <span :class="[originBadge(selected.origin), 'rounded-full px-2.5 py-0.5 text-xs font-semibold']">{{ selected.origin_name || 'API' }}</span>
                             </div>
-                            <span class="text-xs text-gray-400">{{ new Date(selected.created_at).toLocaleString('es-MX') }}</span>
+                            <div class="flex items-center gap-2">
+                                <button @click="showTicket = true" class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-200">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" /></svg>
+                                    Ticket
+                                </button>
+                                <span class="text-xs text-gray-400">{{ new Date(selected.created_at).toLocaleString('es-MX') }}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -315,14 +331,25 @@ const submitNewSale = () => {
                     </div>
 
                     <!-- Sticky actions -->
-                    <div v-if="parseFloat(selected.amount_pending) > 0" class="border-t border-gray-100 px-6 py-4 flex items-center gap-3">
-                        <button @click="showPayment = !showPayment" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                            Registrar Pago
-                        </button>
-                        <button v-if="canCancel" @click="cancelSale" class="rounded-lg border-2 border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50">
-                            Cancelar Venta
-                        </button>
+                    <div class="border-t border-gray-100 px-6 py-4 flex items-center gap-3">
+                        <template v-if="parseFloat(selected.amount_pending) > 0">
+                            <button @click="showPayment = !showPayment" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                                Registrar Pago
+                            </button>
+                            <button v-if="canCancel" @click="cancelSale" class="rounded-lg border-2 border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50">
+                                Cancelar Venta
+                            </button>
+                        </template>
+                        <template v-else>
+                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-4 py-2 text-sm font-bold text-green-700">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                                Cobrada
+                            </span>
+                            <button @click="sendToPending" class="rounded-lg border-2 border-amber-200 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-50">
+                                Enviar a pendiente
+                            </button>
+                        </template>
                     </div>
                 </template>
             </div>
@@ -407,6 +434,7 @@ const submitNewSale = () => {
             </Transition>
         </Teleport>
 
+        <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name" @close="showTicket = false" />
         <FlashToast />
     </SucursalLayout>
 </template>

@@ -23,7 +23,13 @@ class WorkbenchController extends Controller
         $branchId = $user->branch_id;
 
         $sales = Sale::where('branch_id', $branchId)
-            ->where('status', 'active')
+            ->where(function ($q) {
+                $q->where('status', 'active')
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'completed')
+                         ->where('completed_at', '>=', now()->subMinutes(30));
+                  });
+            })
             ->with(['items', 'payments'])
             ->orderByDesc('created_at')
             ->limit(50)
@@ -151,6 +157,34 @@ class WorkbenchController extends Controller
         });
 
         return back()->with('success', 'Venta creada.');
+    }
+
+    public function reopen(Sale $sale): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('admin-empresa') && ! $user->hasRole('superadmin')) {
+            abort(403, 'No tienes permiso para reabrir ventas.');
+        }
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403);
+        }
+
+        if ($sale->status !== 'completed') {
+            return back()->with('error', 'Solo se pueden enviar a pendiente ventas completadas.');
+        }
+
+        $totalPaid = $sale->payments()->sum('amount');
+        $pending = round((float) $sale->total - $totalPaid, 2);
+
+        $sale->update([
+            'status' => 'active',
+            'amount_pending' => max($pending, 0),
+            'completed_at' => null,
+        ]);
+
+        return back()->with('success', "Venta {$sale->folio} enviada a pendiente.");
     }
 
     public function cancel(Request $request, Sale $sale): RedirectResponse
