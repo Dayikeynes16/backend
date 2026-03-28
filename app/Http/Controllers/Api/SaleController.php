@@ -23,6 +23,7 @@ class SaleController extends Controller
             'items.*.quantity' => 'required|numeric|gt:0',
             'items.*.presentation_id' => 'nullable|integer',
             'payment_method' => 'required|in:cash,card,transfer',
+            'origin_name' => 'nullable|string|max:100',
         ]);
 
         $branchId = $request->branch_id;
@@ -105,7 +106,7 @@ class SaleController extends Controller
                 'payment_method' => $request->payment_method,
                 'total' => round($total, 2),
                 'origin' => 'api',
-                'origin_name' => 'Bascula',
+                'origin_name' => $request->input('origin_name', 'Bascula'),
                 'amount_paid' => 0,
                 'amount_pending' => round($total, 2),
                 'status' => 'active',
