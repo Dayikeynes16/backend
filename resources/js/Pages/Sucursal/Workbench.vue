@@ -324,7 +324,7 @@ const submitNewSale = () => {
                                             <!-- Weight mode: single button -->
                                             <button v-if="p.sale_mode === 'weight'" @click="addToCart(p)" class="flex items-center gap-3 rounded-xl p-3 text-left ring-1 ring-gray-100 transition hover:bg-gray-50 hover:ring-gray-200">
                                                 <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
-                                                    <img v-if="p.image_path" :src="`/storage/${p.image_path}`" class="h-full w-full object-cover" />
+                                                    <img v-if="p.image_url" :src="p.image_url" class="h-full w-full object-cover" />
                                                     <svg v-else class="h-6 w-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5" /></svg>
                                                 </div>
                                                 <div class="min-w-0 flex-1">
@@ -336,7 +336,7 @@ const submitNewSale = () => {
                                             <template v-else>
                                                 <button v-for="pres in p.presentations" :key="pres.id" @click="addToCart(p, pres)" class="flex items-center gap-3 rounded-xl p-3 text-left ring-1 ring-orange-100 transition hover:bg-orange-50/50 hover:ring-orange-200">
                                                     <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-orange-50">
-                                                        <img v-if="p.image_path" :src="`/storage/${p.image_path}`" class="h-full w-full object-cover" />
+                                                        <img v-if="p.image_url" :src="p.image_url" class="h-full w-full object-cover" />
                                                         <svg v-else class="h-6 w-6 text-orange-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4" /></svg>
                                                     </div>
                                                     <div class="min-w-0 flex-1">

@@ -18,7 +18,7 @@ class ProductResource extends JsonResource
             'price' => (float) $this->price,
             'category_id' => $this->category_id,
             'category_name' => $this->whenLoaded('category', fn () => $this->category?->name),
-            'image_url' => $this->image_path,
+            'image_url' => $this->image_url,
             'status' => $this->status,
             'presentations' => ProductPresentationResource::collection($this->whenLoaded('presentations')),
         ];

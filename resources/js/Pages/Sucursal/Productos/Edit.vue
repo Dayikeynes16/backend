@@ -60,7 +60,7 @@ const removePresentation = (idx) => {
     form.presentations.splice(idx, 1);
 };
 
-const imagePreview = ref(props.producto.image_path ? `/storage/${props.producto.image_path}` : null);
+const imagePreview = ref(props.producto.image_url || null);
 const fileInput = ref(null);
 
 const onFileSelect = (e) => {
