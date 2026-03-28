@@ -46,6 +46,11 @@ class SucursalController extends Controller
         ]);
 
         $tenant = app('tenant');
+
+        if ($tenant->branches()->count() >= $tenant->max_branches) {
+            return back()->with('error', "Has alcanzado el limite de {$tenant->max_branches} sucursales permitidas.");
+        }
+
         $validated['tenant_id'] = $tenant->id;
 
         Branch::create($validated);

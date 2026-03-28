@@ -7,6 +7,7 @@ use App\Models\Sale;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,12 +43,18 @@ class CancelRequestController extends Controller
             'cancel_reason' => 'required|string|max:500',
         ]);
 
-        $sale->update([
-            'status' => 'cancelled',
-            'cancelled_at' => now(),
-            'cancelled_by' => $user->id,
-            'cancel_reason' => $validated['cancel_reason'],
-        ]);
+        DB::transaction(function () use ($sale, $user, $validated) {
+            $sale->payments()->delete();
+
+            $sale->update([
+                'status' => 'cancelled',
+                'amount_paid' => 0,
+                'amount_pending' => 0,
+                'cancelled_at' => now(),
+                'cancelled_by' => $user->id,
+                'cancel_reason' => $validated['cancel_reason'],
+            ]);
+        });
 
         return back()->with('success', "Venta {$sale->folio} cancelada.");
     }

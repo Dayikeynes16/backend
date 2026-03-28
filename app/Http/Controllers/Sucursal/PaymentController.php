@@ -11,6 +11,7 @@ use App\Models\Sale;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
@@ -51,20 +52,22 @@ class PaymentController extends Controller
             'method.in' => 'El metodo de pago seleccionado no esta habilitado para esta sucursal.',
         ]);
 
-        // For cash: customer may give more than pending (change).
-        // We only register what's actually owed, not what was received.
-        $actualPayment = min((float) $validated['amount'], (float) $sale->amount_pending);
+        $change = 0;
 
-        Payment::create([
-            'sale_id' => $sale->id,
-            'user_id' => $user->id,
-            'method' => $validated['method'],
-            'amount' => round($actualPayment, 2),
-        ]);
+        DB::transaction(function () use ($sale, $user, $validated, &$change) {
+            $actualPayment = min((float) $validated['amount'], (float) $sale->amount_pending);
 
-        $this->recalculate($sale, $user);
+            Payment::create([
+                'sale_id' => $sale->id,
+                'user_id' => $user->id,
+                'method' => $validated['method'],
+                'amount' => round($actualPayment, 2),
+            ]);
 
-        $change = round((float) $validated['amount'] - $actualPayment, 2);
+            $this->recalculate($sale, $user);
+            $change = round((float) $validated['amount'] - $actualPayment, 2);
+        });
+
         $msg = $sale->amount_pending <= 0
             ? "Venta {$sale->folio} cobrada." . ($change > 0 ? " Cambio: \${$change}" : '')
             : "Pago registrado. Pendiente: \${$sale->amount_pending}";
@@ -88,8 +91,10 @@ class PaymentController extends Controller
             'method.in' => 'El metodo de pago seleccionado no esta habilitado para esta sucursal.',
         ]);
 
-        $payment->update($validated);
-        $this->recalculate($sale, $user);
+        DB::transaction(function () use ($payment, $sale, $user, $validated) {
+            $payment->update($validated);
+            $this->recalculate($sale, $user);
+        });
 
         return back()->with('success', 'Pago actualizado.');
     }
@@ -99,8 +104,10 @@ class PaymentController extends Controller
         $user = Auth::user();
         $this->authorizePaymentAction($user, $sale, $payment);
 
-        $payment->delete();
-        $this->recalculate($sale, $user);
+        DB::transaction(function () use ($payment, $sale, $user) {
+            $payment->delete();
+            $this->recalculate($sale, $user);
+        });
 
         return back()->with('success', 'Pago eliminado.');
     }

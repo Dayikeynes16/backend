@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Sucursal;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\SaleItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -215,8 +216,13 @@ class ProductoController extends Controller
             abort(403);
         }
 
-        if ($producto->image_path) {
-            Storage::delete($producto->image_path);
+        // Prevent deletion if product has sales in the last 30 days
+        $hasSales = SaleItem::where('product_id', $producto->id)
+            ->where('created_at', '>=', now()->subDays(30))
+            ->exists();
+
+        if ($hasSales) {
+            return back()->with('error', 'No se puede eliminar un producto con ventas en los ultimos 30 dias. Desactivalo en su lugar.');
         }
 
         $producto->delete();

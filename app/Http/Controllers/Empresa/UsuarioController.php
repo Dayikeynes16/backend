@@ -53,6 +53,10 @@ class UsuarioController extends Controller
     {
         $tenant = app('tenant');
 
+        if ($tenant->users()->count() >= $tenant->max_users) {
+            return back()->with('error', "Has alcanzado el limite de {$tenant->max_users} usuarios permitidos.");
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',

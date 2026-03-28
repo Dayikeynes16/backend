@@ -74,6 +74,16 @@ class WorkbenchController extends Controller
         $branchId = $user->branch_id;
         $tenantId = $user->tenant_id;
 
+        $tenant = app('tenant');
+        $monthlySales = Sale::where('branch_id', $branchId)
+            ->whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->count();
+
+        if ($monthlySales >= $tenant->max_sales_per_branch_month) {
+            return back()->with('error', 'Se alcanzo el limite de ventas mensuales para esta sucursal.');
+        }
+
         $productIds = collect($request->items)->pluck('product_id')->unique();
         $products = Product::where('branch_id', $branchId)
             ->where('status', 'active')
@@ -163,12 +173,19 @@ class WorkbenchController extends Controller
             'cancel_reason' => 'required|string|max:500',
         ]);
 
-        $sale->update([
-            'status' => 'cancelled',
-            'cancelled_at' => now(),
-            'cancelled_by' => $user->id,
-            'cancel_reason' => $validated['cancel_reason'],
-        ]);
+        DB::transaction(function () use ($sale, $user, $validated) {
+            // Delete associated payments and reset amounts
+            $sale->payments()->delete();
+
+            $sale->update([
+                'status' => 'cancelled',
+                'amount_paid' => 0,
+                'amount_pending' => 0,
+                'cancelled_at' => now(),
+                'cancelled_by' => $user->id,
+                'cancel_reason' => $validated['cancel_reason'],
+            ]);
+        });
 
         return back()->with('success', "Venta {$sale->folio} cancelada.");
     }

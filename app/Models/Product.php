@@ -8,12 +8,13 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
 #[Fillable(['tenant_id', 'branch_id', 'category_id', 'name', 'description', 'image_path', 'price', 'cost_price', 'unit_type', 'sale_mode', 'status', 'visibility'])]
 class Product extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, SoftDeletes;
 
     protected $appends = ['image_url'];
 

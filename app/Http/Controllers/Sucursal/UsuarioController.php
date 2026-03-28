@@ -45,6 +45,11 @@ class UsuarioController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
+        $tenant = app('tenant');
+
+        if ($tenant->users()->count() >= $tenant->max_users) {
+            return back()->with('error', "Has alcanzado el limite de {$tenant->max_users} usuarios permitidos.");
+        }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
