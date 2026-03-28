@@ -104,13 +104,6 @@ const deletePayment = (paymentId) => {
     }
 };
 
-// Send completed sale back to pending (reopen)
-const sendToPending = () => {
-    if (confirm(`¿Enviar venta ${selected.value.folio} a pendiente? Se reabrira para seguir operandola.`)) {
-        router.patch(route('sucursal.workbench.reopen', [props.tenant.slug, selected.value.id]), {}, { preserveScroll: true });
-    }
-};
-
 // Cancel sale
 const cancelSale = () => {
     const reason = prompt(`¿Cancelar venta ${selected.value.folio}?\n\nEscribe el motivo de cancelacion:`);
@@ -198,8 +191,7 @@ const submitNewSale = () => {
                         <div class="mt-2.5 flex items-end justify-between">
                             <div>
                                 <p class="text-xl font-bold text-gray-900">${{ parseFloat(sale.total).toFixed(2) }}</p>
-                                <p v-if="sale.status === 'completed'" class="mt-0.5 text-xs font-semibold text-green-600">Cobrada</p>
-                                <p v-else-if="parseFloat(sale.amount_pending) > 0" class="mt-0.5 text-xs font-semibold text-amber-600">
+                                <p v-if="parseFloat(sale.amount_pending) > 0" class="mt-0.5 text-xs font-semibold text-amber-600">
                                     Pendiente: ${{ parseFloat(sale.amount_pending).toFixed(2) }}
                                 </p>
                                 <p v-else class="mt-0.5 text-xs font-semibold text-green-600">Pagada</p>
@@ -331,25 +323,14 @@ const submitNewSale = () => {
                     </div>
 
                     <!-- Sticky actions -->
-                    <div class="border-t border-gray-100 px-6 py-4 flex items-center gap-3">
-                        <template v-if="parseFloat(selected.amount_pending) > 0">
-                            <button @click="showPayment = !showPayment" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                                Registrar Pago
-                            </button>
-                            <button v-if="canCancel" @click="cancelSale" class="rounded-lg border-2 border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50">
-                                Cancelar Venta
-                            </button>
-                        </template>
-                        <template v-else>
-                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-4 py-2 text-sm font-bold text-green-700">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                                Cobrada
-                            </span>
-                            <button @click="sendToPending" class="rounded-lg border-2 border-amber-200 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-50">
-                                Enviar a pendiente
-                            </button>
-                        </template>
+                    <div v-if="parseFloat(selected.amount_pending) > 0" class="border-t border-gray-100 px-6 py-4 flex items-center gap-3">
+                        <button @click="showPayment = !showPayment" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                            Registrar Pago
+                        </button>
+                        <button v-if="canCancel" @click="cancelSale" class="rounded-lg border-2 border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50">
+                            Cancelar Venta
+                        </button>
                     </div>
                 </template>
             </div>
