@@ -26,11 +26,17 @@ class ProductController extends Controller
                 ->orderBy('name')
                 ->paginate(20);
 
-            return ProductResource::collection($products);
+            // Force serialization inside try-catch to capture Resource/accessor errors
+            $json = ProductResource::collection($products)->response()->getData(true);
+
+            return response()->json($json);
         } catch (\Throwable $e) {
             return response()->json([
                 'error' => $e->getMessage(),
-                'line' => basename($e->getFile()).':'.$e->getLine(),
+                'trace' => collect($e->getTrace())->take(3)->map(fn ($t) => [
+                    'file' => basename($t['file'] ?? '').':'.($t['line'] ?? ''),
+                    'fn' => ($t['class'] ?? '').($t['type'] ?? '').$t['function'],
+                ])->all(),
             ], 500);
         }
     }
