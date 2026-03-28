@@ -101,7 +101,7 @@ class WorkbenchController extends Controller
                 $quantity = (float) $item['quantity'];
 
                 // If presentation mode and presentation_id is provided
-                if ($product->sale_mode === 'presentation' && ! empty($item['presentation_id'])) {
+                if (in_array($product->sale_mode, ['presentation', 'both']) && ! empty($item['presentation_id'])) {
                     $presentation = $product->presentations->find($item['presentation_id']);
                     $unitPrice = $presentation ? (float) $presentation->price : (float) $product->price;
                     $productName = $product->name . ' - ' . ($presentation->name ?? '');

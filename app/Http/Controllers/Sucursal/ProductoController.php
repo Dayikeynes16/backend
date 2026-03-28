@@ -68,10 +68,10 @@ class ProductoController extends Controller
             'category_id' => ['nullable', Rule::exists('categories', 'id')->where('branch_id', $branchId)],
             'price' => 'required|numeric|min:0.01',
             'cost_price' => 'nullable|numeric|min:0',
-            'sale_mode' => 'required|in:weight,presentation',
+            'sale_mode' => 'required|in:weight,presentation,both',
             'visibility' => 'required|in:public,restricted',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
-            'presentations' => 'required_if:sale_mode,presentation|array|min:1',
+            'presentations' => 'required_if:sale_mode,presentation|required_if:sale_mode,both|array|min:1',
             'presentations.*.name' => 'required|string|max:255',
             'presentations.*.content' => 'required|numeric|gt:0',
             'presentations.*.unit' => 'required|in:g,kg,ml,l,pieza',
@@ -91,7 +91,7 @@ class ProductoController extends Controller
             'category_id' => $validated['category_id'] ?? null,
             'price' => $validated['price'],
             'cost_price' => $validated['cost_price'] ?? null,
-            'unit_type' => $validated['sale_mode'] === 'weight' ? 'kg' : 'piece',
+            'unit_type' => $validated['sale_mode'] === 'presentation' ? 'piece' : 'kg',
             'sale_mode' => $validated['sale_mode'],
             'visibility' => $validated['visibility'],
         ];
@@ -102,7 +102,7 @@ class ProductoController extends Controller
 
         $product = Product::create($data);
 
-        if ($validated['sale_mode'] === 'presentation' && ! empty($validated['presentations'])) {
+        if (in_array($validated['sale_mode'], ['presentation', 'both']) && ! empty($validated['presentations'])) {
             foreach ($validated['presentations'] as $i => $p) {
                 $product->presentations()->create([
                     'name' => $p['name'],
@@ -154,11 +154,11 @@ class ProductoController extends Controller
             'category_id' => ['nullable', Rule::exists('categories', 'id')->where('branch_id', $branchId)],
             'price' => 'required|numeric|min:0.01',
             'cost_price' => 'nullable|numeric|min:0',
-            'sale_mode' => 'required|in:weight,presentation',
+            'sale_mode' => 'required|in:weight,presentation,both',
             'visibility' => 'required|in:public,restricted',
             'status' => 'required|in:active,inactive',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
-            'presentations' => 'required_if:sale_mode,presentation|array|min:1',
+            'presentations' => 'required_if:sale_mode,presentation|required_if:sale_mode,both|array|min:1',
             'presentations.*.name' => 'required|string|max:255',
             'presentations.*.content' => 'required|numeric|gt:0',
             'presentations.*.unit' => 'required|in:g,kg,ml,l,pieza',
@@ -175,7 +175,7 @@ class ProductoController extends Controller
             'price' => $validated['price'],
             'cost_price' => $validated['cost_price'] ?? null,
             'sale_mode' => $validated['sale_mode'],
-            'unit_type' => $validated['sale_mode'] === 'weight' ? 'kg' : 'piece',
+            'unit_type' => $validated['sale_mode'] === 'presentation' ? 'piece' : 'kg',
             'visibility' => $validated['visibility'],
             'status' => $validated['status'],
         ];
@@ -190,7 +190,7 @@ class ProductoController extends Controller
         $producto->update($data);
 
         // Sync presentations
-        if ($validated['sale_mode'] === 'presentation') {
+        if (in_array($validated['sale_mode'], ['presentation', 'both'])) {
             $producto->presentations()->delete();
             foreach (($validated['presentations'] ?? []) as $i => $p) {
                 $producto->presentations()->create([

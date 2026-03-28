@@ -72,7 +72,7 @@ class SaleController extends Controller
                 $presentationId = $item['presentation_id'] ?? null;
 
                 // Use presentation price when applicable
-                if ($presentationId && $product->sale_mode === 'presentation') {
+                if ($presentationId && in_array($product->sale_mode, ['presentation', 'both'])) {
                     $presentation = $product->presentations->find($presentationId);
 
                     if (! $presentation) {

@@ -148,13 +148,13 @@ const destroy = () => {
                 </div>
                 <div class="grid gap-6 p-6 sm:grid-cols-2">
                     <div>
-                        <InputLabel for="price" :value="form.sale_mode === 'weight' ? 'Precio de venta (por kg)' : 'Precio base (por kg)'" />
+                        <InputLabel for="price" :value="form.sale_mode === 'weight' ? 'Precio de venta (por kg)' : 'Precio por kg'" />
                         <div class="relative mt-1.5">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                             <input id="price" v-model="form.price" type="number" step="0.01" min="0.01" required placeholder="0.00"
                                 class="block w-full rounded-md border-gray-300 pl-7 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-400">{{ form.sale_mode === 'presentation' ? 'Se usa para calcular el precio sugerido de cada presentacion.' : 'Monto que se cobra al cliente.' }}</p>
+                        <p class="mt-1.5 text-xs text-gray-400">{{ form.sale_mode === 'weight' ? 'Monto que se cobra al cliente.' : 'Se usa como precio por kg y para calcular precio sugerido de presentaciones.' }}</p>
                         <InputError :message="form.errors.price" class="mt-1" />
                     </div>
                     <div>
@@ -176,7 +176,7 @@ const destroy = () => {
                     <h2 class="text-base font-bold text-gray-900">Forma de Venta</h2>
                 </div>
                 <div class="p-6 space-y-5">
-                    <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="grid gap-4 sm:grid-cols-3">
                         <button type="button" @click="form.sale_mode = 'weight'"
                             :class="['flex items-start gap-4 rounded-xl p-5 text-left transition-all cursor-pointer',
                                 form.sale_mode === 'weight' ? 'ring-2 ring-red-500 bg-red-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
@@ -199,9 +199,20 @@ const destroy = () => {
                                 <p class="mt-0.5 text-xs" :class="form.sale_mode === 'presentation' ? 'text-orange-600' : 'text-gray-500'">Presentaciones predefinidas.</p>
                             </div>
                         </button>
+                        <button type="button" @click="form.sale_mode = 'both'"
+                            :class="['flex items-start gap-4 rounded-xl p-5 text-left transition-all cursor-pointer',
+                                form.sale_mode === 'both' ? 'ring-2 ring-purple-500 bg-purple-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
+                            <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', form.sale_mode === 'both' ? 'bg-purple-100' : 'bg-gray-100']">
+                                <svg class="h-5 w-5" :class="form.sale_mode === 'both' ? 'text-purple-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold" :class="form.sale_mode === 'both' ? 'text-purple-800' : 'text-gray-900'">Ambos</p>
+                                <p class="mt-0.5 text-xs" :class="form.sale_mode === 'both' ? 'text-purple-600' : 'text-gray-500'">Se puede pesar o vender por presentacion.</p>
+                            </div>
+                        </button>
                     </div>
 
-                    <div v-if="form.sale_mode === 'presentation'" class="space-y-3">
+                    <div v-if="form.sale_mode === 'presentation' || form.sale_mode === 'both'" class="space-y-3">
                         <div class="flex items-center justify-between">
                             <p class="text-sm font-semibold text-gray-700">Presentaciones</p>
                             <button type="button" @click="addPresentation" class="text-sm font-semibold text-red-600 hover:text-red-700">+ Agregar</button>
