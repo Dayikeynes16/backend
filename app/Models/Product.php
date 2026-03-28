@@ -34,10 +34,19 @@ class Product extends Model
 
     protected function imageUrl(): Attribute
     {
-        return Attribute::get(fn () => $this->image_path
-            ? Storage::url($this->image_path)
-            : null
-        );
+        return Attribute::get(function () {
+            if (! $this->image_path) {
+                return null;
+            }
+
+            $disk = config('filesystems.default');
+
+            if ($disk === 's3') {
+                return Storage::url($this->image_path);
+            }
+
+            return '/storage/' . $this->image_path;
+        });
     }
 
     protected function casts(): array
