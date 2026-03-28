@@ -30,13 +30,9 @@ const isActive = (link) => {
         >
             <!-- Brand -->
             <div class="flex h-[72px] items-center gap-3.5 px-6">
-                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 shadow-inner">
-                    <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-                    </svg>
-                </div>
+                <img src="/logo.png" alt="El Puebla" class="h-10 w-10 rounded-xl" />
                 <div class="flex flex-col">
-                    <span class="text-sm font-bold leading-tight tracking-wide text-white">Carniceria</span>
+                    <span class="text-sm font-bold leading-tight tracking-wide text-white">El Puebla</span>
                     <span class="text-xs font-semibold leading-tight text-orange-300">SaaS Platform</span>
                 </div>
             </div>

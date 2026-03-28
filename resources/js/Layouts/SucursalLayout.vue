@@ -46,11 +46,9 @@ const iconPaths = {
 
         <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'" class="fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col bg-gradient-to-b from-red-800 via-red-850 to-red-900 transition-transform duration-300 lg:translate-x-0">
             <div class="flex h-[72px] items-center gap-3.5 px-6">
-                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 shadow-inner">
-                    <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349" /></svg>
-                </div>
+                <img src="/logo.png" alt="El Puebla" class="h-10 w-10 rounded-xl" />
                 <div class="flex flex-col">
-                    <span class="text-sm font-bold leading-tight tracking-wide text-white">Carniceria</span>
+                    <span class="text-sm font-bold leading-tight tracking-wide text-white">El Puebla</span>
                     <span class="text-xs font-semibold leading-tight text-orange-300">Sucursal</span>
                 </div>
             </div>
