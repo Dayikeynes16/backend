@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['admin_id', 'target_user_id', 'method', 'admin_role', 'ip_address'])]
+#[Fillable(['tenant_id', 'admin_id', 'target_user_id', 'method', 'admin_role', 'ip_address'])]
 class PasswordResetLog extends Model
 {
     public $timestamps = false;

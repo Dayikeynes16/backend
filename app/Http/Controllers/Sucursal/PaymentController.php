@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Sucursal;
 use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use App\Models\Sale;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +24,15 @@ class PaymentController extends Controller
 
         if ($sale->status === 'completed' || $sale->status === 'cancelled') {
             return back()->with('error', 'No se pueden registrar pagos en esta venta.');
+        }
+
+        // Require open shift to register payments
+        $hasOpenShift = CashRegisterShift::where('user_id', $user->id)
+            ->whereNull('closed_at')
+            ->exists();
+
+        if (! $hasOpenShift) {
+            return back()->with('error', 'Debes tener un turno abierto para registrar pagos.');
         }
 
         // Concurrency guard: if locked by someone else

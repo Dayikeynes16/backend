@@ -33,6 +33,12 @@ class AuthenticateApiKey
             ], 401);
         }
 
+        if ($apiKey->isExpired()) {
+            return response()->json([
+                'message' => 'API Key expirada. Genera una nueva desde el panel de administración.',
+            ], 401);
+        }
+
         $branch = $apiKey->branch;
         $tenant = $branch->tenant;
 

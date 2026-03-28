@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -59,20 +60,25 @@ class ProductoController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $branchId = Auth::user()->branch_id;
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
-            'category_id' => 'nullable|exists:categories,id',
+            'category_id' => ['nullable', Rule::exists('categories', 'id')->where('branch_id', $branchId)],
             'price' => 'required|numeric|min:0.01',
             'cost_price' => 'nullable|numeric|min:0',
             'sale_mode' => 'required|in:weight,presentation',
             'visibility' => 'required|in:public,restricted',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
-            'presentations' => 'nullable|array',
+            'presentations' => 'required_if:sale_mode,presentation|array|min:1',
             'presentations.*.name' => 'required|string|max:255',
             'presentations.*.content' => 'required|numeric|gt:0',
             'presentations.*.unit' => 'required|in:g,kg,ml,l,pieza',
             'presentations.*.price' => 'required|numeric|min:0.01',
+        ], [
+            'presentations.required_if' => 'Debes agregar al menos una presentacion.',
+            'presentations.min' => 'Debes agregar al menos una presentacion.',
         ]);
 
         $user = Auth::user();
@@ -136,25 +142,30 @@ class ProductoController extends Controller
 
     public function update(Request $request, Product $producto): RedirectResponse
     {
-        if ($producto->branch_id !== Auth::user()->branch_id) {
+        $branchId = Auth::user()->branch_id;
+
+        if ($producto->branch_id !== $branchId) {
             abort(403);
         }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
-            'category_id' => 'nullable|exists:categories,id',
+            'category_id' => ['nullable', Rule::exists('categories', 'id')->where('branch_id', $branchId)],
             'price' => 'required|numeric|min:0.01',
             'cost_price' => 'nullable|numeric|min:0',
             'sale_mode' => 'required|in:weight,presentation',
             'visibility' => 'required|in:public,restricted',
             'status' => 'required|in:active,inactive',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
-            'presentations' => 'nullable|array',
+            'presentations' => 'required_if:sale_mode,presentation|array|min:1',
             'presentations.*.name' => 'required|string|max:255',
             'presentations.*.content' => 'required|numeric|gt:0',
             'presentations.*.unit' => 'required|in:g,kg,ml,l,pieza',
             'presentations.*.price' => 'required|numeric|min:0.01',
+        ], [
+            'presentations.required_if' => 'Debes agregar al menos una presentacion.',
+            'presentations.min' => 'Debes agregar al menos una presentacion.',
         ]);
 
         $data = [

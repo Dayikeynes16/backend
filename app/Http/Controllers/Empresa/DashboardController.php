@@ -19,7 +19,9 @@ class DashboardController extends Controller
         $today = now()->toDateString();
         $branchFilter = $request->integer('branch_id') ?: null;
 
-        $salesQuery = Sale::where('status', 'completed')
+        // Explicit tenant_id filters as defense-in-depth (TenantScope also applies)
+        $salesQuery = Sale::where('tenant_id', $tenant->id)
+            ->where('status', 'completed')
             ->whereDate('completed_at', $today)
             ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter));
 
@@ -34,13 +36,14 @@ class DashboardController extends Controller
         ];
 
         $salesByBranch = Sale::select('branch_id', DB::raw('COUNT(*) as sale_count'), DB::raw('SUM(total) as total'))
+            ->where('tenant_id', $tenant->id)
             ->where('status', 'completed')
             ->whereDate('completed_at', $today)
             ->groupBy('branch_id')
             ->get()
             ->keyBy('branch_id');
 
-        $branches = Branch::orderBy('name')->get()->map(fn (Branch $b) => [
+        $branches = Branch::where('tenant_id', $tenant->id)->orderBy('name')->get()->map(fn (Branch $b) => [
             'id' => $b->id,
             'name' => $b->name,
             'status' => $b->status,
@@ -48,9 +51,10 @@ class DashboardController extends Controller
             'total' => (float) ($salesByBranch[$b->id]->total ?? 0),
         ]);
 
-        $branchCount = Branch::count();
+        $branchCount = Branch::where('tenant_id', $tenant->id)->count();
         $userCount = User::where('tenant_id', $tenant->id)->count();
-        $pendingCount = Sale::where('status', 'pending')
+        $pendingCount = Sale::where('tenant_id', $tenant->id)
+            ->where('status', 'pending')
             ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter))
             ->count();
 

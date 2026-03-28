@@ -87,6 +87,8 @@ class WorkbenchController extends Controller
         }
 
         DB::transaction(function () use ($request, $branchId, $tenantId, $products, $user) {
+            DB::statement('SELECT pg_advisory_xact_lock(?)', [$branchId]);
+
             $count = Sale::withoutGlobalScopes()->where('branch_id', $branchId)->count();
             $folio = 'S-' . str_pad($count + 1, 5, '0', STR_PAD_LEFT);
 

@@ -43,6 +43,17 @@ class WithdrawalController extends Controller
             abort(403);
         }
 
+        // Validate ownership: withdrawal → shift → branch must match current user
+        $shift = $withdrawal->shift;
+
+        if (! $shift || $shift->branch_id !== $user->branch_id) {
+            abort(403, 'Este retiro no pertenece a tu sucursal.');
+        }
+
+        if ($shift->tenant_id !== $user->tenant_id) {
+            abort(403, 'Este retiro no pertenece a tu empresa.');
+        }
+
         $withdrawal->delete();
 
         return back()->with('success', 'Retiro eliminado.');

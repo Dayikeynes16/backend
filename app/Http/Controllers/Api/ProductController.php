@@ -15,6 +15,11 @@ class ProductController extends Controller
         $products = Product::withoutGlobalScopes()
             ->where('branch_id', $request->branch_id)
             ->where('status', 'active')
+            ->where('visibility', 'public')
+            ->with([
+                'category',
+                'presentations' => fn ($q) => $q->where('status', 'active')->orderBy('sort_order'),
+            ])
             ->when($request->search, fn ($q, $s) => $q->where('name', 'ilike', "%{$s}%"))
             ->when($request->unit_type, fn ($q, $t) => $q->where('unit_type', $t))
             ->orderBy('name')

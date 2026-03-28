@@ -28,7 +28,7 @@ class UsuarioController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $sucursales = Branch::orderBy('name')->get(['id', 'name']);
+        $sucursales = Branch::where('tenant_id', app('tenant')->id)->orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Empresa/Usuarios/Index', [
             'usuarios' => $usuarios,
@@ -41,7 +41,7 @@ class UsuarioController extends Controller
 
     public function create(): Response
     {
-        $sucursales = Branch::orderBy('name')->get(['id', 'name']);
+        $sucursales = Branch::where('tenant_id', app('tenant')->id)->orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Empresa/Usuarios/Create', [
             'sucursales' => $sucursales,
@@ -80,7 +80,7 @@ class UsuarioController extends Controller
         $this->authorizeUserAccess($usuario);
 
         $usuario->load('roles', 'branch');
-        $sucursales = Branch::orderBy('name')->get(['id', 'name']);
+        $sucursales = Branch::where('tenant_id', app('tenant')->id)->orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Empresa/Usuarios/Edit', [
             'usuario' => $usuario,

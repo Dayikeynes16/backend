@@ -4,12 +4,12 @@ import FlashToast from '@/Components/FlashToast.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, reactive } from 'vue';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 const props = defineProps({ producto: Object, categories: Array, tenant: Object });
 
-const formData = reactive({
+const form = useForm({
     name: props.producto.name,
     category_id: props.producto.category_id || '',
     description: props.producto.description || '',
@@ -22,17 +22,42 @@ const formData = reactive({
     presentations: (props.producto.presentations || []).map(p => ({
         name: p.name, content: p.content, unit: p.unit, price: p.price,
     })),
-    _method: 'put',
 });
 
-const errors = ref({});
-const processing = ref(false);
+const suggestedPrice = (p) => {
+    const base = parseFloat(form.price);
+    const content = parseFloat(p.content);
+    if (!base || !content || content <= 0) return null;
+    if (p.unit === 'kg') return Math.round(content * base * 100) / 100;
+    if (p.unit === 'g') return Math.round((content / 1000) * base * 100) / 100;
+    return null;
+};
+
+const contentEquivalent = (p) => {
+    const content = parseFloat(p.content);
+    if (!content || content <= 0) return null;
+    if (p.unit === 'g' && content >= 1) return `= ${Math.round((content / 1000) * 1000) / 1000} kg`;
+    if (p.unit === 'kg' && content < 1) return `= ${Math.round(content * 1000)} g`;
+    if (p.unit === 'ml' && content >= 1) return `= ${Math.round((content / 1000) * 1000) / 1000} l`;
+    if (p.unit === 'l' && content < 1) return `= ${Math.round(content * 1000)} ml`;
+    return null;
+};
+
+const contentWarning = (p) => {
+    const content = parseFloat(p.content);
+    if (!content) return null;
+    if (p.unit === 'g' && content < 1) return '¿Quisiste decir kg?';
+    if (p.unit === 'kg' && content > 100) return '¿Seguro? Eso es mas de 100 kg';
+    if (p.unit === 'ml' && content < 1) return '¿Quisiste decir litros?';
+    if (p.unit === 'l' && content > 100) return '¿Seguro? Eso es mas de 100 litros';
+    return null;
+};
 
 const addPresentation = () => {
-    formData.presentations.push({ name: '', content: '', unit: 'g', price: '' });
+    form.presentations.push({ name: '', content: '', unit: 'g', price: '' });
 };
 const removePresentation = (idx) => {
-    formData.presentations.splice(idx, 1);
+    form.presentations.splice(idx, 1);
 };
 
 const imagePreview = ref(props.producto.image_path ? `/storage/${props.producto.image_path}` : null);
@@ -41,34 +66,19 @@ const fileInput = ref(null);
 const onFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    formData.image = file;
+    form.image = file;
     imagePreview.value = URL.createObjectURL(file);
 };
 
 const removeImage = () => {
-    formData.image = null;
+    form.image = null;
     imagePreview.value = null;
     if (fileInput.value) fileInput.value.value = '';
 };
 
 const submit = () => {
-    processing.value = true;
-    const data = new FormData();
-    Object.keys(formData).forEach(key => {
-        if (formData[key] !== null && formData[key] !== '') {
-            data.append(key, formData[key]);
-        }
-    });
-    if (!formData.cost_price && formData.cost_price !== 0) {
-        // don't send empty cost_price
-    }
-    // Always send _method for PUT via POST
-    data.set('_method', 'put');
-
-    router.post(route('sucursal.productos.update', [props.tenant.slug, props.producto.id]), data, {
+    form.put(route('sucursal.productos.update', [props.tenant.slug, props.producto.id]), {
         forceFormData: true,
-        onError: (e) => { errors.value = e; },
-        onFinish: () => { processing.value = false; },
     });
 };
 
@@ -100,33 +110,33 @@ const destroy = () => {
                     <div class="grid gap-5 sm:grid-cols-2">
                         <div>
                             <InputLabel for="name" value="Nombre del producto" />
-                            <TextInput id="name" v-model="formData.name" type="text" class="mt-1.5 block w-full" required />
-                            <InputError :message="errors.name" class="mt-1" />
+                            <TextInput id="name" v-model="form.name" type="text" class="mt-1.5 block w-full" required />
+                            <InputError :message="form.errors.name" class="mt-1" />
                         </div>
                         <div>
                             <InputLabel for="status" value="Estado" />
-                            <select id="status" v-model="formData.status" class="mt-1.5 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-red-400 focus:ring-red-300">
+                            <select id="status" v-model="form.status" class="mt-1.5 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-red-400 focus:ring-red-300">
                                 <option value="active">Activo</option>
                                 <option value="inactive">Inactivo</option>
                             </select>
-                            <InputError :message="errors.status" class="mt-1" />
+                            <InputError :message="form.errors.status" class="mt-1" />
                         </div>
                     </div>
 
                     <div>
                         <InputLabel for="category_id" value="Categoria" />
-                        <select id="category_id" v-model="formData.category_id" class="mt-1.5 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-red-400 focus:ring-red-300">
+                        <select id="category_id" v-model="form.category_id" class="mt-1.5 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-red-400 focus:ring-red-300">
                             <option value="">Sin categoria</option>
                             <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
                         </select>
-                        <InputError :message="errors.category_id" class="mt-1" />
+                        <InputError :message="form.errors.category_id" class="mt-1" />
                     </div>
 
                     <div>
                         <InputLabel for="description" value="Descripcion (opcional)" />
-                        <textarea id="description" v-model="formData.description" rows="3"
+                        <textarea id="description" v-model="form.description" rows="3"
                             class="mt-1.5 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
-                        <InputError :message="errors.description" class="mt-1" />
+                        <InputError :message="form.errors.description" class="mt-1" />
                     </div>
                 </div>
             </section>
@@ -138,24 +148,24 @@ const destroy = () => {
                 </div>
                 <div class="grid gap-6 p-6 sm:grid-cols-2">
                     <div>
-                        <InputLabel for="price" value="Precio de venta" />
+                        <InputLabel for="price" :value="form.sale_mode === 'weight' ? 'Precio de venta (por kg)' : 'Precio base (por kg)'" />
                         <div class="relative mt-1.5">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                            <input id="price" v-model="formData.price" type="number" step="0.01" min="0.01" required placeholder="0.00"
+                            <input id="price" v-model="form.price" type="number" step="0.01" min="0.01" required placeholder="0.00"
                                 class="block w-full rounded-md border-gray-300 pl-7 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-400">Monto que se cobra al cliente.</p>
-                        <InputError :message="errors.price" class="mt-1" />
+                        <p class="mt-1.5 text-xs text-gray-400">{{ form.sale_mode === 'presentation' ? 'Se usa para calcular el precio sugerido de cada presentacion.' : 'Monto que se cobra al cliente.' }}</p>
+                        <InputError :message="form.errors.price" class="mt-1" />
                     </div>
                     <div>
                         <InputLabel for="cost_price" value="Precio de produccion (opcional)" />
                         <div class="relative mt-1.5">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                            <input id="cost_price" v-model="formData.cost_price" type="number" step="0.01" min="0" placeholder="0.00"
+                            <input id="cost_price" v-model="form.cost_price" type="number" step="0.01" min="0" placeholder="0.00"
                                 class="block w-full rounded-md border-gray-300 pl-7 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
                         </div>
                         <p class="mt-1.5 text-xs text-gray-400">Referencia interna. No es visible para el cliente.</p>
-                        <InputError :message="errors.cost_price" class="mt-1" />
+                        <InputError :message="form.errors.cost_price" class="mt-1" />
                     </div>
                 </div>
             </section>
@@ -167,59 +177,75 @@ const destroy = () => {
                 </div>
                 <div class="p-6 space-y-5">
                     <div class="grid gap-4 sm:grid-cols-2">
-                        <button type="button" @click="formData.sale_mode = 'weight'"
+                        <button type="button" @click="form.sale_mode = 'weight'"
                             :class="['flex items-start gap-4 rounded-xl p-5 text-left transition-all cursor-pointer',
-                                formData.sale_mode === 'weight' ? 'ring-2 ring-red-500 bg-red-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
-                            <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', formData.sale_mode === 'weight' ? 'bg-red-100' : 'bg-gray-100']">
-                                <svg class="h-5 w-5" :class="formData.sale_mode === 'weight' ? 'text-red-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.97Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.97Z" /></svg>
+                                form.sale_mode === 'weight' ? 'ring-2 ring-red-500 bg-red-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
+                            <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', form.sale_mode === 'weight' ? 'bg-red-100' : 'bg-gray-100']">
+                                <svg class="h-5 w-5" :class="form.sale_mode === 'weight' ? 'text-red-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.97Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.97Z" /></svg>
                             </div>
                             <div>
-                                <p class="text-sm font-bold" :class="formData.sale_mode === 'weight' ? 'text-red-800' : 'text-gray-900'">Peso variable</p>
-                                <p class="mt-0.5 text-xs" :class="formData.sale_mode === 'weight' ? 'text-red-600' : 'text-gray-500'">Se pesa al momento. Precio por kg.</p>
+                                <p class="text-sm font-bold" :class="form.sale_mode === 'weight' ? 'text-red-800' : 'text-gray-900'">Peso variable</p>
+                                <p class="mt-0.5 text-xs" :class="form.sale_mode === 'weight' ? 'text-red-600' : 'text-gray-500'">Se pesa al momento. Precio por kg.</p>
                             </div>
                         </button>
-                        <button type="button" @click="formData.sale_mode = 'presentation'"
+                        <button type="button" @click="form.sale_mode = 'presentation'"
                             :class="['flex items-start gap-4 rounded-xl p-5 text-left transition-all cursor-pointer',
-                                formData.sale_mode === 'presentation' ? 'ring-2 ring-orange-500 bg-orange-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
-                            <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', formData.sale_mode === 'presentation' ? 'bg-orange-100' : 'bg-gray-100']">
-                                <svg class="h-5 w-5" :class="formData.sale_mode === 'presentation' ? 'text-orange-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
+                                form.sale_mode === 'presentation' ? 'ring-2 ring-orange-500 bg-orange-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
+                            <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', form.sale_mode === 'presentation' ? 'bg-orange-100' : 'bg-gray-100']">
+                                <svg class="h-5 w-5" :class="form.sale_mode === 'presentation' ? 'text-orange-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
                             </div>
                             <div>
-                                <p class="text-sm font-bold" :class="formData.sale_mode === 'presentation' ? 'text-orange-800' : 'text-gray-900'">Presentacion fija</p>
-                                <p class="mt-0.5 text-xs" :class="formData.sale_mode === 'presentation' ? 'text-orange-600' : 'text-gray-500'">Presentaciones predefinidas.</p>
+                                <p class="text-sm font-bold" :class="form.sale_mode === 'presentation' ? 'text-orange-800' : 'text-gray-900'">Presentacion fija</p>
+                                <p class="mt-0.5 text-xs" :class="form.sale_mode === 'presentation' ? 'text-orange-600' : 'text-gray-500'">Presentaciones predefinidas.</p>
                             </div>
                         </button>
                     </div>
 
-                    <div v-if="formData.sale_mode === 'presentation'" class="space-y-3">
+                    <div v-if="form.sale_mode === 'presentation'" class="space-y-3">
                         <div class="flex items-center justify-between">
                             <p class="text-sm font-semibold text-gray-700">Presentaciones</p>
                             <button type="button" @click="addPresentation" class="text-sm font-semibold text-red-600 hover:text-red-700">+ Agregar</button>
                         </div>
-                        <div v-if="formData.presentations.length === 0" class="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">Agrega al menos una presentacion.</div>
-                        <div v-for="(p, idx) in formData.presentations" :key="idx" class="flex items-end gap-3 rounded-lg bg-gray-50 p-4">
-                            <div class="flex-1">
-                                <label class="text-xs font-medium text-gray-500">Nombre</label>
-                                <input v-model="p.name" type="text" placeholder="500g, 1kg..." class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                        <InputError :message="form.errors.presentations" class="mt-1" />
+
+                        <div v-if="form.presentations.length === 0" class="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">Agrega al menos una presentacion.</div>
+                        <div v-for="(p, idx) in form.presentations" :key="idx" class="rounded-lg bg-gray-50 p-4">
+                            <div class="flex items-end gap-3">
+                                <div class="flex-1">
+                                    <label class="text-xs font-medium text-gray-500">Nombre</label>
+                                    <input v-model="p.name" type="text" :placeholder="p.content && p.unit ? `${p.content}${p.unit}` : '500g, 1kg...'" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                                </div>
+                                <div class="w-24">
+                                    <label class="text-xs font-medium text-gray-500">Contenido</label>
+                                    <input v-model="p.content" type="number" step="0.001" min="0.001" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                                </div>
+                                <div class="w-24">
+                                    <label class="text-xs font-medium text-gray-500">Unidad</label>
+                                    <select v-model="p.unit" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
+                                        <option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">l</option><option value="pieza">pieza</option>
+                                    </select>
+                                </div>
+                                <div class="w-28">
+                                    <label class="text-xs font-medium text-gray-500">Precio</label>
+                                    <div class="relative mt-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                                    <input v-model="p.price" type="number" step="0.01" min="0.01" :placeholder="suggestedPrice(p) ? suggestedPrice(p).toFixed(2) : '0.00'" class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" /></div>
+                                </div>
+                                <button type="button" @click="removePresentation(idx)" class="rounded-lg p-2 text-gray-400 hover:text-red-600">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                </button>
                             </div>
-                            <div class="w-24">
-                                <label class="text-xs font-medium text-gray-500">Contenido</label>
-                                <input v-model="p.content" type="number" step="0.001" min="0.001" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                            <!-- Ayudas visuales -->
+                            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <p v-if="suggestedPrice(p) && !p.price" class="text-xs text-blue-600">Precio sugerido: ${{ suggestedPrice(p).toFixed(2) }}</p>
+                                <p v-if="contentEquivalent(p)" class="text-xs text-gray-400">{{ contentEquivalent(p) }}</p>
+                                <p v-if="contentWarning(p)" class="text-xs font-medium text-amber-600">{{ contentWarning(p) }}</p>
                             </div>
-                            <div class="w-24">
-                                <label class="text-xs font-medium text-gray-500">Unidad</label>
-                                <select v-model="p.unit" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
-                                    <option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">l</option><option value="pieza">pieza</option>
-                                </select>
+                            <div v-if="form.errors[`presentations.${idx}.name`] || form.errors[`presentations.${idx}.content`] || form.errors[`presentations.${idx}.unit`] || form.errors[`presentations.${idx}.price`]" class="mt-2 space-y-1">
+                                <InputError :message="form.errors[`presentations.${idx}.name`]" />
+                                <InputError :message="form.errors[`presentations.${idx}.content`]" />
+                                <InputError :message="form.errors[`presentations.${idx}.unit`]" />
+                                <InputError :message="form.errors[`presentations.${idx}.price`]" />
                             </div>
-                            <div class="w-28">
-                                <label class="text-xs font-medium text-gray-500">Precio</label>
-                                <div class="relative mt-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                                <input v-model="p.price" type="number" step="0.01" min="0.01" class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" /></div>
-                            </div>
-                            <button type="button" @click="removePresentation(idx)" class="rounded-lg p-2 text-gray-400 hover:text-red-600">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -231,26 +257,26 @@ const destroy = () => {
                     <h2 class="text-base font-bold text-gray-900">Visibilidad</h2>
                 </div>
                 <div class="grid gap-4 p-6 sm:grid-cols-2">
-                    <button type="button" @click="formData.visibility = 'public'"
+                    <button type="button" @click="form.visibility = 'public'"
                         :class="['flex items-start gap-4 rounded-xl p-5 text-left transition-all cursor-pointer',
-                            formData.visibility === 'public' ? 'ring-2 ring-green-500 bg-green-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
-                        <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', formData.visibility === 'public' ? 'bg-green-100' : 'bg-gray-100']">
-                            <svg class="h-5 w-5" :class="formData.visibility === 'public' ? 'text-green-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                            form.visibility === 'public' ? 'ring-2 ring-green-500 bg-green-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
+                        <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', form.visibility === 'public' ? 'bg-green-100' : 'bg-gray-100']">
+                            <svg class="h-5 w-5" :class="form.visibility === 'public' ? 'text-green-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                         </div>
                         <div>
-                            <p class="text-sm font-bold" :class="formData.visibility === 'public' ? 'text-green-800' : 'text-gray-900'">Publico</p>
-                            <p class="mt-0.5 text-xs" :class="formData.visibility === 'public' ? 'text-green-600' : 'text-gray-500'">Visible en la app externa y catalogo.</p>
+                            <p class="text-sm font-bold" :class="form.visibility === 'public' ? 'text-green-800' : 'text-gray-900'">Publico</p>
+                            <p class="mt-0.5 text-xs" :class="form.visibility === 'public' ? 'text-green-600' : 'text-gray-500'">Visible en la app externa y catalogo.</p>
                         </div>
                     </button>
-                    <button type="button" @click="formData.visibility = 'restricted'"
+                    <button type="button" @click="form.visibility = 'restricted'"
                         :class="['flex items-start gap-4 rounded-xl p-5 text-left transition-all cursor-pointer',
-                            formData.visibility === 'restricted' ? 'ring-2 ring-amber-500 bg-amber-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
-                        <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', formData.visibility === 'restricted' ? 'bg-amber-100' : 'bg-gray-100']">
-                            <svg class="h-5 w-5" :class="formData.visibility === 'restricted' ? 'text-amber-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
+                            form.visibility === 'restricted' ? 'ring-2 ring-amber-500 bg-amber-50/50' : 'ring-1 ring-gray-200 hover:ring-gray-300']">
+                        <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', form.visibility === 'restricted' ? 'bg-amber-100' : 'bg-gray-100']">
+                            <svg class="h-5 w-5" :class="form.visibility === 'restricted' ? 'text-amber-600' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
                         </div>
                         <div>
-                            <p class="text-sm font-bold" :class="formData.visibility === 'restricted' ? 'text-amber-800' : 'text-gray-900'">Restringido</p>
-                            <p class="mt-0.5 text-xs" :class="formData.visibility === 'restricted' ? 'text-amber-600' : 'text-gray-500'">Solo visible dentro del sistema interno.</p>
+                            <p class="text-sm font-bold" :class="form.visibility === 'restricted' ? 'text-amber-800' : 'text-gray-900'">Restringido</p>
+                            <p class="mt-0.5 text-xs" :class="form.visibility === 'restricted' ? 'text-amber-600' : 'text-gray-500'">Solo visible dentro del sistema interno.</p>
                         </div>
                     </button>
                 </div>
@@ -278,14 +304,14 @@ const destroy = () => {
                         <p class="mt-1 text-xs text-gray-400">JPG, PNG o WebP. Maximo 2MB.</p>
                     </div>
                     <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onFileSelect" />
-                    <InputError :message="errors.image" class="mt-2" />
+                    <InputError :message="form.errors.image" class="mt-2" />
                 </div>
             </section>
 
             <!-- Actions -->
             <div class="flex items-center justify-end gap-3">
                 <Link :href="route('sucursal.productos.index', tenant.slug)" class="rounded-lg px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100">Cancelar</Link>
-                <button type="submit" :disabled="processing" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50">Guardar Cambios</button>
+                <button type="submit" :disabled="form.processing" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50">Guardar Cambios</button>
             </div>
 
             <!-- Danger zone -->

@@ -56,6 +56,8 @@ class SucursalController extends Controller
 
     public function edit(Branch $sucursal): Response
     {
+        $this->authorizeBranchAccess($sucursal);
+
         $sucursal->load(['users' => fn ($q) => $q->with('roles')->orderBy('name')]);
         $sucursal->loadCount('users');
 
@@ -67,6 +69,8 @@ class SucursalController extends Controller
 
     public function update(Request $request, Branch $sucursal): RedirectResponse
     {
+        $this->authorizeBranchAccess($sucursal);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'address' => 'nullable|string|max:500',
@@ -85,9 +89,18 @@ class SucursalController extends Controller
 
     public function destroy(Branch $sucursal): RedirectResponse
     {
+        $this->authorizeBranchAccess($sucursal);
+
         $sucursal->delete();
 
         return redirect()->route('empresa.sucursales.index', app('tenant')->slug)
             ->with('success', 'Sucursal eliminada exitosamente.');
+    }
+
+    private function authorizeBranchAccess(Branch $sucursal): void
+    {
+        if ($sucursal->tenant_id !== app('tenant')->id) {
+            abort(403, 'Esta sucursal no pertenece a tu empresa.');
+        }
     }
 }

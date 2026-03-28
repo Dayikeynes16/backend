@@ -151,6 +151,16 @@ class CashShiftController extends Controller
     public function show(CashRegisterShift $shift): Response
     {
         $user = Auth::user();
+
+        // Validate shift belongs to this branch and tenant
+        if ($shift->branch_id !== $user->branch_id) {
+            abort(403, 'Este corte no pertenece a tu sucursal.');
+        }
+
+        if ($shift->tenant_id !== $user->tenant_id) {
+            abort(403, 'Este corte no pertenece a tu empresa.');
+        }
+
         $isAdmin = $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin');
 
         if (! $isAdmin && $shift->user_id !== $user->id) {

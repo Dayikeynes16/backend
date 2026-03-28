@@ -21,6 +21,35 @@ const form = useForm({
     presentations: [],
 });
 
+const suggestedPrice = (p) => {
+    const base = parseFloat(form.price);
+    const content = parseFloat(p.content);
+    if (!base || !content || content <= 0) return null;
+    if (p.unit === 'kg') return Math.round(content * base * 100) / 100;
+    if (p.unit === 'g') return Math.round((content / 1000) * base * 100) / 100;
+    return null;
+};
+
+const contentEquivalent = (p) => {
+    const content = parseFloat(p.content);
+    if (!content || content <= 0) return null;
+    if (p.unit === 'g' && content >= 1) return `= ${Math.round((content / 1000) * 1000) / 1000} kg`;
+    if (p.unit === 'kg' && content < 1) return `= ${Math.round(content * 1000)} g`;
+    if (p.unit === 'ml' && content >= 1) return `= ${Math.round((content / 1000) * 1000) / 1000} l`;
+    if (p.unit === 'l' && content < 1) return `= ${Math.round(content * 1000)} ml`;
+    return null;
+};
+
+const contentWarning = (p) => {
+    const content = parseFloat(p.content);
+    if (!content) return null;
+    if (p.unit === 'g' && content < 1) return '¿Quisiste decir kg?';
+    if (p.unit === 'kg' && content > 100) return '¿Seguro? Eso es mas de 100 kg';
+    if (p.unit === 'ml' && content < 1) return '¿Quisiste decir litros?';
+    if (p.unit === 'l' && content > 100) return '¿Seguro? Eso es mas de 100 litros';
+    return null;
+};
+
 const addPresentation = () => {
     form.presentations.push({ name: '', content: '', unit: 'g', price: '' });
 };
@@ -115,13 +144,13 @@ const submit = () => {
                 </div>
                 <div class="grid gap-6 p-6 sm:grid-cols-2">
                     <div>
-                        <InputLabel for="price" value="Precio de venta" />
+                        <InputLabel for="price" :value="form.sale_mode === 'weight' ? 'Precio de venta (por kg)' : 'Precio base (por kg)'" />
                         <div class="relative mt-1.5">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                             <input id="price" v-model="form.price" type="number" step="0.01" min="0.01" required placeholder="0.00"
                                 class="block w-full rounded-md border-gray-300 pl-7 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-400">Monto que se cobra al cliente.</p>
+                        <p class="mt-1.5 text-xs text-gray-400">{{ form.sale_mode === 'presentation' ? 'Se usa para calcular el precio sugerido de cada presentacion.' : 'Monto que se cobra al cliente.' }}</p>
                         <InputError :message="form.errors.price" class="mt-1" />
                     </div>
                     <div>
@@ -176,33 +205,49 @@ const submit = () => {
                             <button type="button" @click="addPresentation" class="text-sm font-semibold text-red-600 hover:text-red-700">+ Agregar</button>
                         </div>
 
+                        <InputError :message="form.errors.presentations" class="mt-1" />
+
                         <div v-if="form.presentations.length === 0" class="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
                             Agrega al menos una presentacion.
                         </div>
 
-                        <div v-for="(p, idx) in form.presentations" :key="idx" class="flex items-end gap-3 rounded-lg bg-gray-50 p-4">
-                            <div class="flex-1">
-                                <label class="text-xs font-medium text-gray-500">Nombre</label>
-                                <input v-model="p.name" type="text" placeholder="500g, 1kg, 1 pieza..." class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                        <div v-for="(p, idx) in form.presentations" :key="idx" class="rounded-lg bg-gray-50 p-4">
+                            <div class="flex items-end gap-3">
+                                <div class="flex-1">
+                                    <label class="text-xs font-medium text-gray-500">Nombre</label>
+                                    <input v-model="p.name" type="text" :placeholder="p.content && p.unit ? `${p.content}${p.unit}` : '500g, 1kg...'" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                                </div>
+                                <div class="w-24">
+                                    <label class="text-xs font-medium text-gray-500">Contenido</label>
+                                    <input v-model="p.content" type="number" step="0.001" min="0.001" placeholder="500" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                                </div>
+                                <div class="w-24">
+                                    <label class="text-xs font-medium text-gray-500">Unidad</label>
+                                    <select v-model="p.unit" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
+                                        <option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">l</option><option value="pieza">pieza</option>
+                                    </select>
+                                </div>
+                                <div class="w-28">
+                                    <label class="text-xs font-medium text-gray-500">Precio</label>
+                                    <div class="relative mt-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                                    <input v-model="p.price" type="number" step="0.01" min="0.01" :placeholder="suggestedPrice(p) ? suggestedPrice(p).toFixed(2) : '0.00'" class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" /></div>
+                                </div>
+                                <button type="button" @click="removePresentation(idx)" class="rounded-lg p-2 text-gray-400 hover:text-red-600">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                </button>
                             </div>
-                            <div class="w-24">
-                                <label class="text-xs font-medium text-gray-500">Contenido</label>
-                                <input v-model="p.content" type="number" step="0.001" min="0.001" placeholder="500" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300" />
+                            <!-- Ayudas visuales -->
+                            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <p v-if="suggestedPrice(p) && !p.price" class="text-xs text-blue-600">Precio sugerido: ${{ suggestedPrice(p).toFixed(2) }}</p>
+                                <p v-if="contentEquivalent(p)" class="text-xs text-gray-400">{{ contentEquivalent(p) }}</p>
+                                <p v-if="contentWarning(p)" class="text-xs font-medium text-amber-600">{{ contentWarning(p) }}</p>
                             </div>
-                            <div class="w-24">
-                                <label class="text-xs font-medium text-gray-500">Unidad</label>
-                                <select v-model="p.unit" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
-                                    <option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">l</option><option value="pieza">pieza</option>
-                                </select>
+                            <div v-if="form.errors[`presentations.${idx}.name`] || form.errors[`presentations.${idx}.content`] || form.errors[`presentations.${idx}.unit`] || form.errors[`presentations.${idx}.price`]" class="mt-2 space-y-1">
+                                <InputError :message="form.errors[`presentations.${idx}.name`]" />
+                                <InputError :message="form.errors[`presentations.${idx}.content`]" />
+                                <InputError :message="form.errors[`presentations.${idx}.unit`]" />
+                                <InputError :message="form.errors[`presentations.${idx}.price`]" />
                             </div>
-                            <div class="w-28">
-                                <label class="text-xs font-medium text-gray-500">Precio</label>
-                                <div class="relative mt-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                                <input v-model="p.price" type="number" step="0.01" min="0.01" placeholder="0.00" class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" /></div>
-                            </div>
-                            <button type="button" @click="removePresentation(idx)" class="rounded-lg p-2 text-gray-400 hover:text-red-600">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                            </button>
                         </div>
                     </div>
                 </div>

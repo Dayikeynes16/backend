@@ -110,6 +110,10 @@ class UsuarioController extends Controller
     {
         $currentUser = Auth::user();
 
+        if ($usuario->tenant_id !== $currentUser->tenant_id) {
+            abort(403, 'Este usuario no pertenece a tu empresa.');
+        }
+
         if ($usuario->branch_id !== $currentUser->branch_id) {
             abort(403, 'Este usuario no pertenece a tu sucursal.');
         }

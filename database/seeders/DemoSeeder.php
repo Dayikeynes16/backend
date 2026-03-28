@@ -14,6 +14,12 @@ class DemoSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! app()->environment('local', 'testing')) {
+            $this->command?->warn('DemoSeeder solo se ejecuta en entornos local/testing. Saltando.');
+
+            return;
+        }
+
         // Superadmin (no tenant)
         $superadmin = User::create([
             'name' => 'Super Admin',

@@ -21,6 +21,7 @@ class SaleController extends Controller
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer',
             'items.*.quantity' => 'required|numeric|gt:0',
+            'items.*.presentation_id' => 'nullable|integer',
             'payment_method' => 'required|in:cash,card,transfer',
         ]);
 
@@ -34,6 +35,7 @@ class SaleController extends Controller
             ->where('branch_id', $branchId)
             ->where('status', 'active')
             ->whereIn('id', $productIds)
+            ->with(['presentations' => fn ($q) => $q->where('status', 'active')])
             ->get()
             ->keyBy('id');
 
@@ -49,7 +51,9 @@ class SaleController extends Controller
         }
 
         $sale = DB::transaction(function () use ($request, $branchId, $tenantId, $products) {
-            // Generate folio — use advisory lock to prevent duplicates
+            // Advisory lock per branch to prevent duplicate folios under concurrency
+            DB::statement('SELECT pg_advisory_xact_lock(?)', [$branchId]);
+
             $count = Sale::withoutGlobalScopes()
                 ->where('branch_id', $branchId)
                 ->count();
@@ -64,15 +68,32 @@ class SaleController extends Controller
             foreach ($request->items as $item) {
                 $product = $products[$item['product_id']];
                 $quantity = (float) $item['quantity'];
-                $subtotal = round($quantity * (float) $product->price, 2);
+                $presentationId = $item['presentation_id'] ?? null;
+
+                // Use presentation price when applicable
+                if ($presentationId && $product->sale_mode === 'presentation') {
+                    $presentation = $product->presentations->find($presentationId);
+
+                    if (! $presentation) {
+                        throw new \InvalidArgumentException("Presentación {$presentationId} no válida para {$product->name}.");
+                    }
+
+                    $unitPrice = (float) $presentation->price;
+                    $productName = $product->name . ' - ' . $presentation->name;
+                } else {
+                    $unitPrice = (float) $product->price;
+                    $productName = $product->name;
+                }
+
+                $subtotal = round($quantity * $unitPrice, 2);
                 $total += $subtotal;
 
                 $itemsData[] = [
                     'product_id' => $product->id,
-                    'product_name' => $product->name,
+                    'product_name' => $productName,
                     'unit_type' => $product->unit_type,
                     'quantity' => $quantity,
-                    'unit_price' => $product->price,
+                    'unit_price' => $unitPrice,
                     'subtotal' => $subtotal,
                 ];
             }
@@ -84,7 +105,10 @@ class SaleController extends Controller
                 'payment_method' => $request->payment_method,
                 'total' => round($total, 2),
                 'origin' => 'api',
-                'status' => 'pending',
+                'origin_name' => 'Bascula',
+                'amount_paid' => 0,
+                'amount_pending' => round($total, 2),
+                'status' => 'active',
             ]);
 
             foreach ($itemsData as $data) {

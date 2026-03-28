@@ -28,6 +28,7 @@ class PasswordResetController extends Controller
         Password::sendResetLink(['email' => $usuario->email]);
 
         PasswordResetLog::create([
+            'tenant_id' => $tenant->id,
             'admin_id' => $admin->id,
             'target_user_id' => $usuario->id,
             'method' => 'email_link',
@@ -60,6 +61,7 @@ class PasswordResetController extends Controller
         ]);
 
         PasswordResetLog::create([
+            'tenant_id' => $tenant->id,
             'admin_id' => $admin->id,
             'target_user_id' => $usuario->id,
             'method' => 'force_reset',
