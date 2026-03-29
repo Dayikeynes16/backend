@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['tenant_id', 'name', 'address', 'latitude', 'longitude', 'phone', 'schedule', 'payment_methods_enabled', 'status'])]
+#[Fillable(['tenant_id', 'name', 'address', 'latitude', 'longitude', 'phone', 'schedule', 'payment_methods_enabled', 'ticket_config', 'status'])]
 class Branch extends Model
 {
     use BelongsToTenant;
@@ -17,6 +17,7 @@ class Branch extends Model
     {
         return [
             'payment_methods_enabled' => 'array',
+            'ticket_config' => 'array',
         ];
     }
 

@@ -11,7 +11,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
     sales: Array, products: Array, categories: Array,
-    tenant: Object, branchId: Number, paymentMethods: Array,
+    tenant: Object, branchId: Number, branchInfo: Object, paymentMethods: Array,
     canCreate: Boolean, canCancel: Boolean, canEditPayments: Boolean,
 });
 
@@ -393,7 +393,9 @@ const submitNewSale = () => {
         <!-- Dialogs -->
         <ConfirmDialog v-if="confirmDeletePayment" title="Eliminar pago" message="El saldo de la venta se recalculara automaticamente." confirm-label="Eliminar" variant="danger" @confirm="doDeletePayment" @cancel="confirmDeletePayment = null" />
         <CancelSaleDialog v-if="showCancelDialog" :folio="selected?.folio" mode="direct" :processing="cancelProcessing" @confirm="cancelSale" @cancel="showCancelDialog = false" />
-        <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name" @close="showTicket = false" />
+        <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name"
+            :branch-name="branchInfo?.name" :branch-address="branchInfo?.address" :branch-phone="branchInfo?.phone"
+            :ticket-config="branchInfo?.ticket_config" @close="showTicket = false" />
         <FlashToast />
     </SucursalLayout>
 </template>

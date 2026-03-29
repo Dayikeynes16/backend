@@ -49,6 +49,12 @@ class WorkbenchController extends Controller
             'categories' => $categories,
             'tenant' => app('tenant'),
             'branchId' => $branchId,
+            'branchInfo' => [
+                'name' => $branch->name,
+                'address' => $branch->address,
+                'phone' => $branch->phone,
+                'ticket_config' => $branch->ticket_config,
+            ],
             'paymentMethods' => $paymentMethods,
             'canCreate' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canCancel' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),

@@ -9,6 +9,7 @@ use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
+use App\Http\Controllers\Empresa\TicketConfigController;
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
@@ -91,6 +92,9 @@ Route::prefix('{tenant}')
 
                 Route::get('configuracion', [ConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [ConfiguracionController::class, 'update'])->name('configuracion.update');
+
+                Route::get('tickets', [TicketConfigController::class, 'index'])->name('tickets');
+                Route::put('tickets/{branch}', [TicketConfigController::class, 'update'])->name('tickets.update');
             });
 
         // Admin sucursal routes

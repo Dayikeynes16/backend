@@ -40,6 +40,12 @@ class WorkbenchController extends Controller
             'sales' => $sales,
             'tenant' => app('tenant'),
             'branchId' => $user->branch_id,
+            'branchInfo' => [
+                'name' => $branch->name,
+                'address' => $branch->address,
+                'phone' => $branch->phone,
+                'ticket_config' => $branch->ticket_config,
+            ],
             'paymentMethods' => $paymentMethods,
         ]);
     }

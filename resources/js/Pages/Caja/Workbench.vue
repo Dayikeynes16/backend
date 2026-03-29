@@ -8,7 +8,7 @@ import { useSaleQueue } from '@/composables/useSaleQueue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
-const props = defineProps({ sales: Array, tenant: Object, branchId: Number, paymentMethods: Array });
+const props = defineProps({ sales: Array, tenant: Object, branchId: Number, branchInfo: Object, paymentMethods: Array });
 
 const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
 const enabledMethods = computed(() =>
@@ -252,7 +252,9 @@ const submitCancelRequest = (reason) => {
         </div>
 
         <CancelSaleDialog v-if="showCancelRequest" :folio="selected?.folio" mode="request" :processing="cancelProcessing" @confirm="submitCancelRequest" @cancel="showCancelRequest = false" />
-        <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name" @close="showTicket = false" />
+        <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name"
+            :branch-name="branchInfo?.name" :branch-address="branchInfo?.address" :branch-phone="branchInfo?.phone"
+            :ticket-config="branchInfo?.ticket_config" @close="showTicket = false" />
         <FlashToast />
     </CajeroLayout>
 </template>
