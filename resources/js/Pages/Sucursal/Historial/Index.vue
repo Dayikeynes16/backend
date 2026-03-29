@@ -1,10 +1,18 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import DatePicker from '@/Components/DatePicker.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref, computed, watch } from 'vue';
 
-const props = defineProps({ sales: Object, filters: Object, tenant: Object });
+const props = defineProps({
+    sales: Object, filters: Object, tenant: Object,
+    paymentMethods: Array, canEditPayments: Boolean,
+});
+
+const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
+const enabledMethods = computed(() =>
+    (props.paymentMethods || ['cash', 'card', 'transfer']).map(id => ({ id, label: allMethodLabels[id] }))
+);
 
 const search = ref(props.filters?.search || '');
 const status = ref(props.filters?.status || '');
@@ -42,6 +50,32 @@ const selected = ref(null);
 const selectSale = (sale) => {
     selectedId.value = sale.id;
     selected.value = sale;
+    editingPaymentId.value = null;
+};
+
+// Payment editing
+const editingPaymentId = ref(null);
+const editPaymentForm = useForm({ method: '', amount: '' });
+
+const startEditPayment = (p) => {
+    editingPaymentId.value = p.id;
+    editPaymentForm.method = p.method;
+    editPaymentForm.amount = parseFloat(p.amount);
+};
+
+const submitEditPayment = (paymentId) => {
+    editPaymentForm.put(route('sucursal.workbench.payment.update', [props.tenant.slug, selected.value.id, paymentId]), {
+        preserveScroll: true,
+        onSuccess: () => {
+            editingPaymentId.value = null;
+            // Reload to get updated data
+            router.reload({ only: ['sales'], preserveScroll: true, onSuccess: () => {
+                // Re-select to refresh detail
+                const updated = props.sales.data.find(s => s.id === selectedId.value);
+                if (updated) selected.value = updated;
+            }});
+        },
+    });
 };
 </script>
 
@@ -152,12 +186,31 @@ const selectSale = (sale) => {
                         <div v-if="selected.payments && selected.payments.length > 0">
                             <h3 class="mb-3 text-sm font-bold text-gray-700">Pagos</h3>
                             <div class="space-y-2">
-                                <div v-for="p in selected.payments" :key="p.id" class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2.5">
-                                    <div>
-                                        <span class="text-sm font-semibold" :class="{ 'text-green-600': p.method === 'cash', 'text-blue-600': p.method === 'card', 'text-purple-600': p.method === 'transfer' }">{{ methodLabel(p.method) }}</span>
-                                        <span v-if="p.user" class="ml-2 text-xs text-gray-400">por {{ p.user.name }}</span>
+                                <div v-for="p in selected.payments" :key="p.id" class="rounded-lg bg-gray-50 px-4 py-2.5">
+                                    <!-- Edit mode -->
+                                    <form v-if="editingPaymentId === p.id" @submit.prevent="submitEditPayment(p.id)" class="flex items-center gap-3">
+                                        <select v-model="editPaymentForm.method" class="rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
+                                            <option v-for="m in enabledMethods" :key="m.id" :value="m.id">{{ m.label }}</option>
+                                        </select>
+                                        <div class="relative flex-1">
+                                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                                            <input v-model="editPaymentForm.amount" type="number" step="0.01" min="0.01" required class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" />
+                                        </div>
+                                        <button type="submit" :disabled="editPaymentForm.processing" class="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Guardar</button>
+                                        <button type="button" @click="editingPaymentId = null" class="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+                                    </form>
+
+                                    <!-- Display mode -->
+                                    <div v-else class="flex items-center justify-between">
+                                        <div>
+                                            <span class="text-sm font-semibold" :class="{ 'text-green-600': p.method === 'cash', 'text-blue-600': p.method === 'card', 'text-purple-600': p.method === 'transfer' }">{{ methodLabel(p.method) }}</span>
+                                            <span v-if="p.user" class="ml-2 text-xs text-gray-400">por {{ p.user.name }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-sm font-bold text-gray-900">${{ parseFloat(p.amount).toFixed(2) }}</span>
+                                            <button v-if="canEditPayments" @click="startEditPayment(p)" class="text-xs font-semibold text-orange-600 hover:text-orange-700">Editar</button>
+                                        </div>
                                     </div>
-                                    <span class="text-sm font-bold text-gray-900">${{ parseFloat(p.amount).toFixed(2) }}</span>
                                 </div>
                             </div>
                         </div>

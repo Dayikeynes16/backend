@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sucursal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Sale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,10 +25,16 @@ class SaleHistoryController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $user = Auth::user();
+        $branch = Branch::withoutGlobalScopes()->findOrFail($branchId);
+        $canEditPayments = $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin');
+
         return Inertia::render('Sucursal/Historial/Index', [
             'sales' => $sales,
             'filters' => $request->only('status', 'search', 'date'),
             'tenant' => app('tenant'),
+            'paymentMethods' => $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'],
+            'canEditPayments' => $canEditPayments,
         ]);
     }
 }
