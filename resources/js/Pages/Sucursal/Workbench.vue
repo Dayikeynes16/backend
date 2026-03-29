@@ -170,7 +170,12 @@ const submitNewSale = () => {
                         <div class="flex items-center justify-between">
                             <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
                             <div class="flex items-center gap-1.5">
-                                <span v-if="isLockedByOther(sale.id)" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">En uso</span>
+                                <span v-if="isLockedByOther(sale.id)" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                                    {{ lockedByName(sale.id) || 'En uso' }}
+                                </span>
+                                <span v-else-if="sale.locked_by_user" class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                    {{ sale.locked_by_user.name }}
+                                </span>
                                 <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
                             </div>
                         </div>

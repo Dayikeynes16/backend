@@ -24,7 +24,7 @@ class WorkbenchController extends Controller
 
         $sales = Sale::where('branch_id', $branchId)
             ->where('status', 'active')
-            ->with(['items', 'payments'])
+            ->with(['items', 'payments', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
