@@ -1,7 +1,6 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
-import PaymentForm from '@/Components/PaymentForm.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
@@ -18,19 +17,17 @@ const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transfer
 const enabledMethods = computed(() =>
     (props.paymentMethods || ['cash', 'card', 'transfer']).map(id => ({ id, label: allMethodLabels[id] }))
 );
+const defaultMethod = computed(() => enabledMethods.value[0]?.id || 'cash');
 
 const selectedId = ref(null);
 const selected = computed(() => props.sales.find(s => s.id === selectedId.value));
 
-// Real-time: listen for new sales from API/kiosk
+// Real-time
 const { sales: queuedSales } = useSaleQueue(props.branchId);
-
-// When a new sale arrives via WebSocket, reload sales from server
 watch(queuedSales, () => {
     router.reload({ only: ['sales'], preserveScroll: true });
 }, { deep: true });
 
-// Real-time: listen for sale updates (payments, status changes)
 let saleUpdateChannel = null;
 onMounted(() => {
     if (!props.branchId || !window.Echo) return;
@@ -40,9 +37,7 @@ onMounted(() => {
     });
 });
 onUnmounted(() => {
-    if (saleUpdateChannel) {
-        saleUpdateChannel.stopListening('SaleUpdated');
-    }
+    if (saleUpdateChannel) saleUpdateChannel.stopListening('SaleUpdated');
 });
 
 // Concurrency lock
@@ -57,11 +52,12 @@ const selectSale = async (saleId) => {
     const ok = await lockSale(saleId);
     if (ok) {
         selectedId.value = saleId;
-        showPayment.value = false;
+        paymentForm.reset();
+        paymentForm.method = defaultMethod.value;
     }
 };
+
 const showNewSale = ref(false);
-const showPayment = ref(false);
 const showTicket = ref(false);
 const editingPaymentId = ref(null);
 
@@ -81,7 +77,24 @@ const timeAgo = (date) => {
 
 const paidPct = (s) => s.total > 0 ? Math.min((parseFloat(s.amount_paid) / parseFloat(s.total)) * 100, 100) : 0;
 
+// --- Payment form (always ready, no toggle) ---
+const paymentForm = useForm({ method: 'cash', amount: '' });
 
+const pendingAmount = computed(() => selected.value ? parseFloat(selected.value.amount_pending) : 0);
+const enteredAmount = computed(() => parseFloat(paymentForm.amount) || 0);
+const changeAmount = computed(() => Math.max(enteredAmount.value - pendingAmount.value, 0));
+const hasPending = computed(() => pendingAmount.value > 0);
+
+const submitPayment = () => {
+    if (!selected.value || !hasPending.value) return;
+    paymentForm.post(route('sucursal.workbench.payment', [props.tenant.slug, selected.value.id]), {
+        preserveScroll: true,
+        onSuccess: () => {
+            paymentForm.reset('amount');
+            paymentForm.method = defaultMethod.value;
+        },
+    });
+};
 
 // Edit payment
 const editPaymentForm = useForm({ method: '', amount: '' });
@@ -261,12 +274,9 @@ const submitNewSale = () => {
                         </div>
 
                         <!-- Payments -->
-                        <div>
+                        <div v-if="selected.payments && selected.payments.length > 0">
                             <h3 class="mb-3 text-sm font-bold text-gray-700">Pagos Registrados</h3>
-                            <div v-if="!selected.payments || selected.payments.length === 0" class="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
-                                Sin pagos registrados.
-                            </div>
-                            <div v-else class="space-y-2">
+                            <div class="space-y-2">
                                 <div v-for="p in selected.payments" :key="p.id" class="rounded-lg bg-gray-50 px-4 py-3">
                                     <!-- Edit mode -->
                                     <form v-if="editingPaymentId === p.id" @submit.prevent="submitEditPayment(p.id)" class="flex items-center gap-3">
@@ -299,7 +309,7 @@ const submitNewSale = () => {
                             </div>
                         </div>
 
-                        <!-- Summary -->
+                        <!-- Progress -->
                         <div class="rounded-xl bg-gray-50 p-5">
                             <div class="flex items-center justify-between text-sm mb-2">
                                 <span class="font-medium text-gray-500">Progreso de cobro</span>
@@ -311,26 +321,54 @@ const submitNewSale = () => {
                             <div class="mt-4 grid grid-cols-3 gap-4">
                                 <div><p class="text-xs text-gray-400">Total</p><p class="text-lg font-bold text-gray-900">${{ parseFloat(selected.total).toFixed(2) }}</p></div>
                                 <div><p class="text-xs text-gray-400">Pagado</p><p class="text-lg font-bold text-green-600">${{ parseFloat(selected.amount_paid).toFixed(2) }}</p></div>
-                                <div><p class="text-xs text-gray-400">Pendiente</p><p class="text-lg font-bold" :class="parseFloat(selected.amount_pending) > 0 ? 'text-amber-600' : 'text-gray-300'">${{ parseFloat(selected.amount_pending).toFixed(2) }}</p></div>
+                                <div><p class="text-xs text-gray-400">Pendiente</p><p class="text-lg font-bold" :class="hasPending ? 'text-amber-600' : 'text-gray-300'">${{ parseFloat(selected.amount_pending).toFixed(2) }}</p></div>
                             </div>
                         </div>
-
-                        <!-- Register payment inline -->
-                        <PaymentForm v-if="showPayment" :sale="selected"
-                            :payment-route="route('sucursal.workbench.payment', [tenant.slug, selected.id])"
-                            :payment-methods="paymentMethods"
-                            @success="showPayment = false" @cancel="showPayment = false" />
                     </div>
 
-                    <!-- Sticky actions -->
-                    <div v-if="parseFloat(selected.amount_pending) > 0" class="border-t border-gray-100 px-6 py-4 flex items-center gap-3">
-                        <button @click="showPayment = !showPayment" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                            Registrar Pago
-                        </button>
-                        <button v-if="canCancel" @click="cancelSale" class="rounded-lg border-2 border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50">
-                            Cancelar Venta
-                        </button>
+                    <!-- STICKY FOOTER: Payment form always visible -->
+                    <div v-if="hasPending" class="border-t border-gray-200 bg-gray-50 px-6 py-4">
+                        <form @submit.prevent="submitPayment" class="space-y-3">
+                            <!-- Row 1: method + amount + cobrar -->
+                            <div class="flex items-end gap-3">
+                                <div class="w-36">
+                                    <label class="text-xs font-medium text-gray-500">Metodo</label>
+                                    <select v-model="paymentForm.method" class="mt-1 block w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
+                                        <option v-for="m in enabledMethods" :key="m.id" :value="m.id">{{ m.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="text-xs font-medium text-gray-500">{{ paymentForm.method === 'cash' ? 'Monto recibido' : 'Monto' }}</label>
+                                    <div class="relative mt-1">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                                        <input v-model="paymentForm.amount" type="number" step="0.01" min="0.01" required
+                                            :placeholder="pendingAmount.toFixed(2)"
+                                            class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" />
+                                    </div>
+                                </div>
+                                <button type="submit" :disabled="paymentForm.processing"
+                                    class="rounded-lg bg-red-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50">
+                                    Cobrar
+                                </button>
+                            </div>
+
+                            <!-- Row 2: change calculation (cash only) + cancel -->
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-xs text-gray-400">Pendiente: <span class="font-bold text-amber-600">${{ pendingAmount.toFixed(2) }}</span></span>
+                                    <span v-if="paymentForm.method === 'cash' && enteredAmount > pendingAmount" class="text-xs font-bold text-green-600">
+                                        Cambio: ${{ changeAmount.toFixed(2) }}
+                                    </span>
+                                </div>
+                                <button v-if="canCancel" type="button" @click="cancelSale" class="text-xs font-semibold text-red-600 transition hover:text-red-700">
+                                    Cancelar venta
+                                </button>
+                            </div>
+
+                            <!-- Errors -->
+                            <p v-if="paymentForm.errors.method" class="text-xs text-red-600">{{ paymentForm.errors.method }}</p>
+                            <p v-if="paymentForm.errors.amount" class="text-xs text-red-600">{{ paymentForm.errors.amount }}</p>
+                        </form>
                     </div>
                 </template>
             </div>
@@ -355,7 +393,6 @@ const submitNewSale = () => {
                                 <div class="flex-1 overflow-y-auto p-4">
                                     <div class="grid grid-cols-2 gap-3">
                                         <template v-for="p in filteredProducts" :key="p.id">
-                                            <!-- Weight mode: single button -->
                                             <button v-if="p.sale_mode === 'weight'" @click="addToCart(p)" class="flex items-center gap-3 rounded-xl p-3 text-left ring-1 ring-gray-100 transition hover:bg-gray-50 hover:ring-gray-200">
                                                 <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
                                                     <img v-if="p.image_url" :src="p.image_url" class="h-full w-full object-cover" />
@@ -366,7 +403,6 @@ const submitNewSale = () => {
                                                     <p class="text-xs text-gray-500">${{ parseFloat(p.price).toFixed(2) }}/kg</p>
                                                 </div>
                                             </button>
-                                            <!-- Presentation mode: one button per presentation -->
                                             <template v-else>
                                                 <button v-for="pres in p.presentations" :key="pres.id" @click="addToCart(p, pres)" class="flex items-center gap-3 rounded-xl p-3 text-left ring-1 ring-orange-100 transition hover:bg-orange-50/50 hover:ring-orange-200">
                                                     <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-orange-50">

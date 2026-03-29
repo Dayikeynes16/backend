@@ -56,45 +56,37 @@ watch(status, () => { clearTimeout(debounceTimer); applyFilters(); });
 watch(date, () => { clearTimeout(debounceTimer); applyFilters(); });
 
 // --- Infinite scroll: load next page ---
-const loadMore = async () => {
+const loadMore = () => {
     if (loadingMore.value || !hasMore.value) return;
 
     loadingMore.value = true;
 
-    const params = new URLSearchParams();
-    if (search.value) params.set('search', search.value);
-    if (status.value) params.set('status', status.value);
-    if (date.value) params.set('date', date.value);
-    params.set('cursor', nextCursor.value);
+    const params = {
+        cursor: nextCursor.value,
+        search: search.value || undefined,
+        status: status.value || undefined,
+        date: date.value || undefined,
+    };
 
-    try {
-        const url = route('sucursal.historial.index', props.tenant.slug) + '?' + params.toString();
-        const response = await fetch(url, {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json',
-                'X-Inertia': 'true',
-                'X-Inertia-Version': document.querySelector('meta[name="inertia-version"]')?.content || '',
-                'X-Inertia-Partial-Data': 'sales',
-                'X-Inertia-Partial-Component': 'Sucursal/Historial/Index',
-            },
-        });
-
-        const json = await response.json();
-        const newSales = json.props?.sales;
-
-        if (newSales?.data) {
-            // Deduplicate by id
-            const existingIds = new Set(allSales.value.map(s => s.id));
-            const unique = newSales.data.filter(s => !existingIds.has(s.id));
-            allSales.value.push(...unique);
-            nextCursor.value = newSales.next_cursor || null;
-        }
-    } catch {
-        // Silently fail — user can retry by scrolling again
-    } finally {
-        loadingMore.value = false;
-    }
+    router.get(route('sucursal.historial.index', props.tenant.slug), params, {
+        preserveState: true,
+        preserveScroll: true,
+        only: ['sales'],
+        onSuccess: () => {
+            // props.sales now has the NEW page — append to our accumulated list
+            const newSales = props.sales;
+            if (newSales?.data) {
+                const existingIds = new Set(allSales.value.map(s => s.id));
+                const unique = newSales.data.filter(s => !existingIds.has(s.id));
+                allSales.value.push(...unique);
+                nextCursor.value = newSales.next_cursor || null;
+            }
+            loadingMore.value = false;
+        },
+        onError: () => {
+            loadingMore.value = false;
+        },
+    });
 };
 
 // --- Scroll listener on the list container ---
