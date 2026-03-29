@@ -83,7 +83,7 @@ const formatTime = (iso) => new Date(iso).toLocaleTimeString('es-MX', { hour: '2
                         <p class="mt-1 text-lg font-bold text-gray-900">${{ totals.expected_cash.toFixed(2) }}</p>
                     </div>
                 </div>
-                <p class="mt-3 text-xs text-gray-400">{{ totals.payment_count }} cobro{{ totals.payment_count !== 1 ? 's' : '' }} registrado{{ totals.payment_count !== 1 ? 's' : '' }}</p>
+                <p class="mt-3 text-xs text-gray-400">{{ totals.payment_count }} venta{{ totals.payment_count !== 1 ? 's' : '' }} registrada{{ totals.payment_count !== 1 ? 's' : '' }}</p>
             </div>
 
             <!-- Withdrawals -->

@@ -46,7 +46,7 @@ class TurnoController extends Controller
                 'total' => $totalCash + $totalCard + $totalTransfer,
                 'withdrawals' => $totalWithdrawals,
                 'expected_cash' => round($expected, 2),
-                'payment_count' => $payments->count(),
+                'payment_count' => $payments->pluck('sale_id')->unique()->count(),
             ],
             'tenant' => app('tenant'),
         ]);
@@ -110,7 +110,7 @@ class TurnoController extends Controller
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
-            'sale_count' => $payments->count(),
+            'sale_count' => $payments->pluck('sale_id')->unique()->count(),
             'declared_amount' => $declared,
             'expected_amount' => $expected,
             'difference' => round($declared - $expected, 2),

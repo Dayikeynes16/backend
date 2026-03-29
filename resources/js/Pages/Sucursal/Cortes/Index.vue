@@ -33,7 +33,7 @@ const formatDT = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { day: '2-
                             <th v-if="isAdmin" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Cajero</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Apertura</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Cierre</th>
-                            <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Cobros</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Ventas</th>
                             <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Total</th>
                             <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Diferencia</th>
                             <th class="px-6 py-3"></th>

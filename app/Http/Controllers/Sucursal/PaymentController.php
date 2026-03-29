@@ -92,7 +92,7 @@ class PaymentController extends Controller
         ]);
 
         DB::transaction(function () use ($payment, $sale, $user, $validated) {
-            $payment->update($validated);
+            $payment->update(array_merge($validated, ['updated_by' => $user->id]));
             $this->recalculate($sale, $user);
         });
 

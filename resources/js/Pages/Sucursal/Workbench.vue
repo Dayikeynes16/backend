@@ -23,6 +23,7 @@ const defaultMethod = computed(() => enabledMethods.value[0]?.id || 'cash');
 
 const selectedId = ref(null);
 const selected = computed(() => props.sales.find(s => s.id === selectedId.value));
+const isSelectedCompleted = computed(() => selected.value?.status === 'completed');
 
 // Real-time
 const { sales: queuedSales } = useSaleQueue(props.branchId);
@@ -182,7 +183,8 @@ const submitNewSale = () => {
                         <div class="mt-2.5 flex items-end justify-between">
                             <div>
                                 <p class="text-xl font-bold text-gray-900">${{ parseFloat(sale.total).toFixed(2) }}</p>
-                                <p v-if="parseFloat(sale.amount_pending) > 0" class="mt-0.5 text-xs font-semibold text-amber-600">Pendiente: ${{ parseFloat(sale.amount_pending).toFixed(2) }}</p>
+                                <p v-if="sale.status === 'completed'" class="mt-0.5 text-xs font-semibold text-green-600">Cobrada</p>
+                                <p v-else-if="parseFloat(sale.amount_pending) > 0" class="mt-0.5 text-xs font-semibold text-amber-600">Pendiente: ${{ parseFloat(sale.amount_pending).toFixed(2) }}</p>
                                 <p v-else class="mt-0.5 text-xs font-semibold text-green-600">Pagada</p>
                             </div>
                             <span class="text-xs text-gray-400">{{ timeAgo(sale.created_at) }}</span>
@@ -281,6 +283,20 @@ const submitNewSale = () => {
                             <div class="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
                                 <div class="h-full rounded-full transition-all duration-500" :class="paidPct(selected) >= 100 ? 'bg-green-500' : 'bg-red-500'" :style="{ width: Math.max(paidPct(selected), 2) + '%' }" />
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Admin actions for completed sales -->
+                    <div v-if="isSelectedCompleted && canCancel" class="border-t-2 border-green-200 bg-green-50/50 px-6 py-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-bold text-green-800">Venta cobrada</p>
+                                <p class="text-xs text-green-600">Esta venta ya fue procesada y completada.</p>
+                            </div>
+                            <button @click="showCancelDialog = true"
+                                class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700">
+                                Cancelar venta
+                            </button>
                         </div>
                     </div>
 
@@ -392,7 +408,7 @@ const submitNewSale = () => {
 
         <!-- Dialogs -->
         <ConfirmDialog v-if="confirmDeletePayment" title="Eliminar pago" message="El saldo de la venta se recalculara automaticamente." confirm-label="Eliminar" variant="danger" @confirm="doDeletePayment" @cancel="confirmDeletePayment = null" />
-        <CancelSaleDialog v-if="showCancelDialog" :folio="selected?.folio" mode="direct" :processing="cancelProcessing" @confirm="cancelSale" @cancel="showCancelDialog = false" />
+        <CancelSaleDialog v-if="showCancelDialog" :folio="selected?.folio" mode="direct" :processing="cancelProcessing" :is-completed="isSelectedCompleted" @confirm="cancelSale" @cancel="showCancelDialog = false" />
         <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name"
             :branch-name="branchInfo?.name" :branch-address="branchInfo?.address" :branch-phone="branchInfo?.phone"
             :ticket-config="branchInfo?.ticket_config" @close="showTicket = false" />

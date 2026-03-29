@@ -128,6 +128,8 @@ Route::prefix('{tenant}')
                 // Cortes (history)
                 Route::get('cortes', [CashShiftController::class, 'history'])->name('cortes.index');
                 Route::get('cortes/{shift}', [CashShiftController::class, 'show'])->name('cortes.show');
+                Route::post('cortes/{shift}/recalcular', [CashShiftController::class, 'recalculate'])->name('cortes.recalculate');
+                Route::post('cortes/{shift}/reabrir', [CashShiftController::class, 'reopen'])->name('cortes.reopen');
 
                 // Categories
                 Route::get('categorias', [CategoryController::class, 'index'])->name('categorias.index');

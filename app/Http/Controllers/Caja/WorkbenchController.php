@@ -27,7 +27,13 @@ class WorkbenchController extends Controller
         }
 
         $sales = Sale::where('branch_id', $user->branch_id)
-            ->where('status', 'active')
+            ->where(function ($q) {
+                $q->where('status', 'active')
+                    ->orWhere(function ($q2) {
+                        $q2->where('status', 'completed')
+                            ->whereDate('completed_at', now());
+                    });
+            })
             ->with(['items', 'payments', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)
@@ -58,8 +64,8 @@ class WorkbenchController extends Controller
             abort(403);
         }
 
-        if ($sale->status === 'completed' || $sale->status === 'cancelled') {
-            return back()->with('error', 'Esta venta no se puede cancelar.');
+        if ($sale->status === 'cancelled') {
+            return back()->with('error', 'Esta venta ya esta cancelada.');
         }
 
         if ($sale->cancel_requested_at) {
