@@ -2,7 +2,7 @@
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
-import ConfirmDialog from '@/Components/ConfirmDialog.vue';
+import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
@@ -76,18 +76,13 @@ const submitPayment = () => {
 };
 
 // Cancel request
-const cancelReasons = ['Venta duplicada', 'Producto equivocado', 'Cliente ya no quiso la compra', 'Error de captura'];
-const cancelForm = useForm({ cancel_request_reason: '' });
-const selectedReason = ref('');
-const customReason = ref('');
-
-const setReason = (reason) => { selectedReason.value = reason; cancelForm.cancel_request_reason = reason === 'otro' ? customReason.value : reason; };
-
-const submitCancelRequest = () => {
-    if (selectedReason.value === 'otro') cancelForm.cancel_request_reason = customReason.value;
-    cancelForm.post(route('caja.request-cancel', [props.tenant.slug, selected.value.id]), {
+const cancelProcessing = ref(false);
+const submitCancelRequest = (reason) => {
+    cancelProcessing.value = true;
+    router.post(route('caja.request-cancel', [props.tenant.slug, selected.value.id]), { cancel_request_reason: reason }, {
         preserveScroll: true,
-        onSuccess: () => { showCancelRequest.value = false; selectedReason.value = ''; customReason.value = ''; cancelForm.reset(); },
+        onSuccess: () => { showCancelRequest.value = false; },
+        onFinish: () => { cancelProcessing.value = false; },
     });
 };
 </script>
@@ -202,30 +197,6 @@ const submitCancelRequest = () => {
                             </div>
                         </div>
 
-                        <!-- Cancel request form -->
-                        <div v-if="showCancelRequest" class="rounded-xl border-2 border-amber-200 bg-amber-50 p-5">
-                            <h3 class="mb-3 text-sm font-bold text-amber-900">Solicitar Cancelacion</h3>
-                            <p class="mb-4 text-xs text-amber-700">Tu solicitud sera revisada por el administrador de sucursal.</p>
-                            <div class="space-y-2 mb-4">
-                                <button v-for="reason in cancelReasons" :key="reason" type="button" @click="setReason(reason)"
-                                    :class="['w-full rounded-lg px-4 py-2.5 text-left text-sm transition', selectedReason === reason ? 'bg-amber-200 font-semibold text-amber-900' : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50']">
-                                    {{ reason }}
-                                </button>
-                                <button type="button" @click="setReason('otro')"
-                                    :class="['w-full rounded-lg px-4 py-2.5 text-left text-sm transition', selectedReason === 'otro' ? 'bg-amber-200 font-semibold text-amber-900' : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50']">
-                                    Otro motivo
-                                </button>
-                            </div>
-                            <div v-if="selectedReason === 'otro'" class="mb-4">
-                                <textarea v-model="customReason" rows="2" required placeholder="Describe el motivo..." class="block w-full rounded-lg border-amber-200 text-sm focus:border-amber-400 focus:ring-amber-300" />
-                            </div>
-                            <div class="flex gap-3">
-                                <button @click="submitCancelRequest" :disabled="!selectedReason || (selectedReason === 'otro' && !customReason) || cancelForm.processing"
-                                    class="rounded-lg bg-amber-600 px-5 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50">Enviar solicitud</button>
-                                <button @click="showCancelRequest = false" class="text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
-                            </div>
-                        </div>
-
                         <!-- Cancel requested badge -->
                         <div v-if="selected.cancel_requested_at" class="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
                             <p class="text-sm font-semibold text-amber-800">Cancelacion solicitada</p>
@@ -275,6 +246,7 @@ const submitCancelRequest = () => {
             </div>
         </div>
 
+        <CancelSaleDialog v-if="showCancelRequest" :folio="selected?.folio" mode="request" :processing="cancelProcessing" @confirm="submitCancelRequest" @cancel="showCancelRequest = false" />
         <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name" @close="showTicket = false" />
         <FlashToast />
     </CajeroLayout>

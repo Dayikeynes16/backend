@@ -3,6 +3,7 @@ import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
+import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
@@ -104,11 +105,15 @@ const doDeletePayment = () => {
     });
 };
 
-// Cancel sale (with ConfirmDialog)
+// Cancel sale
 const showCancelDialog = ref(false);
+const cancelProcessing = ref(false);
 const cancelSale = (reason) => {
+    cancelProcessing.value = true;
     router.patch(route('sucursal.workbench.cancel', [props.tenant.slug, selected.value.id]), { cancel_reason: reason }, {
-        preserveScroll: true, onSuccess: () => { showCancelDialog.value = false; },
+        preserveScroll: true,
+        onSuccess: () => { showCancelDialog.value = false; },
+        onFinish: () => { cancelProcessing.value = false; },
     });
 };
 
@@ -382,7 +387,7 @@ const submitNewSale = () => {
 
         <!-- Dialogs -->
         <ConfirmDialog v-if="confirmDeletePayment" title="Eliminar pago" message="El saldo de la venta se recalculara automaticamente." confirm-label="Eliminar" variant="danger" @confirm="doDeletePayment" @cancel="confirmDeletePayment = null" />
-        <ConfirmDialog v-if="showCancelDialog" title="Cancelar venta" :message="`Se cancelara la venta ${selected?.folio}. Esta accion no se puede deshacer.`" confirm-label="Cancelar venta" variant="danger" require-input input-label="Motivo de cancelacion" input-placeholder="Escribe el motivo..." @confirm="cancelSale" @cancel="showCancelDialog = false" />
+        <CancelSaleDialog v-if="showCancelDialog" :folio="selected?.folio" mode="direct" :processing="cancelProcessing" @confirm="cancelSale" @cancel="showCancelDialog = false" />
         <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name" @close="showTicket = false" />
         <FlashToast />
     </SucursalLayout>
