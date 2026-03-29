@@ -16,6 +16,12 @@ const slug = computed(() => page.props.auth.tenant_slug);
 const navLinks = computed(() => {
     const s = slug.value;
     switch (role.value) {
+        case 'cajero':
+            return [
+                { label: 'Mesa de Trabajo', route: 'caja.workbench', params: [s] },
+                { label: 'Historial', route: 'caja.historial', params: [s] },
+                { label: 'Mi Turno', route: 'caja.turno', params: [s] },
+            ];
         case 'superadmin':
             return [
                 { label: 'Dashboard', route: 'admin.dashboard', params: [] },
@@ -35,12 +41,7 @@ const navLinks = computed(() => {
                 { label: 'Cortes', route: 'sucursal.cortes.index', params: [s] },
                 { label: 'Configuracion', route: 'sucursal.configuracion', params: [s] },
             ];
-        case 'cajero':
-            return [
-                { label: 'Mesa de Trabajo', route: 'caja.workbench', params: [s] },
-                { label: 'Mi Turno', route: 'caja.turno', params: [s] },
-                { label: 'Historial', route: 'caja.historial', params: [s] },
-            ];
+        
         default:
             return [];
     }
