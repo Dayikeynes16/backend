@@ -100,6 +100,16 @@ const onScroll = () => {
     }
 };
 
+// --- Date formatters ---
+const formatTime = (d) => new Date(d).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
+const formatFullDate = (d) => {
+    const date = new Date(d);
+    const day = date.toLocaleDateString('es-MX', { weekday: 'long' });
+    const rest = date.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+    const time = date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return `${day.charAt(0).toUpperCase() + day.slice(1)} ${rest}, ${time}`;
+};
+
 // --- Helpers ---
 const statusBadge = (s) => ({
     active: { label: 'Activa', cls: 'bg-blue-50 text-blue-700 ring-blue-600/20' },
@@ -186,7 +196,7 @@ const submitEditPayment = (paymentId) => {
                                 <p class="text-lg font-bold text-gray-900">${{ parseFloat(sale.total).toFixed(2) }}</p>
                                 <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
                             </div>
-                            <span class="text-xs text-gray-400">{{ new Date(sale.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) }}</span>
+                            <span class="text-xs text-gray-400">{{ formatTime(sale.created_at) }}</span>
                         </div>
                     </div>
 
@@ -223,7 +233,7 @@ const submitEditPayment = (paymentId) => {
                             <span :class="[statusBadge(selected.status).cls, 'rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset']">{{ statusBadge(selected.status).label }}</span>
                             <span :class="[originBadge(selected.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ selected.origin_name || 'API' }}</span>
                         </div>
-                        <p class="mt-1 text-xs text-gray-400">{{ new Date(selected.created_at).toLocaleString('es-MX') }}</p>
+                        <p class="mt-1 text-xs text-gray-400">{{ formatFullDate(selected.created_at) }}</p>
                     </div>
 
                     <!-- Content -->
