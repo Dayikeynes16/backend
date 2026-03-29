@@ -1,8 +1,8 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import DatePicker from '@/Components/DatePicker.vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ref, computed, watch } from 'vue';
+import { Head, router, useForm } from '@inertiajs/vue3';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 
 const props = defineProps({
     sales: Object, filters: Object, tenant: Object,
@@ -14,14 +14,35 @@ const enabledMethods = computed(() =>
     (props.paymentMethods || ['cash', 'card', 'transfer']).map(id => ({ id, label: allMethodLabels[id] }))
 );
 
+// --- Filters ---
 const search = ref(props.filters?.search || '');
 const status = ref(props.filters?.status || '');
 const date = ref(props.filters?.date || '');
 
-let debounce;
+// --- Accumulated sales list ---
+const allSales = ref([...props.sales.data]);
+const nextCursor = ref(props.sales.next_cursor || null);
+const loadingMore = ref(false);
+const hasMore = computed(() => nextCursor.value !== null);
+
+// When Inertia reloads the page (filters change), reset the list
+watch(() => props.sales, (newSales) => {
+    allSales.value = [...newSales.data];
+    nextCursor.value = newSales.next_cursor || null;
+    // If selected sale is no longer in list, deselect
+    if (selectedId.value && !allSales.value.find(s => s.id === selectedId.value)) {
+        selectedId.value = null;
+        selected.value = null;
+    }
+});
+
+// --- Filter application (resets list via Inertia page visit) ---
+let debounceTimer;
 const applyFilters = () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(() => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        selectedId.value = null;
+        selected.value = null;
         router.get(route('sucursal.historial.index', props.tenant.slug), {
             search: search.value || undefined,
             status: status.value || undefined,
@@ -31,9 +52,63 @@ const applyFilters = () => {
 };
 
 watch(search, applyFilters);
-watch(status, () => { clearTimeout(debounce); applyFilters(); });
-watch(date, () => { clearTimeout(debounce); applyFilters(); });
+watch(status, () => { clearTimeout(debounceTimer); applyFilters(); });
+watch(date, () => { clearTimeout(debounceTimer); applyFilters(); });
 
+// --- Infinite scroll: load next page ---
+const loadMore = async () => {
+    if (loadingMore.value || !hasMore.value) return;
+
+    loadingMore.value = true;
+
+    const params = new URLSearchParams();
+    if (search.value) params.set('search', search.value);
+    if (status.value) params.set('status', status.value);
+    if (date.value) params.set('date', date.value);
+    params.set('cursor', nextCursor.value);
+
+    try {
+        const url = route('sucursal.historial.index', props.tenant.slug) + '?' + params.toString();
+        const response = await fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+                'X-Inertia': 'true',
+                'X-Inertia-Version': document.querySelector('meta[name="inertia-version"]')?.content || '',
+                'X-Inertia-Partial-Data': 'sales',
+                'X-Inertia-Partial-Component': 'Sucursal/Historial/Index',
+            },
+        });
+
+        const json = await response.json();
+        const newSales = json.props?.sales;
+
+        if (newSales?.data) {
+            // Deduplicate by id
+            const existingIds = new Set(allSales.value.map(s => s.id));
+            const unique = newSales.data.filter(s => !existingIds.has(s.id));
+            allSales.value.push(...unique);
+            nextCursor.value = newSales.next_cursor || null;
+        }
+    } catch {
+        // Silently fail — user can retry by scrolling again
+    } finally {
+        loadingMore.value = false;
+    }
+};
+
+// --- Scroll listener on the list container ---
+const listRef = ref(null);
+const onScroll = () => {
+    const el = listRef.value;
+    if (!el || loadingMore.value || !hasMore.value) return;
+    // Trigger when within 100px of the bottom
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+        loadMore();
+    }
+};
+
+// --- Helpers ---
 const statusBadge = (s) => ({
     active: { label: 'Activa', cls: 'bg-blue-50 text-blue-700 ring-blue-600/20' },
     pending: { label: 'Pendiente', cls: 'bg-amber-50 text-amber-700 ring-amber-600/20' },
@@ -44,6 +119,7 @@ const statusBadge = (s) => ({
 const originBadge = (o) => o === 'admin' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700';
 const methodLabel = (m) => ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' }[m] || m);
 
+// --- Selection ---
 const selectedId = ref(null);
 const selected = ref(null);
 
@@ -53,7 +129,7 @@ const selectSale = (sale) => {
     editingPaymentId.value = null;
 };
 
-// Payment editing
+// --- Payment editing ---
 const editingPaymentId = ref(null);
 const editPaymentForm = useForm({ method: '', amount: '' });
 
@@ -68,10 +144,8 @@ const submitEditPayment = (paymentId) => {
         preserveScroll: true,
         onSuccess: () => {
             editingPaymentId.value = null;
-            // Reload to get updated data
             router.reload({ only: ['sales'], preserveScroll: true, onSuccess: () => {
-                // Re-select to refresh detail
-                const updated = props.sales.data.find(s => s.id === selectedId.value);
+                const updated = allSales.value.find(s => s.id === selectedId.value);
                 if (updated) selected.value = updated;
             }});
         },
@@ -107,9 +181,9 @@ const submitEditPayment = (paymentId) => {
                     </div>
                 </div>
 
-                <!-- Sales list -->
-                <div class="flex-1 overflow-y-auto p-3 space-y-2">
-                    <div v-for="sale in sales.data" :key="sale.id" @click="selectSale(sale)"
+                <!-- Sales list with scroll -->
+                <div ref="listRef" @scroll="onScroll" class="flex-1 overflow-y-auto p-3 space-y-2">
+                    <div v-for="sale in allSales" :key="sale.id" @click="selectSale(sale)"
                         :class="['cursor-pointer rounded-xl p-4 transition-all', selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' : 'ring-1 ring-gray-100 hover:ring-gray-200 hover:bg-gray-50/50']">
                         <div class="flex items-center justify-between">
                             <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
@@ -124,16 +198,19 @@ const submitEditPayment = (paymentId) => {
                         </div>
                     </div>
 
-                    <div v-if="sales.data.length === 0" class="py-16 text-center text-sm text-gray-400">No se encontraron ventas.</div>
-                </div>
-
-                <!-- Pagination -->
-                <div v-if="sales.last_page > 1" class="flex justify-center border-t border-gray-100 px-4 py-3">
-                    <div class="flex gap-1">
-                        <Link v-for="link in sales.links" :key="link.label" :href="link.url || '#'"
-                            :class="['rounded-lg px-3 py-1.5 text-xs font-medium transition', link.active ? 'bg-red-600 text-white' : 'text-gray-600 hover:bg-gray-100', !link.url && 'pointer-events-none opacity-40']"
-                            v-html="link.label" />
+                    <!-- Loading more indicator -->
+                    <div v-if="loadingMore" class="flex justify-center py-4">
+                        <svg class="h-5 w-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                        </svg>
                     </div>
+
+                    <!-- No more results -->
+                    <p v-if="!hasMore && allSales.length > 0" class="py-3 text-center text-xs text-gray-300">No hay mas ventas.</p>
+
+                    <!-- Empty state -->
+                    <div v-if="allSales.length === 0 && !loadingMore" class="py-16 text-center text-sm text-gray-400">No se encontraron ventas.</div>
                 </div>
             </div>
 

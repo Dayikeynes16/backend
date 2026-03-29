@@ -22,7 +22,7 @@ class SaleHistoryController extends Controller
             ->when($request->search, fn ($q, $s) => $q->where('folio', 'ilike', "%{$s}%"))
             ->when($request->date, fn ($q, $d) => $q->whereDate('created_at', $d))
             ->orderByDesc('created_at')
-            ->paginate(20)
+            ->cursorPaginate(50)
             ->withQueryString();
 
         $user = Auth::user();
