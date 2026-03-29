@@ -17,6 +17,7 @@ class ProductController extends Controller
             ->where('status', 'active')
             ->where('visibility', 'public')
             ->with([
+                'category',
                 'presentations' => fn ($q) => $q->where('status', 'active')->orderBy('sort_order'),
             ])
             ->when($request->search, fn ($q, $s) => $q->where('name', 'ilike', "%{$s}%"))
