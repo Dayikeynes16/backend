@@ -5,7 +5,7 @@ import TicketPrinter from '@/Components/TicketPrinter.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
@@ -38,6 +38,7 @@ onUnmounted(() => { if (saleUpdateChannel) saleUpdateChannel.stopListening('Sale
 // Concurrency lock
 const { lockSale, isLockedByOther, lockedByName } = useSaleLock(
     props.branchId,
+    usePage().props.auth.user.id,
     route('sucursal.sale.lock', [props.tenant.slug, '__SALE__']),
     route('sucursal.sale.unlock', [props.tenant.slug, '__SALE__']),
     route('sucursal.sale.heartbeat', [props.tenant.slug, '__SALE__']),

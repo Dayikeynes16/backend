@@ -4,8 +4,9 @@ import FlashToast from '@/Components/FlashToast.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
-import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { useSaleQueue } from '@/composables/useSaleQueue';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({ sales: Array, tenant: Object, branchId: Number, paymentMethods: Array });
 
@@ -20,8 +21,22 @@ const selected = computed(() => props.sales.find(s => s.id === selectedId.value)
 const showTicket = ref(false);
 const showCancelRequest = ref(false);
 
+// Real-time updates (same as Sucursal)
+const { sales: queuedSales } = useSaleQueue(props.branchId);
+watch(queuedSales, () => router.reload({ only: ['sales'], preserveScroll: true }), { deep: true });
+
+let saleUpdateChannel = null;
+onMounted(() => {
+    if (!props.branchId || !window.Echo) return;
+    saleUpdateChannel = window.Echo.private(`sucursal.${props.branchId}`);
+    saleUpdateChannel.listen('SaleUpdated', () => router.reload({ only: ['sales'], preserveScroll: true }));
+});
+onUnmounted(() => { if (saleUpdateChannel) saleUpdateChannel.stopListening('SaleUpdated'); });
+
+// Concurrency lock
 const { lockSale, isLockedByOther, lockedByName } = useSaleLock(
     props.branchId,
+    usePage().props.auth.user.id,
     route('caja.sale.lock', [props.tenant.slug, '__SALE__']),
     route('caja.sale.unlock', [props.tenant.slug, '__SALE__']),
     route('caja.sale.heartbeat', [props.tenant.slug, '__SALE__']),
