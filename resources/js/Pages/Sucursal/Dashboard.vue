@@ -116,8 +116,8 @@ const formatDateTime = (iso) => {
                 <Link :href="route('sucursal.usuarios.index', tenant.slug)" class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100 text-center transition hover:bg-gray-50">
                     <p class="text-sm font-medium text-red-600">Cajeros</p>
                 </Link>
-                <Link :href="route('sucursal.api-keys.index', tenant.slug)" class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100 text-center transition hover:bg-gray-50">
-                    <p class="text-sm font-medium text-red-600">API Key</p>
+                <Link :href="route('sucursal.configuracion', tenant.slug)" class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100 text-center transition hover:bg-gray-50">
+                    <p class="text-sm font-medium text-red-600">Configuracion</p>
                 </Link>
                 <Link :href="route('sucursal.cortes.index', tenant.slug)" class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100 text-center transition hover:bg-gray-50">
                     <p class="text-sm font-medium text-red-600">Cortes</p>

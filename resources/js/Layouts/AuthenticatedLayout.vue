@@ -32,8 +32,8 @@ const navLinks = computed(() => {
                 { label: 'Dashboard', route: 'sucursal.dashboard', params: [s] },
                 { label: 'Productos', route: 'sucursal.productos.index', params: [s] },
                 { label: 'Cajeros', route: 'sucursal.usuarios.index', params: [s] },
-                { label: 'API Keys', route: 'sucursal.api-keys.index', params: [s] },
                 { label: 'Cortes', route: 'sucursal.cortes.index', params: [s] },
+                { label: 'Configuracion', route: 'sucursal.configuracion', params: [s] },
             ];
         case 'cajero':
             return [
