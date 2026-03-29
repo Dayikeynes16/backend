@@ -15,7 +15,6 @@ const navLinks = [
     { label: 'Mi Turno', route: 'sucursal.turno.active', icon: 'turno' },
     { label: 'Cancelaciones', route: 'sucursal.cancelaciones.index', icon: 'cancelaciones' },
     { label: 'Cortes', route: 'sucursal.cortes.index', match: 'sucursal.cortes', icon: 'cortes' },
-    { label: 'API Key', route: 'sucursal.api-keys.index', icon: 'apikey' },
     { label: 'Configuracion', route: 'sucursal.configuracion', icon: 'config' },
 ];
 

@@ -60,7 +60,7 @@ class ApiKeyController extends Controller
             'expires_at' => $expiresAt,
         ]);
 
-        return redirect()->route('sucursal.api-keys.index', app('tenant')->slug)
+        return redirect()->route('sucursal.configuracion', app('tenant')->slug)
             ->with('newKey', $rawKey);
     }
 
@@ -78,7 +78,7 @@ class ApiKeyController extends Controller
 
         $api_key->update(['status' => 'inactive']);
 
-        return redirect()->route('sucursal.api-keys.index', app('tenant')->slug)
-            ->with('success', 'API Key revocada exitosamente.');
+        return redirect()->route('sucursal.configuracion', app('tenant')->slug)
+            ->with('success', 'API Key revocada.');
     }
 }

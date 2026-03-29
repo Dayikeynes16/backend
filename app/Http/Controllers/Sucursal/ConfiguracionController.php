@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sucursal;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApiKey;
 use App\Models\Branch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,9 +18,23 @@ class ConfiguracionController extends Controller
         $branch = Branch::withoutGlobalScopes()->findOrFail(Auth::user()->branch_id);
         $tenant = app('tenant');
 
+        $apiKeys = ApiKey::where('branch_id', Auth::user()->branch_id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (ApiKey $key) => [
+                'id' => $key->id,
+                'name' => $key->name,
+                'prefix' => substr($key->key_hash, 0, 8),
+                'status' => $key->isExpired() ? 'expired' : $key->status,
+                'last_used_at' => $key->last_used_at?->diffForHumans() ?? 'Nunca',
+                'created_at' => $key->created_at->toDateTimeString(),
+            ]);
+
         return Inertia::render('Sucursal/Configuracion', [
             'branch' => $branch,
             'tenant' => $tenant,
+            'apiKeys' => $apiKeys,
+            'newKey' => session('newKey'),
         ]);
     }
 
