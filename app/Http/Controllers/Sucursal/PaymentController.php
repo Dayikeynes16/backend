@@ -84,11 +84,16 @@ class PaymentController extends Controller
         $allowed = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
         $allowedStr = implode(',', $allowed);
 
+        // Max allowed: sale total minus other payments (excluding this one being edited)
+        $otherPaymentsTotal = $sale->payments()->where('id', '!=', $payment->id)->sum('amount');
+        $maxAmount = round((float) $sale->total - $otherPaymentsTotal, 2);
+
         $validated = $request->validate([
             'method' => "required|in:{$allowedStr}",
-            'amount' => 'required|numeric|gt:0',
+            'amount' => "required|numeric|gt:0|max:{$maxAmount}",
         ], [
             'method.in' => 'El metodo de pago seleccionado no esta habilitado para esta sucursal.',
+            'amount.max' => "El monto no puede exceder \${$maxAmount} (total de la venta menos otros pagos).",
         ]);
 
         DB::transaction(function () use ($payment, $sale, $user, $validated) {

@@ -35,6 +35,7 @@ class SaleHistoryController extends Controller
             'tenant' => app('tenant'),
             'paymentMethods' => $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'],
             'canEditPayments' => $canEditPayments,
+            'canCancel' => $canEditPayments,
         ]);
     }
 }

@@ -24,18 +24,8 @@ class WorkbenchController extends Controller
         $user = Auth::user();
         $branchId = $user->branch_id;
 
-        $isAdmin = $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin');
-
         $sales = Sale::where('branch_id', $branchId)
-            ->where(function ($q) use ($isAdmin) {
-                $q->where('status', 'active');
-                if ($isAdmin) {
-                    $q->orWhere(function ($q2) {
-                        $q2->where('status', 'completed')
-                            ->whereDate('completed_at', now());
-                    });
-                }
-            })
+            ->where('status', 'active')
             ->with(['items', 'payments', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)

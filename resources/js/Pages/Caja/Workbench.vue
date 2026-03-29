@@ -121,8 +121,7 @@ const submitCancelRequest = (reason) => {
                         <div class="mt-2.5 flex items-end justify-between">
                             <div>
                                 <p class="text-xl font-bold text-gray-900">${{ parseFloat(sale.total).toFixed(2) }}</p>
-                                <p v-if="sale.status === 'completed'" class="mt-0.5 text-xs font-semibold text-green-600">Cobrada</p>
-                                <p v-else-if="parseFloat(sale.amount_pending) > 0" class="mt-0.5 text-xs font-semibold text-amber-600">Pendiente: ${{ parseFloat(sale.amount_pending).toFixed(2) }}</p>
+                                <p v-if="parseFloat(sale.amount_pending) > 0" class="mt-0.5 text-xs font-semibold text-amber-600">Pendiente: ${{ parseFloat(sale.amount_pending).toFixed(2) }}</p>
                                 <p v-else class="mt-0.5 text-xs font-semibold text-green-600">Pagada</p>
                             </div>
                             <span class="text-xs text-gray-400">{{ timeAgo(sale.created_at) }}</span>
@@ -210,21 +209,6 @@ const submitCancelRequest = (reason) => {
                         </div>
                     </div>
 
-                    <!-- Actions for completed sales (cajero can request cancellation) -->
-                    <div v-if="selected.status === 'completed'" class="border-t-2 border-green-200 bg-green-50/50 px-6 py-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-bold text-green-800">Venta cobrada</p>
-                                <p class="text-xs text-green-600">Esta venta ya fue procesada.</p>
-                            </div>
-                            <button v-if="!selected.cancel_requested_at" @click="showCancelRequest = true"
-                                class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100">
-                                Solicitar cancelacion
-                            </button>
-                            <span v-else class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Cancelacion solicitada</span>
-                        </div>
-                    </div>
-
                     <!-- STICKY FOOTER: Cobro -->
                     <div v-if="hasPending" class="border-t-2 border-gray-200 bg-gray-50">
                         <div class="grid grid-cols-3 divide-x divide-gray-200 border-b border-gray-200">
@@ -267,7 +251,7 @@ const submitCancelRequest = (reason) => {
             </div>
         </div>
 
-        <CancelSaleDialog v-if="showCancelRequest" :folio="selected?.folio" mode="request" :processing="cancelProcessing" :is-completed="selected?.status === 'completed'" @confirm="submitCancelRequest" @cancel="showCancelRequest = false" />
+        <CancelSaleDialog v-if="showCancelRequest" :folio="selected?.folio" mode="request" :processing="cancelProcessing" @confirm="submitCancelRequest" @cancel="showCancelRequest = false" />
         <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name"
             :branch-name="branchInfo?.name" :branch-address="branchInfo?.address" :branch-phone="branchInfo?.phone"
             :ticket-config="branchInfo?.ticket_config" @close="showTicket = false" />

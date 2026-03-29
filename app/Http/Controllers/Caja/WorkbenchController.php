@@ -27,13 +27,7 @@ class WorkbenchController extends Controller
         }
 
         $sales = Sale::where('branch_id', $user->branch_id)
-            ->where(function ($q) {
-                $q->where('status', 'active')
-                    ->orWhere(function ($q2) {
-                        $q2->where('status', 'completed')
-                            ->whereDate('completed_at', now());
-                    });
-            })
+            ->where('status', 'active')
             ->with(['items', 'payments', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)

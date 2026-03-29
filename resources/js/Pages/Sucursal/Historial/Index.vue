@@ -1,8 +1,11 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import DatePicker from '@/Components/DatePicker.vue';
+import ConfirmDialog from '@/Components/ConfirmDialog.vue';
+import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
+import FlashToast from '@/Components/FlashToast.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
     sales: Object, filters: Object, tenant: Object,
@@ -25,18 +28,16 @@ const nextCursor = ref(props.sales.next_cursor || null);
 const loadingMore = ref(false);
 const hasMore = computed(() => nextCursor.value !== null);
 
-// When Inertia reloads the page (filters change), reset the list
 watch(() => props.sales, (newSales) => {
     allSales.value = [...newSales.data];
     nextCursor.value = newSales.next_cursor || null;
-    // If selected sale is no longer in list, deselect
     if (selectedId.value && !allSales.value.find(s => s.id === selectedId.value)) {
         selectedId.value = null;
         selected.value = null;
     }
 });
 
-// --- Filter application (resets list via Inertia page visit) ---
+// --- Filter application ---
 let debounceTimer;
 const applyFilters = () => {
     clearTimeout(debounceTimer);
@@ -55,25 +56,18 @@ watch(search, applyFilters);
 watch(status, () => { clearTimeout(debounceTimer); applyFilters(); });
 watch(date, () => { clearTimeout(debounceTimer); applyFilters(); });
 
-// --- Infinite scroll: load next page ---
+// --- Infinite scroll ---
 const loadMore = () => {
     if (loadingMore.value || !hasMore.value) return;
-
     loadingMore.value = true;
-
-    const params = {
+    router.get(route('sucursal.historial.index', props.tenant.slug), {
         cursor: nextCursor.value,
         search: search.value || undefined,
         status: status.value || undefined,
         date: date.value || undefined,
-    };
-
-    router.get(route('sucursal.historial.index', props.tenant.slug), params, {
-        preserveState: true,
-        preserveScroll: true,
-        only: ['sales'],
+    }, {
+        preserveState: true, preserveScroll: true, only: ['sales'],
         onSuccess: () => {
-            // props.sales now has the NEW page — append to our accumulated list
             const newSales = props.sales;
             if (newSales?.data) {
                 const existingIds = new Set(allSales.value.map(s => s.id));
@@ -83,34 +77,27 @@ const loadMore = () => {
             }
             loadingMore.value = false;
         },
-        onError: () => {
-            loadingMore.value = false;
-        },
+        onError: () => { loadingMore.value = false; },
     });
 };
 
-// --- Scroll listener on the list container ---
 const listRef = ref(null);
 const onScroll = () => {
     const el = listRef.value;
     if (!el || loadingMore.value || !hasMore.value) return;
-    // Trigger when within 100px of the bottom
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
-        loadMore();
-    }
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) loadMore();
 };
 
-// --- Date formatters ---
+// --- Formatters ---
 const formatTime = (d) => new Date(d).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
 const formatFullDate = (d) => {
-    const date = new Date(d);
-    const day = date.toLocaleDateString('es-MX', { weekday: 'long' });
-    const rest = date.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
-    const time = date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const dt = new Date(d);
+    const day = dt.toLocaleDateString('es-MX', { weekday: 'long' });
+    const rest = dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+    const time = dt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
     return `${day.charAt(0).toUpperCase() + day.slice(1)} ${rest}, ${time}`;
 };
 
-// --- Helpers ---
 const statusBadge = (s) => ({
     active: { label: 'Activa', cls: 'bg-blue-50 text-blue-700 ring-blue-600/20' },
     pending: { label: 'Pendiente', cls: 'bg-amber-50 text-amber-700 ring-amber-600/20' },
@@ -119,17 +106,13 @@ const statusBadge = (s) => ({
 }[s] || { label: s, cls: 'bg-gray-100 text-gray-600' });
 
 const originBadge = (o) => o === 'admin' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700';
-const methodLabel = (m) => ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' }[m] || m);
+const methodLabel = (m) => allMethodLabels[m] || m;
+const methodColor = (m) => ({ cash: 'text-green-600', card: 'text-blue-600', transfer: 'text-purple-600' }[m] || 'text-gray-600');
 
 // --- Selection ---
 const selectedId = ref(null);
 const selected = ref(null);
-
-const selectSale = (sale) => {
-    selectedId.value = sale.id;
-    selected.value = sale;
-    editingPaymentId.value = null;
-};
+const selectSale = (sale) => { selectedId.value = sale.id; selected.value = sale; editingPaymentId.value = null; };
 
 // --- Payment editing ---
 const editingPaymentId = ref(null);
@@ -141,16 +124,47 @@ const startEditPayment = (p) => {
     editPaymentForm.amount = parseFloat(p.amount);
 };
 
+const reloadSelected = () => {
+    router.reload({ only: ['sales'], preserveScroll: true, onSuccess: () => {
+        const updated = allSales.value.find(s => s.id === selectedId.value);
+        if (updated) selected.value = updated;
+    }});
+};
+
 const submitEditPayment = (paymentId) => {
     editPaymentForm.put(route('sucursal.workbench.payment.update', [props.tenant.slug, selected.value.id, paymentId]), {
         preserveScroll: true,
-        onSuccess: () => {
-            editingPaymentId.value = null;
-            router.reload({ only: ['sales'], preserveScroll: true, onSuccess: () => {
-                const updated = allSales.value.find(s => s.id === selectedId.value);
-                if (updated) selected.value = updated;
-            }});
-        },
+        onSuccess: () => { editingPaymentId.value = null; reloadSelected(); },
+    });
+};
+
+// --- Payment deletion ---
+const confirmDeletePaymentId = ref(null);
+const doDeletePayment = () => {
+    if (!confirmDeletePaymentId.value) return;
+    router.delete(route('sucursal.workbench.payment.destroy', [props.tenant.slug, selected.value.id, confirmDeletePaymentId.value]), {
+        preserveScroll: true,
+        onSuccess: () => { confirmDeletePaymentId.value = null; reloadSelected(); },
+    });
+};
+
+// --- Cancel sale ---
+const showCancelDialog = ref(false);
+const cancelProcessing = ref(false);
+const cancelSale = (reason) => {
+    cancelProcessing.value = true;
+    router.patch(route('sucursal.workbench.cancel', [props.tenant.slug, selected.value.id]), { cancel_reason: reason }, {
+        preserveScroll: true,
+        onSuccess: () => { showCancelDialog.value = false; reloadSelected(); },
+        onFinish: () => { cancelProcessing.value = false; },
+    });
+};
+
+// --- Reopen sale ---
+const reopenSale = () => {
+    router.patch(route('sucursal.workbench.reopen', [props.tenant.slug, selected.value.id]), {}, {
+        preserveScroll: true,
+        onSuccess: () => { reloadSelected(); },
     });
 };
 </script>
@@ -165,7 +179,6 @@ const submitEditPayment = (paymentId) => {
         <div class="flex h-[calc(100vh-8rem)] gap-5">
             <!-- LEFT: Sales list -->
             <div class="flex w-[420px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-                <!-- Filters -->
                 <div class="space-y-3 border-b border-gray-100 px-5 py-4">
                     <div class="flex gap-3">
                         <div class="relative flex-1">
@@ -183,7 +196,6 @@ const submitEditPayment = (paymentId) => {
                     </div>
                 </div>
 
-                <!-- Sales list with scroll -->
                 <div ref="listRef" @scroll="onScroll" class="flex-1 overflow-y-auto p-3 space-y-2">
                     <div v-for="sale in allSales" :key="sale.id" @click="selectSale(sale)"
                         :class="['cursor-pointer rounded-xl p-4 transition-all', selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' : 'ring-1 ring-gray-100 hover:ring-gray-200 hover:bg-gray-50/50']">
@@ -200,18 +212,10 @@ const submitEditPayment = (paymentId) => {
                         </div>
                     </div>
 
-                    <!-- Loading more indicator -->
                     <div v-if="loadingMore" class="flex justify-center py-4">
-                        <svg class="h-5 w-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                        </svg>
+                        <svg class="h-5 w-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" /></svg>
                     </div>
-
-                    <!-- No more results -->
                     <p v-if="!hasMore && allSales.length > 0" class="py-3 text-center text-xs text-gray-300">No hay mas ventas.</p>
-
-                    <!-- Empty state -->
                     <div v-if="allSales.length === 0 && !loadingMore" class="py-16 text-center text-sm text-gray-400">No se encontraron ventas.</div>
                 </div>
             </div>
@@ -282,12 +286,15 @@ const submitEditPayment = (paymentId) => {
                                     <!-- Display mode -->
                                     <div v-else class="flex items-center justify-between">
                                         <div>
-                                            <span class="text-sm font-semibold" :class="{ 'text-green-600': p.method === 'cash', 'text-blue-600': p.method === 'card', 'text-purple-600': p.method === 'transfer' }">{{ methodLabel(p.method) }}</span>
+                                            <span :class="methodColor(p.method)" class="text-sm font-semibold">{{ methodLabel(p.method) }}</span>
                                             <span v-if="p.user" class="ml-2 text-xs text-gray-400">por {{ p.user.name }}</span>
                                         </div>
                                         <div class="flex items-center gap-3">
                                             <span class="text-sm font-bold text-gray-900">${{ parseFloat(p.amount).toFixed(2) }}</span>
-                                            <button v-if="canEditPayments" @click="startEditPayment(p)" class="text-xs font-semibold text-orange-600 hover:text-orange-700">Editar</button>
+                                            <template v-if="canEditPayments">
+                                                <button @click="startEditPayment(p)" class="text-xs font-semibold text-orange-600 hover:text-orange-700">Editar</button>
+                                                <button @click="confirmDeletePaymentId = p.id" class="text-xs font-semibold text-red-500 hover:text-red-700">Eliminar</button>
+                                            </template>
                                         </div>
                                     </div>
                                 </div>
@@ -306,11 +313,51 @@ const submitEditPayment = (paymentId) => {
                         <!-- Cancelled info -->
                         <div v-if="selected.status === 'cancelled' && selected.cancelled_at" class="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
                             <p class="text-sm font-semibold text-red-900">Venta cancelada</p>
+                            <p v-if="selected.cancel_reason" class="mt-0.5 text-xs text-red-600">Motivo: {{ selected.cancel_reason }}</p>
                             <p class="mt-0.5 text-xs text-red-600/70">{{ new Date(selected.cancelled_at).toLocaleString('es-MX') }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Admin actions footer -->
+                    <div v-if="canEditPayments && (selected.status === 'completed' || selected.status === 'active')" class="border-t-2 border-gray-200 bg-gray-50 px-6 py-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p v-if="selected.status === 'completed'" class="text-sm font-bold text-green-700">Venta cobrada</p>
+                                <p v-else class="text-sm font-bold text-blue-700">Venta activa</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button v-if="selected.status === 'completed'" @click="reopenSale"
+                                    class="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-100">
+                                    Reabrir
+                                </button>
+                                <button @click="showCancelDialog = true"
+                                    class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700">
+                                    Cancelar venta
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </template>
             </div>
         </div>
+
+        <!-- Dialogs -->
+        <ConfirmDialog v-if="confirmDeletePaymentId"
+            title="Eliminar pago"
+            message="El pago se eliminara y los montos de la venta se recalcularan automaticamente."
+            confirm-label="Eliminar"
+            variant="danger"
+            @confirm="doDeletePayment"
+            @cancel="confirmDeletePaymentId = null" />
+
+        <CancelSaleDialog v-if="showCancelDialog"
+            :folio="selected?.folio"
+            mode="direct"
+            :processing="cancelProcessing"
+            :is-completed="selected?.status === 'completed'"
+            @confirm="cancelSale"
+            @cancel="showCancelDialog = false" />
+
+        <FlashToast />
     </SucursalLayout>
 </template>
