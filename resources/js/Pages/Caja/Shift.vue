@@ -25,8 +25,8 @@ const closeShift = () => {
     <AuthenticatedLayout>
         <template #header>
             <div class="flex items-center justify-between">
-                <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Corte de Caja</h2>
-                <span class="text-sm text-gray-500 dark:text-gray-400">
+                <h2 class="text-xl font-semibold leading-tight text-gray-800">Corte de Caja</h2>
+                <span class="text-sm text-gray-500">
                     Turno abierto desde {{ formatTime(shift.opened_at) }}
                 </span>
             </div>
@@ -35,30 +35,30 @@ const closeShift = () => {
         <div class="py-6">
             <div class="mx-auto max-w-2xl sm:px-6 lg:px-8 space-y-6">
                 <!-- Totals -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6 space-y-4">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Resumen del turno</h3>
+                        <h3 class="text-lg font-semibold text-gray-900">Resumen del turno</h3>
 
                         <div class="space-y-3">
-                            <div class="flex justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">Ventas cobradas</span>
-                                <span class="font-semibold text-gray-900 dark:text-white">{{ totals.sale_count }}</span>
+                            <div class="flex justify-between border-b border-gray-100 pb-3">
+                                <span class="text-sm text-gray-600">Ventas cobradas</span>
+                                <span class="font-semibold text-gray-900">{{ totals.sale_count }}</span>
                             </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
-                                <span class="text-sm text-green-600 dark:text-green-400">Efectivo</span>
-                                <span class="font-semibold text-gray-900 dark:text-white">${{ totals.total_cash.toFixed(2) }}</span>
+                            <div class="flex justify-between border-b border-gray-100 pb-3">
+                                <span class="text-sm text-green-600">Efectivo</span>
+                                <span class="font-semibold text-gray-900">${{ totals.total_cash.toFixed(2) }}</span>
                             </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
-                                <span class="text-sm text-blue-600 dark:text-blue-400">Tarjeta</span>
-                                <span class="font-semibold text-gray-900 dark:text-white">${{ totals.total_card.toFixed(2) }}</span>
+                            <div class="flex justify-between border-b border-gray-100 pb-3">
+                                <span class="text-sm text-blue-600">Tarjeta</span>
+                                <span class="font-semibold text-gray-900">${{ totals.total_card.toFixed(2) }}</span>
                             </div>
-                            <div class="flex justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
-                                <span class="text-sm text-purple-600 dark:text-purple-400">Transferencia</span>
-                                <span class="font-semibold text-gray-900 dark:text-white">${{ totals.total_transfer.toFixed(2) }}</span>
+                            <div class="flex justify-between border-b border-gray-100 pb-3">
+                                <span class="text-sm text-purple-600">Transferencia</span>
+                                <span class="font-semibold text-gray-900">${{ totals.total_transfer.toFixed(2) }}</span>
                             </div>
                             <div class="flex justify-between pt-2">
-                                <span class="text-lg font-bold text-gray-900 dark:text-white">Total</span>
-                                <span class="text-2xl font-bold text-gray-900 dark:text-white">${{ totals.total_sales.toFixed(2) }}</span>
+                                <span class="text-lg font-bold text-gray-900">Total</span>
+                                <span class="text-2xl font-bold text-gray-900">${{ totals.total_sales.toFixed(2) }}</span>
                             </div>
                         </div>
                     </div>

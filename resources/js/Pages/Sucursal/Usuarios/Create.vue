@@ -19,11 +19,11 @@ const submit = () => {
     <Head title="Nuevo Cajero" />
     <SucursalLayout>
         <template #header>
-            <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Nuevo Cajero</h2>
+            <h2 class="text-xl font-semibold leading-tight text-gray-800">Nuevo Cajero</h2>
         </template>
         <div class="py-12">
             <div class="mx-auto max-w-2xl sm:px-6 lg:px-8">
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800">
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <form @submit.prevent="submit" class="space-y-6 p-6">
                         <div>
                             <InputLabel for="name" value="Nombre" />
@@ -42,7 +42,7 @@ const submit = () => {
                         </div>
                         <div class="flex items-center gap-4">
                             <PrimaryButton :disabled="form.processing">Crear Cajero</PrimaryButton>
-                            <Link :href="route('sucursal.usuarios.index', tenant.slug)" class="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">Cancelar</Link>
+                            <Link :href="route('sucursal.usuarios.index', tenant.slug)" class="text-sm text-gray-600 hover:text-gray-900">Cancelar</Link>
                         </div>
                     </form>
                 </div>
