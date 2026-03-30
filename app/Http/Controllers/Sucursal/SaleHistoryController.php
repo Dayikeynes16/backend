@@ -36,6 +36,7 @@ class SaleHistoryController extends Controller
             'paymentMethods' => $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'],
             'canEditPayments' => $canEditPayments,
             'canCancel' => $canEditPayments,
+            'canManageStatus' => $canEditPayments,
         ]);
     }
 }

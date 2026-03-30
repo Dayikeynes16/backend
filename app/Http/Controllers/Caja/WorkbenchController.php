@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Caja;
 
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
@@ -27,7 +28,7 @@ class WorkbenchController extends Controller
         }
 
         $sales = Sale::where('branch_id', $user->branch_id)
-            ->where('status', 'active')
+            ->whereIn('status', [SaleStatus::Active, SaleStatus::Pending])
             ->with(['items', 'payments', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)
@@ -58,7 +59,7 @@ class WorkbenchController extends Controller
             abort(403);
         }
 
-        if ($sale->status === 'cancelled') {
+        if ($sale->status === SaleStatus::Cancelled) {
             return back()->with('error', 'Esta venta ya esta cancelada.');
         }
 

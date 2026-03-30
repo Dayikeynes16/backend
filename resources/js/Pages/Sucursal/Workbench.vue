@@ -4,15 +4,17 @@ import FlashToast from '@/Components/FlashToast.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
+import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
+import { useSaleActions } from '@/composables/useSaleActions';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
     sales: Array, products: Array, categories: Array,
     tenant: Object, branchId: Number, branchInfo: Object, paymentMethods: Array,
-    canCreate: Boolean, canCancel: Boolean, canEditPayments: Boolean,
+    canCreate: Boolean, canCancel: Boolean, canManageStatus: Boolean, canEditPayments: Boolean,
 });
 
 const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
@@ -43,6 +45,18 @@ const { lockSale, isLockedByOther, lockedByName } = useSaleLock(
     route('sucursal.sale.unlock', [props.tenant.slug, '__SALE__']),
     route('sucursal.sale.heartbeat', [props.tenant.slug, '__SALE__']),
 );
+
+// Status actions
+const { processing: statusProcessing, pauseSale, reactivateSale, cancelSale: cancelViaSaleActions, reopenSale } = useSaleActions(
+    route('sucursal.workbench.update-status', [props.tenant.slug, '__SALE__']),
+);
+
+const contextMenuSaleId = ref(null);
+
+const handlePause = (saleId) => pauseSale(saleId);
+const handleReactivate = (saleId) => reactivateSale(saleId);
+const handleReopen = (saleId) => reopenSale(saleId);
+const handleCancelFromMenu = (saleId) => { contextMenuSaleId.value = saleId; showCancelDialog.value = true; };
 
 const selectSale = async (saleId) => {
     const ok = await lockSale(saleId);
@@ -108,10 +122,11 @@ const doDeletePayment = () => {
 const showCancelDialog = ref(false);
 const cancelProcessing = ref(false);
 const cancelSale = (reason) => {
+    const saleId = contextMenuSaleId.value || selected.value?.id;
+    if (!saleId) return;
     cancelProcessing.value = true;
-    router.patch(route('sucursal.workbench.cancel', [props.tenant.slug, selected.value.id]), { cancel_reason: reason }, {
-        preserveScroll: true,
-        onSuccess: () => { showCancelDialog.value = false; },
+    cancelViaSaleActions(saleId, reason, {
+        onSuccess: () => { showCancelDialog.value = false; contextMenuSaleId.value = null; },
         onFinish: () => { cancelProcessing.value = false; },
     });
 };
@@ -165,9 +180,13 @@ const submitNewSale = () => {
                         :class="['cursor-pointer rounded-xl p-4 transition-all',
                             selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' :
                             isLockedByOther(sale.id) ? 'ring-1 ring-amber-200 bg-amber-50/30 opacity-75' :
+                            sale.status === 'pending' ? 'ring-1 ring-amber-200 bg-amber-50/20' :
                             'ring-1 ring-gray-100 hover:ring-gray-200 hover:bg-gray-50/50']">
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
+                                <span v-if="sale.status === 'pending'" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">Pendiente</span>
+                            </div>
                             <div class="flex items-center gap-1.5">
                                 <span v-if="isLockedByOther(sale.id)" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
                                     {{ lockedByName(sale.id) || 'En uso' }}
@@ -176,6 +195,17 @@ const submitNewSale = () => {
                                     {{ sale.locked_by_user.name }}
                                 </span>
                                 <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
+                                <SaleContextMenu
+                                    :sale="sale"
+                                    :can-manage-status="canManageStatus"
+                                    :is-locked-by-other="isLockedByOther(sale.id)"
+                                    :locked-by-name="lockedByName(sale.id)"
+                                    @pause="handlePause(sale.id)"
+                                    @reactivate="handleReactivate(sale.id)"
+                                    @reopen="handleReopen(sale.id)"
+                                    @cancel="handleCancelFromMenu(sale.id)"
+                                    @request-cancel="handleCancelFromMenu(sale.id)"
+                                />
                             </div>
                         </div>
                         <div class="mt-2.5 flex items-end justify-between">
@@ -320,10 +350,17 @@ const submitNewSale = () => {
                                 class="rounded-lg bg-red-600 px-8 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-95 disabled:opacity-50">
                                 Cobrar
                             </button>
-                            <button v-if="canCancel" type="button" @click="showCancelDialog = true"
-                                class="rounded-lg px-3 py-2.5 text-xs font-medium text-gray-400 transition hover:bg-red-50 hover:text-red-600">
-                                Cancelar
-                            </button>
+                            <SaleContextMenu
+                                :sale="selected"
+                                :can-manage-status="canManageStatus"
+                                :is-locked-by-other="isLockedByOther(selected.id)"
+                                :locked-by-name="lockedByName(selected.id)"
+                                @pause="handlePause(selected.id)"
+                                @reactivate="handleReactivate(selected.id)"
+                                @reopen="handleReopen(selected.id)"
+                                @cancel="handleCancelFromMenu(selected.id)"
+                                @request-cancel="handleCancelFromMenu(selected.id)"
+                            />
                         </form>
                         <p v-if="paymentForm.errors.method" class="px-5 pb-2 text-xs text-red-600">{{ paymentForm.errors.method }}</p>
                         <p v-if="paymentForm.errors.amount" class="px-5 pb-2 text-xs text-red-600">{{ paymentForm.errors.amount }}</p>
@@ -391,7 +428,13 @@ const submitNewSale = () => {
 
         <!-- Dialogs -->
         <ConfirmDialog v-if="confirmDeletePayment" title="Eliminar pago" message="El saldo de la venta se recalculara automaticamente." confirm-label="Eliminar" variant="danger" @confirm="doDeletePayment" @cancel="confirmDeletePayment = null" />
-        <CancelSaleDialog v-if="showCancelDialog" :folio="selected?.folio" mode="direct" :processing="cancelProcessing" @confirm="cancelSale" @cancel="showCancelDialog = false" />
+        <CancelSaleDialog v-if="showCancelDialog"
+            :folio="(contextMenuSaleId ? sales.find(s => s.id === contextMenuSaleId)?.folio : selected?.folio) || ''"
+            :mode="canCancel ? 'direct' : 'request'"
+            :processing="cancelProcessing"
+            :is-completed="(contextMenuSaleId ? sales.find(s => s.id === contextMenuSaleId)?.status : selected?.status) === 'completed'"
+            @confirm="cancelSale"
+            @cancel="showCancelDialog = false; contextMenuSaleId = null" />
         <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name"
             :branch-name="branchInfo?.name" :branch-address="branchInfo?.address" :branch-phone="branchInfo?.phone"
             :ticket-config="branchInfo?.ticket_config" @close="showTicket = false" />

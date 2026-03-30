@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
@@ -14,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rules\Enum;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,7 +27,7 @@ class WorkbenchController extends Controller
         $branchId = $user->branch_id;
 
         $sales = Sale::where('branch_id', $branchId)
-            ->where('status', 'active')
+            ->whereIn('status', [SaleStatus::Active, SaleStatus::Pending])
             ->with(['items', 'payments', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)
@@ -60,6 +62,7 @@ class WorkbenchController extends Controller
             'paymentMethods' => $paymentMethods,
             'canCreate' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canCancel' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
+            'canManageStatus' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canEditPayments' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
         ]);
     }
@@ -150,7 +153,7 @@ class WorkbenchController extends Controller
                 'amount_pending' => round($total, 2),
                 'origin' => 'admin',
                 'origin_name' => 'Administrador',
-                'status' => 'active',
+                'status' => SaleStatus::Active,
             ]);
 
             foreach ($itemsData as $data) {
@@ -173,7 +176,7 @@ class WorkbenchController extends Controller
             abort(403);
         }
 
-        if ($sale->status !== 'completed') {
+        if ($sale->status !== SaleStatus::Completed) {
             return back()->with('error', 'Solo se pueden enviar a pendiente ventas completadas.');
         }
 
@@ -181,7 +184,7 @@ class WorkbenchController extends Controller
         $pending = round((float) $sale->total - $totalPaid, 2);
 
         $sale->update([
-            'status' => 'active',
+            'status' => SaleStatus::Active,
             'amount_pending' => max($pending, 0),
             'completed_at' => null,
         ]);
@@ -201,7 +204,7 @@ class WorkbenchController extends Controller
             abort(403);
         }
 
-        if ($sale->status === 'cancelled') {
+        if ($sale->status === SaleStatus::Cancelled) {
             return back()->with('error', 'Esta venta ya esta cancelada.');
         }
 
@@ -209,14 +212,14 @@ class WorkbenchController extends Controller
             'cancel_reason' => 'required|string|max:500',
         ]);
 
-        $wasCompleted = $sale->status === 'completed';
+        $wasCompleted = $sale->status === SaleStatus::Completed;
 
         DB::transaction(function () use ($sale, $user, $validated, $wasCompleted) {
             // Soft-delete associated payments and reset amounts
             $sale->payments()->delete();
 
             $sale->update([
-                'status' => 'cancelled',
+                'status' => SaleStatus::Cancelled,
                 'amount_paid' => 0,
                 'amount_pending' => 0,
                 'cancelled_at' => now(),
@@ -299,7 +302,7 @@ class WorkbenchController extends Controller
             abort(403);
         }
 
-        if ($sale->status === 'cancelled') {
+        if ($sale->status === SaleStatus::Cancelled) {
             return back()->with('error', 'Esta venta ya esta cancelada.');
         }
 
@@ -318,5 +321,102 @@ class WorkbenchController extends Controller
         ]);
 
         return back()->with('success', "Solicitud de cancelacion enviada para {$sale->folio}.");
+    }
+
+    public function updateStatus(Request $request, Sale $sale): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('admin-empresa') && ! $user->hasRole('superadmin')) {
+            abort(403, 'No tienes permiso para cambiar el estado de ventas.');
+        }
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'status' => ['required', new Enum(SaleStatus::class)],
+            'cancel_reason' => 'required_if:status,cancelled|nullable|string|max:500',
+        ]);
+
+        $targetStatus = SaleStatus::from($validated['status']);
+
+        if (! $sale->status->canTransitionTo($targetStatus)) {
+            return back()->with('error', "No se puede cambiar de {$sale->status->label()} a {$targetStatus->label()}.");
+        }
+
+        // Check if locked by another user
+        if ($sale->isLockedBy($user->id) && $sale->locked_by !== $user->id && $sale->locked_by !== null) {
+            return back()->with('error', 'Esta venta esta siendo editada por otro usuario.');
+        }
+
+        return match ($targetStatus) {
+            SaleStatus::Cancelled => $this->performCancel($sale, $user, $validated['cancel_reason']),
+            SaleStatus::Active => $this->performReactivate($sale, $user),
+            SaleStatus::Pending => $this->performPause($sale),
+            default => back()->with('error', 'Transicion no soportada.'),
+        };
+    }
+
+    private function performCancel(Sale $sale, $user, string $reason): RedirectResponse
+    {
+        $wasCompleted = $sale->status === SaleStatus::Completed;
+
+        DB::transaction(function () use ($sale, $user, $reason, $wasCompleted) {
+            $sale->payments()->delete();
+
+            $sale->update([
+                'status' => SaleStatus::Cancelled,
+                'amount_paid' => 0,
+                'amount_pending' => 0,
+                'cancelled_at' => now(),
+                'cancelled_by' => $user->id,
+                'cancel_reason' => $reason,
+            ]);
+
+            if ($wasCompleted) {
+                $this->recalculateAffectedShifts($sale);
+            }
+        });
+
+        SaleUpdated::dispatch($sale->fresh());
+
+        $msg = "Venta {$sale->folio} cancelada.";
+        if ($wasCompleted) {
+            $msg .= ' Los cortes de caja afectados fueron recalculados.';
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    private function performReactivate(Sale $sale, $user): RedirectResponse
+    {
+        if ($sale->status === SaleStatus::Completed) {
+            $totalPaid = $sale->payments()->sum('amount');
+            $pending = round((float) $sale->total - $totalPaid, 2);
+
+            $sale->update([
+                'status' => SaleStatus::Active,
+                'amount_pending' => max($pending, 0),
+                'completed_at' => null,
+            ]);
+        } else {
+            // From pending → active
+            $sale->update(['status' => SaleStatus::Active]);
+        }
+
+        SaleUpdated::dispatch($sale->fresh());
+
+        return back()->with('success', "Venta {$sale->folio} reactivada.");
+    }
+
+    private function performPause(Sale $sale): RedirectResponse
+    {
+        $sale->update(['status' => SaleStatus::Pending]);
+
+        SaleUpdated::dispatch($sale->fresh());
+
+        return back()->with('success', "Venta {$sale->folio} marcada como pendiente.");
     }
 }

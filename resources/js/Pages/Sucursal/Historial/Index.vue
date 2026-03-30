@@ -3,13 +3,15 @@ import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import DatePicker from '@/Components/DatePicker.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
+import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import FlashToast from '@/Components/FlashToast.vue';
+import { useSaleActions } from '@/composables/useSaleActions';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
     sales: Object, filters: Object, tenant: Object,
-    paymentMethods: Array, canEditPayments: Boolean,
+    paymentMethods: Array, canEditPayments: Boolean, canCancel: Boolean, canManageStatus: Boolean,
 });
 
 const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
@@ -148,24 +150,34 @@ const doDeletePayment = () => {
     });
 };
 
+// --- Status actions via unified endpoint ---
+const { processing: statusProcessing, pauseSale, reactivateSale, cancelSale: cancelViaSaleActions, reopenSale: reopenViaSaleActions } = useSaleActions(
+    route('sucursal.workbench.update-status', [props.tenant.slug, '__SALE__']),
+);
+
+const contextMenuSaleId = ref(null);
+
+const handlePause = (saleId) => pauseSale(saleId, { onSuccess: reloadSelected });
+const handleReactivate = (saleId) => reactivateSale(saleId, { onSuccess: reloadSelected });
+const handleReopen = (saleId) => reopenViaSaleActions(saleId, { onSuccess: reloadSelected });
+const handleCancelFromMenu = (saleId) => { contextMenuSaleId.value = saleId; showCancelDialog.value = true; };
+
 // --- Cancel sale ---
 const showCancelDialog = ref(false);
 const cancelProcessing = ref(false);
 const cancelSale = (reason) => {
+    const saleId = contextMenuSaleId.value || selected.value?.id;
+    if (!saleId) return;
     cancelProcessing.value = true;
-    router.patch(route('sucursal.workbench.cancel', [props.tenant.slug, selected.value.id]), { cancel_reason: reason }, {
-        preserveScroll: true,
-        onSuccess: () => { showCancelDialog.value = false; reloadSelected(); },
+    cancelViaSaleActions(saleId, reason, {
+        onSuccess: () => { showCancelDialog.value = false; contextMenuSaleId.value = null; reloadSelected(); },
         onFinish: () => { cancelProcessing.value = false; },
     });
 };
 
-// --- Reopen sale ---
+// --- Reopen sale (legacy, kept for compatibility) ---
 const reopenSale = () => {
-    router.patch(route('sucursal.workbench.reopen', [props.tenant.slug, selected.value.id]), {}, {
-        preserveScroll: true,
-        onSuccess: () => { reloadSelected(); },
-    });
+    reopenViaSaleActions(selected.value.id, { onSuccess: reloadSelected });
 };
 </script>
 
@@ -200,8 +212,18 @@ const reopenSale = () => {
                     <div v-for="sale in allSales" :key="sale.id" @click="selectSale(sale)"
                         :class="['cursor-pointer rounded-xl p-4 transition-all', selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' : 'ring-1 ring-gray-100 hover:ring-gray-200 hover:bg-gray-50/50']">
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
-                            <span :class="[statusBadge(sale.status).cls, 'rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset']">{{ statusBadge(sale.status).label }}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
+                                <span :class="[statusBadge(sale.status).cls, 'rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset']">{{ statusBadge(sale.status).label }}</span>
+                            </div>
+                            <SaleContextMenu
+                                :sale="sale"
+                                :can-manage-status="canManageStatus"
+                                @pause="handlePause(sale.id)"
+                                @reactivate="handleReactivate(sale.id)"
+                                @reopen="handleReopen(sale.id)"
+                                @cancel="handleCancelFromMenu(sale.id)"
+                            />
                         </div>
                         <div class="mt-2 flex items-end justify-between">
                             <div>
@@ -319,22 +341,21 @@ const reopenSale = () => {
                     </div>
 
                     <!-- Admin actions footer -->
-                    <div v-if="canEditPayments && (selected.status === 'completed' || selected.status === 'active')" class="border-t-2 border-gray-200 bg-gray-50 px-6 py-4">
+                    <div v-if="canManageStatus && selected.status !== 'cancelled'" class="border-t-2 border-gray-200 bg-gray-50 px-6 py-4">
                         <div class="flex items-center justify-between">
                             <div>
                                 <p v-if="selected.status === 'completed'" class="text-sm font-bold text-green-700">Venta cobrada</p>
+                                <p v-else-if="selected.status === 'pending'" class="text-sm font-bold text-amber-700">Venta pendiente</p>
                                 <p v-else class="text-sm font-bold text-blue-700">Venta activa</p>
                             </div>
-                            <div class="flex items-center gap-3">
-                                <button v-if="selected.status === 'completed'" @click="reopenSale"
-                                    class="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-100">
-                                    Reabrir
-                                </button>
-                                <button @click="showCancelDialog = true"
-                                    class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700">
-                                    Cancelar venta
-                                </button>
-                            </div>
+                            <SaleContextMenu
+                                :sale="selected"
+                                :can-manage-status="canManageStatus"
+                                @pause="handlePause(selected.id)"
+                                @reactivate="handleReactivate(selected.id)"
+                                @reopen="handleReopen(selected.id)"
+                                @cancel="handleCancelFromMenu(selected.id)"
+                            />
                         </div>
                     </div>
                 </template>
@@ -351,12 +372,12 @@ const reopenSale = () => {
             @cancel="confirmDeletePaymentId = null" />
 
         <CancelSaleDialog v-if="showCancelDialog"
-            :folio="selected?.folio"
-            mode="direct"
+            :folio="(contextMenuSaleId ? allSales.find(s => s.id === contextMenuSaleId)?.folio : selected?.folio) || ''"
+            :mode="canCancel ? 'direct' : 'request'"
             :processing="cancelProcessing"
-            :is-completed="selected?.status === 'completed'"
+            :is-completed="(contextMenuSaleId ? allSales.find(s => s.id === contextMenuSaleId)?.status : selected?.status) === 'completed'"
             @confirm="cancelSale"
-            @cancel="showCancelDialog = false" />
+            @cancel="showCancelDialog = false; contextMenuSaleId = null" />
 
         <FlashToast />
     </SucursalLayout>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
@@ -23,7 +24,7 @@ class PaymentController extends Controller
             abort(403);
         }
 
-        if ($sale->status === 'completed' || $sale->status === 'cancelled') {
+        if ($sale->status === SaleStatus::Completed || $sale->status === SaleStatus::Cancelled) {
             return back()->with('error', 'No se pueden registrar pagos en esta venta.');
         }
 
@@ -143,16 +144,16 @@ class PaymentController extends Controller
         ];
 
         if ($pending <= 0 && $totalPaid > 0) {
-            $data['status'] = 'completed';
+            $data['status'] = SaleStatus::Completed;
             $data['completed_at'] = now();
             $data['user_id'] = $user->id;
         } elseif ($totalPaid > 0) {
-            if ($sale->status === 'completed') {
-                $data['status'] = 'active';
+            if ($sale->status === SaleStatus::Completed) {
+                $data['status'] = SaleStatus::Active;
                 $data['completed_at'] = null;
             }
-        } elseif ($totalPaid == 0 && $sale->status !== 'cancelled') {
-            $data['status'] = 'active';
+        } elseif ($totalPaid == 0 && $sale->status !== SaleStatus::Cancelled) {
+            $data['status'] = SaleStatus::Active;
             $data['completed_at'] = null;
         }
 

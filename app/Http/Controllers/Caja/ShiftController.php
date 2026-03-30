@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Caja;
 
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CashRegisterShift;
 use App\Models\Sale;
@@ -52,7 +53,7 @@ class ShiftController extends Controller
 
         $sales = Sale::where('branch_id', $user->branch_id)
             ->where('user_id', $user->id)
-            ->where('status', 'completed')
+            ->where('status', SaleStatus::Completed)
             ->where('completed_at', '>=', $shift->opened_at)
             ->get();
 
@@ -85,7 +86,7 @@ class ShiftController extends Controller
 
         $sales = Sale::where('branch_id', $user->branch_id)
             ->where('user_id', $user->id)
-            ->where('status', 'completed')
+            ->where('status', SaleStatus::Completed)
             ->where('completed_at', '>=', $shift->opened_at)
             ->get();
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\CashRegisterShift;
@@ -25,7 +26,7 @@ class CancelRequestController extends Controller
         $requests = Sale::where('branch_id', $branchId)
             ->whereNotNull('cancel_requested_at')
             ->whereNull('cancelled_at')
-            ->where('status', '!=', 'cancelled')
+            ->where('status', '!=', SaleStatus::Cancelled)
             ->with(['items', 'cancelRequestedByUser:id,name'])
             ->orderByDesc('cancel_requested_at')
             ->get();
@@ -35,7 +36,7 @@ class CancelRequestController extends Controller
 
         // Cancelled sales for the selected date
         $cancelledQuery = Sale::where('branch_id', $branchId)
-            ->where('status', 'cancelled')
+            ->where('status', SaleStatus::Cancelled)
             ->whereDate('cancelled_at', $date);
 
         $cancelledToday = (clone $cancelledQuery)->count();
@@ -43,7 +44,7 @@ class CancelRequestController extends Controller
 
         // Top cancellation reasons (last 30 days)
         $topReasons = Sale::where('branch_id', $branchId)
-            ->where('status', 'cancelled')
+            ->where('status', SaleStatus::Cancelled)
             ->whereNotNull('cancel_reason')
             ->where('cancelled_at', '>=', now()->subDays(30))
             ->select('cancel_reason', DB::raw('count(*) as count'), DB::raw('sum(total) as total'))
@@ -54,7 +55,7 @@ class CancelRequestController extends Controller
 
         // Recent cancelled sales history for the selected date
         $history = Sale::where('branch_id', $branchId)
-            ->where('status', 'cancelled')
+            ->where('status', SaleStatus::Cancelled)
             ->whereDate('cancelled_at', $date)
             ->with(['cancelledByUser:id,name', 'cancelRequestedByUser:id,name', 'items'])
             ->orderByDesc('cancelled_at')
@@ -86,13 +87,13 @@ class CancelRequestController extends Controller
             'cancel_reason' => 'required|string|max:500',
         ]);
 
-        $wasCompleted = $sale->status === 'completed';
+        $wasCompleted = $sale->status === SaleStatus::Completed;
 
         DB::transaction(function () use ($sale, $user, $validated, $wasCompleted) {
             $sale->payments()->delete();
 
             $sale->update([
-                'status' => 'cancelled',
+                'status' => SaleStatus::Cancelled,
                 'amount_paid' => 0,
                 'amount_pending' => 0,
                 'cancelled_at' => now(),

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CashRegisterShift;
 use App\Models\Product;
@@ -22,7 +23,7 @@ class DashboardController extends Controller
         $date = $request->date ?: now()->toDateString();
 
         $salesForDate = Sale::where('branch_id', $branchId)
-            ->where('status', 'completed')
+            ->where('status', SaleStatus::Completed)
             ->whereDate('completed_at', $date)
             ->get();
 
@@ -38,7 +39,7 @@ class DashboardController extends Controller
         $topProducts = SaleItem::select('product_name', DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(subtotal) as total_revenue'))
             ->whereHas('sale', fn ($q) => $q
                 ->where('branch_id', $branchId)
-                ->where('status', 'completed')
+                ->where('status', SaleStatus::Completed)
                 ->whereDate('completed_at', $date)
             )
             ->groupBy('product_name')
@@ -54,13 +55,13 @@ class DashboardController extends Controller
             ->get();
 
         $pendingCount = Sale::where('branch_id', $branchId)
-            ->where('status', 'pending')
+            ->where('status', SaleStatus::Pending)
             ->count();
 
         $cancelRequestCount = Sale::where('branch_id', $branchId)
             ->whereNotNull('cancel_requested_at')
             ->whereNull('cancelled_at')
-            ->where('status', '!=', 'cancelled')
+            ->where('status', '!=', SaleStatus::Cancelled)
             ->count();
 
         $productCount = Product::where('branch_id', $branchId)

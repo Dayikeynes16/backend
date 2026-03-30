@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\SaleStatus;
 use App\Events\NewExternalSale;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SaleResource;
@@ -123,7 +124,7 @@ class SaleController extends Controller
                 'origin_name' => $request->input('origin_name', 'Bascula'),
                 'amount_paid' => 0,
                 'amount_pending' => round($total, 2),
-                'status' => 'active',
+                'status' => SaleStatus::Active,
             ]);
 
             foreach ($itemsData as $data) {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Empresa;
 
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Sale;
@@ -21,7 +22,7 @@ class DashboardController extends Controller
 
         // Explicit tenant_id filters as defense-in-depth (TenantScope also applies)
         $salesQuery = Sale::where('tenant_id', $tenant->id)
-            ->where('status', 'completed')
+            ->where('status', SaleStatus::Completed)
             ->whereDate('completed_at', $today)
             ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter));
 
@@ -37,7 +38,7 @@ class DashboardController extends Controller
 
         $salesByBranch = Sale::select('branch_id', DB::raw('COUNT(*) as sale_count'), DB::raw('SUM(total) as total'))
             ->where('tenant_id', $tenant->id)
-            ->where('status', 'completed')
+            ->where('status', SaleStatus::Completed)
             ->whereDate('completed_at', $today)
             ->groupBy('branch_id')
             ->get()
@@ -54,7 +55,7 @@ class DashboardController extends Controller
         $branchCount = Branch::where('tenant_id', $tenant->id)->count();
         $userCount = User::where('tenant_id', $tenant->id)->count();
         $pendingCount = Sale::where('tenant_id', $tenant->id)
-            ->where('status', 'pending')
+            ->where('status', SaleStatus::Pending)
             ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter))
             ->count();
 

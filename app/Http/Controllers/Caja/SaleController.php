@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Caja;
 
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CashRegisterShift;
 use App\Models\Sale;
@@ -27,7 +28,7 @@ class SaleController extends Controller
         }
 
         $pendingSales = Sale::where('branch_id', $user->branch_id)
-            ->where('status', 'pending')
+            ->where('status', SaleStatus::Pending)
             ->with('items')
             ->orderBy('created_at', 'asc')
             ->get()
@@ -63,12 +64,12 @@ class SaleController extends Controller
             abort(403);
         }
 
-        if ($sale->status !== 'pending') {
+        if ($sale->status !== SaleStatus::Pending) {
             return back()->with('error', 'Esta venta ya fue procesada.');
         }
 
         $sale->update([
-            'status' => 'completed',
+            'status' => SaleStatus::Completed,
             'user_id' => $user->id,
             'completed_at' => now(),
         ]);

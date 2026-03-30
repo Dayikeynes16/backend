@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Sale;
@@ -23,7 +24,7 @@ class DashboardController extends Controller
             ->map(function (Tenant $t) use ($today) {
                 $salesToday = Sale::withoutGlobalScopes()
                     ->where('tenant_id', $t->id)
-                    ->where('status', 'completed')
+                    ->where('status', SaleStatus::Completed)
                     ->whereDate('completed_at', $today)
                     ->sum('total');
 
@@ -43,11 +44,11 @@ class DashboardController extends Controller
             'branch_count' => Branch::withoutGlobalScopes()->count(),
             'user_count' => User::count(),
             'sales_today' => (float) Sale::withoutGlobalScopes()
-                ->where('status', 'completed')
+                ->where('status', SaleStatus::Completed)
                 ->whereDate('completed_at', $today)
                 ->sum('total'),
             'sale_count_today' => Sale::withoutGlobalScopes()
-                ->where('status', 'completed')
+                ->where('status', SaleStatus::Completed)
                 ->whereDate('completed_at', $today)
                 ->count(),
         ];

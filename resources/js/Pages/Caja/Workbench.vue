@@ -3,6 +3,7 @@ import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
 import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
+import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
@@ -104,9 +105,13 @@ const submitCancelRequest = (reason) => {
                         :class="['cursor-pointer rounded-xl p-4 transition-all',
                             selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' :
                             isLockedByOther(sale.id) ? 'ring-1 ring-amber-200 bg-amber-50/30 opacity-75' :
+                            sale.status === 'pending' ? 'ring-1 ring-amber-200 bg-amber-50/20' :
                             'ring-1 ring-gray-100 hover:ring-gray-200']">
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
+                                <span v-if="sale.status === 'pending'" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">Pendiente</span>
+                            </div>
                             <div class="flex items-center gap-1.5">
                                 <span v-if="isLockedByOther(sale.id)" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
                                     {{ lockedByName(sale.id) || 'En uso' }}
@@ -114,8 +119,14 @@ const submitCancelRequest = (reason) => {
                                 <span v-else-if="sale.locked_by_user" class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
                                     {{ sale.locked_by_user.name }}
                                 </span>
-                                <span v-if="sale.cancel_requested_at" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">Cancelacion solicitada</span>
                                 <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
+                                <SaleContextMenu
+                                    :sale="sale"
+                                    :can-manage-status="false"
+                                    :is-locked-by-other="isLockedByOther(sale.id)"
+                                    :locked-by-name="lockedByName(sale.id)"
+                                    @request-cancel="showCancelRequest = true; selectSale(sale.id)"
+                                />
                             </div>
                         </div>
                         <div class="mt-2.5 flex items-end justify-between">
@@ -151,9 +162,13 @@ const submitCancelRequest = (reason) => {
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" /></svg>
                                     Ticket
                                 </button>
-                                <button v-if="!selected.cancel_requested_at" @click="showCancelRequest = !showCancelRequest" class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-400 transition hover:bg-red-50 hover:text-red-600">
-                                    Solicitar cancelacion
-                                </button>
+                                <SaleContextMenu
+                                    :sale="selected"
+                                    :can-manage-status="false"
+                                    :is-locked-by-other="isLockedByOther(selected.id)"
+                                    :locked-by-name="lockedByName(selected.id)"
+                                    @request-cancel="showCancelRequest = true"
+                                />
                             </div>
                         </div>
                     </div>

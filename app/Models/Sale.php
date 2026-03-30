@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SaleStatus;
 use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -61,6 +62,7 @@ class Sale extends Model
     protected function casts(): array
     {
         return [
+            'status' => SaleStatus::class,
             'total' => 'decimal:2',
             'amount_paid' => 'decimal:2',
             'amount_pending' => 'decimal:2',

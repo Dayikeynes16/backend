@@ -142,6 +142,7 @@ Route::prefix('{tenant}')
                 Route::post('mesa-de-trabajo/ventas', [WorkbenchController::class, 'store'])->name('workbench.store');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/cancelar', [WorkbenchController::class, 'cancel'])->name('workbench.cancel');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/reabrir', [WorkbenchController::class, 'reopen'])->name('workbench.reopen');
+                Route::patch('mesa-de-trabajo/ventas/{sale}/estado', [WorkbenchController::class, 'updateStatus'])->name('workbench.update-status');
                 Route::post('mesa-de-trabajo/ventas/{sale}/solicitar-cancelacion', [WorkbenchController::class, 'requestCancel'])->name('workbench.request-cancel');
 
                 // Sale locking
