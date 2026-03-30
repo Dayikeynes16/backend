@@ -49,7 +49,7 @@ const handleAction = (action) => {
 </script>
 
 <template>
-    <div v-if="hasActions || hasCancelRequest" class="relative">
+    <div v-if="hasActions || hasCancelRequest" class="relative" @click.stop>
         <!-- Cancel request badge (shown instead of menu when request is pending and user is cajero) -->
         <span v-if="hasCancelRequest && !canManageStatus"
             class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
@@ -63,8 +63,7 @@ const handleAction = (action) => {
                     :disabled="isLockedByOther"
                     :title="isLockedByOther ? `Bloqueada por ${lockedByName || 'otro usuario'}` : 'Acciones'"
                     :class="['inline-flex items-center justify-center rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus:outline-none',
-                        isLockedByOther ? 'cursor-not-allowed opacity-40' : '']"
-                    @click.stop>
+                        isLockedByOther ? 'cursor-not-allowed opacity-40' : '']">
                     <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                     </svg>
