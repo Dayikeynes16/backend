@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
+use App\Http\Controllers\Caja\PagosController as CajaPagosController;
 use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Sucursal\SaleLockController;
 use App\Http\Controllers\Sucursal\CategoryController;
 use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguracionController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
+use App\Http\Controllers\Sucursal\PagosController;
 use App\Http\Controllers\Sucursal\PaymentController;
 use App\Http\Controllers\Sucursal\ProductoController;
 use App\Http\Controllers\Sucursal\SaleHistoryController;
@@ -29,6 +31,7 @@ use App\Http\Controllers\Sucursal\WithdrawalController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
 use App\Http\Controllers\Sucursal\WorkbenchController;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -42,7 +45,20 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    $user = Auth::user();
+
+    if ($user->hasRole('superadmin')) {
+        return redirect()->route('admin.dashboard');
+    }
+
+    $slug = $user->tenant?->slug;
+
+    return match (true) {
+        $user->hasRole('admin-empresa') => redirect()->route('empresa.dashboard', $slug),
+        $user->hasRole('admin-sucursal') => redirect()->route('sucursal.dashboard', $slug),
+        $user->hasRole('cajero') => redirect()->route('caja.workbench', $slug),
+        default => redirect()->route('login'),
+    };
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -125,6 +141,9 @@ Route::prefix('{tenant}')
                 // Sales history
                 Route::get('historial', [SaleHistoryController::class, 'index'])->name('historial.index');
 
+                // Pagos
+                Route::get('pagos', [PagosController::class, 'index'])->name('pagos.index');
+
                 // Cortes (history)
                 Route::get('cortes', [CashShiftController::class, 'history'])->name('cortes.index');
                 Route::get('cortes/{shift}', [CashShiftController::class, 'show'])->name('cortes.show');
@@ -175,11 +194,13 @@ Route::prefix('{tenant}')
                 Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
                 Route::post('ventas/{sale}/unlock', [SaleLockController::class, 'unlock'])->name('sale.unlock');
                 Route::post('ventas/{sale}/heartbeat', [SaleLockController::class, 'heartbeat'])->name('sale.heartbeat');
+                Route::patch('ventas/{sale}/estado', [CajaWorkbenchController::class, 'updateStatus'])->name('update-status');
                 Route::post('ventas/{sale}/solicitar-cancelacion', [CajaWorkbenchController::class, 'requestCancel'])->name('request-cancel');
                 Route::get('turno', [CajaTurnoController::class, 'index'])->name('turno');
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
+                Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
             });
     });
 

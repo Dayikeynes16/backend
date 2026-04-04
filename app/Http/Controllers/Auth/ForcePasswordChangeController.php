@@ -39,7 +39,7 @@ class ForcePasswordChangeController extends Controller
             $user->hasRole('admin-empresa') => redirect()->route('empresa.dashboard', $slug),
             $user->hasRole('admin-sucursal') => redirect()->route('sucursal.dashboard', $slug),
             $user->hasRole('cajero') => redirect()->route('caja.queue', $slug),
-            default => redirect()->route('dashboard'),
+            default => redirect()->route('login'),
         };
     }
 }

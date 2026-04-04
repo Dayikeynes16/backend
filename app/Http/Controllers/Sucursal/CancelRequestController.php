@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Sucursal;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
@@ -106,7 +107,11 @@ class CancelRequestController extends Controller
             }
         });
 
-        SaleUpdated::dispatch($sale->fresh());
+        try {
+            SaleUpdated::dispatch($sale->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+        }
 
         $msg = "Venta {$sale->folio} cancelada.";
         if ($wasCompleted) {

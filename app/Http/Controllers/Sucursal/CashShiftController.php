@@ -92,9 +92,11 @@ class CashShiftController extends Controller
 
         $validated = $request->validate([
             'declared_amount' => 'required|numeric|min:0',
+            'declared_card' => 'required|numeric|min:0',
+            'declared_transfer' => 'required|numeric|min:0',
+            'notes' => 'nullable|string|max:500',
         ]);
 
-        // Calculate totals from payments made by this user during this shift
         $payments = Payment::where('user_id', $user->id)
             ->where('created_at', '>=', $shift->opened_at)
             ->get();
@@ -104,9 +106,15 @@ class CashShiftController extends Controller
         $totalTransfer = (float) $payments->where('method', 'transfer')->sum('amount');
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
 
-        $expected = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
-        $declared = round((float) $validated['declared_amount'], 2);
-        $difference = round($declared - $expected, 2);
+        $expectedCash = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
+        $declaredCash = round((float) $validated['declared_amount'], 2);
+        $declaredCard = round((float) $validated['declared_card'], 2);
+        $declaredTransfer = round((float) $validated['declared_transfer'], 2);
+
+        $diffCash = round($declaredCash - $expectedCash, 2);
+        $diffCard = round($declaredCard - $totalCard, 2);
+        $diffTransfer = round($declaredTransfer - $totalTransfer, 2);
+        $totalDiff = round($diffCash + $diffCard + $diffTransfer, 2);
 
         $shift->update([
             'closed_at' => now(),
@@ -115,13 +123,18 @@ class CashShiftController extends Controller
             'total_transfer' => $totalTransfer,
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
             'sale_count' => $payments->pluck('sale_id')->unique()->count(),
-            'declared_amount' => $declared,
-            'expected_amount' => $expected,
-            'difference' => $difference,
+            'declared_amount' => $declaredCash,
+            'declared_card' => $declaredCard,
+            'declared_transfer' => $declaredTransfer,
+            'expected_amount' => $expectedCash,
+            'difference' => $diffCash,
+            'difference_card' => $diffCard,
+            'difference_transfer' => $diffTransfer,
+            'notes' => $validated['notes'],
         ]);
 
         return redirect()->route('sucursal.turno.active', app('tenant')->slug)
-            ->with('success', 'Turno cerrado. Diferencia: $' . number_format($difference, 2));
+            ->with('success', 'Turno cerrado. Diferencia total: $' . number_format($totalDiff, 2));
     }
 
     public function history(Request $request): Response
@@ -171,6 +184,9 @@ class CashShiftController extends Controller
         $declared = (float) $shift->declared_amount;
         $difference = round($declared - $expected, 2);
 
+        $declaredCard = (float) $shift->declared_card;
+        $declaredTransfer = (float) $shift->declared_transfer;
+
         $shift->update([
             'total_cash' => $totalCash,
             'total_card' => $totalCard,
@@ -179,9 +195,13 @@ class CashShiftController extends Controller
             'sale_count' => $payments->pluck('sale_id')->unique()->count(),
             'expected_amount' => $expected,
             'difference' => $difference,
+            'difference_card' => round($declaredCard - $totalCard, 2),
+            'difference_transfer' => round($declaredTransfer - $totalTransfer, 2),
         ]);
 
-        return back()->with('success', 'Corte recalculado. Nueva diferencia: $' . number_format($difference, 2));
+        $totalDiff = round($difference + ($declaredCard - $totalCard) + ($declaredTransfer - $totalTransfer), 2);
+
+        return back()->with('success', 'Corte recalculado. Diferencia total: $' . number_format($totalDiff, 2));
     }
 
     public function reopen(CashRegisterShift $shift): RedirectResponse

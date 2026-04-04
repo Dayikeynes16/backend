@@ -1,6 +1,7 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import DatePicker from '@/Components/DatePicker.vue';
+import { localToday } from '@/utils/date';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -16,7 +17,7 @@ const props = defineProps({
     tenant: Object,
 });
 
-const date = ref(props.selectedDate || new Date().toISOString().split('T')[0]);
+const date = ref(props.selectedDate || localToday());
 
 watch(date, (v) => {
     router.get(route('sucursal.dashboard', props.tenant.slug), { date: v || undefined }, { preserveState: true, replace: true });

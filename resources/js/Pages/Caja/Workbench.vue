@@ -6,6 +6,7 @@ import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
 import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
+import { useSaleActions } from '@/composables/useSaleActions';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
@@ -16,6 +17,17 @@ const enabledMethods = computed(() =>
     (props.paymentMethods || ['cash', 'card', 'transfer']).map(id => ({ id, label: allMethodLabels[id] }))
 );
 const defaultMethod = computed(() => enabledMethods.value[0]?.id || 'cash');
+
+const statusFilter = ref('active');
+const filteredSales = computed(() => {
+    if (statusFilter.value === 'all') return props.sales;
+    return props.sales.filter(s => s.status === statusFilter.value);
+});
+const counts = computed(() => ({
+    active: props.sales.filter(s => s.status === 'active').length,
+    pending: props.sales.filter(s => s.status === 'pending').length,
+    all: props.sales.length,
+}));
 
 const selectedId = ref(null);
 const selected = computed(() => props.sales.find(s => s.id === selectedId.value));
@@ -42,6 +54,19 @@ const { lockSale, isLockedByOther, lockedByName } = useSaleLock(
     route('caja.sale.unlock', [props.tenant.slug, '__SALE__']),
     route('caja.sale.heartbeat', [props.tenant.slug, '__SALE__']),
 );
+
+// Status actions (pause/reactivate only)
+const { pauseSale, reactivateSale } = useSaleActions(
+    route('caja.update-status', [props.tenant.slug, '__SALE__']),
+);
+const handlePause = async (saleId) => {
+    await selectSale(saleId);
+    pauseSale(saleId, { onSuccess: () => { statusFilter.value = 'pending'; } });
+};
+const handleReactivate = async (saleId) => {
+    await selectSale(saleId);
+    reactivateSale(saleId, { onSuccess: () => { statusFilter.value = 'active'; } });
+};
 
 const selectSale = async (saleId) => {
     const ok = await lockSale(saleId);
@@ -96,12 +121,18 @@ const submitCancelRequest = (reason) => {
         <div class="flex h-[calc(100vh-7rem)] gap-5">
             <!-- LEFT: Sales queue -->
             <div class="flex w-[360px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-                <div class="border-b border-gray-100 px-5 py-4">
-                    <h2 class="text-sm font-bold text-gray-900">Ventas Activas</h2>
-                    <p class="text-xs text-gray-400">{{ sales.length }} venta{{ sales.length !== 1 ? 's' : '' }}</p>
+                <div class="border-b border-gray-100 px-5 py-4 space-y-3">
+                    <h2 class="text-sm font-bold text-gray-900">Ventas</h2>
+                    <div class="flex gap-1.5">
+                        <button v-for="f in [{v:'active',l:'Activas'},{v:'pending',l:'Pendientes'},{v:'all',l:'Todas'}]"
+                            :key="f.v" @click="statusFilter = f.v"
+                            :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', statusFilter === f.v ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">
+                            {{ f.l }} ({{ counts[f.v] }})
+                        </button>
+                    </div>
                 </div>
                 <div class="flex-1 overflow-y-auto p-3 space-y-2">
-                    <div v-for="sale in sales" :key="sale.id" @click="selectSale(sale.id)"
+                    <div v-for="sale in filteredSales" :key="sale.id" @click="selectSale(sale.id)"
                         :class="['cursor-pointer rounded-xl p-4 transition-all',
                             selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' :
                             isLockedByOther(sale.id) ? 'ring-1 ring-amber-200 bg-amber-50/30 opacity-75' :
@@ -122,9 +153,11 @@ const submitCancelRequest = (reason) => {
                                 <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
                                 <SaleContextMenu
                                     :sale="sale"
-                                    :can-manage-status="false"
+                                    :allowed-actions="['pause', 'reactivate', 'request-cancel']"
                                     :is-locked-by-other="isLockedByOther(sale.id)"
                                     :locked-by-name="lockedByName(sale.id)"
+                                    @pause="handlePause(sale.id)"
+                                    @reactivate="handleReactivate(sale.id)"
                                     @request-cancel="showCancelRequest = true; selectSale(sale.id)"
                                 />
                             </div>
@@ -138,9 +171,9 @@ const submitCancelRequest = (reason) => {
                             <span class="text-xs text-gray-400">{{ timeAgo(sale.created_at) }}</span>
                         </div>
                     </div>
-                    <div v-if="sales.length === 0" class="flex flex-col items-center py-20 text-center">
+                    <div v-if="filteredSales.length === 0" class="flex flex-col items-center py-20 text-center">
                         <svg class="h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                        <p class="mt-3 text-sm font-medium text-gray-400">Sin ventas activas</p>
+                        <p class="mt-3 text-sm font-medium text-gray-400">No hay ventas {{ statusFilter === 'pending' ? 'pendientes' : statusFilter === 'active' ? 'activas' : '' }}</p>
                     </div>
                 </div>
             </div>
@@ -164,9 +197,11 @@ const submitCancelRequest = (reason) => {
                                 </button>
                                 <SaleContextMenu
                                     :sale="selected"
-                                    :can-manage-status="false"
+                                    :allowed-actions="['pause', 'reactivate', 'request-cancel']"
                                     :is-locked-by-other="isLockedByOther(selected.id)"
                                     :locked-by-name="lockedByName(selected.id)"
+                                    @pause="handlePause(selected.id)"
+                                    @reactivate="handleReactivate(selected.id)"
                                     @request-cancel="showCancelRequest = true"
                                 />
                             </div>
@@ -224,43 +259,64 @@ const submitCancelRequest = (reason) => {
                         </div>
                     </div>
 
-                    <!-- STICKY FOOTER: Cobro -->
-                    <div v-if="hasPending" class="border-t-2 border-gray-200 bg-gray-50">
+                    <!-- STICKY FOOTER: Cobro (touch-optimized POS layout) -->
+                    <div v-if="hasPending" class="border-t-2 border-gray-200 bg-gray-50/80">
+                        <!-- Summary row -->
                         <div class="grid grid-cols-3 divide-x divide-gray-200 border-b border-gray-200">
                             <div class="px-4 py-3 text-center">
-                                <p class="text-xs font-medium uppercase tracking-wider text-gray-400">Pendiente</p>
+                                <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Pendiente</p>
                                 <p class="mt-0.5 font-mono text-2xl font-extrabold tabular-nums text-amber-600">${{ pendingAmount.toFixed(2) }}</p>
                             </div>
                             <div class="px-4 py-3 text-center">
-                                <p class="text-xs font-medium uppercase tracking-wider text-gray-400">Recibido</p>
+                                <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Recibido</p>
                                 <p class="mt-0.5 font-mono text-2xl font-extrabold tabular-nums" :class="enteredAmount > 0 ? 'text-gray-900' : 'text-gray-300'">
                                     ${{ enteredAmount > 0 ? enteredAmount.toFixed(2) : '0.00' }}
                                 </p>
                             </div>
                             <div class="px-4 py-3 text-center">
-                                <p class="text-xs font-medium uppercase tracking-wider text-gray-400">Cambio</p>
+                                <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Cambio</p>
                                 <p class="mt-0.5 font-mono text-2xl font-extrabold tabular-nums" :class="changeAmount > 0 ? 'text-green-600' : 'text-gray-300'">
                                     ${{ changeAmount.toFixed(2) }}
                                 </p>
                             </div>
                         </div>
-                        <form @submit.prevent="submitPayment" class="flex items-center gap-3 px-5 py-3">
-                            <select v-model="paymentForm.method" class="w-36 rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
-                                <option v-for="m in enabledMethods" :key="m.id" :value="m.id">{{ m.label }}</option>
-                            </select>
-                            <div class="relative flex-1">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                                <input v-model="paymentForm.amount" type="number" step="0.01" min="0.01" required
-                                    :placeholder="pendingAmount.toFixed(2)"
-                                    class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" />
+
+                        <form @submit.prevent="submitPayment" class="space-y-3 px-5 py-4">
+                            <!-- Payment method: segmented control -->
+                            <div class="flex gap-2">
+                                <button v-for="m in enabledMethods" :key="m.id" type="button"
+                                    @click="paymentForm.method = m.id"
+                                    :class="['flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all',
+                                        paymentForm.method === m.id
+                                            ? 'bg-red-600 text-white shadow-sm'
+                                            : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50 active:bg-gray-100']">
+                                    <svg v-if="m.id === 'cash'" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" /></svg>
+                                    <svg v-else-if="m.id === 'card'" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+                                    <svg v-else class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
+                                    {{ m.label }}
+                                </button>
                             </div>
+
+                            <!-- Amount input: large, touch-friendly -->
+                            <div class="relative">
+                                <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-gray-400">$</span>
+                                <input v-model="paymentForm.amount" type="number" inputmode="decimal" step="0.01" min="0.01" required
+                                    :placeholder="pendingAmount.toFixed(2)"
+                                    class="block w-full rounded-xl border-gray-200 py-4 pl-10 pr-24 text-xl font-bold tabular-nums placeholder:text-gray-300 focus:border-red-400 focus:ring-red-400" />
+                                <button type="button" @click="paymentForm.amount = pendingAmount.toFixed(2)"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-500 transition hover:bg-gray-200 active:bg-gray-300">
+                                    Exacto
+                                </button>
+                            </div>
+
+                            <!-- Cobrar button: full width, prominent -->
                             <button type="submit" :disabled="paymentForm.processing"
-                                class="rounded-lg bg-red-600 px-8 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-95 disabled:opacity-50">
+                                class="w-full rounded-xl bg-red-600 py-4 text-base font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-50">
                                 Cobrar
                             </button>
                         </form>
-                        <p v-if="paymentForm.errors.method" class="px-5 pb-2 text-xs text-red-600">{{ paymentForm.errors.method }}</p>
-                        <p v-if="paymentForm.errors.amount" class="px-5 pb-2 text-xs text-red-600">{{ paymentForm.errors.amount }}</p>
+                        <p v-if="paymentForm.errors.method" class="px-5 pb-3 text-xs text-red-600">{{ paymentForm.errors.method }}</p>
+                        <p v-if="paymentForm.errors.amount" class="px-5 pb-3 text-xs text-red-600">{{ paymentForm.errors.amount }}</p>
                     </div>
                 </template>
             </div>

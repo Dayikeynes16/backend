@@ -12,7 +12,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'tenant_id', 'branch_id', 'user_id',
     'opened_at', 'opening_amount', 'closed_at',
     'total_cash', 'total_card', 'total_transfer', 'total_sales', 'sale_count',
-    'declared_amount', 'expected_amount', 'difference',
+    'declared_amount', 'declared_card', 'declared_transfer',
+    'expected_amount', 'difference', 'difference_card', 'difference_transfer',
+    'notes',
 ])]
 class CashRegisterShift extends Model
 {
@@ -44,8 +46,12 @@ class CashRegisterShift extends Model
             'total_transfer' => 'decimal:2',
             'total_sales' => 'decimal:2',
             'declared_amount' => 'decimal:2',
+            'declared_card' => 'decimal:2',
+            'declared_transfer' => 'decimal:2',
             'expected_amount' => 'decimal:2',
             'difference' => 'decimal:2',
+            'difference_card' => 'decimal:2',
+            'difference_transfer' => 'decimal:2',
         ];
     }
 }

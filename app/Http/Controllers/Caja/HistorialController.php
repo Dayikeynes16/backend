@@ -23,9 +23,14 @@ class HistorialController extends Controller
 
         $sales = Sale::whereIn('id', $saleIds)
             ->with(['items', 'payments'])
-            ->when($request->date, fn ($q, $d) => $q->whereDate('created_at', $d))
+            ->when(
+                $request->date,
+                fn ($q, $d) => $q->whereDate('created_at', $d),
+                fn ($q) => $q->whereDate('created_at', today())
+            )
             ->orderByDesc('created_at')
-            ->paginate(20)
+            ->orderByDesc('id')
+            ->cursorPaginate(20)
             ->withQueryString();
 
         return Inertia::render('Caja/Historial', [

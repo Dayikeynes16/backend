@@ -52,14 +52,14 @@ class AuthenticatedSessionController extends Controller
         $slug = $user->tenant?->slug;
 
         if (! $slug) {
-            return route('dashboard');
+            return route('login');
         }
 
         return match (true) {
             $user->hasRole('admin-empresa') => route('empresa.dashboard', $slug),
             $user->hasRole('admin-sucursal') => route('sucursal.dashboard', $slug),
             $user->hasRole('cajero') => route('caja.workbench', $slug),
-            default => route('dashboard'),
+            default => route('login'),
         };
     }
 }

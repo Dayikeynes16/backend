@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { toLocalDate, localToday } from '@/utils/date';
 
 const props = defineProps({
     modelValue: { type: String, default: '' },
@@ -8,7 +9,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue']);
 
-const today = new Date().toISOString().split('T')[0];
+const today = localToday();
 
 const currentDate = computed(() => props.modelValue || today);
 
@@ -30,14 +31,14 @@ const canGoForward = computed(() => {
 const prev = () => {
     const d = new Date(currentDate.value + 'T12:00:00');
     d.setDate(d.getDate() - 1);
-    emit('update:modelValue', d.toISOString().split('T')[0]);
+    emit('update:modelValue', toLocalDate(d));
 };
 
 const next = () => {
     if (!canGoForward.value) return;
     const d = new Date(currentDate.value + 'T12:00:00');
     d.setDate(d.getDate() + 1);
-    emit('update:modelValue', d.toISOString().split('T')[0]);
+    emit('update:modelValue', toLocalDate(d));
 };
 
 const goToday = () => emit('update:modelValue', today);

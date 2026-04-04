@@ -17,11 +17,16 @@ class SaleHistoryController extends Controller
         $branchId = Auth::user()->branch_id;
 
         $sales = Sale::where('branch_id', $branchId)
-            ->with(['items', 'payments.user:id,name'])
+            ->with(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name'])
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->when($request->search, fn ($q, $s) => $q->where('folio', 'ilike', "%{$s}%"))
-            ->when($request->date, fn ($q, $d) => $q->whereDate('created_at', $d))
+            ->when(
+                $request->date,
+                fn ($q, $d) => $q->whereDate('created_at', $d),
+                fn ($q) => $q->whereDate('created_at', today())
+            )
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->cursorPaginate(50)
             ->withQueryString();
 

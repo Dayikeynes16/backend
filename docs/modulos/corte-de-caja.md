@@ -30,8 +30,13 @@ Gestión de turnos del cajero. El turno registra cuándo abrió y cerró caja, l
 | `total_sales` | decimal(12,2) | Suma de los 3 anteriores |
 | `sale_count` | unsigned int | Número de ventas únicas cobradas |
 | `declared_amount` | decimal(12,2) | Efectivo declarado por el cajero al cerrar |
+| `declared_card` | decimal(12,2) nullable | Tarjeta declarada por el cajero al cerrar |
+| `declared_transfer` | decimal(12,2) nullable | Transferencia declarada por el cajero al cerrar |
 | `expected_amount` | decimal(12,2) | Efectivo esperado calculado |
-| `difference` | decimal(12,2) | declarado - esperado (+sobrante / -faltante) |
+| `difference` | decimal(12,2) | declarado_efectivo - esperado (+sobrante / -faltante) |
+| `difference_card` | decimal(12,2) | declarado_tarjeta - total_card |
+| `difference_transfer` | decimal(12,2) | declarado_transfer - total_transfer |
+| `notes` | text nullable | Observaciones del cajero al cerrar (descuadres) |
 | `timestamps` | | |
 
 **Usa `BelongsToTenant`.** Relaciones: `branch()`, `user()`, `withdrawals()`.
@@ -50,7 +55,10 @@ Gestión de turnos del cajero. El turno registra cuándo abrió y cerró caja, l
 
 ```
 Efectivo esperado = Fondo inicial + Σ(pagos en efectivo NO eliminados) - Σ(retiros)
-Diferencia = Efectivo declarado - Efectivo esperado
+Diferencia efectivo = Efectivo declarado - Efectivo esperado
+Diferencia tarjeta = Tarjeta declarada - total_card (registrado en sistema)
+Diferencia transferencia = Transfer declarada - total_transfer (registrado en sistema)
+Diferencia total = Σ(diferencia efectivo + diferencia tarjeta + diferencia transferencia)
 
 sale_count = cantidad de ventas únicas (no pagos individuales)
 ```
@@ -64,9 +72,16 @@ sale_count = cantidad de ventas únicas (no pagos individuales)
    SÍ  → Muestra resumen con totales en tiempo real
 3. Cajero cobra ventas en la mesa de trabajo
 4. Cajero va a turno → ve resumen: totales por método, efectivo esperado
-5. Cajero presiona "Cerrar Turno" → declara efectivo físico
-   → Se calculan totales y diferencia
-   → Se guarda closed_at + totales
+5. Cajero ve sección de conciliación con 3 inputs:
+   - Efectivo físico en caja
+   - Monto confirmado en terminal de tarjeta
+   - Monto confirmado en banca móvil (transferencias)
+6. El sistema muestra diferencia en tiempo real por cada método
+7. Cajero presiona "Cerrar Turno":
+   - Si hay diferencias → se pide confirmación explícita
+   - Se puede agregar observaciones opcionales para explicar descuadres
+   → Se calculan totales y diferencias por método
+   → Se guarda closed_at + totales + diferencias + notas
    → Redirige a abrir turno
 ```
 

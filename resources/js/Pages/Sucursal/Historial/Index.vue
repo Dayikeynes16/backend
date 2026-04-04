@@ -4,9 +4,10 @@ import DatePicker from '@/Components/DatePicker.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
 import SaleContextMenu from '@/Components/SaleContextMenu.vue';
+import EditPaymentForm from '@/Components/EditPaymentForm.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import { useSaleActions } from '@/composables/useSaleActions';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
@@ -14,9 +15,16 @@ const props = defineProps({
     paymentMethods: Array, canEditPayments: Boolean, canCancel: Boolean, canManageStatus: Boolean,
 });
 
-const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
+const methodMeta = {
+    cash:     { label: 'Efectivo',       color: 'text-emerald-600', iconBg: 'bg-emerald-100 text-emerald-600',
+                icon: 'M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z' },
+    card:     { label: 'Tarjeta',        color: 'text-blue-600',    iconBg: 'bg-blue-100 text-blue-600',
+                icon: 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z' },
+    transfer: { label: 'Transferencia',  color: 'text-violet-600',  iconBg: 'bg-violet-100 text-violet-600',
+                icon: 'M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5' },
+};
 const enabledMethods = computed(() =>
-    (props.paymentMethods || ['cash', 'card', 'transfer']).map(id => ({ id, label: allMethodLabels[id] }))
+    (props.paymentMethods || ['cash', 'card', 'transfer']).map(id => ({ id, label: methodMeta[id]?.label }))
 );
 
 // --- Filters ---
@@ -31,6 +39,7 @@ const loadingMore = ref(false);
 const hasMore = computed(() => nextCursor.value !== null);
 
 watch(() => props.sales, (newSales) => {
+    if (loadingMore.value) return; // Don't reset during infinite scroll append
     allSales.value = [...newSales.data];
     nextCursor.value = newSales.next_cursor || null;
     if (selectedId.value && !allSales.value.find(s => s.id === selectedId.value)) {
@@ -108,8 +117,11 @@ const statusBadge = (s) => ({
 }[s] || { label: s, cls: 'bg-gray-100 text-gray-600' });
 
 const originBadge = (o) => o === 'admin' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700';
-const methodLabel = (m) => allMethodLabels[m] || m;
-const methodColor = (m) => ({ cash: 'text-green-600', card: 'text-blue-600', transfer: 'text-purple-600' }[m] || 'text-gray-600');
+
+const paidPct = computed(() => {
+    if (!selected.value) return 0;
+    return selected.value.total > 0 ? Math.min((parseFloat(selected.value.amount_paid) / parseFloat(selected.value.total)) * 100, 100) : 0;
+});
 
 // --- Selection ---
 const selectedId = ref(null);
@@ -118,13 +130,8 @@ const selectSale = (sale) => { selectedId.value = sale.id; selected.value = sale
 
 // --- Payment editing ---
 const editingPaymentId = ref(null);
-const editPaymentForm = useForm({ method: '', amount: '' });
-
-const startEditPayment = (p) => {
-    editingPaymentId.value = p.id;
-    editPaymentForm.method = p.method;
-    editPaymentForm.amount = parseFloat(p.amount);
-};
+const startEditPayment = (p) => { editingPaymentId.value = p.id; };
+const editPaymentRoute = (paymentId) => route('sucursal.workbench.payment.update', [props.tenant.slug, selected.value.id, paymentId]);
 
 const reloadSelected = () => {
     router.reload({ only: ['sales'], preserveScroll: true, onSuccess: () => {
@@ -133,12 +140,7 @@ const reloadSelected = () => {
     }});
 };
 
-const submitEditPayment = (paymentId) => {
-    editPaymentForm.put(route('sucursal.workbench.payment.update', [props.tenant.slug, selected.value.id, paymentId]), {
-        preserveScroll: true,
-        onSuccess: () => { editingPaymentId.value = null; reloadSelected(); },
-    });
-};
+const onPaymentSaved = () => { editingPaymentId.value = null; reloadSelected(); };
 
 // --- Payment deletion ---
 const confirmDeletePaymentId = ref(null);
@@ -218,7 +220,7 @@ const reopenSale = () => {
                             </div>
                             <SaleContextMenu
                                 :sale="sale"
-                                :can-manage-status="canManageStatus"
+                                :allowed-actions="canManageStatus ? ['pause', 'reactivate', 'reopen', 'cancel'] : []"
                                 @pause="handlePause(sale.id)"
                                 @reactivate="handleReactivate(sale.id)"
                                 @reopen="handleReopen(sale.id)"
@@ -287,48 +289,69 @@ const reopenSale = () => {
                             </div>
                         </div>
 
-                        <!-- Payments -->
-                        <div v-if="selected.payments && selected.payments.length > 0">
-                            <h3 class="mb-3 text-sm font-bold text-gray-700">Pagos</h3>
-                            <div class="space-y-2">
-                                <div v-for="p in selected.payments" :key="p.id" class="rounded-lg bg-gray-50 px-4 py-2.5">
-                                    <!-- Edit mode -->
-                                    <form v-if="editingPaymentId === p.id" @submit.prevent="submitEditPayment(p.id)" class="flex items-center gap-3">
-                                        <select v-model="editPaymentForm.method" class="rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300">
-                                            <option v-for="m in enabledMethods" :key="m.id" :value="m.id">{{ m.label }}</option>
-                                        </select>
-                                        <div class="relative flex-1">
-                                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                                            <input v-model="editPaymentForm.amount" type="number" step="0.01" min="0.01" required class="block w-full rounded-lg border-gray-200 pl-7 text-sm focus:border-red-400 focus:ring-red-300" />
-                                        </div>
-                                        <button type="submit" :disabled="editPaymentForm.processing" class="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Guardar</button>
-                                        <button type="button" @click="editingPaymentId = null" class="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
-                                    </form>
-
-                                    <!-- Display mode -->
-                                    <div v-else class="flex items-center justify-between">
-                                        <div>
-                                            <span :class="methodColor(p.method)" class="text-sm font-semibold">{{ methodLabel(p.method) }}</span>
-                                            <span v-if="p.user" class="ml-2 text-xs text-gray-400">por {{ p.user.name }}</span>
-                                        </div>
-                                        <div class="flex items-center gap-3">
-                                            <span class="text-sm font-bold text-gray-900">${{ parseFloat(p.amount).toFixed(2) }}</span>
-                                            <template v-if="canEditPayments">
-                                                <button @click="startEditPayment(p)" class="text-xs font-semibold text-orange-600 hover:text-orange-700">Editar</button>
-                                                <button @click="confirmDeletePaymentId = p.id" class="text-xs font-semibold text-red-500 hover:text-red-700">Eliminar</button>
-                                            </template>
-                                        </div>
+                        <!-- Summary -->
+                        <div class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
+                            <div class="px-5 py-4">
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
+                                        <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Total</p>
+                                        <p class="font-mono text-lg font-bold tabular-nums text-gray-900">${{ parseFloat(selected.total).toFixed(2) }}</p>
                                     </div>
+                                    <div class="rounded-lg bg-emerald-50 px-3 py-2.5 text-center">
+                                        <p class="text-[10px] font-medium uppercase tracking-wider text-emerald-500">Pagado</p>
+                                        <p class="font-mono text-lg font-bold tabular-nums text-emerald-600">${{ parseFloat(selected.amount_paid).toFixed(2) }}</p>
+                                    </div>
+                                    <div class="rounded-lg px-3 py-2.5 text-center" :class="parseFloat(selected.amount_pending) > 0 ? 'bg-amber-50' : 'bg-gray-50'">
+                                        <p class="text-[10px] font-medium uppercase tracking-wider" :class="parseFloat(selected.amount_pending) > 0 ? 'text-amber-500' : 'text-gray-400'">Pendiente</p>
+                                        <p class="font-mono text-lg font-bold tabular-nums" :class="parseFloat(selected.amount_pending) > 0 ? 'text-amber-600' : 'text-gray-300'">${{ parseFloat(selected.amount_pending).toFixed(2) }}</p>
+                                    </div>
+                                </div>
+                                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                                    <div class="h-full rounded-full transition-all duration-500" :class="paidPct >= 100 ? 'bg-emerald-500' : 'bg-amber-500'" :style="{ width: Math.max(paidPct, 2) + '%' }" />
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Summary -->
-                        <div class="rounded-xl bg-gray-50 p-5">
-                            <div class="grid grid-cols-3 gap-4">
-                                <div><p class="text-xs text-gray-400">Total</p><p class="text-lg font-bold text-gray-900">${{ parseFloat(selected.total).toFixed(2) }}</p></div>
-                                <div><p class="text-xs text-gray-400">Pagado</p><p class="text-lg font-bold text-green-600">${{ parseFloat(selected.amount_paid).toFixed(2) }}</p></div>
-                                <div><p class="text-xs text-gray-400">Pendiente</p><p class="text-lg font-bold" :class="parseFloat(selected.amount_pending) > 0 ? 'text-amber-600' : 'text-gray-300'">${{ parseFloat(selected.amount_pending).toFixed(2) }}</p></div>
+                        <!-- Payments -->
+                        <div v-if="selected.payments && selected.payments.length > 0">
+                            <h3 class="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
+                                Pagos
+                                <span class="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">{{ selected.payments.length }}</span>
+                            </h3>
+                            <div class="space-y-1.5">
+                                <div v-for="p in selected.payments" :key="p.id"
+                                    :class="editingPaymentId === p.id ? 'rounded-xl bg-white p-4 ring-2 ring-red-100 shadow-sm' : 'rounded-lg bg-gray-50 px-4 py-3'">
+                                    <!-- Edit mode -->
+                                    <EditPaymentForm v-if="editingPaymentId === p.id"
+                                        :payment="p"
+                                        :update-route="editPaymentRoute(p.id)"
+                                        :payment-methods="paymentMethods"
+                                        @saved="onPaymentSaved"
+                                        @cancel="editingPaymentId = null" />
+
+                                    <!-- Display mode -->
+                                    <div v-else class="flex items-center gap-3">
+                                        <div :class="[methodMeta[p.method]?.iconBg, 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg']">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" :d="methodMeta[p.method]?.icon" /></svg>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-2">
+                                                    <span :class="[methodMeta[p.method]?.color, 'text-sm font-semibold']">{{ methodMeta[p.method]?.label }}</span>
+                                                    <span v-if="p.user" class="text-xs text-gray-400">{{ p.user.name }}</span>
+                                                    <span v-if="p.updated_by" class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 ring-1 ring-inset ring-orange-500/20">Editado{{ p.updated_by_user ? ': ' + p.updated_by_user.name : '' }}</span>
+                                                </div>
+                                                <div class="flex items-center gap-3">
+                                                    <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(p.amount).toFixed(2) }}</span>
+                                                    <template v-if="canEditPayments">
+                                                        <button @click="startEditPayment(p)" class="text-xs font-semibold text-orange-600 hover:text-orange-700">Editar</button>
+                                                        <button @click="confirmDeletePaymentId = p.id" class="text-xs font-semibold text-red-500 hover:text-red-700">Eliminar</button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -350,7 +373,7 @@ const reopenSale = () => {
                             </div>
                             <SaleContextMenu
                                 :sale="selected"
-                                :can-manage-status="canManageStatus"
+                                :allowed-actions="canManageStatus ? ['pause', 'reactivate', 'reopen', 'cancel'] : []"
                                 @pause="handlePause(selected.id)"
                                 @reactivate="handleReactivate(selected.id)"
                                 @reopen="handleReopen(selected.id)"

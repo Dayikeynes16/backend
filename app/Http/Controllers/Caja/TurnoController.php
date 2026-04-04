@@ -90,6 +90,9 @@ class TurnoController extends Controller
 
         $validated = $request->validate([
             'declared_amount' => 'required|numeric|min:0',
+            'declared_card' => 'required|numeric|min:0',
+            'declared_transfer' => 'required|numeric|min:0',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         $payments = Payment::where('user_id', $user->id)
@@ -101,8 +104,10 @@ class TurnoController extends Controller
         $totalTransfer = (float) $payments->where('method', 'transfer')->sum('amount');
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
 
-        $expected = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
-        $declared = round((float) $validated['declared_amount'], 2);
+        $expectedCash = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
+        $declaredCash = round((float) $validated['declared_amount'], 2);
+        $declaredCard = round((float) $validated['declared_card'], 2);
+        $declaredTransfer = round((float) $validated['declared_transfer'], 2);
 
         $shift->update([
             'closed_at' => now(),
@@ -111,9 +116,14 @@ class TurnoController extends Controller
             'total_transfer' => $totalTransfer,
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
             'sale_count' => $payments->pluck('sale_id')->unique()->count(),
-            'declared_amount' => $declared,
-            'expected_amount' => $expected,
-            'difference' => round($declared - $expected, 2),
+            'declared_amount' => $declaredCash,
+            'declared_card' => $declaredCard,
+            'declared_transfer' => $declaredTransfer,
+            'expected_amount' => $expectedCash,
+            'difference' => round($declaredCash - $expectedCash, 2),
+            'difference_card' => round($declaredCard - $totalCard, 2),
+            'difference_transfer' => round($declaredTransfer - $totalTransfer, 2),
+            'notes' => $validated['notes'],
         ]);
 
         return redirect()->route('caja.turno', app('tenant')->slug)

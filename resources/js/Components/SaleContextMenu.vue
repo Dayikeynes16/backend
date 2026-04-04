@@ -4,7 +4,7 @@ import Dropdown from '@/Components/Dropdown.vue';
 
 const props = defineProps({
     sale: { type: Object, required: true },
-    canManageStatus: { type: Boolean, default: false },
+    allowedActions: { type: Array, default: () => [] },
     isLockedByOther: { type: Boolean, default: false },
     lockedByName: { type: String, default: null },
 });
@@ -14,26 +14,23 @@ const emit = defineEmits(['pause', 'reactivate', 'reopen', 'cancel', 'request-ca
 const actions = computed(() => {
     const status = props.sale.status;
     const items = [];
+    const allowed = props.allowedActions;
 
-    if (props.canManageStatus) {
-        if (status === 'active') {
-            items.push({ key: 'pause', label: 'Pausar venta', icon: 'pause', event: 'pause' });
-        }
-        if (status === 'pending') {
-            items.push({ key: 'reactivate', label: 'Reactivar venta', icon: 'play', event: 'reactivate' });
-        }
-        if (status === 'completed') {
-            items.push({ key: 'reopen', label: 'Reabrir venta', icon: 'reopen', event: 'reopen' });
-        }
-        if (status !== 'cancelled') {
-            items.push({ key: 'divider' });
-            items.push({ key: 'cancel', label: 'Cancelar venta', icon: 'cancel', event: 'cancel', danger: true });
-        }
-    } else {
-        // Cajero: solo puede solicitar cancelacion
-        if (status !== 'cancelled' && !props.sale.cancel_requested_at) {
-            items.push({ key: 'request-cancel', label: 'Solicitar cancelacion', icon: 'cancel', event: 'request-cancel', warning: true });
-        }
+    if (allowed.includes('pause') && status === 'active') {
+        items.push({ key: 'pause', label: 'Pausar venta', icon: 'pause', event: 'pause' });
+    }
+    if (allowed.includes('reactivate') && status === 'pending') {
+        items.push({ key: 'reactivate', label: 'Reactivar venta', icon: 'play', event: 'reactivate' });
+    }
+    if (allowed.includes('reopen') && status === 'completed') {
+        items.push({ key: 'reopen', label: 'Reabrir venta', icon: 'reopen', event: 'reopen' });
+    }
+    if (allowed.includes('cancel') && status !== 'cancelled') {
+        items.push({ key: 'divider' });
+        items.push({ key: 'cancel', label: 'Cancelar venta', icon: 'cancel', event: 'cancel', danger: true });
+    }
+    if (allowed.includes('request-cancel') && status !== 'cancelled' && !props.sale.cancel_requested_at) {
+        items.push({ key: 'request-cancel', label: 'Solicitar cancelacion', icon: 'cancel', event: 'request-cancel', warning: true });
     }
 
     return items;
@@ -51,7 +48,7 @@ const handleAction = (action) => {
 <template>
     <div v-if="hasActions || hasCancelRequest" class="relative" @click.stop>
         <!-- Cancel request badge (shown instead of menu when request is pending and user is cajero) -->
-        <span v-if="hasCancelRequest && !canManageStatus"
+        <span v-if="hasCancelRequest && !allowedActions.includes('cancel')"
             class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
             Cancelacion solicitada
         </span>
@@ -73,7 +70,7 @@ const handleAction = (action) => {
             <template #content>
                 <div class="py-1">
                     <!-- Cancel request badge inside menu for admins -->
-                    <div v-if="hasCancelRequest && canManageStatus" class="px-3 py-2 border-b border-gray-100">
+                    <div v-if="hasCancelRequest && allowedActions.includes('cancel')" class="px-3 py-2 border-b border-gray-100">
                         <span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z" /></svg>
                             Cancelacion solicitada

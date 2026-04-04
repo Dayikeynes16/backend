@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Sucursal;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
@@ -233,7 +234,11 @@ class WorkbenchController extends Controller
             }
         });
 
-        SaleUpdated::dispatch($sale->fresh());
+        try {
+            SaleUpdated::dispatch($sale->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+        }
 
         $msg = "Venta {$sale->folio} cancelada.";
         if ($wasCompleted) {
@@ -380,7 +385,11 @@ class WorkbenchController extends Controller
             }
         });
 
-        SaleUpdated::dispatch($sale->fresh());
+        try {
+            SaleUpdated::dispatch($sale->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+        }
 
         $msg = "Venta {$sale->folio} cancelada.";
         if ($wasCompleted) {
@@ -406,7 +415,11 @@ class WorkbenchController extends Controller
             $sale->update(['status' => SaleStatus::Active]);
         }
 
-        SaleUpdated::dispatch($sale->fresh());
+        try {
+            SaleUpdated::dispatch($sale->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+        }
 
         return back()->with('success', "Venta {$sale->folio} reactivada.");
     }
@@ -415,7 +428,11 @@ class WorkbenchController extends Controller
     {
         $sale->update(['status' => SaleStatus::Pending]);
 
-        SaleUpdated::dispatch($sale->fresh());
+        try {
+            SaleUpdated::dispatch($sale->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+        }
 
         return back()->with('success', "Venta {$sale->folio} marcada como pendiente.");
     }

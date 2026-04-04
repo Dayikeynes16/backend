@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
@@ -69,6 +70,8 @@ class PaymentController extends Controller
             $change = round((float) $validated['amount'] - $actualPayment, 2);
         });
 
+        $this->broadcastSaleUpdate($sale);
+
         $msg = $sale->amount_pending <= 0
             ? "Venta {$sale->folio} cobrada." . ($change > 0 ? " Cambio: \${$change}" : '')
             : "Pago registrado. Pendiente: \${$sale->amount_pending}";
@@ -80,6 +83,10 @@ class PaymentController extends Controller
     {
         $user = Auth::user();
         $this->authorizePaymentAction($user, $sale, $payment);
+
+        if ($sale->status === SaleStatus::Cancelled) {
+            return back()->with('error', 'No se pueden modificar pagos de una venta cancelada.');
+        }
 
         $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
         $allowed = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
@@ -102,6 +109,8 @@ class PaymentController extends Controller
             $this->recalculate($sale, $user);
         });
 
+        $this->broadcastSaleUpdate($sale);
+
         return back()->with('success', 'Pago actualizado.');
     }
 
@@ -110,10 +119,16 @@ class PaymentController extends Controller
         $user = Auth::user();
         $this->authorizePaymentAction($user, $sale, $payment);
 
+        if ($sale->status === SaleStatus::Cancelled) {
+            return back()->with('error', 'No se pueden modificar pagos de una venta cancelada.');
+        }
+
         DB::transaction(function () use ($payment, $sale, $user) {
             $payment->delete();
             $this->recalculate($sale, $user);
         });
+
+        $this->broadcastSaleUpdate($sale);
 
         return back()->with('success', 'Pago eliminado.');
     }
@@ -133,6 +148,10 @@ class PaymentController extends Controller
         }
     }
 
+    /**
+     * Recalculate sale totals and status based on current payments.
+     * Must be called inside a DB transaction. Does NOT broadcast.
+     */
     private function recalculate(Sale $sale, $user): void
     {
         $totalPaid = $sale->payments()->sum('amount');
@@ -158,7 +177,21 @@ class PaymentController extends Controller
         }
 
         $sale->update($data);
+    }
 
-        SaleUpdated::dispatch($sale->fresh());
+    /**
+     * Broadcast sale update. Non-blocking: broadcast failures
+     * are logged but never break the main operation.
+     */
+    private function broadcastSaleUpdate(Sale $sale): void
+    {
+        try {
+            SaleUpdated::dispatch($sale->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('SaleUpdated broadcast failed', [
+                'sale_id' => $sale->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
