@@ -42,6 +42,12 @@ class SaleHistoryController extends Controller
             'canEditPayments' => $canEditPayments,
             'canCancel' => $canEditPayments,
             'canManageStatus' => $canEditPayments,
+            'branchInfo' => [
+                'name' => $branch->name,
+                'address' => $branch->address,
+                'phone' => $branch->phone,
+                'ticket_config' => $branch->ticket_config,
+            ],
         ]);
     }
 }

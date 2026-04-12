@@ -24,7 +24,12 @@ const approvingId = ref(null);
 const approveForm = useForm({ cancel_reason: '' });
 const selectedReason = ref('');
 
-const startApprove = (id) => { approvingId.value = id; selectedReason.value = ''; approveForm.cancel_reason = ''; };
+const startApprove = (sale) => {
+    approvingId.value = sale.id;
+    const existing = sale.cancel_request_reason || '';
+    selectedReason.value = existing;
+    approveForm.cancel_reason = existing;
+};
 const submitApprove = (saleId) => {
     approveForm.cancel_reason = selectedReason.value;
     approveForm.patch(route('sucursal.cancelaciones.approve', [props.tenant.slug, saleId]), {
@@ -44,6 +49,12 @@ const formatTime = (iso) => iso ? new Date(iso).toLocaleTimeString('es-MX', { ho
 
 // Active tab
 const activeTab = ref('requests');
+
+// Expandable history rows
+const expandedHistoryId = ref(null);
+const toggleHistory = (id) => {
+    expandedHistoryId.value = expandedHistoryId.value === id ? null : id;
+};
 </script>
 
 <template>
@@ -139,7 +150,22 @@ const activeTab = ref('requests');
 
                         <!-- Approve form -->
                         <div v-if="approvingId === sale.id" class="border-t border-gray-100 px-6 py-4">
-                            <p class="mb-3 text-sm font-semibold text-gray-900">Motivo de cancelacion (administrador)</p>
+                            <p class="mb-3 text-sm font-semibold text-gray-900">Motivo de cancelacion</p>
+
+                            <!-- Pre-filled reason from cashier (shown when it doesn't match predefined options) -->
+                            <div v-if="sale.cancel_request_reason && !cancelReasons.includes(sale.cancel_request_reason)" class="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
+                                <svg class="h-4 w-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" /></svg>
+                                <div>
+                                    <p class="text-xs font-medium text-red-700">Motivo del cajero:</p>
+                                    <p class="text-sm font-semibold text-red-900">{{ sale.cancel_request_reason }}</p>
+                                </div>
+                                <button type="button" @click="selectedReason = sale.cancel_request_reason"
+                                    :class="['ml-auto shrink-0 rounded-lg px-3 py-1 text-xs font-semibold transition',
+                                        selectedReason === sale.cancel_request_reason ? 'bg-red-600 text-white' : 'bg-white text-red-600 ring-1 ring-red-300 hover:bg-red-100']">
+                                    {{ selectedReason === sale.cancel_request_reason ? 'Seleccionado' : 'Usar este motivo' }}
+                                </button>
+                            </div>
+
                             <div class="flex flex-wrap gap-2 mb-3">
                                 <button v-for="r in cancelReasons" :key="r" type="button" @click="selectedReason = r"
                                     :class="['rounded-lg px-3 py-1.5 text-xs font-medium transition', selectedReason === r ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">
@@ -155,7 +181,7 @@ const activeTab = ref('requests');
 
                         <!-- Actions -->
                         <div v-else class="flex gap-3 border-t border-gray-100 px-6 py-4">
-                            <button @click="startApprove(sale.id)" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Aprobar</button>
+                            <button @click="startApprove(sale)" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Aprobar</button>
                             <button @click="rejectSale(sale.id)" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50">Rechazar</button>
                         </div>
                     </div>
@@ -170,6 +196,7 @@ const activeTab = ref('requests');
                     <div class="overflow-x-auto">
                         <table v-if="history.length > 0" class="min-w-full divide-y divide-gray-100">
                             <thead><tr class="bg-gray-50">
+                                <th class="w-8 px-2 py-3"></th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Folio</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Hora</th>
                                 <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Total</th>
@@ -178,18 +205,47 @@ const activeTab = ref('requests');
                                 <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Aprobo</th>
                             </tr></thead>
                             <tbody class="divide-y divide-gray-50">
-                                <tr v-for="sale in history" :key="sale.id" class="transition hover:bg-gray-50">
-                                    <td class="px-6 py-3 text-sm font-bold text-gray-900">{{ sale.folio }}</td>
-                                    <td class="px-6 py-3 text-sm text-gray-500">{{ formatTime(sale.cancelled_at) }}</td>
-                                    <td class="px-6 py-3 text-right text-sm font-semibold text-red-600">${{ parseFloat(sale.total).toFixed(2) }}</td>
-                                    <td class="px-6 py-3 text-sm text-gray-700">{{ sale.cancel_reason || sale.cancel_request_reason || '—' }}</td>
-                                    <td class="px-6 py-3 text-sm text-gray-500">{{ sale.cancel_requested_by_user?.name || '—' }}</td>
-                                    <td class="px-6 py-3 text-sm text-gray-500">{{ sale.cancelled_by_user?.name || '—' }}</td>
-                                </tr>
+                                <template v-for="sale in history" :key="sale.id">
+                                    <tr @click="toggleHistory(sale.id)" class="cursor-pointer transition hover:bg-gray-50">
+                                        <td class="px-2 py-3 text-center">
+                                            <svg class="mx-auto h-4 w-4 text-gray-400 transition-transform duration-200" :class="{ 'rotate-90': expandedHistoryId === sale.id }" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                                            </svg>
+                                        </td>
+                                        <td class="px-6 py-3 text-sm font-bold text-gray-900">{{ sale.folio }}</td>
+                                        <td class="px-6 py-3 text-sm text-gray-500">{{ formatTime(sale.cancelled_at) }}</td>
+                                        <td class="px-6 py-3 text-right text-sm font-semibold text-red-600">${{ parseFloat(sale.total).toFixed(2) }}</td>
+                                        <td class="px-6 py-3 text-sm text-gray-700">{{ sale.cancel_reason || sale.cancel_request_reason || '—' }}</td>
+                                        <td class="px-6 py-3 text-sm text-gray-500">{{ sale.cancel_requested_by_user?.name || '—' }}</td>
+                                        <td class="px-6 py-3 text-sm text-gray-500">{{ sale.cancelled_by_user?.name || '—' }}</td>
+                                    </tr>
+                                    <!-- Expanded items row -->
+                                    <tr v-if="expandedHistoryId === sale.id">
+                                        <td :colspan="7" class="bg-gray-50/70 px-0 py-0">
+                                            <div class="px-10 py-4">
+                                                <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Productos cancelados</p>
+                                                <div v-if="sale.items && sale.items.length > 0" class="rounded-lg border border-gray-200 bg-white">
+                                                    <div v-for="(item, idx) in sale.items" :key="item.id"
+                                                        :class="['flex items-center justify-between px-4 py-2.5 text-sm', idx !== sale.items.length - 1 ? 'border-b border-gray-100' : '']">
+                                                        <div class="flex items-center gap-3">
+                                                            <div class="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-xs font-bold text-red-600">{{ idx + 1 }}</div>
+                                                            <span class="font-medium text-gray-900">{{ item.product_name }}</span>
+                                                        </div>
+                                                        <div class="flex items-center gap-6">
+                                                            <span class="text-gray-500">x{{ parseFloat(item.quantity) }}</span>
+                                                            <span class="min-w-[5rem] text-right font-semibold text-gray-900">${{ parseFloat(item.subtotal).toFixed(2) }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <p v-else class="text-sm text-gray-400">Sin productos registrados.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                             <tfoot>
                                 <tr class="bg-gray-50">
-                                    <td class="px-6 py-3 text-sm font-bold text-gray-900" colspan="2">Total del dia</td>
+                                    <td class="px-6 py-3 text-sm font-bold text-gray-900" colspan="3">Total del dia</td>
                                     <td class="px-6 py-3 text-right text-sm font-bold text-red-600">${{ stats.cancelled_total.toFixed(2) }}</td>
                                     <td colspan="3"></td>
                                 </tr>

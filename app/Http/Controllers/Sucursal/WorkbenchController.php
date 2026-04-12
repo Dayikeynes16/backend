@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
@@ -16,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Enum;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,7 +31,7 @@ class WorkbenchController extends Controller
 
         $sales = Sale::where('branch_id', $branchId)
             ->whereIn('status', [SaleStatus::Active, SaleStatus::Pending])
-            ->with(['items', 'payments', 'lockedByUser:id,name'])
+            ->with(['items', 'payments', 'lockedByUser:id,name', 'customer:id,name,phone'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
@@ -65,6 +67,10 @@ class WorkbenchController extends Controller
             'canCancel' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canManageStatus' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canEditPayments' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
+            'canEditPrice' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
+            'customers' => Schema::hasTable('customers')
+                ? Customer::where('branch_id', $branchId)->where('status', 'active')->orderBy('name')->get(['id', 'name', 'phone'])
+                : [],
         ]);
     }
 
@@ -81,6 +87,7 @@ class WorkbenchController extends Controller
             'items.*.product_id' => 'required|integer',
             'items.*.quantity' => 'required|numeric|gt:0',
             'items.*.presentation_id' => 'nullable|integer',
+            'items.*.custom_price' => 'nullable|numeric|min:0',
         ]);
 
         $branchId = $user->branch_id;
@@ -122,6 +129,11 @@ class WorkbenchController extends Controller
                 $product = $products[$item['product_id']];
                 $quantity = (float) $item['quantity'];
 
+                // Logical unit type: force 'kg' when sold by weight
+                $logicalUnitType = (in_array($product->sale_mode, ['weight', 'both']) && empty($item['presentation_id']))
+                    ? 'kg'
+                    : $product->unit_type;
+
                 // If presentation mode and presentation_id is provided
                 if (in_array($product->sale_mode, ['presentation', 'both']) && ! empty($item['presentation_id'])) {
                     $presentation = $product->presentations->find($item['presentation_id']);
@@ -132,13 +144,19 @@ class WorkbenchController extends Controller
                     $productName = $product->name;
                 }
 
+                // Allow admin override of unit price
+                if (isset($item['custom_price']) && $item['custom_price'] !== null
+                    && ($user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'))) {
+                    $unitPrice = (float) $item['custom_price'];
+                }
+
                 $subtotal = round($quantity * $unitPrice, 2);
                 $total += $subtotal;
 
                 $itemsData[] = [
                     'product_id' => $product->id,
                     'product_name' => $productName,
-                    'unit_type' => $product->unit_type,
+                    'unit_type' => $logicalUnitType,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'subtotal' => $subtotal,
@@ -435,5 +453,102 @@ class WorkbenchController extends Controller
         }
 
         return back()->with('success', "Venta {$sale->folio} marcada como pendiente.");
+    }
+
+    public function assignCustomer(Request $request, Sale $sale): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('admin-empresa') && ! $user->hasRole('superadmin')) {
+            abort(403);
+        }
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403);
+        }
+
+        if ($sale->status === SaleStatus::Cancelled) {
+            return back()->with('error', 'No se puede asignar cliente a una venta cancelada.');
+        }
+
+        $validated = $request->validate([
+            'customer_id' => 'nullable|integer|exists:customers,id',
+        ]);
+
+        $customerId = $validated['customer_id'];
+        $hadPayments = $sale->payments()->exists();
+
+        DB::transaction(function () use ($sale, $customerId, $user) {
+            DB::statement('SELECT pg_advisory_xact_lock(?)', [$sale->branch_id]);
+
+            $sale->load('items');
+
+            if ($customerId) {
+                $customer = Customer::where('branch_id', $user->branch_id)->findOrFail($customerId);
+                $preferentialPrices = $customer->prices->keyBy('product_id');
+
+                foreach ($sale->items as $item) {
+                    $prefPrice = $preferentialPrices->get($item->product_id);
+                    if ($prefPrice) {
+                        $newPrice = (float) $prefPrice->price;
+                        $item->update([
+                            'unit_price' => $newPrice,
+                            'subtotal' => round($newPrice * (float) $item->quantity, 2),
+                        ]);
+                    }
+                }
+            } else {
+                // Desasignar: restaurar precios originales del catálogo
+                $productIds = $sale->items->pluck('product_id')->unique();
+                $products = Product::withoutGlobalScopes()
+                    ->whereIn('id', $productIds)
+                    ->get(['id', 'price'])
+                    ->keyBy('id');
+
+                foreach ($sale->items as $item) {
+                    $product = $products->get($item->product_id);
+                    if ($product) {
+                        $originalPrice = (float) $product->price;
+                        $item->update([
+                            'unit_price' => $originalPrice,
+                            'subtotal' => round($originalPrice * (float) $item->quantity, 2),
+                        ]);
+                    }
+                }
+            }
+
+            $newTotal = round((float) $sale->items()->sum('subtotal'), 2);
+            $amountPaid = (float) $sale->amount_paid;
+            $newPending = round(max($newTotal - $amountPaid, 0), 2);
+
+            $updateData = [
+                'customer_id' => $customerId,
+                'total' => $newTotal,
+                'amount_pending' => $newPending,
+            ];
+
+            if ($newPending <= 0 && $amountPaid > 0 && $sale->status !== SaleStatus::Completed) {
+                $updateData['status'] = SaleStatus::Completed;
+                $updateData['completed_at'] = now();
+            }
+
+            $sale->update($updateData);
+        });
+
+        try {
+            SaleUpdated::dispatch($sale->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+        }
+
+        $msg = $customerId
+            ? "Cliente asignado a venta {$sale->folio}."
+            : "Cliente removido de venta {$sale->folio}.";
+
+        if ($hadPayments) {
+            $msg .= ' La venta tenia pagos registrados. Verifica que los montos sean correctos.';
+        }
+
+        return back()->with('success', $msg);
     }
 }

@@ -1,10 +1,11 @@
 <script setup>
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import DatePicker from '@/Components/DatePicker.vue';
+import TicketPrinter from '@/Components/TicketPrinter.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
-const props = defineProps({ sales: Object, filters: Object, tenant: Object });
+const props = defineProps({ sales: Object, filters: Object, tenant: Object, branchInfo: Object });
 
 const date = ref(props.filters?.date || '');
 
@@ -75,6 +76,7 @@ const onScroll = () => {
 
 const formatTime = (d) => new Date(d).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
 const selected = ref(null);
+const showTicket = ref(false);
 
 const paidPct = computed(() => {
     if (!selected.value) return 0;
@@ -117,9 +119,15 @@ const paidPct = computed(() => {
                 <div v-if="!selected" class="flex flex-1 items-center justify-center"><p class="text-sm text-gray-400">Selecciona una venta</p></div>
                 <template v-else>
                     <div class="border-b border-gray-100 px-6 py-4">
-                        <div class="flex items-center gap-3">
-                            <h2 class="text-lg font-bold text-gray-900">{{ selected.folio }}</h2>
-                            <span :class="[statusBadge(selected.status).c, 'rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset']">{{ statusBadge(selected.status).l }}</span>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <h2 class="text-lg font-bold text-gray-900">{{ selected.folio }}</h2>
+                                <span :class="[statusBadge(selected.status).c, 'rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset']">{{ statusBadge(selected.status).l }}</span>
+                            </div>
+                            <button @click="showTicket = true" class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-200">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" /></svg>
+                                Ticket
+                            </button>
                         </div>
                         <p class="text-xs text-gray-400">{{ new Date(selected.created_at).toLocaleString('es-MX') }}</p>
                     </div>
@@ -187,5 +195,8 @@ const paidPct = computed(() => {
                 </template>
             </div>
         </div>
+        <TicketPrinter v-if="showTicket && selected" :sale="selected" :business-name="tenant.name"
+            :branch-name="branchInfo?.name" :branch-address="branchInfo?.address" :branch-phone="branchInfo?.phone"
+            :ticket-config="branchInfo?.ticket_config" @close="showTicket = false" />
     </CajeroLayout>
 </template>

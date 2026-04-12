@@ -21,6 +21,8 @@ use App\Http\Controllers\Sucursal\CashShiftController;
 use App\Http\Controllers\Sucursal\SaleLockController;
 use App\Http\Controllers\Sucursal\CategoryController;
 use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguracionController;
+use App\Http\Controllers\Sucursal\CustomerController;
+use App\Http\Controllers\Sucursal\CustomerPriceController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
 use App\Http\Controllers\Sucursal\PagosController;
 use App\Http\Controllers\Sucursal\PaymentController;
@@ -178,6 +180,20 @@ Route::prefix('{tenant}')
                 Route::get('cancelaciones', [CancelRequestController::class, 'index'])->name('cancelaciones.index');
                 Route::patch('cancelaciones/{sale}/aprobar', [CancelRequestController::class, 'approve'])->name('cancelaciones.approve');
                 Route::patch('cancelaciones/{sale}/rechazar', [CancelRequestController::class, 'reject'])->name('cancelaciones.reject');
+
+                // Customers
+                Route::get('clientes', [CustomerController::class, 'index'])->name('clientes.index');
+                Route::post('clientes', [CustomerController::class, 'store'])->name('clientes.store');
+                Route::put('clientes/{customer}', [CustomerController::class, 'update'])->name('clientes.update');
+                Route::delete('clientes/{customer}', [CustomerController::class, 'destroy'])->name('clientes.destroy');
+
+                // Customer prices
+                Route::post('clientes/{customer}/precios', [CustomerPriceController::class, 'store'])->name('clientes.precios.store');
+                Route::put('clientes/{customer}/precios/{price}', [CustomerPriceController::class, 'update'])->name('clientes.precios.update');
+                Route::delete('clientes/{customer}/precios/{price}', [CustomerPriceController::class, 'destroy'])->name('clientes.precios.destroy');
+
+                // Assign customer to sale
+                Route::patch('mesa-de-trabajo/ventas/{sale}/cliente', [WorkbenchController::class, 'assignCustomer'])->name('workbench.assign-customer');
 
                 // Config
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');

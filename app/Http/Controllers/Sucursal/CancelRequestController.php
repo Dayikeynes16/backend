@@ -85,12 +85,18 @@ class CancelRequestController extends Controller
         }
 
         $validated = $request->validate([
-            'cancel_reason' => 'required|string|max:500',
+            'cancel_reason' => 'nullable|string|max:500',
         ]);
+
+        $cancelReason = $validated['cancel_reason'] ?? $sale->cancel_request_reason;
+
+        if (! $cancelReason) {
+            return back()->withErrors(['cancel_reason' => 'Debe indicar un motivo de cancelacion.']);
+        }
 
         $wasCompleted = $sale->status === SaleStatus::Completed;
 
-        DB::transaction(function () use ($sale, $user, $validated, $wasCompleted) {
+        DB::transaction(function () use ($sale, $user, $cancelReason, $wasCompleted) {
             $sale->payments()->delete();
 
             $sale->update([
@@ -99,7 +105,7 @@ class CancelRequestController extends Controller
                 'amount_pending' => 0,
                 'cancelled_at' => now(),
                 'cancelled_by' => $user->id,
-                'cancel_reason' => $validated['cancel_reason'],
+                'cancel_reason' => $cancelReason,
             ]);
 
             if ($wasCompleted) {

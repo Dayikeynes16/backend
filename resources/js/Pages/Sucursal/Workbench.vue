@@ -15,7 +15,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 const props = defineProps({
     sales: Array, products: Array, categories: Array,
     tenant: Object, branchId: Number, branchInfo: Object, paymentMethods: Array,
-    canCreate: Boolean, canCancel: Boolean, canManageStatus: Boolean, canEditPayments: Boolean,
+    canCreate: Boolean, canCancel: Boolean, canManageStatus: Boolean, canEditPayments: Boolean, canEditPrice: Boolean,
+    customers: Array,
 });
 
 const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
@@ -158,15 +159,39 @@ const addToCart = (product, presentation = null) => {
     if (existing) { existing.quantity += 1; return; }
     const price = presentation ? parseFloat(presentation.price) : parseFloat(product.price);
     const name = presentation ? `${product.name} - ${presentation.name}` : product.name;
-    cart.value.push({ key, product_id: product.id, presentation_id: presentation?.id || null, name, price, unit_type: product.unit_type, sale_mode: product.sale_mode, quantity: product.sale_mode === 'weight' ? 0 : 1, image_path: product.image_path });
+    const unitType = (product.sale_mode === 'weight' || (product.sale_mode === 'both' && !presentation)) ? 'kg' : product.unit_type;
+    cart.value.push({ key, product_id: product.id, presentation_id: presentation?.id || null, name, price, originalPrice: price, unit_type: unitType, sale_mode: product.sale_mode, quantity: product.sale_mode === 'weight' ? 0 : 1, image_path: product.image_path });
 };
 const removeFromCart = (idx) => cart.value.splice(idx, 1);
 const cartTotal = computed(() => cart.value.reduce((s, i) => s + i.price * i.quantity, 0));
 
 const newSaleForm = useForm({ items: [] });
 const submitNewSale = () => {
-    newSaleForm.items = cart.value.map(c => ({ product_id: c.product_id, quantity: c.quantity, presentation_id: c.presentation_id }));
+    newSaleForm.items = cart.value.map(c => ({ product_id: c.product_id, quantity: c.quantity, presentation_id: c.presentation_id, custom_price: c.price }));
     newSaleForm.post(route('sucursal.workbench.store', props.tenant.slug), { onSuccess: () => { cart.value = []; showNewSale.value = false; } });
+};
+
+// --- Customer assignment ---
+const showCustomerSearch = ref(false);
+const customerQuery = ref('');
+const filteredCustomers = computed(() => {
+    if (!customerQuery.value) return (props.customers || []).slice(0, 5);
+    const q = customerQuery.value.toLowerCase();
+    return (props.customers || []).filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 5);
+});
+const assignCustomerForm = useForm({ customer_id: null });
+const assignCustomer = (customerId) => {
+    assignCustomerForm.customer_id = customerId;
+    assignCustomerForm.patch(route('sucursal.workbench.assign-customer', [props.tenant.slug, selected.value.id]), {
+        preserveScroll: true,
+        onSuccess: () => { showCustomerSearch.value = false; customerQuery.value = ''; },
+    });
+};
+const removeCustomer = () => {
+    assignCustomerForm.customer_id = null;
+    assignCustomerForm.patch(route('sucursal.workbench.assign-customer', [props.tenant.slug, selected.value.id]), {
+        preserveScroll: true,
+    });
 };
 </script>
 
@@ -274,6 +299,54 @@ const submitNewSale = () => {
                                     @request-cancel="handleCancelFromMenu(selected.id)"
                                 />
                                 <span class="text-xs text-gray-400">{{ new Date(selected.created_at).toLocaleString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', hour12: true }) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customer assignment (admin only) -->
+                    <div v-if="canCreate" class="border-b border-gray-100 px-6 py-3">
+                        <!-- With customer -->
+                        <div v-if="selected.customer" class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <div class="flex h-7 w-7 items-center justify-center rounded-full bg-red-50">
+                                    <svg class="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-900">{{ selected.customer.name }}</p>
+                                    <p class="text-xs text-gray-400">{{ selected.customer.phone }}</p>
+                                </div>
+                                <span class="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">Cliente preferencial</span>
+                            </div>
+                            <button @click="removeCustomer" :disabled="assignCustomerForm.processing"
+                                class="rounded-full p-1.5 text-gray-300 transition hover:bg-red-50 hover:text-red-500">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <!-- Without customer -->
+                        <div v-else class="relative">
+                            <button v-if="!showCustomerSearch" @click="showCustomerSearch = true"
+                                class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>
+                                Asignar cliente
+                            </button>
+                            <div v-if="showCustomerSearch" class="space-y-2">
+                                <div class="flex items-center gap-2">
+                                    <input v-model="customerQuery" type="text" placeholder="Buscar por nombre o telefono..."
+                                        class="flex-1 rounded-lg border-gray-200 py-1.5 text-sm placeholder-gray-400 focus:border-red-400 focus:ring-red-300" autofocus />
+                                    <button @click="showCustomerSearch = false; customerQuery = '';" class="rounded-full p-1.5 text-gray-400 hover:text-gray-600">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                                <div v-if="filteredCustomers.length > 0" class="rounded-lg ring-1 ring-gray-100 divide-y divide-gray-50">
+                                    <button v-for="c in filteredCustomers" :key="c.id" type="button"
+                                        @click="assignCustomer(c.id)"
+                                        :disabled="assignCustomerForm.processing"
+                                        class="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition hover:bg-gray-50 disabled:opacity-50">
+                                        <span class="font-medium text-gray-900">{{ c.name }}</span>
+                                        <span class="text-xs text-gray-400">{{ c.phone }}</span>
+                                    </button>
+                                </div>
+                                <p v-else class="px-1 text-xs text-gray-400">No se encontraron clientes.</p>
                             </div>
                         </div>
                     </div>
@@ -442,11 +515,43 @@ const submitNewSale = () => {
                                     <p class="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">Carrito</p>
                                     <div v-if="cart.length === 0" class="py-10 text-center text-sm text-gray-400">Agrega productos.</div>
                                     <div v-else class="space-y-2">
-                                        <div v-for="(item, idx) in cart" :key="idx" class="flex items-center gap-3 rounded-lg bg-gray-50 px-4 py-3">
-                                            <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold text-gray-900">{{ item.name }}</p><p class="text-xs text-gray-400">${{ item.price.toFixed(2) }}</p></div>
-                                            <input v-model.number="item.quantity" type="number" min="0.01" step="0.01" class="w-20 rounded-lg border-gray-200 text-center text-sm focus:border-red-400 focus:ring-red-300" />
-                                            <span class="w-20 text-right text-sm font-bold text-gray-900">${{ (item.price * item.quantity).toFixed(2) }}</span>
-                                            <button @click="removeFromCart(idx)" class="rounded p-1 text-gray-400 hover:text-red-600"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button>
+                                        <div v-for="(item, idx) in cart" :key="idx"
+                                            class="group/card relative rounded-2xl bg-white px-4 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] ring-1 ring-gray-100 transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                                            <div class="flex items-center gap-3">
+                                                <!-- Product info + price -->
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="truncate text-sm font-semibold text-gray-900">{{ item.name }}</p>
+                                                    <!-- Admin: editable iOS-style price pill -->
+                                                    <div v-if="canEditPrice" class="mt-1.5 flex items-center gap-2">
+                                                        <div class="inline-flex items-center rounded-full bg-gray-50 py-1 pl-2.5 pr-1.5 ring-1 ring-gray-200/80 transition-all focus-within:bg-red-50/50 focus-within:ring-red-300 focus-within:shadow-[0_0_0_3px_rgba(239,68,68,0.08)]">
+                                                            <span class="mr-0.5 text-xs font-medium text-gray-400">$</span>
+                                                            <input v-model.number="item.price" type="number" min="0" step="0.01"
+                                                                class="w-16 border-0 bg-transparent p-0 text-xs font-semibold tabular-nums text-gray-900 focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                                                            <svg class="h-3 w-3 shrink-0 text-gray-300 transition-colors group-focus-within/card:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                                                            </svg>
+                                                        </div>
+                                                        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0 -translate-x-1" enter-to-class="opacity-100 translate-x-0" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100 translate-x-0" leave-to-class="opacity-0 -translate-x-1">
+                                                            <span v-if="item.price !== item.originalPrice" class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 ring-1 ring-amber-200/60">
+                                                                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" /></svg>
+                                                                <span class="line-through">${{ item.originalPrice.toFixed(2) }}</span>
+                                                            </span>
+                                                        </Transition>
+                                                    </div>
+                                                    <!-- Cajero: static price -->
+                                                    <p v-else class="mt-0.5 text-xs text-gray-400">${{ item.price.toFixed(2) }}</p>
+                                                </div>
+                                                <!-- Quantity -->
+                                                <input v-model.number="item.quantity" type="number" min="0.01" step="0.01"
+                                                    class="w-[4.5rem] rounded-xl border-0 bg-gray-50 py-1.5 text-center text-sm font-medium tabular-nums text-gray-700 ring-1 ring-gray-200/80 transition-all focus:bg-white focus:ring-red-300 focus:shadow-[0_0_0_3px_rgba(239,68,68,0.08)] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                                                <!-- Subtotal -->
+                                                <span class="w-20 text-right text-sm font-bold tabular-nums text-gray-900">${{ (item.price * item.quantity).toFixed(2) }}</span>
+                                                <!-- Remove -->
+                                                <button @click="removeFromCart(idx)"
+                                                    class="rounded-full p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 active:bg-red-100">
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

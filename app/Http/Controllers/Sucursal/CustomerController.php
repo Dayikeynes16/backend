@@ -1,0 +1,117 @@
+<?php
+
+namespace App\Http\Controllers\Sucursal;
+
+use App\Http\Controllers\Controller;
+use App\Models\Customer;
+use App\Models\Product;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class CustomerController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        $user = Auth::user();
+        $branchId = $user->branch_id;
+
+        $customers = Customer::where('branch_id', $branchId)
+            ->when($request->search, fn ($q, $s) => $q->where(fn ($q2) =>
+                $q2->where('name', 'ilike', "%{$s}%")
+                   ->orWhere('phone', 'ilike', "%{$s}%")
+            ))
+            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            ->when(! $request->status, fn ($q) => $q->where('status', 'active'))
+            ->with(['prices.product:id,name,price'])
+            ->orderBy('name')
+            ->get();
+
+        $products = Product::where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'price', 'unit_type', 'sale_mode']);
+
+        return Inertia::render('Sucursal/Clientes/Index', [
+            'customers' => $customers,
+            'products' => $products,
+            'filters' => $request->only('search', 'status'),
+            'tenant' => app('tenant'),
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $exists = Customer::where('branch_id', $user->branch_id)
+            ->where('phone', $validated['phone'])
+            ->exists();
+
+        if ($exists) {
+            return back()->withErrors(['phone' => 'Ya existe un cliente con este telefono en esta sucursal.']);
+        }
+
+        Customer::create([
+            ...$validated,
+            'branch_id' => $user->branch_id,
+        ]);
+
+        return back()->with('success', 'Cliente registrado.');
+    }
+
+    public function update(Request $request, Customer $customer): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($customer->branch_id !== $user->branch_id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'notes' => 'nullable|string|max:1000',
+            'status' => 'nullable|string|in:active,inactive',
+        ]);
+
+        $duplicate = Customer::where('branch_id', $user->branch_id)
+            ->where('phone', $validated['phone'])
+            ->where('id', '!=', $customer->id)
+            ->exists();
+
+        if ($duplicate) {
+            return back()->withErrors(['phone' => 'Ya existe otro cliente con este telefono.']);
+        }
+
+        $customer->update($validated);
+
+        return back()->with('success', 'Cliente actualizado.');
+    }
+
+    public function destroy(Customer $customer): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($customer->branch_id !== $user->branch_id) {
+            abort(403);
+        }
+
+        if ($customer->sales()->exists()) {
+            $customer->update(['status' => 'inactive']);
+            return back()->with('success', 'Cliente desactivado (tiene ventas asociadas).');
+        }
+
+        $customer->delete();
+
+        return back()->with('success', 'Cliente eliminado.');
+    }
+}

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Caja;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Payment;
 use App\Models\Sale;
 use Illuminate\Http\Request;
@@ -33,10 +34,18 @@ class HistorialController extends Controller
             ->cursorPaginate(20)
             ->withQueryString();
 
+        $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
+
         return Inertia::render('Caja/Historial', [
             'sales' => $sales,
             'filters' => $request->only('date'),
             'tenant' => app('tenant'),
+            'branchInfo' => [
+                'name' => $branch->name,
+                'address' => $branch->address,
+                'phone' => $branch->phone,
+                'ticket_config' => $branch->ticket_config,
+            ],
         ]);
     }
 }
