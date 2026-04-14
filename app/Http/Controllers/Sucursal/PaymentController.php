@@ -88,6 +88,12 @@ class PaymentController extends Controller
             return back()->with('error', 'No se pueden modificar pagos de una venta cancelada.');
         }
 
+        if ($payment->customer_payment_id !== null) {
+            $payment->loadMissing('customerPayment:id,folio');
+            $folio = $payment->customerPayment?->folio ?? 'global';
+            return back()->with('error', "Este pago es parte del cobro {$folio} y no puede editarse individualmente.");
+        }
+
         $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
         $allowed = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
         $allowedStr = implode(',', $allowed);
@@ -121,6 +127,12 @@ class PaymentController extends Controller
 
         if ($sale->status === SaleStatus::Cancelled) {
             return back()->with('error', 'No se pueden modificar pagos de una venta cancelada.');
+        }
+
+        if ($payment->customer_payment_id !== null) {
+            $payment->loadMissing('customerPayment:id,folio');
+            $folio = $payment->customerPayment?->folio ?? 'global';
+            return back()->with('error', "Este pago es parte del cobro {$folio} y no puede eliminarse individualmente.");
         }
 
         DB::transaction(function () use ($payment, $sale, $user) {

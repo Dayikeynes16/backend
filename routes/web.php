@@ -22,7 +22,9 @@ use App\Http\Controllers\Sucursal\SaleLockController;
 use App\Http\Controllers\Sucursal\CategoryController;
 use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguracionController;
 use App\Http\Controllers\Sucursal\CustomerController;
+use App\Http\Controllers\Sucursal\CustomerPaymentController;
 use App\Http\Controllers\Sucursal\CustomerPriceController;
+use App\Http\Controllers\Sucursal\CustomerStatsController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
 use App\Http\Controllers\Sucursal\PagosController;
 use App\Http\Controllers\Sucursal\PaymentController;
@@ -191,6 +193,17 @@ Route::prefix('{tenant}')
                 Route::post('clientes/{customer}/precios', [CustomerPriceController::class, 'store'])->name('clientes.precios.store');
                 Route::put('clientes/{customer}/precios/{price}', [CustomerPriceController::class, 'update'])->name('clientes.precios.update');
                 Route::delete('clientes/{customer}/precios/{price}', [CustomerPriceController::class, 'destroy'])->name('clientes.precios.destroy');
+
+                // Customer stats dashboard (JSON endpoints, lazy-loaded per tab)
+                Route::get('clientes/{customer}/stats', [CustomerStatsController::class, 'stats'])->name('clientes.stats');
+                Route::get('clientes/{customer}/historial', [CustomerStatsController::class, 'history'])->name('clientes.historial');
+                Route::get('clientes/{customer}/productos-top', [CustomerStatsController::class, 'topProducts'])->name('clientes.productos-top');
+                Route::get('clientes/{customer}/pagos', [CustomerStatsController::class, 'payments'])->name('clientes.pagos');
+                Route::get('clientes/{customer}/ventas/{sale}', [CustomerStatsController::class, 'saleDetail'])->name('clientes.venta-detalle');
+
+                // Customer global payments (cobro global)
+                Route::post('clientes/{customer}/cobro-global', [CustomerPaymentController::class, 'store'])->name('clientes.cobro-global');
+                Route::get('clientes/{customer}/cobros-globales/{customerPayment}', [CustomerPaymentController::class, 'show'])->name('clientes.cobro-global.show');
 
                 // Assign customer to sale
                 Route::patch('mesa-de-trabajo/ventas/{sale}/cliente', [WorkbenchController::class, 'assignCustomer'])->name('workbench.assign-customer');

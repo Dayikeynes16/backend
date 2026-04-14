@@ -137,12 +137,14 @@ class WorkbenchController extends Controller
                 // If presentation mode and presentation_id is provided
                 if (in_array($product->sale_mode, ['presentation', 'both']) && ! empty($item['presentation_id'])) {
                     $presentation = $product->presentations->find($item['presentation_id']);
-                    $unitPrice = $presentation ? (float) $presentation->price : (float) $product->price;
+                    $catalogPrice = $presentation ? (float) $presentation->price : (float) $product->price;
                     $productName = $product->name . ' - ' . ($presentation->name ?? '');
                 } else {
-                    $unitPrice = (float) $product->price;
+                    $catalogPrice = (float) $product->price;
                     $productName = $product->name;
                 }
+
+                $unitPrice = $catalogPrice;
 
                 // Allow admin override of unit price
                 if (isset($item['custom_price']) && $item['custom_price'] !== null
@@ -159,6 +161,7 @@ class WorkbenchController extends Controller
                     'unit_type' => $logicalUnitType,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
+                    'original_unit_price' => $catalogPrice,
                     'subtotal' => $subtotal,
                 ];
             }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sucursal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
@@ -34,11 +35,15 @@ class CustomerController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'price', 'unit_type', 'sale_mode']);
 
+        $branch = Branch::withoutGlobalScopes()->find($branchId);
+        $allowedMethods = $branch?->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
+
         return Inertia::render('Sucursal/Clientes/Index', [
             'customers' => $customers,
             'products' => $products,
             'filters' => $request->only('search', 'status'),
             'tenant' => app('tenant'),
+            'allowedPaymentMethods' => $allowedMethods,
         ]);
     }
 

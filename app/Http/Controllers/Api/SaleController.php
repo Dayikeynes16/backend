@@ -110,6 +110,7 @@ class SaleController extends Controller
                     'unit_type' => $product->unit_type,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
+                    'original_unit_price' => $unitPrice,
                     'subtotal' => $subtotal,
                 ];
             }
