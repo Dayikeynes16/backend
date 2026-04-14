@@ -9,12 +9,63 @@ const props = defineProps({
     customerPaymentId: { type: [Number, String], default: null },
 });
 
-const emit = defineEmits(['close', 'open-sale', 'delete']);
+const emit = defineEmits(['close', 'open-sale', 'cancelled']);
 
 const data = ref(null);
 const loading = ref(false);
 const error = ref(null);
 let controller = null;
+
+// --- Cancel flow ---
+const showCancelConfirm = ref(false);
+const cancelReason = ref('');
+const cancelling = ref(false);
+const cancelError = ref(null);
+
+const openCancelConfirm = () => {
+    cancelReason.value = '';
+    cancelError.value = null;
+    showCancelConfirm.value = true;
+};
+
+const submitCancel = async () => {
+    if (cancelling.value) return;
+    if (!cancelReason.value.trim()) {
+        cancelError.value = 'Indica el motivo de cancelación';
+        return;
+    }
+    cancelling.value = true;
+    cancelError.value = null;
+    try {
+        const res = await fetch(
+            route('sucursal.clientes.cobro-global.cancel', [props.tenantSlug, props.customerId, props.customerPaymentId]),
+            {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ cancel_reason: cancelReason.value.trim() }),
+            }
+        );
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            cancelError.value = err.message || 'Error al cancelar';
+            return;
+        }
+        const result = await res.json();
+        showCancelConfirm.value = false;
+        emit('cancelled', result);
+        emit('close');
+    } catch (e) {
+        cancelError.value = e.message || 'Error de red';
+    } finally {
+        cancelling.value = false;
+    }
+};
 
 const load = async () => {
     if (!props.customerId || !props.customerPaymentId) return;
@@ -87,7 +138,7 @@ const statusBadge = (status) => {
             <button @click="emit('close')" class="mt-4 h-10 rounded-lg bg-gray-100 px-5 text-sm font-semibold text-gray-700 hover:bg-gray-200">Cerrar</button>
         </div>
 
-        <div v-else-if="data">
+        <div v-else-if="data" class="relative">
             <!-- Header -->
             <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-7 py-5">
                 <div class="flex items-center gap-3">
@@ -158,9 +209,49 @@ const statusBadge = (status) => {
                 </div>
             </div>
 
-            <div class="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/60 px-7 py-4">
+            <div class="flex items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/60 px-7 py-4">
+                <button @click="openCancelConfirm"
+                    class="flex h-10 items-center gap-2 rounded-lg bg-red-50 px-4 text-sm font-semibold text-red-700 ring-1 ring-red-200 transition hover:bg-red-100">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                    Cancelar cobro
+                </button>
                 <button @click="emit('close')" class="h-10 rounded-lg bg-white px-5 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 transition hover:bg-gray-100">Cerrar</button>
             </div>
+
+            <!-- Inline confirm (overlay sobre el contenido del modal) -->
+            <Transition enter-active-class="transition duration-200" leave-active-class="transition duration-150" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                <div v-if="showCancelConfirm" class="absolute inset-0 z-10 flex items-center justify-center bg-white/95 backdrop-blur-sm">
+                <div class="w-full max-w-sm p-6">
+                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.732 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z" /></svg>
+                    </div>
+                    <p class="mt-3 text-center text-base font-bold text-gray-900">¿Cancelar cobro {{ data?.folio }}?</p>
+                    <p class="mt-1 text-center text-xs text-gray-500">
+                        Se revertirán <span class="font-semibold">{{ money(data?.amount_applied) }}</span>
+                        en <span class="font-semibold">{{ data?.sales_affected_count }} venta{{ data?.sales_affected_count !== 1 ? 's' : '' }}</span>.
+                        Las ventas afectadas volverán a tener saldo pendiente y se recalcularán los cortes de caja afectados.
+                    </p>
+                    <div class="mt-4">
+                        <label class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">Motivo</label>
+                        <textarea v-model="cancelReason" rows="3" maxlength="500"
+                            placeholder="Ej. El cliente exigió devolución, cobro registrado al cliente equivocado..."
+                            class="w-full rounded-lg border-gray-200 text-sm focus:border-red-400 focus:ring-red-300"></textarea>
+                    </div>
+                    <p v-if="cancelError" class="mt-2 text-xs font-semibold text-red-600">{{ cancelError }}</p>
+                    <div class="mt-4 flex gap-2">
+                        <button @click="showCancelConfirm = false" :disabled="cancelling"
+                            class="h-11 flex-1 rounded-lg bg-gray-100 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-50">
+                            No cancelar
+                        </button>
+                        <button @click="submitCancel" :disabled="cancelling"
+                            class="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">
+                            <svg v-if="cancelling" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.37 0 0 5.37 0 12h4z"></path></svg>
+                            Sí, cancelar
+                        </button>
+                    </div>
+                </div>
+                </div>
+            </Transition>
         </div>
     </Modal>
 </template>

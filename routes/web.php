@@ -204,6 +204,7 @@ Route::prefix('{tenant}')
                 // Customer global payments (cobro global)
                 Route::post('clientes/{customer}/cobro-global', [CustomerPaymentController::class, 'store'])->name('clientes.cobro-global');
                 Route::get('clientes/{customer}/cobros-globales/{customerPayment}', [CustomerPaymentController::class, 'show'])->name('clientes.cobro-global.show');
+                Route::delete('clientes/{customer}/cobros-globales/{customerPayment}', [CustomerPaymentController::class, 'destroy'])->name('clientes.cobro-global.cancel');
 
                 // Assign customer to sale
                 Route::patch('mesa-de-trabajo/ventas/{sale}/cliente', [WorkbenchController::class, 'assignCustomer'])->name('workbench.assign-customer');

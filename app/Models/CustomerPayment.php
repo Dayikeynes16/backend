@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'folio', 'method',
     'amount_received', 'amount_applied', 'change_given',
     'sales_affected_count', 'notes',
+    'cancelled_at', 'cancelled_by', 'cancel_reason',
 ])]
 class CustomerPayment extends Model
 {
@@ -34,6 +35,11 @@ class CustomerPayment extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function cancelledByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
@@ -46,6 +52,7 @@ class CustomerPayment extends Model
             'amount_applied' => 'decimal:2',
             'change_given' => 'decimal:2',
             'sales_affected_count' => 'integer',
+            'cancelled_at' => 'datetime',
         ];
     }
 }

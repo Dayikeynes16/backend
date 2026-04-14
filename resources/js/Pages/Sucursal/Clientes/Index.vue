@@ -231,6 +231,13 @@ const openSaleFromDetail = (saleId) => {
     setTimeout(() => openSaleModal(saleId), 200);
 };
 
+const onGlobalPaymentCancelled = async (result) => {
+    const affected = result?.affected_sale_ids?.length || 0;
+    flashMessage.value = `Cobro cancelado · ${affected} venta${affected !== 1 ? 's' : ''} con saldo restaurado`;
+    setTimeout(() => { flashMessage.value = null; }, 6000);
+    await Promise.all([loadStats(), loadPayments()]);
+};
+
 // --- Formatters ---
 const money = (v) => {
     const n = Number(v ?? 0);
@@ -881,7 +888,8 @@ const priceSavings = (pp) => {
             :customer-id="selected?.id"
             :customer-payment-id="globalDetailModalId"
             @close="closeGlobalDetailModal"
-            @open-sale="openSaleFromDetail" />
+            @open-sale="openSaleFromDetail"
+            @cancelled="onGlobalPaymentCancelled" />
 
         <FlashToast />
     </SucursalLayout>

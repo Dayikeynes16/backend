@@ -52,6 +52,7 @@ payments (columna nueva)
 |---|---|---|---|
 | POST | `/sucursal/clientes/{c}/cobro-global` | `sucursal.clientes.cobro-global` | `{customer_payment, applied[]}` — 201 |
 | GET  | `/sucursal/clientes/{c}/cobros-globales/{cp}` | `sucursal.clientes.cobro-global.show` | Detalle para modal, con `applications[]` |
+| DELETE | `/sucursal/clientes/{c}/cobros-globales/{cp}` | `sucursal.clientes.cobro-global.cancel` | Cancela cobro: soft-delete children + parent, recalcula sales y shifts afectados |
 | GET  | `/sucursal/clientes/{c}/pagos` (modificado) | `sucursal.clientes.pagos` | Ahora devuelve `recent_movements[]` con `type: 'global' \| 'single'` |
 | GET  | `/sucursal/clientes/{c}/stats` (modificado) | `sucursal.clientes.stats` | Agrega `current_user_shift_open: bool` |
 
@@ -159,9 +160,29 @@ Lista unificada `recent_movements` con diferenciación visual por `type`:
 - Rounding decimales → `decimal(12,2)` + `min()` natural
 - Error mid-distribution → rollback completo de padre + children
 
+## Cancelación de un cobro global
+
+Implementado. Endpoint `DELETE /sucursal/clientes/{c}/cobros-globales/{cp}`.
+
+**Flujo transaccional**:
+1. `pg_advisory_xact_lock(branch_id)`
+2. Soft-delete de cada `Payment` hijo (`customer_payment_id = {cp}`)
+3. `lockForUpdate` sobre las ventas afectadas + recalc vía `SalePaymentService::recalculate`
+4. Update del padre con `cancelled_at`, `cancelled_by`, `cancel_reason`; soft-delete
+5. Post-commit: `recalculateAffectedShifts(sale)` por cada venta (copia de la lógica del Workbench — reabre el cálculo de cortes cerrados); broadcast `SaleUpdated` por venta
+
+**Reglas**:
+- Requiere rol admin-sucursal/empresa/superadmin
+- NO requiere turno abierto (el cobro pudo haber ocurrido días antes)
+- Requiere `cancel_reason` (obligatorio, max 500 chars)
+- Un cobro ya cancelado no se puede cancelar dos veces (422)
+- Las ventas que quedan con saldo positivo vuelven de `Completed` → `Active` automáticamente (vía `recalculate`)
+- Soft-deleted ya no aparecen en el feed `recent_movements` (scope automático de SoftDeletes)
+
+**UI**: botón "Cancelar cobro" en el footer de `GlobalPaymentDetailModal` → overlay inline con textarea de motivo + confirm.
+
 ## Fase 2 (diferida)
 
-- **Cancelar cobro global**: `DELETE /clientes/{c}/cobros-globales/{cp}` — soft-delete padre + children + recalc sales + recalc shifts
 - **Ticket imprimible**: PDF/escpos con folio CG-XXX y desglose
 - **Reporte de cobros globales del día**: filtrable por cajero, rango, método
 - **Feature tests (19)**: requiere scaffolding de factories (Tenant, Branch, Customer, Sale, Payment, Role) — ticket aparte
