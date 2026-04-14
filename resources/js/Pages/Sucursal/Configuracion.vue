@@ -8,8 +8,20 @@ import MapPicker from '@/Components/MapPicker.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
+import QrcodeVue from 'qrcode.vue';
 
 const props = defineProps({ branch: Object, tenant: Object, apiKeys: Array, newKey: { type: String, default: null } });
+
+const qrPayload = computed(() => {
+    if (!props.newKey) return '';
+    return JSON.stringify({
+        v: 1,
+        type: 'carniceria-saas.setup',
+        baseUrl: window.location.origin,
+        apiKey: props.newKey,
+        branch: props.branch?.name,
+    });
+});
 
 // --- Branch config form ---
 const form = useForm({
@@ -80,6 +92,17 @@ const revokedKeys = computed(() => props.apiKeys?.filter(k => k.status !== 'acti
                             <button @click="copyKey" class="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700">
                                 {{ copied ? 'Copiada' : 'Copiar' }}
                             </button>
+                        </div>
+
+                        <div class="mt-5 flex flex-col items-center gap-3 rounded-xl border border-emerald-200 bg-white p-4 sm:flex-row sm:items-start sm:gap-5">
+                            <div class="rounded-lg border border-emerald-100 bg-white p-2">
+                                <QrcodeVue :value="qrPayload" :size="180" level="M" render-as="svg" />
+                            </div>
+                            <div class="flex-1 text-center sm:text-left">
+                                <p class="text-sm font-bold text-emerald-900">Vincular báscula por QR</p>
+                                <p class="mt-1 text-xs text-emerald-700">Abre la báscula, toca <strong>Escanear QR</strong> y apunta la cámara a este código. La conexión será automática.</p>
+                                <p class="mt-2 text-[11px] text-emerald-600">Incluye URL y API Key. No compartas esta pantalla.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
