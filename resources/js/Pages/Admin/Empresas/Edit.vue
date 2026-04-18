@@ -12,8 +12,6 @@ const props = defineProps({
     empresa: Object,
     branches: Array,
     tenantAdmins: Array,
-    salesByBranch: Object,
-    maxSalesBranch: Number,
 });
 
 const form = useForm({
@@ -24,7 +22,6 @@ const form = useForm({
     phone: props.empresa.phone || '',
     max_branches: props.empresa.max_branches || 1,
     max_users: props.empresa.max_users || 5,
-    max_sales_per_branch_month: props.empresa.max_sales_per_branch_month || 500,
     status: props.empresa.status,
 });
 
@@ -76,10 +73,16 @@ const openResetModal = (user) => {
     <Head :title="`Editar: ${empresa.name}`" />
     <AdminLayout>
         <template #header>
-            <div class="flex items-center gap-2 text-sm">
-                <Link :href="route('admin.empresas.index')" class="text-gray-400 transition hover:text-gray-600">Empresas</Link>
-                <svg class="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
-                <span class="font-bold text-gray-900">{{ empresa.name }}</span>
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-2 text-sm">
+                    <Link :href="route('admin.empresas.index')" class="text-gray-400 transition hover:text-gray-600">Empresas</Link>
+                    <svg class="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                    <span class="font-bold text-gray-900">{{ empresa.name }}</span>
+                </div>
+                <Link :href="route('admin.empresas.show', empresa.id)" class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-700 ring-1 ring-red-200 transition hover:bg-red-100">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                    Ver métricas
+                </Link>
             </div>
         </template>
 
@@ -133,7 +136,7 @@ const openResetModal = (user) => {
                     <p class="mt-1 text-sm text-gray-500">Limites de uso y estado de la empresa dentro de la plataforma.</p>
                 </div>
                 <div class="space-y-6 p-6">
-                    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         <div>
                             <InputLabel for="max_branches" value="Max. sucursales" />
                             <TextInput id="max_branches" v-model="form.max_branches" type="number" min="1" max="100" class="mt-1.5 block w-full" required />
@@ -145,12 +148,6 @@ const openResetModal = (user) => {
                             <TextInput id="max_users" v-model="form.max_users" type="number" min="1" max="500" class="mt-1.5 block w-full" required />
                             <p class="mt-1.5 text-xs leading-relaxed text-gray-400">Usuarios totales permitidos.</p>
                             <InputError :message="form.errors.max_users" class="mt-1" />
-                        </div>
-                        <div>
-                            <InputLabel for="max_sales" value="Max. ventas/suc/30d" />
-                            <TextInput id="max_sales" v-model="form.max_sales_per_branch_month" type="number" min="1" max="10000" class="mt-1.5 block w-full" required />
-                            <p class="mt-1.5 text-xs leading-relaxed text-gray-400">Ventas por sucursal cada 30 dias.</p>
-                            <InputError :message="form.errors.max_sales_per_branch_month" class="mt-1" />
                         </div>
                         <div>
                             <InputLabel for="status" value="Estado" />
@@ -172,7 +169,7 @@ const openResetModal = (user) => {
                     <p class="mt-1 text-sm text-gray-500">Consumo actual de recursos frente a los limites configurados.</p>
                 </div>
                 <div class="p-6">
-                    <div class="grid gap-8 sm:grid-cols-3">
+                    <div class="grid gap-8 sm:grid-cols-2">
                         <div>
                             <p class="text-sm font-semibold text-gray-700">Sucursales</p>
                             <p class="mt-2 text-2xl font-bold text-gray-900">{{ usage(empresa.branches_count, empresa.max_branches).current }} <span class="text-base font-normal text-gray-400">de {{ usage(empresa.branches_count, empresa.max_branches).max }} usadas</span></p>
@@ -184,12 +181,6 @@ const openResetModal = (user) => {
                             <p class="mt-2 text-2xl font-bold text-gray-900">{{ usage(empresa.users_count, empresa.max_users).current }} <span class="text-base font-normal text-gray-400">de {{ usage(empresa.users_count, empresa.max_users).max }} usados</span></p>
                             <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/80 shadow-inner"><div class="h-full rounded-full transition-all duration-700" :class="barColor(usage(empresa.users_count, empresa.max_users).pct)" :style="{ width: Math.max(usage(empresa.users_count, empresa.max_users).pct, 3) + '%' }" /></div>
                             <p v-if="alertText(usage(empresa.users_count, empresa.max_users).pct)" class="mt-2 text-xs font-semibold" :class="alertText(usage(empresa.users_count, empresa.max_users).pct).cls">{{ alertText(usage(empresa.users_count, empresa.max_users).pct).text }}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm font-semibold text-gray-700">Ventas / 30 dias</p>
-                            <p class="mt-2 text-2xl font-bold text-gray-900">{{ usage(maxSalesBranch, empresa.max_sales_per_branch_month).current }} <span class="text-base font-normal text-gray-400">de {{ usage(maxSalesBranch, empresa.max_sales_per_branch_month).max }}</span></p>
-                            <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/80 shadow-inner"><div class="h-full rounded-full transition-all duration-700" :class="barColor(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct)" :style="{ width: Math.max(usage(maxSalesBranch, empresa.max_sales_per_branch_month).pct, 3) + '%' }" /></div>
-                            <p class="mt-2 text-xs text-gray-400">Sucursal con mayor uso en los ultimos 30 dias.</p>
                         </div>
                     </div>
                     <p class="mt-6 text-xs text-gray-400">Empresa creada el {{ new Date(empresa.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) }}</p>
@@ -248,7 +239,6 @@ const openResetModal = (user) => {
                                     <div>
                                         <span class="text-sm font-bold text-gray-900">{{ branch.name }}</span>
                                         <span class="ml-2 text-xs text-gray-500">{{ branch.users_count }} usuario{{ branch.users_count !== 1 ? 's' : '' }}</span>
-                                        <span v-if="salesByBranch[branch.id]" class="ml-1 text-xs text-gray-400">· {{ salesByBranch[branch.id] }} ventas/30d</span>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2">

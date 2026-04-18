@@ -229,7 +229,8 @@ const removeCustomer = () => {
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
                                 <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
-                                <span v-if="sale.status === 'pending'" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">Pendiente</span>
+                                <span v-if="sale.status === 'pending' && sale.origin === 'web'" class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800 ring-1 ring-inset ring-orange-600/30">🛒 Pedido web</span>
+                                <span v-else-if="sale.status === 'pending'" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">Pendiente</span>
                             </div>
                             <div class="flex items-center gap-1.5">
                                 <span v-if="isLockedByOther(sale.id)" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
@@ -351,6 +352,42 @@ const removeCustomer = () => {
                         </div>
                     </div>
 
+                    <!-- Web order banner (action + contact + delivery info) -->
+                    <div v-if="selected.origin === 'web' && selected.status === 'pending'" class="border-b border-orange-200 bg-orange-50 px-6 py-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="flex-1 min-w-0">
+                                <p class="text-xs font-bold uppercase tracking-wider text-orange-700">Pedido web — pendiente de aceptar</p>
+                                <div class="mt-2 space-y-1 text-sm">
+                                    <p class="text-gray-800">
+                                        <span class="font-semibold">Cliente:</span> {{ selected.contact_name || '—' }}
+                                        <a v-if="selected.contact_phone" :href="`tel:${selected.contact_phone}`" class="ml-2 font-semibold text-orange-700 hover:underline">{{ selected.contact_phone }}</a>
+                                    </p>
+                                    <p v-if="selected.delivery_type === 'delivery'" class="text-gray-800">
+                                        <span class="font-semibold">Envío:</span> {{ selected.delivery_address }}
+                                        <span v-if="selected.delivery_distance_km" class="ml-1 text-xs text-gray-500">({{ parseFloat(selected.delivery_distance_km).toFixed(1) }} km · ${{ parseFloat(selected.delivery_fee || 0).toFixed(2) }})</span>
+                                    </p>
+                                    <p v-else class="text-gray-800"><span class="font-semibold">Modo:</span> Pasará por su pedido</p>
+                                    <p class="text-gray-800"><span class="font-semibold">Pago:</span> {{ methodLabel(selected.payment_method) }}</p>
+                                    <p v-if="selected.cart_note" class="mt-2 rounded-lg bg-white/80 px-3 py-2 text-sm italic text-gray-700 ring-1 ring-orange-200">
+                                        💬 {{ selected.cart_note }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div v-if="canManageStatus" class="flex shrink-0 flex-col gap-2">
+                                <button @click="handleReactivate(selected.id)" :disabled="statusProcessing"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-50">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                    Aceptar
+                                </button>
+                                <button @click="handleCancelFromMenu(selected.id)" :disabled="statusProcessing"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-red-600 shadow-sm ring-1 ring-red-200 transition hover:bg-red-50 disabled:opacity-50">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                    Rechazar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Scrollable content -->
                     <div class="flex-1 overflow-y-auto p-6 space-y-5">
                         <!-- Products table -->
@@ -364,7 +401,10 @@ const removeCustomer = () => {
                                 </tr></thead>
                                 <tbody class="divide-y divide-gray-50">
                                     <tr v-for="item in selected.items" :key="item.id">
-                                        <td class="px-4 py-2.5 text-sm font-medium text-gray-900">{{ item.product_name }}</td>
+                                        <td class="px-4 py-2.5 text-sm font-medium text-gray-900">
+                                            {{ item.product_name }}
+                                            <p v-if="item.notes" class="mt-0.5 text-xs italic text-orange-700">💬 {{ item.notes }}</p>
+                                        </td>
                                         <td class="px-4 py-2.5 text-right text-sm text-gray-600">{{ parseFloat(item.quantity) }} {{ unitLabel(item.unit_type) }}</td>
                                         <td class="px-4 py-2.5 text-right text-sm text-gray-600">${{ parseFloat(item.unit_price).toFixed(2) }}</td>
                                         <td class="px-4 py-2.5 text-right text-sm font-semibold text-gray-900">${{ parseFloat(item.subtotal).toFixed(2) }}</td>

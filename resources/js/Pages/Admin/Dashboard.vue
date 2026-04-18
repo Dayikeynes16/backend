@@ -72,7 +72,12 @@ defineProps({ tenants: Array, stats: Object });
                             <td class="px-6 py-4 text-right text-sm text-gray-600">{{ t.branches_count }}</td>
                             <td class="px-6 py-4 text-right text-sm text-gray-600">{{ t.users_count }}</td>
                             <td class="px-6 py-4 text-right text-sm font-semibold text-gray-900">${{ t.sales_today.toFixed(2) }}</td>
-                            <td class="px-6 py-4 text-right"><Link :href="route('admin.empresas.edit', t.id)" class="text-sm font-semibold text-red-600 transition hover:text-red-700">Editar</Link></td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center justify-end gap-4">
+                                    <Link :href="route('admin.empresas.show', t.id)" class="text-sm font-semibold text-red-600 transition hover:text-red-700">Ver métricas</Link>
+                                    <Link :href="route('admin.empresas.edit', t.id)" class="text-sm font-medium text-gray-500 transition hover:text-gray-700">Editar</Link>
+                                </div>
+                            </td>
                         </tr>
                         <tr v-if="tenants.length === 0"><td colspan="6" class="px-6 py-16 text-center text-sm text-gray-400">No hay empresas registradas.</td></tr>
                     </tbody>

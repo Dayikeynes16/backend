@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'resolve.tenant' => \App\Http\Middleware\ResolveTenant::class,
+            'resolve.public.tenant' => \App\Http\Middleware\ResolvePublicTenant::class,
             'ensure.tenant' => \App\Http\Middleware\EnsureUserBelongsToTenant::class,
             'auth.apikey' => \App\Http\Middleware\AuthenticateApiKey::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
             \App\Http\Middleware\ResolveTenant::class,
+            \App\Http\Middleware\ResolvePublicTenant::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ]);
     })

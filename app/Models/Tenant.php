@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'rfc', 'logo_path', 'address', 'phone', 'max_branches', 'max_users', 'max_sales_per_branch_month', 'status'])]
+#[Fillable(['name', 'slug', 'rfc', 'logo_path', 'address', 'phone', 'max_branches', 'max_users', 'status'])]
 class Tenant extends Model
 {
     public function branches(): HasMany

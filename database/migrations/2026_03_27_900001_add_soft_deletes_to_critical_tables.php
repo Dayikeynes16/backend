@@ -8,31 +8,34 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('sales', function (Blueprint $table) {
-            $table->softDeletes();
-        });
-
-        Schema::table('payments', function (Blueprint $table) {
-            $table->softDeletes();
-        });
-
-        Schema::table('products', function (Blueprint $table) {
-            $table->softDeletes();
-        });
+        // Idempotent: en migrate:fresh algunas tablas no existen todavía (payments
+        // se crea en una migración posterior). Guardamos con hasTable/hasColumn
+        // para que sea seguro correr desde cero o sobre una DB ya migrada.
+        foreach (['sales', 'payments', 'products'] as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+            if (Schema::hasColumn($table, 'deleted_at')) {
+                continue;
+            }
+            Schema::table($table, function (Blueprint $t) {
+                $t->softDeletes();
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('sales', function (Blueprint $table) {
-            $table->dropSoftDeletes();
-        });
-
-        Schema::table('payments', function (Blueprint $table) {
-            $table->dropSoftDeletes();
-        });
-
-        Schema::table('products', function (Blueprint $table) {
-            $table->dropSoftDeletes();
-        });
+        foreach (['sales', 'payments', 'products'] as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+            if (! Schema::hasColumn($table, 'deleted_at')) {
+                continue;
+            }
+            Schema::table($table, function (Blueprint $t) {
+                $t->dropSoftDeletes();
+            });
+        }
     }
 };

@@ -14,6 +14,14 @@ use App\Http\Controllers\Empresa\TicketConfigController;
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
+use App\Http\Controllers\Empresa\Metrics\MetricsIndexController as EmpresaMetricsIndexController;
+use App\Http\Controllers\Empresa\Metrics\SalesMetricsController as EmpresaSalesMetricsController;
+use App\Http\Controllers\Empresa\Metrics\MarginMetricsController as EmpresaMarginMetricsController;
+use App\Http\Controllers\Empresa\Metrics\ProductMetricsController as EmpresaProductMetricsController;
+use App\Http\Controllers\Empresa\Metrics\CustomerMetricsController as EmpresaCustomerMetricsController;
+use App\Http\Controllers\Empresa\Metrics\CashierMetricsController as EmpresaCashierMetricsController;
+use App\Http\Controllers\Empresa\Metrics\ShiftMetricsController as EmpresaShiftMetricsController;
+use App\Http\Controllers\Empresa\Metrics\CollectionMetricsController as EmpresaCollectionMetricsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
 use App\Http\Controllers\Sucursal\CancelRequestController;
@@ -34,6 +42,14 @@ use App\Http\Controllers\Sucursal\ShiftController as SucursalShiftController;
 use App\Http\Controllers\Sucursal\WithdrawalController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
 use App\Http\Controllers\Sucursal\WorkbenchController;
+use App\Http\Controllers\Sucursal\Metrics\MetricsIndexController as SucursalMetricsIndexController;
+use App\Http\Controllers\Sucursal\Metrics\SalesMetricsController as SucursalSalesMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\MarginMetricsController as SucursalMarginMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\ProductMetricsController as SucursalProductMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\CustomerMetricsController as SucursalCustomerMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\CashierMetricsController as SucursalCashierMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\ShiftMetricsController as SucursalShiftMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\CollectionMetricsController as SucursalCollectionMetricsController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -47,6 +63,12 @@ Route::get('/', function () {
         'phpVersion' => PHP_VERSION,
     ]);
 });
+
+// Public SPA for online ordering. Reserved '/menu' prefix — no collision with tenant routes.
+Route::get('/menu/{tenantSlug}/{any?}', fn () => view('public-spa'))
+    ->where('tenantSlug', '[a-z0-9-]+')
+    ->where('any', '.*')
+    ->name('public.menu');
 
 Route::get('/dashboard', function () {
     $user = Auth::user();
@@ -80,6 +102,8 @@ Route::prefix('admin')
     ->name('admin.')
     ->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+
+        Route::get('empresas/{empresa}', [EmpresaController::class, 'show'])->name('empresas.show');
 
         Route::resource('empresas', EmpresaController::class)
             ->except('show');
@@ -115,6 +139,18 @@ Route::prefix('{tenant}')
 
                 Route::get('tickets', [TicketConfigController::class, 'index'])->name('tickets');
                 Route::put('tickets/{branch}', [TicketConfigController::class, 'update'])->name('tickets.update');
+
+                // Métricas (multi-sucursal)
+                Route::prefix('metricas')->name('metricas.')->group(function () {
+                    Route::get('/', EmpresaMetricsIndexController::class)->name('index');
+                    Route::get('ventas', EmpresaSalesMetricsController::class)->name('ventas');
+                    Route::get('margen', EmpresaMarginMetricsController::class)->name('margen');
+                    Route::get('productos', EmpresaProductMetricsController::class)->name('productos');
+                    Route::get('clientes', EmpresaCustomerMetricsController::class)->name('clientes');
+                    Route::get('cajeros', EmpresaCashierMetricsController::class)->name('cajeros');
+                    Route::get('turnos', EmpresaShiftMetricsController::class)->name('turnos');
+                    Route::get('cobranza', EmpresaCollectionMetricsController::class)->name('cobranza');
+                });
             });
 
         // Admin sucursal routes
@@ -212,6 +248,18 @@ Route::prefix('{tenant}')
                 // Config
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [SucursalConfiguracionController::class, 'update'])->name('configuracion.update');
+
+                // Métricas (una sucursal)
+                Route::prefix('metricas')->name('metricas.')->group(function () {
+                    Route::get('/', SucursalMetricsIndexController::class)->name('index');
+                    Route::get('ventas', SucursalSalesMetricsController::class)->name('ventas');
+                    Route::get('margen', SucursalMarginMetricsController::class)->name('margen');
+                    Route::get('productos', SucursalProductMetricsController::class)->name('productos');
+                    Route::get('clientes', SucursalCustomerMetricsController::class)->name('clientes');
+                    Route::get('cajeros', SucursalCashierMetricsController::class)->name('cajeros');
+                    Route::get('turnos', SucursalShiftMetricsController::class)->name('turnos');
+                    Route::get('cobranza', SucursalCollectionMetricsController::class)->name('cobranza');
+                });
             });
 
         // Cajero routes

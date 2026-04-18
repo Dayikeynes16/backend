@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
+use App\Models\CashRegisterShift;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -54,7 +57,6 @@ class EmpresaController extends Controller
             'phone' => 'nullable|string|max:20',
             'max_branches' => 'required|integer|min:1|max:100',
             'max_users' => 'required|integer|min:1|max:500',
-            'max_sales_per_branch_month' => 'required|integer|min:1|max:10000',
             'admin_name' => 'required|string|max:255',
             'admin_email' => 'required|email|unique:users,email',
             'admin_password' => ['required', Password::defaults()],
@@ -69,7 +71,6 @@ class EmpresaController extends Controller
                 'phone' => $validated['phone'],
                 'max_branches' => $validated['max_branches'],
                 'max_users' => $validated['max_users'],
-                'max_sales_per_branch_month' => $validated['max_sales_per_branch_month'],
             ]);
 
             $admin = User::create([
@@ -84,6 +85,185 @@ class EmpresaController extends Controller
 
         return redirect()->route('admin.empresas.index')
             ->with('success', 'Empresa y administrador creados exitosamente.');
+    }
+
+    public function show(Tenant $empresa): Response
+    {
+        $empresa->loadCount('branches', 'users');
+
+        $now = now();
+        $today = $now->copy()->startOfDay();
+        $last7 = $now->copy()->subDays(7)->startOfDay();
+        $last30 = $now->copy()->subDays(30)->startOfDay();
+        $monthStart = $now->copy()->startOfMonth();
+        $prevMonthStart = $now->copy()->subMonth()->startOfMonth();
+        $prevMonthEnd = $now->copy()->startOfMonth();
+
+        $baseCompleted = fn () => Sale::withoutGlobalScopes()
+            ->where('tenant_id', $empresa->id)
+            ->where('status', SaleStatus::Completed);
+
+        $sumInRange = fn ($from, $to = null) => (float) $baseCompleted()
+            ->where('completed_at', '>=', $from)
+            ->when($to, fn ($q) => $q->where('completed_at', '<', $to))
+            ->sum('total');
+
+        $countInRange = fn ($from, $to = null) => $baseCompleted()
+            ->where('completed_at', '>=', $from)
+            ->when($to, fn ($q) => $q->where('completed_at', '<', $to))
+            ->count();
+
+        $kpis = [
+            'today' => [
+                'count' => $countInRange($today),
+                'revenue' => $sumInRange($today),
+            ],
+            'last7' => [
+                'count' => $countInRange($last7),
+                'revenue' => $sumInRange($last7),
+            ],
+            'last30' => [
+                'count' => $countInRange($last30),
+                'revenue' => $sumInRange($last30),
+            ],
+            'month' => [
+                'count' => $countInRange($monthStart),
+                'revenue' => $sumInRange($monthStart),
+            ],
+            'prev_month' => [
+                'count' => $countInRange($prevMonthStart, $prevMonthEnd),
+                'revenue' => $sumInRange($prevMonthStart, $prevMonthEnd),
+            ],
+        ];
+
+        $kpis['avg_ticket_30d'] = $kpis['last30']['count'] > 0
+            ? round($kpis['last30']['revenue'] / $kpis['last30']['count'], 2)
+            : 0;
+
+        // Daily series (last 30 days) for chart
+        $dailyRows = $baseCompleted()
+            ->where('completed_at', '>=', $last30)
+            ->select(
+                DB::raw('DATE(completed_at) as day'),
+                DB::raw('COUNT(*) as sale_count'),
+                DB::raw('SUM(total) as revenue')
+            )
+            ->groupBy('day')
+            ->orderBy('day')
+            ->get()
+            ->keyBy('day');
+
+        $dailySeries = [];
+        for ($i = 29; $i >= 0; $i--) {
+            $date = $now->copy()->subDays($i)->toDateString();
+            $row = $dailyRows->get($date);
+            $dailySeries[] = [
+                'date' => $date,
+                'count' => $row ? (int) $row->sale_count : 0,
+                'revenue' => $row ? (float) $row->revenue : 0,
+            ];
+        }
+
+        // Per-branch stats (last 30 days)
+        $branches = $empresa->branches()
+            ->withoutGlobalScopes()
+            ->withCount('users')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($branch) use ($empresa, $last30) {
+                $stats = Sale::withoutGlobalScopes()
+                    ->where('tenant_id', $empresa->id)
+                    ->where('branch_id', $branch->id)
+                    ->where('status', SaleStatus::Completed)
+                    ->where('completed_at', '>=', $last30)
+                    ->selectRaw('COUNT(*) as sale_count, COALESCE(SUM(total),0) as revenue')
+                    ->first();
+
+                $openShift = CashRegisterShift::withoutGlobalScopes()
+                    ->where('branch_id', $branch->id)
+                    ->whereNull('closed_at')
+                    ->with('user:id,name')
+                    ->latest('opened_at')
+                    ->first();
+
+                $lastSale = Sale::withoutGlobalScopes()
+                    ->where('branch_id', $branch->id)
+                    ->where('status', SaleStatus::Completed)
+                    ->latest('completed_at')
+                    ->value('completed_at');
+
+                return [
+                    'id' => $branch->id,
+                    'name' => $branch->name,
+                    'status' => $branch->status,
+                    'users_count' => $branch->users_count,
+                    'sale_count_30d' => (int) $stats->sale_count,
+                    'revenue_30d' => (float) $stats->revenue,
+                    'open_shift' => $openShift ? [
+                        'id' => $openShift->id,
+                        'opened_at' => $openShift->opened_at,
+                        'user_name' => $openShift->user?->name,
+                    ] : null,
+                    'last_sale_at' => $lastSale,
+                ];
+            });
+
+        // Sales by origin (last 30 days)
+        $byOrigin = $baseCompleted()
+            ->where('completed_at', '>=', $last30)
+            ->select('origin', DB::raw('COUNT(*) as count'), DB::raw('SUM(total) as revenue'))
+            ->groupBy('origin')
+            ->get()
+            ->map(fn ($r) => [
+                'origin' => $r->origin ?: 'manual',
+                'count' => (int) $r->count,
+                'revenue' => (float) $r->revenue,
+            ]);
+
+        // Top 5 products (last 30 days) by quantity sold
+        $topProducts = SaleItem::withoutGlobalScopes()
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->where('sales.tenant_id', $empresa->id)
+            ->where('sales.status', SaleStatus::Completed->value)
+            ->where('sales.completed_at', '>=', $last30)
+            ->select(
+                'sale_items.product_name',
+                DB::raw('SUM(sale_items.quantity) as total_qty'),
+                DB::raw('SUM(sale_items.subtotal) as total_revenue'),
+                DB::raw('COUNT(DISTINCT sale_items.sale_id) as sale_count')
+            )
+            ->groupBy('sale_items.product_name')
+            ->orderByDesc('total_revenue')
+            ->limit(5)
+            ->get()
+            ->map(fn ($r) => [
+                'name' => $r->product_name,
+                'qty' => (float) $r->total_qty,
+                'revenue' => (float) $r->total_revenue,
+                'sale_count' => (int) $r->sale_count,
+            ]);
+
+        // Payment method distribution (last 30 days)
+        $byPaymentMethod = $baseCompleted()
+            ->where('completed_at', '>=', $last30)
+            ->select('payment_method', DB::raw('COUNT(*) as count'), DB::raw('SUM(total) as revenue'))
+            ->groupBy('payment_method')
+            ->get()
+            ->map(fn ($r) => [
+                'method' => $r->payment_method,
+                'count' => (int) $r->count,
+                'revenue' => (float) $r->revenue,
+            ]);
+
+        return Inertia::render('Admin/Empresas/Show', [
+            'empresa' => $empresa,
+            'kpis' => $kpis,
+            'dailySeries' => $dailySeries,
+            'branches' => $branches,
+            'byOrigin' => $byOrigin,
+            'topProducts' => $topProducts,
+            'byPaymentMethod' => $byPaymentMethod,
+        ]);
     }
 
     public function edit(Tenant $empresa): Response
@@ -105,24 +285,10 @@ class EmpresaController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Sales in last 30 days per branch (for observability)
-        $thirtyDaysAgo = now()->subDays(30);
-        $salesByBranch = Sale::withoutGlobalScopes()
-            ->where('tenant_id', $empresa->id)
-            ->where('status', 'completed')
-            ->where('completed_at', '>=', $thirtyDaysAgo)
-            ->select('branch_id', DB::raw('COUNT(*) as sale_count'))
-            ->groupBy('branch_id')
-            ->pluck('sale_count', 'branch_id');
-
-        $maxSalesBranch = $salesByBranch->max() ?? 0;
-
         return Inertia::render('Admin/Empresas/Edit', [
             'empresa' => $empresa,
             'branches' => $branches,
             'tenantAdmins' => $tenantAdmins,
-            'salesByBranch' => $salesByBranch,
-            'maxSalesBranch' => $maxSalesBranch,
         ]);
     }
 
@@ -136,7 +302,6 @@ class EmpresaController extends Controller
             'phone' => 'nullable|string|max:20',
             'max_branches' => 'required|integer|min:1|max:100',
             'max_users' => 'required|integer|min:1|max:500',
-            'max_sales_per_branch_month' => 'required|integer|min:1|max:10000',
             'status' => 'required|in:active,inactive',
         ]);
 

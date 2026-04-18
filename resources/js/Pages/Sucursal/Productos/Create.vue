@@ -17,6 +17,7 @@ const form = useForm({
     cost_price: '',
     sale_mode: 'weight',
     visibility: 'public',
+    visible_online: false,
     image: null,
     presentations: [],
 });
@@ -296,6 +297,17 @@ const submit = () => {
                     </button>
                 </div>
                 <InputError :message="form.errors.visibility" class="px-6 pb-4" />
+
+                <!-- Visibilidad online (menú web) -->
+                <div class="border-t border-gray-100 p-6">
+                    <label class="flex cursor-pointer items-start gap-3">
+                        <input type="checkbox" v-model="form.visible_online" class="mt-0.5 rounded text-red-600" />
+                        <div>
+                            <p class="text-sm font-bold text-gray-900">Visible en menú web</p>
+                            <p class="mt-0.5 text-xs text-gray-500">Permite que los clientes vean y pidan este producto desde la URL pública /menu/{slug} de la empresa.</p>
+                        </div>
+                    </label>
+                </div>
             </section>
 
             <!-- 4. Imagen -->

@@ -12,6 +12,8 @@ class SaleResource extends JsonResource
         return [
             'id' => $this->id,
             'folio' => $this->folio,
+            'branch_id' => $this->branch_id,
+            'customer_id' => $this->customer_id,
             'status' => $this->status instanceof \App\Enums\SaleStatus ? $this->status->value : $this->status,
             'payment_method' => $this->payment_method,
             'total' => (float) $this->total,
@@ -25,6 +27,13 @@ class SaleResource extends JsonResource
             'cancel_requested_at' => $this->cancel_requested_at,
             'cancel_request_reason' => $this->cancel_request_reason,
             'created_at' => $this->created_at->toIso8601String(),
+            'contact_name' => $this->contact_name,
+            'contact_phone' => $this->contact_phone,
+            'delivery_type' => $this->delivery_type,
+            'delivery_address' => $this->delivery_address,
+            'delivery_distance_km' => $this->delivery_distance_km !== null ? (float) $this->delivery_distance_km : null,
+            'delivery_fee' => $this->delivery_fee !== null ? (float) $this->delivery_fee : null,
+            'cart_note' => $this->cart_note,
             'items' => SaleItemResource::collection($this->whenLoaded('items')),
             'payments' => $this->whenLoaded('payments', fn () => $this->payments->map(fn ($p) => [
                 'id' => $p->id,

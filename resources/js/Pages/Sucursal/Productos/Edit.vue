@@ -17,6 +17,7 @@ const form = useForm({
     cost_price: props.producto.cost_price || '',
     sale_mode: props.producto.sale_mode || 'weight',
     visibility: props.producto.visibility || 'public',
+    visible_online: !!props.producto.visible_online,
     status: props.producto.status,
     image: null,
     presentations: (props.producto.presentations || []).map(p => ({
@@ -290,6 +291,17 @@ const destroy = () => {
                             <p class="mt-0.5 text-xs" :class="form.visibility === 'restricted' ? 'text-amber-600' : 'text-gray-500'">Solo visible dentro del sistema interno.</p>
                         </div>
                     </button>
+                </div>
+
+                <!-- Visibilidad online (menú web) -->
+                <div class="border-t border-gray-100 p-6">
+                    <label class="flex cursor-pointer items-start gap-3">
+                        <input type="checkbox" v-model="form.visible_online" class="mt-0.5 rounded text-red-600" />
+                        <div>
+                            <p class="text-sm font-bold text-gray-900">Visible en menú web</p>
+                            <p class="mt-0.5 text-xs text-gray-500">Permite que los clientes vean y pidan este producto desde la URL pública /menu/{slug} de la empresa.</p>
+                        </div>
+                    </label>
                 </div>
             </section>
 

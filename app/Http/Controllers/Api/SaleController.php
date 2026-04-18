@@ -30,20 +30,6 @@ class SaleController extends Controller
         $branchId = $request->branch_id;
         $tenantId = $request->tenant_id;
 
-        // Validate monthly sales limit
-        $tenant = app('tenant');
-        $monthlySales = Sale::withoutGlobalScopes()
-            ->where('branch_id', $branchId)
-            ->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year)
-            ->count();
-
-        if ($monthlySales >= $tenant->max_sales_per_branch_month) {
-            return response()->json([
-                'message' => 'Se alcanzo el limite de ventas mensuales para esta sucursal.',
-            ], 429);
-        }
-
         // Validate all products exist and are active in this branch
         $productIds = collect($request->items)->pluck('product_id')->unique();
 

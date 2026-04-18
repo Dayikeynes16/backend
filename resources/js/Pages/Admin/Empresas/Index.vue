@@ -94,7 +94,12 @@ const barColor = (pct) => pct >= 90 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' 
                                 <td class="px-6 py-4">
                                     <span :class="e.status === 'active' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-red-50 text-red-700 ring-red-600/20'" class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset">{{ e.status === 'active' ? 'Activa' : 'Inactiva' }}</span>
                                 </td>
-                                <td class="px-6 py-4 text-right"><Link :href="route('admin.empresas.edit', e.id)" class="text-sm font-semibold text-red-600 transition hover:text-red-700">Editar</Link></td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center justify-end gap-4">
+                                        <Link :href="route('admin.empresas.show', e.id)" class="text-sm font-semibold text-red-600 transition hover:text-red-700">Ver métricas</Link>
+                                        <Link :href="route('admin.empresas.edit', e.id)" class="text-sm font-medium text-gray-500 transition hover:text-gray-700">Editar</Link>
+                                    </div>
+                                </td>
                             </tr>
                             <tr v-if="empresas.data.length === 0"><td colspan="6" class="px-6 py-16 text-center text-sm text-gray-400">No se encontraron empresas.</td></tr>
                         </tbody>

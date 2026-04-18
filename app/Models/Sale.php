@@ -10,7 +10,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['tenant_id', 'branch_id', 'customer_id', 'user_id', 'folio', 'payment_method', 'total', 'amount_paid', 'amount_pending', 'origin', 'origin_name', 'status', 'completed_at', 'cancelled_at', 'cancelled_by', 'cancel_reason', 'cancel_requested_at', 'cancel_requested_by', 'cancel_request_reason', 'locked_by', 'locked_at'])]
+#[Fillable([
+    'tenant_id', 'branch_id', 'customer_id', 'user_id', 'folio',
+    'payment_method', 'total', 'amount_paid', 'amount_pending',
+    'origin', 'origin_name', 'status',
+    'completed_at', 'cancelled_at', 'cancelled_by', 'cancel_reason',
+    'cancel_requested_at', 'cancel_requested_by', 'cancel_request_reason',
+    'locked_by', 'locked_at',
+    'delivery_type', 'delivery_address', 'delivery_lat', 'delivery_lng',
+    'delivery_distance_km', 'delivery_fee',
+    'contact_name', 'contact_phone', 'cart_note',
+])]
 class Sale extends Model
 {
     use BelongsToTenant, SoftDeletes;
@@ -74,6 +84,10 @@ class Sale extends Model
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'locked_at' => 'datetime',
+            'delivery_lat' => 'decimal:7',
+            'delivery_lng' => 'decimal:7',
+            'delivery_distance_km' => 'decimal:3',
+            'delivery_fee' => 'decimal:2',
         ];
     }
 }

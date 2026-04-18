@@ -93,16 +93,6 @@ class WorkbenchController extends Controller
         $branchId = $user->branch_id;
         $tenantId = $user->tenant_id;
 
-        $tenant = app('tenant');
-        $monthlySales = Sale::where('branch_id', $branchId)
-            ->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year)
-            ->count();
-
-        if ($monthlySales >= $tenant->max_sales_per_branch_month) {
-            return back()->with('error', 'Se alcanzo el limite de ventas mensuales para esta sucursal.');
-        }
-
         $productIds = collect($request->items)->pluck('product_id')->unique();
         $products = Product::where('branch_id', $branchId)
             ->where('status', 'active')

@@ -22,8 +22,11 @@
     },
     "dependencies": {
         "@googlemaps/js-api-loader": "^2.0.2",
+        "apexcharts": "^5.10.6",
         "laravel-echo": "^2.3.1",
         "pusher-js": "^8.4.3",
-        "qrcode.vue": "^3.8.1"
+        "qrcode.vue": "^3.8.1",
+        "vue-router": "^4.6.4",
+        "vue3-apexcharts": "^1.11.1"
     }
 }

@@ -60,7 +60,7 @@ const submit = () => {
                     <p class="mt-1 text-sm text-gray-400">Estos valores son configurados por el administrador de la plataforma.</p>
                 </div>
                 <div class="border-t border-gray-200 px-6 py-4">
-                    <div class="grid grid-cols-3 gap-4">
+                    <div class="grid grid-cols-2 gap-4">
                         <div>
                             <p class="text-xs font-medium text-gray-400">Max. sucursales</p>
                             <p class="mt-1 text-lg font-bold text-gray-600">{{ tenant.max_branches }}</p>
@@ -68,10 +68,6 @@ const submit = () => {
                         <div>
                             <p class="text-xs font-medium text-gray-400">Max. usuarios</p>
                             <p class="mt-1 text-lg font-bold text-gray-600">{{ tenant.max_users }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs font-medium text-gray-400">Max. ventas/suc/30d</p>
-                            <p class="mt-1 text-lg font-bold text-gray-600">{{ tenant.max_sales_per_branch_month }}</p>
                         </div>
                     </div>
                 </div>

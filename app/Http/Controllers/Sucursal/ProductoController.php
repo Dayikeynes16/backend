@@ -71,6 +71,7 @@ class ProductoController extends Controller
             'cost_price' => 'nullable|numeric|min:0',
             'sale_mode' => 'required|in:weight,presentation,both',
             'visibility' => 'required|in:public,restricted',
+            'visible_online' => 'sometimes|boolean',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
             'presentations' => 'required_if:sale_mode,presentation|required_if:sale_mode,both|array|min:1',
             'presentations.*.name' => 'required|string|max:255',
@@ -95,6 +96,7 @@ class ProductoController extends Controller
             'unit_type' => $validated['sale_mode'] === 'presentation' ? 'piece' : 'kg',
             'sale_mode' => $validated['sale_mode'],
             'visibility' => $validated['visibility'],
+            'visible_online' => (bool) ($validated['visible_online'] ?? false),
         ];
 
         if ($request->hasFile('image')) {
@@ -157,6 +159,7 @@ class ProductoController extends Controller
             'cost_price' => 'nullable|numeric|min:0',
             'sale_mode' => 'required|in:weight,presentation,both',
             'visibility' => 'required|in:public,restricted',
+            'visible_online' => 'sometimes|boolean',
             'status' => 'required|in:active,inactive',
             'image' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
             'presentations' => 'required_if:sale_mode,presentation|required_if:sale_mode,both|array|min:1',
@@ -178,6 +181,7 @@ class ProductoController extends Controller
             'sale_mode' => $validated['sale_mode'],
             'unit_type' => $validated['sale_mode'] === 'presentation' ? 'piece' : 'kg',
             'visibility' => $validated['visibility'],
+            'visible_online' => (bool) ($validated['visible_online'] ?? false),
             'status' => $validated['status'],
         ];
 

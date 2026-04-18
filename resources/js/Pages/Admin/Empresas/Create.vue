@@ -14,7 +14,6 @@ const form = useForm({
     phone: '',
     max_branches: 1,
     max_users: 5,
-    max_sales_per_branch_month: 500,
     admin_name: '',
     admin_email: '',
     admin_password: '',
@@ -98,7 +97,7 @@ const submit = () => form.post(route('admin.empresas.store'));
                     <p class="mt-1 text-sm text-gray-500">Define los limites de uso de esta empresa dentro de la plataforma. Estos valores se pueden modificar despues.</p>
                 </div>
                 <div class="space-y-6 p-6">
-                    <div class="grid gap-6 sm:grid-cols-3">
+                    <div class="grid gap-6 sm:grid-cols-2">
                         <div>
                             <InputLabel for="max_branches" value="Maximo de sucursales" />
                             <TextInput id="max_branches" v-model="form.max_branches" type="number" min="1" max="100" class="mt-1.5 block w-full" required />
@@ -110,12 +109,6 @@ const submit = () => form.post(route('admin.empresas.store'));
                             <TextInput id="max_users" v-model="form.max_users" type="number" min="1" max="500" class="mt-1.5 block w-full" required />
                             <p class="mt-1.5 text-xs leading-relaxed text-gray-400">Total de usuarios permitidos incluyendo administradores, operadores y cajeros.</p>
                             <InputError :message="form.errors.max_users" class="mt-1" />
-                        </div>
-                        <div>
-                            <InputLabel for="max_sales_per_branch_month" value="Max. ventas / sucursal / 30 dias" />
-                            <TextInput id="max_sales_per_branch_month" v-model="form.max_sales_per_branch_month" type="number" min="1" max="10000" class="mt-1.5 block w-full" required />
-                            <p class="mt-1.5 text-xs leading-relaxed text-gray-400">Limite de ventas completadas por sucursal en un periodo de 30 dias.</p>
-                            <InputError :message="form.errors.max_sales_per_branch_month" class="mt-1" />
                         </div>
                     </div>
 

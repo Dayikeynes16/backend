@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'google_matrix' => [
+        // Falls back to VITE_GOOGLE_MAPS_KEY so a single unrestricted dev key
+        // can serve both frontend maps and backend Distance Matrix calls.
+        'key' => env('GOOGLE_MATRIX_API_KEY') ?: env('VITE_GOOGLE_MAPS_KEY'),
+    ],
+
 ];
