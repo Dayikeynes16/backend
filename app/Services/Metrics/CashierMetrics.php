@@ -22,6 +22,7 @@ class CashierMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw('u.id, u.name, SUM(s.total) as total')
             ->groupBy('u.id', 'u.name')
@@ -48,9 +49,9 @@ class CashierMetrics extends AbstractMetrics
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw('
                 u.id, u.name,
-                SUM(CASE WHEN s.status = ? THEN 1 ELSE 0 END) as tickets,
-                SUM(CASE WHEN s.status = ? THEN s.total ELSE 0 END) as total,
-                AVG(CASE WHEN s.status = ? THEN s.total END) as avg_ticket,
+                SUM(CASE WHEN s.status = ? AND s.amount_pending <= 0 THEN 1 ELSE 0 END) as tickets,
+                SUM(CASE WHEN s.status = ? AND s.amount_pending <= 0 THEN s.total ELSE 0 END) as total,
+                AVG(CASE WHEN s.status = ? AND s.amount_pending <= 0 THEN s.total END) as avg_ticket,
                 SUM(CASE WHEN s.status = ? THEN 1 ELSE 0 END) as cancelled
             ', [
                 SaleStatus::Completed->value,

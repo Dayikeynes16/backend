@@ -13,6 +13,7 @@ class CustomerMetrics extends AbstractMetrics
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', SaleStatus::Completed->value)
+            ->where('amount_pending', '<=', 0)
             ->whereNotNull('customer_id')
             ->whereBetween('completed_at', [$range->start, $range->end])
             ->distinct('customer_id')
@@ -37,6 +38,7 @@ class CustomerMetrics extends AbstractMetrics
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', SaleStatus::Completed->value)
+            ->where('amount_pending', '<=', 0)
             ->whereNotNull('customer_id')
             ->whereBetween('completed_at', [$range->start, $range->end])
             ->avg('total');
@@ -57,6 +59,7 @@ class CustomerMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw('c.id, c.name, COUNT(s.id) as tickets, SUM(s.total) as total')
             ->groupBy('c.id', 'c.name')
@@ -109,7 +112,7 @@ class CustomerMetrics extends AbstractMetrics
 
         return DB::table('customers as c')
             ->leftJoin(DB::raw('(SELECT customer_id, MAX(completed_at) as last_sale
-                FROM sales WHERE status = \''.SaleStatus::Completed->value.'\' AND customer_id IS NOT NULL
+                FROM sales WHERE status = \''.SaleStatus::Completed->value.'\' AND amount_pending <= 0 AND customer_id IS NOT NULL
                 GROUP BY customer_id) ls'), 'ls.customer_id', '=', 'c.id')
             ->where('c.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('c.branch_id', $branchId))

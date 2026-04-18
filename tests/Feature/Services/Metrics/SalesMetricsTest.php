@@ -3,6 +3,10 @@
 namespace Tests\Feature\Services\Metrics;
 
 use App\Enums\SaleStatus;
+use App\Models\Branch;
+use App\Models\Sale;
+use App\Models\Tenant;
+use App\Models\User;
 use App\Services\Metrics\DateRange;
 use App\Services\Metrics\SalesMetrics;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,6 +58,17 @@ class SalesMetricsTest extends TestCase
         $this->assertSame(1, $r['ticket_count']);
     }
 
+    public function test_excludes_credit_sales_with_pending_balance(): void
+    {
+        $this->makeCompletedSale(['total' => 100]);              // cobrada completa
+        $this->makeCreditSale(['total' => 999]);                 // Completed pero con saldo
+        $this->makeCompletedSale(['total' => 50, 'amount_paid' => 30, 'amount_pending' => 20]);  // parcial
+
+        $r = $this->svc->aggregateFor(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $this->assertSame(100.0, $r['total_sales']);
+        $this->assertSame(1, $r['ticket_count']);
+    }
+
     public function test_filters_by_branch(): void
     {
         $this->makeCompletedSale(['total' => 100, 'branch_id' => $this->branch->id]);
@@ -72,10 +87,10 @@ class SalesMetricsTest extends TestCase
     {
         $this->makeCompletedSale(['total' => 100]);
 
-        $other = \App\Models\Tenant::create(['name' => 'Other', 'slug' => 'other', 'status' => 'active']);
-        $otherBranch = \App\Models\Branch::create(['tenant_id' => $other->id, 'name' => 'OB', 'address' => 'x', 'status' => 'active']);
-        $otherUser = \App\Models\User::create(['tenant_id' => $other->id, 'branch_id' => $otherBranch->id, 'name' => 'u', 'email' => 'o@t.local', 'password' => bcrypt('x')]);
-        \App\Models\Sale::create([
+        $other = Tenant::create(['name' => 'Other', 'slug' => 'other', 'status' => 'active']);
+        $otherBranch = Branch::create(['tenant_id' => $other->id, 'name' => 'OB', 'address' => 'x', 'status' => 'active']);
+        $otherUser = User::create(['tenant_id' => $other->id, 'branch_id' => $otherBranch->id, 'name' => 'u', 'email' => 'o@t.local', 'password' => bcrypt('x')]);
+        Sale::create([
             'tenant_id' => $other->id, 'branch_id' => $otherBranch->id, 'user_id' => $otherUser->id,
             'folio' => 'X1', 'payment_method' => 'cash', 'total' => 500, 'amount_paid' => 500, 'amount_pending' => 0,
             'origin' => 'admin', 'status' => SaleStatus::Completed->value,

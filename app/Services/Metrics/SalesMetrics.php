@@ -21,6 +21,7 @@ class SalesMetrics extends AbstractMetrics
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', SaleStatus::Completed->value)
+            ->where('amount_pending', '<=', 0)
             ->whereNull('deleted_at')
             ->whereBetween('completed_at', [$range->start, $range->end]);
 
@@ -64,6 +65,7 @@ class SalesMetrics extends AbstractMetrics
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', SaleStatus::Completed->value)
+            ->where('amount_pending', '<=', 0)
             ->whereNull('deleted_at')
             ->whereBetween('completed_at', [$range->start, $range->end])
             ->selectRaw('DATE(completed_at) as day, COUNT(*) as tickets, SUM(total) as total')
@@ -84,6 +86,7 @@ class SalesMetrics extends AbstractMetrics
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', SaleStatus::Completed->value)
+            ->where('amount_pending', '<=', 0)
             ->whereNull('deleted_at')
             ->whereBetween('completed_at', [$range->start, $range->end])
             ->selectRaw('EXTRACT(ISODOW FROM completed_at) as dow, EXTRACT(HOUR FROM completed_at) as hour, COUNT(*) as tickets, SUM(total) as total')
@@ -116,9 +119,9 @@ class SalesMetrics extends AbstractMetrics
             ->whereBetween('completed_at', [$range->start, $range->end])
             ->selectRaw('
                 DATE(completed_at) as day,
-                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as tickets,
-                SUM(CASE WHEN status = ? THEN total ELSE 0 END) as total,
-                AVG(CASE WHEN status = ? THEN total END) as avg_ticket,
+                SUM(CASE WHEN status = ? AND amount_pending <= 0 THEN 1 ELSE 0 END) as tickets,
+                SUM(CASE WHEN status = ? AND amount_pending <= 0 THEN total ELSE 0 END) as total,
+                AVG(CASE WHEN status = ? AND amount_pending <= 0 THEN total END) as avg_ticket,
                 SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as cancelled
             ', [
                 SaleStatus::Completed->value,

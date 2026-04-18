@@ -4,32 +4,33 @@ namespace Tests\Concerns;
 
 use App\Enums\SaleStatus;
 use App\Models\Branch;
-use App\Models\CashRegisterShift;
-use App\Models\Category;
-use App\Models\Customer;
-use App\Models\CustomerPayment;
-use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Spatie\Permission\Models\Role;
 
 trait SeedsMetricsData
 {
     protected Tenant $tenant;
+
     protected Branch $branch;
+
     protected Branch $secondBranch;
+
     protected User $adminSucursal;
+
     protected User $adminEmpresa;
+
     protected User $cajero;
 
     protected function seedRoles(): void
     {
         $guard = 'web';
         foreach (['superadmin', 'admin-empresa', 'admin-sucursal', 'cajero'] as $role) {
-            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role, 'guard_name' => $guard]);
+            Role::firstOrCreate(['name' => $role, 'guard_name' => $guard]);
         }
     }
 
@@ -55,6 +56,7 @@ trait SeedsMetricsData
             'password' => bcrypt('password'),
         ]);
         $user->assignRole($role);
+
         return $user;
     }
 
@@ -71,23 +73,31 @@ trait SeedsMetricsData
         ], $attrs));
     }
 
+    /**
+     * Crea una venta cobrada completa por defecto (amount_paid = total, pending = 0).
+     * Para simular una venta a crédito pasa ['amount_paid' => 0, 'amount_pending' => X] en $attrs.
+     */
     protected function makeCompletedSale(array $attrs = [], array $items = []): Sale
     {
-        $sale = Sale::create(array_merge([
+        $effectiveTotal = $attrs['total'] ?? 0;
+
+        $defaults = [
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
             'user_id' => $this->cajero->id,
             'folio' => 'F'.uniqid(),
             'payment_method' => 'cash',
             'total' => 0,
-            'amount_paid' => 0,
+            'amount_paid' => $effectiveTotal, // cobrada completa por default
             'amount_pending' => 0,
             'origin' => 'admin',
             'status' => SaleStatus::Completed->value,
             'completed_at' => Carbon::parse('2026-04-15 14:00:00'),
-        ], $attrs));
+        ];
 
-        $total = 0;
+        $sale = Sale::create(array_merge($defaults, $attrs));
+
+        $itemsTotal = 0;
         foreach ($items as $it) {
             $qty = $it['quantity'] ?? 1;
             $unit = $it['unit_price'] ?? 100;
@@ -101,11 +111,28 @@ trait SeedsMetricsData
                 'unit_price' => $unit,
                 'subtotal' => $subtotal,
             ], $it));
-            $total += $subtotal;
+            $itemsTotal += $subtotal;
         }
-        if ($total > 0) {
-            $sale->update(['total' => $total, 'amount_paid' => $total]);
+        if ($itemsTotal > 0 && ! isset($attrs['total'])) {
+            $sale->update([
+                'total' => $itemsTotal,
+                'amount_paid' => $attrs['amount_paid'] ?? $itemsTotal,
+                'amount_pending' => $attrs['amount_pending'] ?? 0,
+            ]);
         }
+
         return $sale;
+    }
+
+    /** Venta Completed pero con saldo pendiente (crédito). */
+    protected function makeCreditSale(array $attrs = [], array $items = []): Sale
+    {
+        $total = $attrs['total'] ?? 100;
+
+        return $this->makeCompletedSale(array_merge([
+            'total' => $total,
+            'amount_paid' => 0,
+            'amount_pending' => $total,
+        ], $attrs), $items);
     }
 }

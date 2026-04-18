@@ -22,6 +22,7 @@ class MarginMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw('
                 COALESCE(SUM(si.subtotal), 0) as revenue,
@@ -40,6 +41,7 @@ class MarginMetrics extends AbstractMetrics
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', SaleStatus::Completed->value)
+            ->where('amount_pending', '<=', 0)
             ->whereBetween('completed_at', [$range->start, $range->end])
             ->count();
 
@@ -61,6 +63,7 @@ class MarginMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereNull('s.deleted_at')
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->whereNotNull('si.cost_price_at_sale')
@@ -84,6 +87,7 @@ class MarginMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->whereNotNull('si.cost_price_at_sale')
             ->selectRaw("
@@ -112,6 +116,7 @@ class MarginMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw('
                 si.product_id,

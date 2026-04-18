@@ -41,6 +41,7 @@ use App\Http\Controllers\Sucursal\SaleHistoryController;
 use App\Http\Controllers\Sucursal\ShiftController as SucursalShiftController;
 use App\Http\Controllers\Sucursal\WithdrawalController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
+use App\Http\Controllers\Sucursal\MenuQrController;
 use App\Http\Controllers\Sucursal\WorkbenchController;
 use App\Http\Controllers\Sucursal\Metrics\MetricsIndexController as SucursalMetricsIndexController;
 use App\Http\Controllers\Sucursal\Metrics\SalesMetricsController as SucursalSalesMetricsController;
@@ -248,6 +249,9 @@ Route::prefix('{tenant}')
                 // Config
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [SucursalConfiguracionController::class, 'update'])->name('configuracion.update');
+
+                // Menú online (QR + link público)
+                Route::get('menu-online', [MenuQrController::class, 'show'])->name('menu-online');
 
                 // Métricas (una sucursal)
                 Route::prefix('metricas')->name('metricas.')->group(function () {

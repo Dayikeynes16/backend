@@ -14,6 +14,7 @@ class ProductMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end]);
 
         $uniqueCount = (clone $base)->distinct('si.product_id')->count('si.product_id');
@@ -56,6 +57,7 @@ class ProductMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.quantity) as quantity, SUM(si.subtotal) as revenue')
             ->groupBy('si.product_id')
@@ -78,6 +80,7 @@ class ProductMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.quantity) as quantity, SUM(si.subtotal) as revenue')
             ->groupBy('si.product_id')
@@ -102,6 +105,7 @@ class ProductMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw("COALESCE(c.name, 'Sin categoría') as category, SUM(si.subtotal) as revenue")
             ->groupBy('c.name')
@@ -121,6 +125,7 @@ class ProductMetrics extends AbstractMetrics
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->where('s.status', SaleStatus::Completed->value)
+            ->where('s.amount_pending', '<=', 0)
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.quantity) as quantity, SUM(si.subtotal) as revenue')
             ->groupBy('si.product_id')
@@ -144,7 +149,7 @@ class ProductMetrics extends AbstractMetrics
             ->leftJoin(DB::raw('(SELECT si.product_id, MAX(s.completed_at) as last_sold
                 FROM sale_items si
                 JOIN sales s ON s.id = si.sale_id
-                WHERE s.status = \''.SaleStatus::Completed->value.'\'
+                WHERE s.status = \''.SaleStatus::Completed->value.'\' AND s.amount_pending <= 0
                 GROUP BY si.product_id) lm'), 'lm.product_id', '=', 'p.id')
             ->where('p.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('p.branch_id', $branchId))

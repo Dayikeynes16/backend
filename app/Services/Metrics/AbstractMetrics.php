@@ -2,6 +2,7 @@
 
 namespace App\Services\Metrics;
 
+use App\Enums\SaleStatus;
 use Illuminate\Database\Query\Builder;
 
 abstract class AbstractMetrics
@@ -13,6 +14,21 @@ abstract class AbstractMetrics
         if ($branchId !== null) {
             $q->where("{$prefix}branch_id", $branchId);
         }
+
+        return $q;
+    }
+
+    /**
+     * Apply the "fully paid completed sale" filter used across metric services.
+     *
+     * Completed status alone is not enough: credit sales stay in Completed with
+     * amount_pending > 0 until collected. Revenue-like metrics must exclude those.
+     */
+    protected function fullyPaid(Builder $q, string $table = ''): Builder
+    {
+        $prefix = $table ? "{$table}." : '';
+        $q->where("{$prefix}status", SaleStatus::Completed->value)
+            ->where("{$prefix}amount_pending", '<=', 0);
 
         return $q;
     }
