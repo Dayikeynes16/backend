@@ -64,7 +64,7 @@ const initMap = async (centerLat, centerLng, zoom = 17) => {
         map = new Map(mapContainer.value, {
             center: { lat: centerLat, lng: centerLng },
             zoom,
-            mapId: 'carniceria_public',
+            mapId: 'fdde83a3a31e9c57be4fd7a9',
             disableDefaultUI: true,
             zoomControl: true,
             gestureHandling: 'greedy',

@@ -43,7 +43,7 @@ onMounted(async () => {
         map = new Map(mapContainer.value, {
             center,
             zoom: props.latitude ? 17 : 13,
-            mapId: 'carniceria_saas',
+            mapId: 'fdde83a3a31e9c57a579d06d',
             disableDefaultUI: true,
             zoomControl: true,
             fullscreenControl: true,
