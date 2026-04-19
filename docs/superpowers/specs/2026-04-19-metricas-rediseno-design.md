@@ -30,7 +30,7 @@ Este spec resuelve los cinco puntos en un pase coherente. **Alcance aprobado por
 - **Rutas** (`routes/web.php` ~línea 258): `sucursal.metricas.index` + 7 ejes invokables.
 - **Controllers**: uno invokable por eje (`SalesMetricsController`, `MarginMetricsController`, …).
 - **Services**: `app/Services/Metrics/*` — agnósticos de HTTP, retornan arrays.
-- **Vues**: `resources/js/Pages/Sucursal/Metricas/*.vue` + contenido en `ComponentsMetrics/Content/*.vue`.
+- **Vues**: `resources/js/Pages/Sucursal/Metricas/*.vue` + contenido en `resources/js/Components/Metrics/Content/*.vue`.
 - **Componentes compartidos**: `MetricsHeader`, `KpiCard`, `ChartCard`, `DataTable`, `EmptyState`, `BackfillBanner`.
 - **Filtros**: preservados entre ejes vía `useMetricsFilters()` (query params + `router.get` con `replace: true`).
 
@@ -175,6 +175,7 @@ Documentada en `docs/modulos/metricas.md` y referenciada desde el banner y el to
   - Después: `whereNotNull('cost_price_at_sale')` en el WHERE para el cálculo de `gross_profit`, `revenue_with_cost`, `margin_pct`, `margin_per_ticket`.
   - Los conteos `items_with_cost` e `items_without_cost` se calculan en un segundo query (misma ventana temporal/branch) que cuenta por `cost_price_at_sale IS NULL` vs `NOT NULL`. Esto mantiene el dato para el banner y el KPI footnote.
   - Protección de división por cero en `margin_pct` se conserva.
+  - **Semántica importante**: post-refactor, el campo `revenue` que expone `aggregateFor()` se restringe al **ingreso de items con costo registrado** (denominador correcto del `margin_pct`). El **ingreso total** de la sucursal/rango (incluyendo items sin costo) sigue viniendo de `SalesMetrics::summary()`; las vistas que necesitan ambos números los consumen de sus servicios respectivos, sin mezclar. Esto se documenta en el docblock del método y en `docs/modulos/metricas.md`.
 
 - **`dailyGrossProfit()`** — ya usa `whereNotNull`. No se toca.
 - **`byCategory()`** — ya usa `whereNotNull`. No se toca.
@@ -216,8 +217,8 @@ Todos los tests usan factories reales (no mocks), hacen `$this->actingAs($adminS
 5. `filtro_branch_se_respeta_y_no_mezcla_margen_de_otra_sucursal`
    Dos sucursales con ventas; el payload de branch A no contiene datos de branch B.
 
-6. `rango_de_fechas_se_aplica_por_hora_local_de_la_sucursal`
-   Ventas al filo del día (23:58 y 00:02 del día siguiente) caen en el día correcto según timezone configurado.
+6. `rango_de_fechas_se_aplica_por_timezone_de_la_app`
+   Ventas al filo del día (23:58 y 00:02 del día siguiente) caen en el día correcto según el timezone de `config('app.timezone')` que `DateRange` ya aplica en `preset()`/`custom()`. El test fija el timezone explícito en la request (`?tz=...`) para ser determinista.
 
 ---
 
@@ -248,7 +249,7 @@ resources/js/Pages/Sucursal/Metricas/Cajeros.vue          — usa MetricsLayout
 resources/js/Pages/Sucursal/Metricas/Turnos.vue           — usa MetricsLayout
 resources/js/Pages/Sucursal/Metricas/Cobranza.vue         — usa MetricsLayout
 
-resources/js/ComponentsMetrics/Content/MargenContent.vue
+resources/js/Components/Metrics/Content/MargenContent.vue
     — banner + KPI footnote + badge en tabla + toggle "ver solo sin costo"
 
 docs/modulos/metricas.md   — sección "Regla de cálculo de ganancia y margen"
