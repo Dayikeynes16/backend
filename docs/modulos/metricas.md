@@ -72,6 +72,20 @@ app/
 - **No se usa `Cache::tags()`** — incompatible con el driver `database` default
 - Invalidación pasiva vía TTL corto (no se toca en writes)
 
+### Regla de cálculo de ganancia y margen
+
+La ganancia bruta y el margen se calculan como `(precio de venta − costo registrado) × cantidad`, usando el costo que estaba vigente al momento exacto de la venta (campo `sale_items.cost_price_at_sale`).
+
+Si un producto se vendió sin costo registrado (porque no se había capturado en el catálogo al momento de la venta), esa venta **se excluye del cálculo de margen**, pero sí aparece en Ventas y Productos. La vista de Margen lo comunica con tres indicadores coordinados:
+
+- **Banner** arriba de la página cuando `items_without_cost > 0`, con conteo y link a filtrar la tabla.
+- **Footnote** en el KPI de "Ganancia bruta" del tipo `Basado en N items con costo · M excluidos`.
+- **Badge** `sin costo` por fila en la tabla de productos que tuvieron al menos una venta sin costo registrado.
+
+**Semántica importante:** el campo `revenue` que expone `MarginMetrics::aggregateFor()` representa el **ingreso de items con costo registrado** (denominador correcto del `margin_pct`). El ingreso total de la sucursal (incluyendo items sin costo) vive en `SalesMetrics::summary()`. No se mezclan en el mismo payload.
+
+A nivel implementación, `MarginMetrics` usa `whereNotNull('sale_items.cost_price_at_sale')` de forma uniforme en los cuatro métodos (`aggregateFor`, `dailyGrossProfit`, `byCategory`, `byProduct`). Los conteos de cobertura (`items_without_cost`, `has_missing_cost`) se calculan en queries separados sin ese filtro, para poder reportar la brecha sin contaminar las sumas.
+
 ### Costo histórico
 
 `sale_items.cost_price_at_sale` se completa automáticamente vía `SaleItem::creating` con `products.cost_price` al momento de crear el item. Funciona en todos los flujos (Workbench, API v1, ediciones) sin tocar controllers.
@@ -95,10 +109,15 @@ Los `DATE()` / `EXTRACT()` operan sobre `completed_at` directo (se asume que la 
 
 ```
 resources/js/
+├── Layouts/
+│   └── MetricsLayout.vue                   ← envuelve SucursalLayout, añade sub-sidebar + breadcrumb
 ├── Components/Metrics/
 │   ├── MetricsHeader.vue                   ← filtros globales (presets + custom + compare + refresh)
-│   ├── KpiCard.vue                         ← KPI con delta %
-│   ├── ChartCard.vue
+│   ├── MetricsSubSidebar.vue               ← navegación entre ejes, preserva filtros
+│   ├── MetricsBreadcrumb.vue               ← Sucursal › Métricas › <Eje> + botón "Volver al resumen"
+│   ├── MarginCoverageBanner.vue            ← banner de items sin costo en Margen
+│   ├── KpiCard.vue                         ← KPI con delta %, hint/footnote
+│   ├── ChartCard.vue                       ← título + subtítulo inline + slot
 │   ├── DataTable.vue                       ← tabla con sort + paginación client-side
 │   ├── EmptyState.vue
 │   ├── BackfillBanner.vue                  ← aviso de margen aproximado
@@ -107,7 +126,7 @@ resources/js/
 │   ├── useMetricsFilters.js                ← sincroniza filtros con query params
 │   └── useCurrency.js                      ← format helpers
 └── Pages/
-    ├── Sucursal/Metricas/*                 ← 8 páginas wrapper (SucursalLayout + Content)
+    ├── Sucursal/Metricas/*                 ← 8 páginas wrapper (MetricsLayout + Content)
     └── Empresa/Metricas/*                  ← 8 páginas wrapper (EmpresaLayout + selector + Content)
 ```
 
@@ -150,4 +169,5 @@ resources/js/
 
 ## Spec
 
-Diseño detallado: [`docs/superpowers/specs/2026-04-17-metricas-sucursal-empresa-design.md`](../superpowers/specs/2026-04-17-metricas-sucursal-empresa-design.md).
+- Diseño inicial: [`docs/superpowers/specs/2026-04-17-metricas-sucursal-empresa-design.md`](../superpowers/specs/2026-04-17-metricas-sucursal-empresa-design.md).
+- Rediseño de navegación + transparencia de margen: [`docs/superpowers/specs/2026-04-19-metricas-rediseno-design.md`](../superpowers/specs/2026-04-19-metricas-rediseno-design.md).

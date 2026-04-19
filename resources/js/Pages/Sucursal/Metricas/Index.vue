@@ -1,5 +1,5 @@
 <script setup>
-import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import MetricsLayout from '@/Layouts/MetricsLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import IndexContent from '@/Components/Metrics/Content/IndexContent.vue';
@@ -19,11 +19,9 @@ const filters = useMetricsFilters('sucursal.metricas.index');
 
 <template>
     <Head title="Métricas" />
-    <SucursalLayout>
-        <template #header><h2 class="text-lg font-bold text-gray-900">Métricas</h2></template>
-
-        <MetricsHeader title="Resumen" :subtitle="range?.label" :filters="filters" />
+    <MetricsLayout>
+        <MetricsHeader title="Resumen" subtitle="Panorama general de la sucursal en el rango seleccionado." :filters="filters" />
         <BackfillBanner :date="backfill_run_at" :range="range" />
         <IndexContent :data="data" :compare="compare" scope="sucursal" />
-    </SucursalLayout>
+    </MetricsLayout>
 </template>

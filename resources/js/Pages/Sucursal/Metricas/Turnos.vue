@@ -1,5 +1,5 @@
 <script setup>
-import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import MetricsLayout from '@/Layouts/MetricsLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import TurnosContent from '@/Components/Metrics/Content/TurnosContent.vue';
@@ -11,9 +11,8 @@ const filters = useMetricsFilters('sucursal.metricas.turnos');
 
 <template>
     <Head title="Métricas · Turnos" />
-    <SucursalLayout>
-        <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Turnos</h2></template>
-        <MetricsHeader title="Cortes de caja" subtitle="Diferencias y retiros por turno" :filters="filters" />
+    <MetricsLayout active-axis="turnos" axis-label="Turnos" header-title="Métricas · Turnos">
+        <MetricsHeader title="Cortes de caja" subtitle="Diferencias y retiros al cierre de cada turno." :filters="filters" />
         <TurnosContent :data="data" />
-    </SucursalLayout>
+    </MetricsLayout>
 </template>

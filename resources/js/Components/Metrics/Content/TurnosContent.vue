@@ -61,12 +61,12 @@ const columns = [
             </KpiCard>
         </div>
 
-        <ChartCard title="Diferencia diaria (efectivo + tarjeta + transferencia)">
+        <ChartCard title="Diferencia diaria (efectivo + tarjeta + transferencia)" subtitle="Declarado − esperado al cierre de turno. Solo turnos cerrados.">
             <apexchart v-if="diffSeries[0].data.length" type="bar" height="260" :options="diffOptions" :series="diffSeries" />
             <div v-else class="py-8"><EmptyState /></div>
         </ChartCard>
 
-        <ChartCard title="Detalle de turnos">
+        <ChartCard title="Detalle de turnos" subtitle="Turno por turno: apertura, esperado, declarado, diferencia y retiros.">
             <DataTable :columns="columns" :rows="data.shifts ?? []" />
         </ChartCard>
     </div>

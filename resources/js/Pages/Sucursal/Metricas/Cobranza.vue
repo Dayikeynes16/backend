@@ -1,5 +1,5 @@
 <script setup>
-import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import MetricsLayout from '@/Layouts/MetricsLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import CobranzaContent from '@/Components/Metrics/Content/CobranzaContent.vue';
@@ -11,9 +11,8 @@ const filters = useMetricsFilters('sucursal.metricas.cobranza');
 
 <template>
     <Head title="Métricas · Cobranza" />
-    <SucursalLayout>
-        <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Cobranza</h2></template>
-        <MetricsHeader title="Cobranza" subtitle="Pagos recibidos y cuentas por cobrar" :filters="filters" />
+    <MetricsLayout active-axis="cobranza" axis-label="Cobranza" header-title="Métricas · Cobranza">
+        <MetricsHeader title="Cobranza" subtitle="Pagos recibidos y cuentas por cobrar pendientes." :filters="filters" />
         <CobranzaContent :data="data" />
-    </SucursalLayout>
+    </MetricsLayout>
 </template>

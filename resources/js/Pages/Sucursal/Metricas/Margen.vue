@@ -1,5 +1,5 @@
 <script setup>
-import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import MetricsLayout from '@/Layouts/MetricsLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import MargenContent from '@/Components/Metrics/Content/MargenContent.vue';
@@ -15,10 +15,11 @@ const filters = useMetricsFilters('sucursal.metricas.margen');
 
 <template>
     <Head title="Métricas · Margen" />
-    <SucursalLayout>
-        <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Margen</h2></template>
-        <MetricsHeader title="Rentabilidad" subtitle="Ingresos − costos por producto" :filters="filters" />
+    <MetricsLayout active-axis="margen" axis-label="Margen" header-title="Métricas · Margen">
+        <MetricsHeader title="Rentabilidad"
+            subtitle="Rentabilidad calculada con costo registrado al momento de cada venta."
+            :filters="filters" />
         <BackfillBanner :date="backfill_run_at" :range="range" />
         <MargenContent :data="data" :compare="compare" />
-    </SucursalLayout>
+    </MetricsLayout>
 </template>

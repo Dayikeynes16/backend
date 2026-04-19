@@ -69,17 +69,17 @@ const columns = [
 
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="lg:col-span-2">
-                <ChartCard title="Cobranza diaria" subtitle="Pagos recibidos en el rango">
+                <ChartCard title="Cobranza diaria" subtitle="Pagos aplicados por día (todos los métodos).">
                     <apexchart v-if="dailySeries[0].data.length" type="area" height="280" :options="dailyOptions" :series="dailySeries" />
                     <div v-else class="py-8"><EmptyState /></div>
                 </ChartCard>
             </div>
-            <ChartCard title="Antigüedad de saldos">
+            <ChartCard title="Antigüedad de saldos" subtitle="Saldos por cobrar por antigüedad. Requiere cliente asignado a la venta.">
                 <apexchart type="bar" height="280" :options="agingOptions" :series="[{ name: 'Saldo', data: agingSeries }]" />
             </ChartCard>
         </div>
 
-        <ChartCard title="Cuentas por cobrar" subtitle="Clientes con saldo pendiente">
+        <ChartCard title="Cuentas por cobrar" subtitle="Clientes con saldo pendiente: última compra, último pago, antigüedad.">
             <DataTable :columns="columns" :rows="data.receivables ?? []" />
         </ChartCard>
     </div>

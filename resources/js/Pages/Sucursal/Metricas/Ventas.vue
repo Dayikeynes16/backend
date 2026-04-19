@@ -1,5 +1,5 @@
 <script setup>
-import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import MetricsLayout from '@/Layouts/MetricsLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import VentasContent from '@/Components/Metrics/Content/VentasContent.vue';
@@ -11,9 +11,8 @@ const filters = useMetricsFilters('sucursal.metricas.ventas');
 
 <template>
     <Head title="Métricas · Ventas" />
-    <SucursalLayout>
-        <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Ventas</h2></template>
-        <MetricsHeader title="Ventas" :subtitle="range?.label" :filters="filters" />
+    <MetricsLayout active-axis="ventas" axis-label="Ventas" header-title="Métricas · Ventas">
+        <MetricsHeader title="Ventas" subtitle="Ingresos cobrados, tickets y métodos de pago en el rango." :filters="filters" />
         <VentasContent :data="data" :compare="compare" />
-    </SucursalLayout>
+    </MetricsLayout>
 </template>

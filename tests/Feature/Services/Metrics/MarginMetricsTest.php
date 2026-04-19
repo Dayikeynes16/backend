@@ -56,8 +56,9 @@ class MarginMetricsTest extends TestCase
         ]);
 
         $r = $this->svc->aggregateFor(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
-        // revenue = 180 (both items), cost = 50 (only pOk), profit = 50 from pOk
-        $this->assertSame(180.0, $r['revenue']);
+        // revenue = 100 (solo pOk, items con costo), cost = 50, profit = 50.
+        // pNoCost contribuye a items_without_cost pero no al margen.
+        $this->assertSame(100.0, $r['revenue']);
         $this->assertSame(50.0, $r['cost']);
         $this->assertSame(50.0, $r['gross_profit']);
         $this->assertSame(1, $r['items_without_cost']);

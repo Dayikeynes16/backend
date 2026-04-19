@@ -1,5 +1,5 @@
 <script setup>
-import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import MetricsLayout from '@/Layouts/MetricsLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import ProductosContent from '@/Components/Metrics/Content/ProductosContent.vue';
@@ -11,9 +11,8 @@ const filters = useMetricsFilters('sucursal.metricas.productos');
 
 <template>
     <Head title="Métricas · Productos" />
-    <SucursalLayout>
-        <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Productos</h2></template>
-        <MetricsHeader title="Productos" subtitle="Top, menos vendidos y alertas" :filters="filters" />
+    <MetricsLayout active-axis="productos" axis-label="Productos" header-title="Métricas · Productos">
+        <MetricsHeader title="Productos" subtitle="Top, menos vendidos y alertas del catálogo." :filters="filters" />
         <ProductosContent :data="data" :no-movement-days="no_movement_days" />
-    </SucursalLayout>
+    </MetricsLayout>
 </template>

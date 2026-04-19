@@ -67,17 +67,17 @@ const columns = [
         </div>
 
         <div class="grid gap-6 lg:grid-cols-2">
-            <ChartCard title="Ventas por cajero">
+            <ChartCard title="Ventas por cajero" subtitle="Total cobrado por cajero en el rango.">
                 <apexchart v-if="salesSeries[0].data.length" type="bar" height="300" :options="salesOptions" :series="salesSeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>
-            <ChartCard title="% de cancelación por cajero" subtitle="Anomalías si el valor es alto vs. el resto">
+            <ChartCard title="% de cancelación por cajero" subtitle="Porcentaje de tickets cancelados sobre el total de tickets del cajero.">
                 <apexchart v-if="cancelSeries[0].data.length" type="bar" height="300" :options="cancelOptions" :series="cancelSeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>
         </div>
 
-        <ChartCard title="Detalle por cajero">
+        <ChartCard title="Detalle por cajero" subtitle="Desempeño por cajero: tickets, total, % cancelación, descuentos.">
             <DataTable :columns="columns" :rows="byCashier" />
         </ChartCard>
     </div>

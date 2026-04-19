@@ -84,11 +84,11 @@ const tabs = [
         </div>
 
         <div class="grid gap-6 lg:grid-cols-2">
-            <ChartCard title="Top 10 clientes por monto">
+            <ChartCard title="Top 10 clientes por monto" subtitle="Los 10 clientes con mayor compra acumulada en el rango.">
                 <apexchart v-if="topSeries[0].data.length" type="bar" :height="50 + topSeries[0].data.length * 30" :options="topOptions" :series="topSeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>
-            <ChartCard title="Antigüedad de saldos" subtitle="Cuentas por cobrar por bucket">
+            <ChartCard title="Antigüedad de saldos" subtitle="Saldo pendiente por antigüedad de deuda (0–30, 31–60, 60+ días).">
                 <apexchart type="bar" height="280" :options="agingOptions" :series="[{ name: 'Saldo', data: agingSeries }]" />
             </ChartCard>
         </div>

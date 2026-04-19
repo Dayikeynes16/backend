@@ -1,5 +1,5 @@
 <script setup>
-import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import MetricsLayout from '@/Layouts/MetricsLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import ClientesContent from '@/Components/Metrics/Content/ClientesContent.vue';
@@ -11,9 +11,8 @@ const filters = useMetricsFilters('sucursal.metricas.clientes');
 
 <template>
     <Head title="Métricas · Clientes" />
-    <SucursalLayout>
-        <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Clientes</h2></template>
-        <MetricsHeader title="Clientes" subtitle="Compradores, saldos e inactivos" :filters="filters" />
+    <MetricsLayout active-axis="clientes" axis-label="Clientes" header-title="Métricas · Clientes">
+        <MetricsHeader title="Clientes" subtitle="Compradores, saldos pendientes y aging de cuentas." :filters="filters" />
         <ClientesContent :data="data" :inactive-days="inactive_days" />
-    </SucursalLayout>
+    </MetricsLayout>
 </template>

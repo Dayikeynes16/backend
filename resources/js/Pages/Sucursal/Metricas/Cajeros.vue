@@ -1,5 +1,5 @@
 <script setup>
-import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import MetricsLayout from '@/Layouts/MetricsLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import CajerosContent from '@/Components/Metrics/Content/CajerosContent.vue';
@@ -11,9 +11,8 @@ const filters = useMetricsFilters('sucursal.metricas.cajeros');
 
 <template>
     <Head title="Métricas · Cajeros" />
-    <SucursalLayout>
-        <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Cajeros</h2></template>
-        <MetricsHeader title="Cajeros" subtitle="Ventas, cancelaciones y descuentos por cajero" :filters="filters" />
+    <MetricsLayout active-axis="cajeros" axis-label="Cajeros" header-title="Métricas · Cajeros">
+        <MetricsHeader title="Cajeros" subtitle="Ventas, cancelaciones y descuentos por cajero." :filters="filters" />
         <CajerosContent :data="data" />
-    </SucursalLayout>
+    </MetricsLayout>
 </template>

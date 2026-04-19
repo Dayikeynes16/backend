@@ -111,18 +111,18 @@ const tableColumns = [
             </KpiCard>
         </div>
 
-        <ChartCard title="Ingresos diarios" :subtitle="compare ? 'Comparado con el periodo previo' : ''">
+        <ChartCard title="Ingresos diarios" subtitle="Ventas cobradas completas por día. Excluye canceladas y pendientes.">
             <apexchart v-if="salesSeries[0].data.length" type="area" height="300" :options="salesChartOptions" :series="salesSeries" />
             <div v-else class="py-8"><EmptyState /></div>
         </ChartCard>
 
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="lg:col-span-2">
-                <ChartCard title="Ventas por hora × día" subtitle="Identifica horas y días pico">
+                <ChartCard title="Ventas por hora × día" subtitle="Concentración de ventas por hora del día. Color = monto cobrado.">
                     <apexchart type="heatmap" height="280" :options="heatmapOptions" :series="heatmapSeries" />
                 </ChartCard>
             </div>
-            <ChartCard title="Métodos de pago" subtitle="Distribución del rango">
+            <ChartCard title="Métodos de pago" subtitle="Distribución por forma de pago de ventas cobradas.">
                 <apexchart v-if="current.total_sales" type="donut" height="280" :options="methodPieOptions" :series="methodPieSeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>

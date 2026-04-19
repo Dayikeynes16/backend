@@ -86,17 +86,17 @@ const tabs = [
         </div>
 
         <div class="grid gap-6 lg:grid-cols-2">
-            <ChartCard title="Top 10 por ingreso">
+            <ChartCard title="Top 10 por ingreso" subtitle="Los 10 productos que más facturaron en el rango.">
                 <apexchart v-if="topRevSeries[0].data.length" type="bar" :height="50 + topRevSeries[0].data.length * 30" :options="barOptions(true)" :series="topRevSeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>
-            <ChartCard title="Top 10 por cantidad">
+            <ChartCard title="Top 10 por cantidad" subtitle="Los 10 productos con más unidades vendidas en el rango.">
                 <apexchart v-if="topQtySeries[0].data.length" type="bar" :height="50 + topQtySeries[0].data.length * 30" :options="barOptions(false)" :series="topQtySeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>
         </div>
 
-        <ChartCard title="Distribución por categoría">
+        <ChartCard title="Distribución por categoría" subtitle="Participación de cada categoría en el ingreso del rango.">
             <apexchart v-if="categorySeries.length" type="donut" height="300" :options="donutOptions" :series="categorySeries" />
             <div v-else class="py-8"><EmptyState /></div>
         </ChartCard>
