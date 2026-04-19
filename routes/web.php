@@ -104,10 +104,12 @@ Route::prefix('admin')
     ->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
 
-        Route::get('empresas/{empresa}', [EmpresaController::class, 'show'])->name('empresas.show');
-
         Route::resource('empresas', EmpresaController::class)
             ->except('show');
+
+        Route::get('empresas/{empresa}', [EmpresaController::class, 'show'])
+            ->whereNumber('empresa')
+            ->name('empresas.show');
 
         Route::post('usuarios/{usuario}/send-reset', [AdminPasswordResetController::class, 'sendResetLink'])->name('usuarios.send-reset');
         Route::post('usuarios/{usuario}/force-reset', [AdminPasswordResetController::class, 'forceReset'])->name('usuarios.force-reset');
