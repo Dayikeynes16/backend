@@ -15,32 +15,22 @@ use Inertia\Response;
 class CashShiftController extends Controller
 {
     /**
-     * Métodos de pago soportados por el modelo de cierre de turno.
-     * El backend mantiene columnas fijas (cash/card/transfer) por historia,
-     * pero la UI respeta lo habilitado por sucursal.
-     */
-    private const SUPPORTED_METHODS = ['cash', 'card', 'transfer'];
-
-    /**
      * Resuelve los métodos de pago habilitados para una sucursal.
-     * Si la configuración es NULL, se asume todos activos (compat).
+     * Delega al modelo Branch (compartido con Caja/TurnoController).
+     *
      * @return array<int,string>
      */
     private function enabledMethodsFor(?int $branchId): array
     {
         if (! $branchId) {
-            return self::SUPPORTED_METHODS;
+            return Branch::SUPPORTED_PAYMENT_METHODS;
         }
 
         $branch = Branch::find($branchId);
-        $methods = $branch?->payment_methods_enabled;
 
-        if (! is_array($methods) || empty($methods)) {
-            return self::SUPPORTED_METHODS;
-        }
-
-        // Intersección con los soportados para protegernos contra slugs desconocidos.
-        return array_values(array_intersect(self::SUPPORTED_METHODS, $methods));
+        return $branch
+            ? $branch->enabledPaymentMethods()
+            : Branch::SUPPORTED_PAYMENT_METHODS;
     }
 
     public function active(): Response|RedirectResponse

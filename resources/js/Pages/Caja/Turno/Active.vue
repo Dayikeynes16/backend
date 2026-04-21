@@ -4,7 +4,12 @@ import FlashToast from '@/Components/FlashToast.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
-const props = defineProps({ shift: Object, totals: Object, tenant: Object });
+const props = defineProps({
+    shift: Object,
+    totals: Object,
+    tenant: Object,
+    paymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
+});
 
 const closeForm = useForm({
     declared_amount: '',
@@ -24,7 +29,7 @@ const formatDuration = (iso) => {
 };
 
 // --- Conciliation computeds ---
-const methods = [
+const ALL_METHODS = [
     { key: 'cash', label: 'Efectivo', sublabel: 'Cuenta el efectivo físico en caja', icon: 'M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z',
       color: 'emerald', field: 'declared_amount' },
     { key: 'card', label: 'Tarjeta', sublabel: 'Verifica el total en tu terminal', icon: 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z',
@@ -33,13 +38,24 @@ const methods = [
       color: 'violet', field: 'declared_transfer' },
 ];
 
+// Se muestran los métodos habilitados en la sucursal + cualquiera con
+// movimientos durante el turno. 'cash' siempre está (fondo inicial).
+const enabledMethods = computed(() => {
+    const enabled = new Set(props.paymentMethods ?? ['cash', 'card', 'transfer']);
+    enabled.add('cash');
+    if ((props.totals?.card ?? 0) > 0) enabled.add('card');
+    if ((props.totals?.transfer ?? 0) > 0) enabled.add('transfer');
+    return ALL_METHODS.filter(m => enabled.has(m.key));
+});
+
 const expectedFor = (key) => {
     if (key === 'cash') return props.totals.expected_cash;
     return props.totals[key];
 };
 
 const diffFor = (key) => {
-    const method = methods.find(m => m.key === key);
+    const method = ALL_METHODS.find(m => m.key === key);
+    if (!method) return null;
     const declared = parseFloat(closeForm[method.field]);
     if (isNaN(declared)) return null;
     return Math.round((declared - expectedFor(key)) * 100) / 100;
@@ -55,7 +71,7 @@ const diffStatus = (key) => {
 const totalDiff = computed(() => {
     let sum = 0;
     let allFilled = true;
-    for (const m of methods) {
+    for (const m of enabledMethods.value) {
         const d = diffFor(m.key);
         if (d === null) { allFilled = false; continue; }
         sum += d;
@@ -64,10 +80,15 @@ const totalDiff = computed(() => {
 });
 
 const allFilled = computed(() =>
-    methods.every(m => closeForm[m.field] !== '' && !isNaN(parseFloat(closeForm[m.field])))
+    enabledMethods.value.every(m => closeForm[m.field] !== '' && !isNaN(parseFloat(closeForm[m.field])))
 );
 
 const hasDifference = computed(() => totalDiff.value !== null && totalDiff.value !== 0);
+
+const methodVisibleInSummary = (key) => enabledMethods.value.some(m => m.key === key);
+const summaryGridStyle = computed(() => ({
+    gridTemplateColumns: `repeat(${1 + enabledMethods.value.length}, minmax(0, 1fr))`,
+}));
 
 const handleSubmit = () => {
     if (hasDifference.value && !showConfirm.value) {
@@ -122,20 +143,20 @@ const colorMap = {
 
             <!-- ─── Shift summary ─── -->
             <div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-                <div class="grid grid-cols-4 divide-x divide-gray-100">
+                <div class="grid divide-x divide-gray-100" :style="summaryGridStyle">
                     <div class="px-5 py-4 text-center">
                         <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Ventas</p>
                         <p class="mt-1 font-mono text-2xl font-extrabold tabular-nums text-gray-900">{{ totals.payment_count }}</p>
                     </div>
-                    <div class="px-5 py-4 text-center">
+                    <div v-if="methodVisibleInSummary('cash')" class="px-5 py-4 text-center">
                         <p class="text-[10px] font-medium uppercase tracking-wider text-emerald-500">Efectivo</p>
                         <p class="mt-1 font-mono text-lg font-bold tabular-nums text-emerald-600">${{ totals.cash.toFixed(2) }}</p>
                     </div>
-                    <div class="px-5 py-4 text-center">
+                    <div v-if="methodVisibleInSummary('card')" class="px-5 py-4 text-center">
                         <p class="text-[10px] font-medium uppercase tracking-wider text-blue-500">Tarjeta</p>
                         <p class="mt-1 font-mono text-lg font-bold tabular-nums text-blue-600">${{ totals.card.toFixed(2) }}</p>
                     </div>
-                    <div class="px-5 py-4 text-center">
+                    <div v-if="methodVisibleInSummary('transfer')" class="px-5 py-4 text-center">
                         <p class="text-[10px] font-medium uppercase tracking-wider text-violet-500">Transferencia</p>
                         <p class="mt-1 font-mono text-lg font-bold tabular-nums text-violet-600">${{ totals.transfer.toFixed(2) }}</p>
                     </div>
@@ -157,7 +178,7 @@ const colorMap = {
                 </div>
 
                 <form @submit.prevent="handleSubmit" class="divide-y divide-gray-100">
-                    <div v-for="m in methods" :key="m.key" class="px-6 py-5">
+                    <div v-for="m in enabledMethods" :key="m.key" class="px-6 py-5">
                         <div class="flex items-start gap-4">
                             <!-- Icon -->
                             <div :class="[colorMap[m.color].iconBg, 'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl']">

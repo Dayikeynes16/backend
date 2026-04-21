@@ -19,6 +19,12 @@ class Branch extends Model
 {
     use BelongsToTenant;
 
+    /**
+     * Métodos de pago soportados por el sistema (alineados con el schema
+     * de cash_register_shifts.declared_* y payments.method).
+     */
+    public const SUPPORTED_PAYMENT_METHODS = ['cash', 'card', 'transfer'];
+
     protected function casts(): array
     {
         return [
@@ -32,6 +38,24 @@ class Branch extends Model
             'max_delivery_km' => 'decimal:3',
             'min_order_amount' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Devuelve los métodos de pago habilitados para esta sucursal.
+     * Si la configuración es NULL/vacía se asume que todos están activos (compat).
+     * La intersección con los soportados protege contra slugs desconocidos.
+     *
+     * @return array<int,string>
+     */
+    public function enabledPaymentMethods(): array
+    {
+        $methods = $this->payment_methods_enabled;
+
+        if (! is_array($methods) || empty($methods)) {
+            return self::SUPPORTED_PAYMENT_METHODS;
+        }
+
+        return array_values(array_intersect(self::SUPPORTED_PAYMENT_METHODS, $methods));
     }
 
     public function users(): HasMany
