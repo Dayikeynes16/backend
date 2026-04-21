@@ -35,7 +35,7 @@ Este glosario es la **fuente de verdad** del módulo. Se instala como sección a
 
 | Métrica | Definición | Fuente SQL | Notas |
 |---|---|---|---|
-| **Ventas brutas** | Monto total de ventas entregadas en el rango, antes de restar cancelaciones. Incluye crédito y pagos parciales. | `SUM(sales.total)` donde `status IN (Completed, Pending)` AND `cancelled_at IS NULL` AND `deleted_at IS NULL`, agrupado por `COALESCE(completed_at, created_at)` dentro del rango. | Incluye ventas `Pending` entregadas pero sin cobrar. |
+| **Ventas brutas** | Monto total de ventas entregadas en el rango, antes de restar cancelaciones. Incluye crédito y pagos parciales. | `SUM(sales.total)` donde `status IN (Completed, Pending)` AND `cancelled_at IS NULL` AND `deleted_at IS NULL`, agrupado por `COALESCE(completed_at, created_at)` dentro del rango. | Incluye `Pending` (entregada pero sin cobrar). **Excluye `Active`** (carrito abierto, aún no es venta). |
 | **Ventas netas** | Ventas brutas menos monto cancelado dentro del rango. | Ventas brutas − `SUM(sales.total)` de ventas con `status=Cancelled` y `cancelled_at IN rango`. | **KPI principal de negocio.** En UI se muestra como "Ventas". |
 | **Cobrado** | Dinero recibido en caja durante el rango, independiente de cuándo se vendió. | `SUM(payments.amount)` con `payments.created_at IN rango` AND `payments.deleted_at IS NULL`. | Incluye pagos de contado y abonos a crédito anterior. **Única fuente**: tabla `payments`. |
 | **Saldo pendiente generado** | Crédito otorgado dentro del rango. | `SUM(sales.amount_pending)` para ventas con `completed_at IN rango` y `amount_pending > 0`. | Alimenta vista Cobranza, no se muestra en Resumen. |
@@ -81,9 +81,9 @@ Este glosario es la **fuente de verdad** del módulo. Se instala como sección a
 
 ```php
 public function summary(DateRange $range, ?int $branchId, int $tenantId): array;
-public function dailySeries(DateRange $range, ?int $branchId, int $tenantId): array;  // sin cambios
-public function hourDayHeatmap(DateRange $range, ?int $branchId, int $tenantId): array; // sin cambios
-public function dailyTable(DateRange $range, ?int $branchId, int $tenantId): array;    // sin cambios
+public function dailySeries(DateRange $range, ?int $branchId, int $tenantId): array;    // ← filtros alineados al glosario (ver §3.6)
+public function hourDayHeatmap(DateRange $range, ?int $branchId, int $tenantId): array; // ← filtros alineados al glosario (ver §3.6)
+public function dailyTable(DateRange $range, ?int $branchId, int $tenantId): array;     // ← filtros alineados al glosario (ver §3.6)
 public function byPaymentMethod(DateRange $range, ?int $branchId, int $tenantId): array; // ← PR-2
 ```
 
@@ -198,6 +198,28 @@ Ambos siguen pasando `data` a Inertia, pero con las claves nuevas. Deprecar la c
 - `docs/modulos/metricas.md`: nueva sección al inicio **"Glosario canónico"** (contenido de §2 de este spec).
 - Referencia cruzada desde otros apartados del mismo doc al glosario.
 
+### 3.6 Reconciliación: series diarias, heatmap y tabla diaria
+
+**Motivación**: el código actual de `dailySeries()`, `hourDayHeatmap()` y `dailyTable()` filtra `status=Completed AND amount_pending <= 0 AND BETWEEN completed_at`. Si dejamos esos métodos intactos, **el KPI `net_sales` no coincidirá con `SUM(dailySeries.total)` del mismo rango**, porque `net_sales` (nuevo) incluye `Pending` y parcialmente pagadas. Un usuario viendo el mismo rango en la card y en el chart vería dos números distintos y asumiría un bug.
+
+**Decisión**: alinear los tres métodos al glosario canónico en este mismo PR. Sus filtros pasan a:
+
+- Rango: `COALESCE(completed_at, created_at) BETWEEN range.start AND range.end`
+- Status: `IN (Completed, Pending)` (excluye `Active` y `Cancelled`)
+- `cancelled_at IS NULL`
+- `deleted_at IS NULL`
+
+**Implicaciones**:
+
+- `dailySeries.total` (nombre de clave conservado) pasa a representar "ventas brutas por día" (consistente con `gross_sales` del summary).
+- `dailyTable` mantiene su estructura de columnas; las sumas por día ahora incluyen pendientes. La columna `cancelled` sigue contando `status=Cancelled` con `cancelled_at IN día`.
+- `hourDayHeatmap` pasa a reflejar todas las ventas entregadas (no solo cobradas). Más útil para análisis de horario pico real.
+
+**Impacto en UI**: sin cambios de componente. Las gráficas ya consumen `total` como número — la semántica interna cambia pero la forma del dato es idéntica. Se documenta en el changelog de Fase 1.
+
+**Test de reconciliación** (nuevo, en PR-1):
+- `it_reconciles_summary_net_sales_with_sum_of_daily_series_minus_cancelled_for_same_range` — verifica que `net_sales == SUM(dailySeries.total) − cancelled_amount` del mismo rango.
+
 ---
 
 ## 4. PR-2 · `PaymentMethod` enum + desglose dinámico
@@ -248,6 +270,8 @@ enum PaymentMethod: string
 
 ### 4.3 Nuevo método `SalesMetrics::byPaymentMethod()`
 
+**Prerequisito verificado**: la tabla `payments` tiene las columnas `sale_id`, `method`, `amount`, `created_at`, `deleted_at`. Confirmado vía migraciones `2026_03_28_000002_create_payments_table.php` y `2026_04_17_000004_ensure_soft_deletes_on_payments.php`.
+
 ```php
 public function byPaymentMethod(DateRange $range, ?int $branchId, int $tenantId): array
 {
@@ -287,7 +311,7 @@ public function byPaymentMethod(DateRange $range, ?int $branchId, int $tenantId)
 'by_payment_method' => $this->sales->byPaymentMethod($range, $branchId, $tenantId),
 ```
 
-La clave vieja `by_method` del `summary()` se **elimina** (no era necesaria ya que duplicaba información).
+(La clave `by_method` del `summary()` ya fue removida en PR-1.)
 
 `resources/js/Components/Metrics/Content/VentasContent.vue`:
 - El donut `paymentBreakdown` ahora se computa desde `data.by_payment_method`, iterando sin hardcodear:
@@ -325,10 +349,17 @@ Cambio de 1 línea. Resuelve el bug reportado en la auditoría: productos elimin
 ### 5.2 Fix aging en `CollectionMetrics` y `CustomerMetrics`
 
 **Archivos**:
-- `app/Services/Metrics/CollectionMetrics.php` método `aging()` (líneas ~52-80).
-- `app/Services/Metrics/CustomerMetrics.php` método `aging()` (líneas ~135-160).
+- `app/Services/Metrics/CollectionMetrics.php` método `aging()` (líneas 52-80).
+- `app/Services/Metrics/CustomerMetrics.php` método `aging()` (líneas 135-163).
 
 **Problema actual**: el bucketing se hace en PHP con `$now->diffInDays($dateRef)` que redondea. Un pago de 30.4 días cae ambiguamente en `0-30` o `31-60` según hora del día.
+
+**Observaciones del código actual** (a preservar):
+
+- **Bucket keys devueltos**: `'0-30', '31-60', '61-plus'`. **Conservar exactos** — los consumen `CobranzaContent.vue` línea 31 y `ClientesContent.vue` línea 30. Cambiarlos rompería el frontend.
+- **Filtro de status**: `whereIn('status', [Completed, Pending, Active])`. Conservar — es intencional (Active puede tener `amount_pending > 0` durante un cobro en curso).
+- **Date reference**: `completed_at ?? created_at`. Conservar vía `COALESCE(completed_at, created_at)` — ventas `Pending` sin `completed_at` siguen contando.
+- **Ambas funciones son idénticas** en estructura y retorno (verificado en el código). Ambas devuelven un array-agregate global, **no per-customer**. Se aplica el mismo fix SQL a las dos. Separar `CollectionMetrics::aging()` vs `CustomerMetrics::aging()` es una duplicación preexistente que está fuera del alcance de Fase 1.
 
 **Solución**: mover el bucketing a SQL puro usando expresiones de diferencia de fechas exactas.
 
@@ -343,39 +374,46 @@ public function aging(?int $branchId, int $tenantId): array
         ->where('amount_pending', '>', 0)
         ->whereNotNull('customer_id')
         ->whereNull('deleted_at')
+        ->whereIn('status', [
+            SaleStatus::Completed->value,
+            SaleStatus::Pending->value,
+            SaleStatus::Active->value,
+        ])
         ->selectRaw("
             COALESCE(SUM(CASE
-                WHEN (NOW()::date - completed_at::date) <= 30 THEN amount_pending
+                WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) <= 30 THEN amount_pending
                 ELSE 0
             END), 0) AS bucket_0_30,
             COALESCE(SUM(CASE
-                WHEN (NOW()::date - completed_at::date) BETWEEN 31 AND 60 THEN amount_pending
+                WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) BETWEEN 31 AND 60 THEN amount_pending
                 ELSE 0
             END), 0) AS bucket_31_60,
             COALESCE(SUM(CASE
-                WHEN (NOW()::date - completed_at::date) > 60 THEN amount_pending
+                WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) > 60 THEN amount_pending
                 ELSE 0
             END), 0) AS bucket_61_plus
         ")
         ->first();
 
     return [
-        '0-30'  => (float) $row->bucket_0_30,
-        '31-60' => (float) $row->bucket_31_60,
-        '61+'   => (float) $row->bucket_61_plus,
+        '0-30'    => (float) $row->bucket_0_30,
+        '31-60'   => (float) $row->bucket_31_60,
+        '61-plus' => (float) $row->bucket_61_plus,  // clave conservada (no "61+")
     ];
 }
 ```
 
-**Boundaries exactos por día calendario** (no por segundos/horas). Un pago con `completed_at` hace exactamente 30 días cae en `0-30`; uno con 31 días cae en `31-60`.
+**Boundaries exactos por día calendario**. Una venta con fecha de referencia hace exactamente 30 días cae en `0-30`; una con 31 días cae en `31-60`.
 
-**Para `CustomerMetrics::aging()`**: mismo patrón, misma query (agrupada por customer si la función original lo requiere — revisar al implementar).
+**Para `CustomerMetrics::aging()`**: misma query textual (mismo `public function aging(?int $branchId, int $tenantId): array`). Se extrae opcionalmente a un trait compartido si queremos eliminar la duplicación — decisión menor a tomar en el plan de implementación. Por defecto, copia-pega (es 1 método de 15 líneas).
 
-### 5.3 Nota sobre compatibilidad de driver
+### 5.3 Driver de tests de aging
 
-El compose.yaml usa PostgreSQL 18. La sintaxis `NOW()::date - completed_at::date` es PG-específica. Si el código debe correr en MySQL o SQLite en tests, usar `DB::raw` condicional o `DateTime` arithmetic. Los tests actuales usan SQLite en CI (por `phpunit.xml`).
+**Decisión upfront**: los tests feature de aging corren contra PostgreSQL via Sail (`./vendor/bin/sail artisan test --filter=Aging`). Motivo: la sintaxis `CURRENT_DATE - timestamp::date` es PG-nativa y la equivalente SQLite (`julianday(...) - julianday(...)`) tiene distinto redondeo en boundaries.
 
-**Decisión**: escribir la query en variante PG y asegurar que los tests de aging corran contra PG en test feature (via Sail/Docker), no SQLite. Si se necesita SQLite-compat, usar `julianday()` — decidir al implementar viendo `phpunit.xml`.
+**Configuración de `phpunit.xml`**: confirmar que permite override de `DB_CONNECTION=pgsql_testing` via env var durante ejecución en Sail. Si no, agregar variante en `phpunit.xml` como parte del PR-3.
+
+Tests unitarios puros (sin DB) siguen en SQLite. Solo los tests feature que tocan `aging()` requieren PG.
 
 ---
 
@@ -494,11 +532,15 @@ Cada PR incluye sus tests. Sin tests no se mergea. Framework: **Pest** (alineado
 - `it_excludes_soft_deleted_products_from_without_movement`
 - `it_includes_active_products_without_recent_sales_in_without_movement` (regresión del happy path).
 
-`tests/Feature/Services/Metrics/CollectionMetricsAgingTest.php`:
+`tests/Feature/Services/Metrics/CollectionMetricsAgingTest.php` (requiere PG, corre via Sail):
+- `it_returns_bucket_keys_0_30_31_60_and_61_plus` (regresión del contrato con frontend)
 - `it_buckets_sale_with_exactly_30_days_into_0_30`
 - `it_buckets_sale_with_31_days_into_31_60`
 - `it_buckets_sale_with_60_days_into_31_60`
 - `it_buckets_sale_with_61_days_into_61_plus`
+- `it_uses_created_at_when_completed_at_is_null`  (conserva fallback de Pending sin completed_at)
+- `it_includes_pending_and_active_sales_in_aging` (conserva filtro de status actual)
+- `it_excludes_cancelled_sales_from_aging`
 - `it_returns_zero_in_all_buckets_when_no_pending`
 - `it_excludes_soft_deleted_sales_from_aging`
 - `it_excludes_sales_without_customer_from_aging`
@@ -519,11 +561,11 @@ Cada PR incluye sus tests. Sin tests no se mergea. Framework: **Pest** (alineado
 
 1. **"Ventas" cambia de significado en UI**: la label pasa de "Total vendido" (implícitamente: completado + pagado) a "Ventas netas" (gross − cancelled). **Usuarios existentes pueden notar que los números suben** al incluir pendientes. Mitigación: hint visible + nota en changelog.
 2. **"Cobrado" cambia de fuente**: de `customer_payments.amount_applied` a `SUM(payments.amount)`. **El número puede diferir** si hay pagos que no generaron `customer_payment` (caso normal en ventas de contado). Esperable que el nuevo "Cobrado" sea **≥** el anterior. Validar con datos reales antes de merge.
-3. **Ventas `Pending` sin `completed_at`**: el glosario las entra por `created_at`. Validar que no hay ventas en estado `Pending` con `created_at IN rango` pero que no sean realmente "entregadas" (riesgo: borradores). Revisar lifecycle del enum `SaleStatus`.
+3. **Ventas `Pending` sin `completed_at`**: en este codebase `SaleStatus::Pending = "Pendiente"` significa **entregada pero no cobrada** (verificado en `app/Enums/SaleStatus.php` línea 17). `SaleStatus::Active = "Activa"` es el carrito en curso (borrador). El glosario solo incluye `Completed + Pending` en ventas brutas; `Active` queda fuera. La función `aging()` sí incluye `Active` porque puede acumular pendiente durante un cobro en curso — comportamiento preexistente intencional.
 
 ### 8.2 Técnicos
 
-4. **Sintaxis PostgreSQL en aging**: tests deben correr contra PG o usar variante compatible. Resolver al implementar verificando `phpunit.xml`.
+4. **Sintaxis PostgreSQL en aging**: decisión tomada en §5.3 — tests feature de aging corren contra PG via Sail. Si `phpunit.xml` requiere ajuste para soportar PG como driver de test, se incluye ese cambio en PR-3.
 5. **Performance de nueva query `grossSales`**: incluye `Pending` que antes no se consultaba. Confirmar que el índice actual `(tenant_id, branch_id, completed_at)` cubre también filtros por `created_at`. Si no, tomar nota y abordar en fase posterior.
 6. **Cache invalidation**: TTL 300s sigue igual. Tras merge, purgar cache manualmente para evitar ver datos stale con claves viejas (`total_sales`) mientras ya no existen en backend. **Acción de release**: redeploy con `php artisan cache:clear`.
 7. **Driver de test**: si `phpunit.xml` usa SQLite, la query de aging PG-específica falla. Documentar y ajustar en PR-3.
@@ -547,7 +589,8 @@ Fase 1 se considera completada cuando:
 - [ ] `SalesMetrics::byPaymentMethod()` devuelve array dinámico con `{method, label, total, count, average}`.
 - [ ] Donut de métodos de pago en `VentasContent.vue` itera sobre la respuesta backend sin hardcodear slugs.
 - [ ] `ProductMetrics::withoutMovement()` filtra `deleted_at IS NULL`.
-- [ ] `CollectionMetrics::aging()` y `CustomerMetrics::aging()` hacen bucketing en SQL con boundaries exactos.
+- [ ] `CollectionMetrics::aging()` y `CustomerMetrics::aging()` hacen bucketing en SQL con boundaries exactos, conservando las claves `'0-30' / '31-60' / '61-plus'` y el filtro de status `[Completed, Pending, Active]`.
+- [ ] `dailySeries`, `hourDayHeatmap`, `dailyTable` usan los mismos filtros del glosario — su suma reconcilia con `gross_sales`.
 - [ ] Todos los tests listados en §7 pasan en verde.
 - [ ] Suite existente de métricas sigue verde (no hay regresiones).
 - [ ] Anexo de Web Design Guidelines (§6) presente en este spec.
