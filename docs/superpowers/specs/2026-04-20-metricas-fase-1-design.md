@@ -5,6 +5,7 @@
 **Autor:** Sebas + Claude (brainstorming colaborativo).
 **Estado:** Diseño aprobado por el usuario. Pendiente spec-review y plan de implementación (writing-plans).
 **Relación con otros specs:**
+
 - Complementa `2026-04-19-metricas-rediseno-design.md` (rediseño UI general de 8 ejes → 3 tabs).
 - Esta Fase 1 son los **fundamentos semánticos** que deben existir antes de tocar la UI de las Fases 2–3.
 
@@ -33,27 +34,27 @@ Este glosario es la **fuente de verdad** del módulo. Se instala como sección a
 
 ### 2.1 Métricas del eje Flujo de dinero
 
-| Métrica | Definición | Fuente SQL | Notas |
-|---|---|---|---|
-| **Ventas brutas** | Monto total de ventas entregadas en el rango, antes de restar cancelaciones. Incluye crédito y pagos parciales. | `SUM(sales.total)` donde `status IN (Completed, Pending)` AND `cancelled_at IS NULL` AND `deleted_at IS NULL`, agrupado por `COALESCE(completed_at, created_at)` dentro del rango. | Incluye `Pending` (entregada pero sin cobrar). **Excluye `Active`** (carrito abierto, aún no es venta). |
-| **Ventas netas** | Ventas brutas menos monto cancelado dentro del rango. | Ventas brutas − `SUM(sales.total)` de ventas con `status=Cancelled` y `cancelled_at IN rango`. | **KPI principal de negocio.** En UI se muestra como "Ventas". |
-| **Cobrado** | Dinero recibido en caja durante el rango, independiente de cuándo se vendió. | `SUM(payments.amount)` con `payments.created_at IN rango` AND `payments.deleted_at IS NULL`. | Incluye pagos de contado y abonos a crédito anterior. **Única fuente**: tabla `payments`. |
-| **Saldo pendiente generado** | Crédito otorgado dentro del rango. | `SUM(sales.amount_pending)` para ventas con `completed_at IN rango` y `amount_pending > 0`. | Alimenta vista Cobranza, no se muestra en Resumen. |
-| **# Tickets** | Número de ventas no canceladas en el rango. | `COUNT(sales.id)` con mismos filtros de Ventas brutas. | |
-| **Ticket promedio** | Ventas netas ÷ # Tickets. | Derivada en código. | Si `# Tickets = 0` → UI muestra `—`, nunca `$0`. |
-| **Cancelaciones** | Conteo y monto de ventas anuladas dentro del rango, agrupadas por `cancelled_at`. | `COUNT + SUM(total)` de `status=Cancelled` con `cancelled_at IN rango`. | Se muestran aparte. Ya están restadas de Ventas netas. |
-| **Ganancia bruta** | Ingreso menos costo congelado al momento de venta, **solo sobre items con costo registrado**. | `SUM(subtotal − cost_price_at_sale × quantity)` sobre `sale_items` de ventas no canceladas, donde `cost_price_at_sale IS NOT NULL`. | Siempre reportar cobertura: "X de Y items con costo registrado". |
-| **Margen %** | Ganancia bruta ÷ revenue (del mismo subconjunto con costo). | Derivada. | Base ≠ Ventas netas; documentado explícitamente en UI. |
+| Métrica                      | Definición                                                                                                      | Fuente SQL                                                                                                                                                                         | Notas                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Ventas brutas**            | Monto total de ventas entregadas en el rango, antes de restar cancelaciones. Incluye crédito y pagos parciales. | `SUM(sales.total)` donde `status IN (Completed, Pending)` AND `cancelled_at IS NULL` AND `deleted_at IS NULL`, agrupado por `COALESCE(completed_at, created_at)` dentro del rango. | Incluye `Pending` (entregada pero sin cobrar). **Excluye `Active`** (carrito abierto, aún no es venta). |
+| **Ventas netas**             | Ventas brutas menos monto cancelado dentro del rango.                                                           | Ventas brutas − `SUM(sales.total)` de ventas con `status=Cancelled` y `cancelled_at IN rango`.                                                                                     | **KPI principal de negocio.** En UI se muestra como "Ventas".                                           |
+| **Cobrado**                  | Dinero recibido en caja durante el rango, independiente de cuándo se vendió.                                    | `SUM(payments.amount)` con `payments.created_at IN rango` AND `payments.deleted_at IS NULL`.                                                                                       | Incluye pagos de contado y abonos a crédito anterior. **Única fuente**: tabla `payments`.               |
+| **Saldo pendiente generado** | Crédito otorgado dentro del rango.                                                                              | `SUM(sales.amount_pending)` para ventas con `completed_at IN rango` y `amount_pending > 0`.                                                                                        | Alimenta vista Cobranza, no se muestra en Resumen.                                                      |
+| **# Tickets**                | Número de ventas no canceladas en el rango.                                                                     | `COUNT(sales.id)` con mismos filtros de Ventas brutas.                                                                                                                             |                                                                                                         |
+| **Ticket promedio**          | Ventas netas ÷ # Tickets.                                                                                       | Derivada en código.                                                                                                                                                                | Si `# Tickets = 0` → UI muestra `—`, nunca `$0`.                                                        |
+| **Cancelaciones**            | Conteo y monto de ventas anuladas dentro del rango, agrupadas por `cancelled_at`.                               | `COUNT + SUM(total)` de `status=Cancelled` con `cancelled_at IN rango`.                                                                                                            | Se muestran aparte. Ya están restadas de Ventas netas.                                                  |
+| **Ganancia bruta**           | Ingreso menos costo congelado al momento de venta, **solo sobre items con costo registrado**.                   | `SUM(subtotal − cost_price_at_sale × quantity)` sobre `sale_items` de ventas no canceladas, donde `cost_price_at_sale IS NOT NULL`.                                                | Siempre reportar cobertura: "X de Y items con costo registrado".                                        |
+| **Margen %**                 | Ganancia bruta ÷ revenue (del mismo subconjunto con costo).                                                     | Derivada.                                                                                                                                                                          | Base ≠ Ventas netas; documentado explícitamente en UI.                                                  |
 
 ### 2.2 Métricas del eje Productos
 
-| Métrica | Definición | Fuente SQL | Notas |
-|---|---|---|---|
-| **Cantidad vendida por producto** | Suma de `quantity` por producto, respetando `unit_type`. | `SUM(sale_items.quantity)` agrupado por `product_id`. | Formato UI: `12.350 kg`, `8 pz`. |
-| **Ingreso por producto** | Suma de `subtotal` por producto. | `SUM(sale_items.subtotal)`. | Cobertura 100%. |
-| **Costo por producto** | Suma de `cost_price_at_sale × quantity` donde costo ≠ NULL. | `SUM(cost_price_at_sale × quantity) WHERE cost_price_at_sale IS NOT NULL`. | Cobertura reportada como `items_with_cost / items_total`. |
-| **Ganancia por producto** | Ingreso − Costo del subconjunto con costo. | Derivada. | Badge "sin costo" cuando aplique. |
-| **Margen % por producto** | Ganancia ÷ Ingreso del subconjunto con costo. | Derivada. | `—` si `items_with_cost = 0` para ese producto. |
+| Métrica                           | Definición                                                  | Fuente SQL                                                                 | Notas                                                     |
+| --------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------- |
+| **Cantidad vendida por producto** | Suma de `quantity` por producto, respetando `unit_type`.    | `SUM(sale_items.quantity)` agrupado por `product_id`.                      | Formato UI: `12.350 kg`, `8 pz`.                          |
+| **Ingreso por producto**          | Suma de `subtotal` por producto.                            | `SUM(sale_items.subtotal)`.                                                | Cobertura 100%.                                           |
+| **Costo por producto**            | Suma de `cost_price_at_sale × quantity` donde costo ≠ NULL. | `SUM(cost_price_at_sale × quantity) WHERE cost_price_at_sale IS NOT NULL`. | Cobertura reportada como `items_with_cost / items_total`. |
+| **Ganancia por producto**         | Ingreso − Costo del subconjunto con costo.                  | Derivada.                                                                  | Badge "sin costo" cuando aplique.                         |
+| **Margen % por producto**         | Ganancia ÷ Ingreso del subconjunto con costo.               | Derivada.                                                                  | `—` si `items_with_cost = 0` para ese producto.           |
 
 ### 2.3 Reglas transversales
 
@@ -176,6 +177,7 @@ private function collected(DateRange $range, ?int $branchId, int $tenantId): flo
 ### 3.3 Cambios en controllers
 
 Archivos:
+
 - `app/Http/Controllers/Empresa/Metrics/SalesMetricsController.php`
 - `app/Http/Controllers/Sucursal/Metrics/SalesMetricsController.php`
 
@@ -185,13 +187,13 @@ Ambos siguen pasando `data` a Inertia, pero con las claves nuevas. Deprecar la c
 
 `resources/js/Components/Metrics/Content/VentasContent.vue`:
 
-| Acción | Detalle |
-|---|---|
-| Reemplazar lecturas | `data.total_sales` → `data.net_sales` |
-| Renombrar label | KPI "Total vendido" → **"Ventas netas"** con hint "Excluye canceladas" |
-| Preservar delta | El delta% se calcula igual (`current` vs `previous` del summary) |
-| Preservar heatmap, dailySeries, dailyTable | No cambian |
-| **NO tocar** | Layout, grid, estilos, gráficos, donut de métodos (eso cae en PR-2) |
+| Acción                                     | Detalle                                                                |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| Reemplazar lecturas                        | `data.total_sales` → `data.net_sales`                                  |
+| Renombrar label                            | KPI "Total vendido" → **"Ventas netas"** con hint "Excluye canceladas" |
+| Preservar delta                            | El delta% se calcula igual (`current` vs `previous` del summary)       |
+| Preservar heatmap, dailySeries, dailyTable | No cambian                                                             |
+| **NO tocar**                               | Layout, grid, estilos, gráficos, donut de métodos (eso cae en PR-2)    |
 
 ### 3.5 Cambios en docs
 
@@ -218,6 +220,7 @@ Ambos siguen pasando `data` a Inertia, pero con las claves nuevas. Deprecar la c
 **Impacto en UI**: sin cambios de componente. Las gráficas ya consumen `total` como número — la semántica interna cambia pero la forma del dato es idéntica. Se documenta en el changelog de Fase 1.
 
 **Test de reconciliación** (nuevo, en PR-1):
+
 - `it_reconciles_summary_net_sales_with_sum_of_daily_series_minus_cancelled_for_same_range` — verifica que `net_sales == SUM(dailySeries.total) − cancelled_amount` del mismo rango.
 
 ---
@@ -314,11 +317,16 @@ public function byPaymentMethod(DateRange $range, ?int $branchId, int $tenantId)
 (La clave `by_method` del `summary()` ya fue removida en PR-1.)
 
 `resources/js/Components/Metrics/Content/VentasContent.vue`:
+
 - El donut `paymentBreakdown` ahora se computa desde `data.by_payment_method`, iterando sin hardcodear:
-  ```js
-  const paymentSeries = computed(() => props.data.by_payment_method.map(m => m.total));
-  const paymentLabels = computed(() => props.data.by_payment_method.map(m => m.label));
-  ```
+    ```js
+    const paymentSeries = computed(() =>
+        props.data.by_payment_method.map((m) => m.total),
+    );
+    const paymentLabels = computed(() =>
+        props.data.by_payment_method.map((m) => m.label),
+    );
+    ```
 - **No cambia el componente Donut ni su estilo** — solo la fuente de datos.
 
 ---
@@ -332,12 +340,14 @@ public function byPaymentMethod(DateRange $range, ?int $branchId, int $tenantId)
 **Cambio**: agregar `->whereNull('p.deleted_at')` en la query.
 
 **Antes**:
+
 ```php
 ->where('p.status', 'active')
 ->where(function ($q) use ($cutoff) { ... })
 ```
 
 **Después**:
+
 ```php
 ->where('p.status', 'active')
 ->whereNull('p.deleted_at')
@@ -349,6 +359,7 @@ Cambio de 1 línea. Resuelve el bug reportado en la auditoría: productos elimin
 ### 5.2 Fix aging en `CollectionMetrics` y `CustomerMetrics`
 
 **Archivos**:
+
 - `app/Services/Metrics/CollectionMetrics.php` método `aging()` (líneas 52-80).
 - `app/Services/Metrics/CustomerMetrics.php` método `aging()` (líneas 135-163).
 
@@ -423,16 +434,16 @@ Este anexo **no se implementa en Fase 1**. Sirve como fuente única cuando se ab
 
 ### 6.1 Tokens de color (Tailwind, sin cambios al config)
 
-| Uso | Token |
-|---|---|
-| Ventas / monto principal | `text-red-600` (identidad carnicería) |
-| Ganancia / positivo | `text-green-600` |
-| Cobrado / financiero neutral | `text-blue-600` |
-| Cancelaciones / alertas | `text-amber-500` |
-| Texto principal | `text-slate-900` |
-| Labels | `text-slate-500` |
-| Bordes / divisores | `border-slate-200` |
-| Fondo de tabla header | `bg-slate-50` |
+| Uso                          | Token                                 |
+| ---------------------------- | ------------------------------------- |
+| Ventas / monto principal     | `text-red-600` (identidad carnicería) |
+| Ganancia / positivo          | `text-green-600`                      |
+| Cobrado / financiero neutral | `text-blue-600`                       |
+| Cancelaciones / alertas      | `text-amber-500`                      |
+| Texto principal              | `text-slate-900`                      |
+| Labels                       | `text-slate-500`                      |
+| Bordes / divisores           | `border-slate-200`                    |
+| Fondo de tabla header        | `bg-slate-50`                         |
 
 ### 6.2 Tipografía
 
@@ -445,6 +456,7 @@ Este anexo **no se implementa en Fase 1**. Sirve como fuente única cuando se ab
 ### 6.3 Jerarquía dentro de un KPI card
 
 Orden descendente por peso visual:
+
 1. Valor principal.
 2. Label.
 3. Delta (si comparación activa).
@@ -479,12 +491,12 @@ Orden descendente por peso visual:
 
 ### 6.8 Estados de KPI card
 
-| Estado | Render |
-|---|---|
-| Normal | Valor + label + delta opcional |
-| Loading | Skeleton mismo tamaño, aparece tras 300ms |
-| Sin datos | `—` en lugar del valor, hint "Sin movimientos" |
-| Cobertura baja (<95%) | Pill amber al lado: `Cobertura 72%` |
+| Estado                | Render                                         |
+| --------------------- | ---------------------------------------------- |
+| Normal                | Valor + label + delta opcional                 |
+| Loading               | Skeleton mismo tamaño, aparece tras 300ms      |
+| Sin datos             | `—` en lugar del valor, hint "Sin movimientos" |
+| Cobertura baja (<95%) | Pill amber al lado: `Cobertura 72%`            |
 
 ### 6.9 Principios
 
@@ -514,11 +526,13 @@ Cada PR incluye sus tests. Sin tests no se mergea. Framework: **Pest** (alineado
 ### 7.2 Tests de PR-2 — nuevos
 
 `tests/Unit/Enums/PaymentMethodTest.php`:
+
 - `it_returns_spanish_label_for_each_known_method`
 - `it_resolves_unknown_slug_to_title_case`
 - `it_resolves_snake_case_slug_to_space_separated_title`
 
 `tests/Feature/Services/Metrics/SalesMetricsPaymentBreakdownTest.php`:
+
 - `it_groups_payments_by_method_dynamically`
 - `it_includes_count_and_average_per_method`
 - `it_orders_methods_by_total_desc`
@@ -529,16 +543,18 @@ Cada PR incluye sus tests. Sin tests no se mergea. Framework: **Pest** (alineado
 ### 7.3 Tests de PR-3 — nuevos
 
 `tests/Feature/Services/Metrics/ProductMetricsTest.php`:
+
 - `it_excludes_soft_deleted_products_from_without_movement`
 - `it_includes_active_products_without_recent_sales_in_without_movement` (regresión del happy path).
 
 `tests/Feature/Services/Metrics/CollectionMetricsAgingTest.php` (requiere PG, corre via Sail):
+
 - `it_returns_bucket_keys_0_30_31_60_and_61_plus` (regresión del contrato con frontend)
 - `it_buckets_sale_with_exactly_30_days_into_0_30`
 - `it_buckets_sale_with_31_days_into_31_60`
 - `it_buckets_sale_with_60_days_into_31_60`
 - `it_buckets_sale_with_61_days_into_61_plus`
-- `it_uses_created_at_when_completed_at_is_null`  (conserva fallback de Pending sin completed_at)
+- `it_uses_created_at_when_completed_at_is_null` (conserva fallback de Pending sin completed_at)
 - `it_includes_pending_and_active_sales_in_aging` (conserva filtro de status actual)
 - `it_excludes_cancelled_sales_from_aging`
 - `it_returns_zero_in_all_buckets_when_no_pending`
@@ -546,6 +562,7 @@ Cada PR incluye sus tests. Sin tests no se mergea. Framework: **Pest** (alineado
 - `it_excludes_sales_without_customer_from_aging`
 
 `tests/Feature/Services/Metrics/CustomerMetricsAgingTest.php`:
+
 - Espejo del anterior (CustomerMetrics).
 
 ### 7.4 Cobertura objetivo

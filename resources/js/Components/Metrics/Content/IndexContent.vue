@@ -125,8 +125,8 @@ const iconPaths = {
     </div>
     <div v-else class="space-y-6">
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
-            <KpiCard label="Ventas totales" tone="red" :delta="deltaIf(salesCurrent.total_sales, salesPrevious.total_sales)">
-                {{ formatCurrency(salesCurrent.total_sales) }}
+            <KpiCard label="Ventas netas" tone="red" :delta="deltaIf(salesCurrent.net_sales, salesPrevious.net_sales)" hint="Excluye canceladas">
+                {{ formatCurrency(salesCurrent.net_sales) }}
             </KpiCard>
             <KpiCard label="Ganancia bruta" tone="green" :delta="deltaIf(marginCurrent.gross_profit, marginPrevious.gross_profit)"
                 :hint="marginCurrent.margin_pct ? `Margen ${marginCurrent.margin_pct}%` : ''">

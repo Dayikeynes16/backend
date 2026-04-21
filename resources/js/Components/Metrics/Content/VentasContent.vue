@@ -52,7 +52,7 @@ const methodPieOptions = {
     labels: ['Efectivo', 'Tarjeta', 'Transferencia', 'Crédito'],
     colors: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'],
     legend: { position: 'bottom', fontSize: '12px' },
-    plotOptions: { pie: { donut: { size: '65%', labels: { show: true, total: { show: true, label: 'Total', formatter: () => formatCurrency(current.value.total_sales ?? 0) } } } } },
+    plotOptions: { pie: { donut: { size: '65%', labels: { show: true, total: { show: true, label: 'Total', formatter: () => formatCurrency(current.value.net_sales ?? 0) } } } } },
     tooltip: { y: { formatter: v => formatCurrency(v) } },
     dataLabels: { enabled: false },
 };
@@ -94,8 +94,8 @@ const tableColumns = [
     <div v-if="!data"><EmptyState /></div>
     <div v-else class="space-y-6">
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
-            <KpiCard label="Total vendido" tone="red" :delta="d(current.total_sales, previous.total_sales)">
-                {{ formatCurrency(current.total_sales) }}
+            <KpiCard label="Ventas netas" tone="red" :delta="d(current.net_sales, previous.net_sales)" hint="Excluye canceladas">
+                {{ formatCurrency(current.net_sales) }}
             </KpiCard>
             <KpiCard label="# Tickets" :delta="d(current.ticket_count, previous.ticket_count)">
                 {{ formatNumber(current.ticket_count) }}
@@ -111,19 +111,19 @@ const tableColumns = [
             </KpiCard>
         </div>
 
-        <ChartCard title="Ingresos diarios" subtitle="Ventas cobradas completas por día. Excluye canceladas y pendientes.">
+        <ChartCard title="Ventas brutas por día" subtitle="Ventas entregadas por día (incluye crédito). Excluye canceladas.">
             <apexchart v-if="salesSeries[0].data.length" type="area" height="300" :options="salesChartOptions" :series="salesSeries" />
             <div v-else class="py-8"><EmptyState /></div>
         </ChartCard>
 
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="lg:col-span-2">
-                <ChartCard title="Ventas por hora × día" subtitle="Concentración de ventas por hora del día. Color = monto cobrado.">
+                <ChartCard title="Ventas por hora × día" subtitle="Concentración de ventas por hora del día. Color = monto vendido.">
                     <apexchart type="heatmap" height="280" :options="heatmapOptions" :series="heatmapSeries" />
                 </ChartCard>
             </div>
-            <ChartCard title="Métodos de pago" subtitle="Distribución por forma de pago de ventas cobradas.">
-                <apexchart v-if="current.total_sales" type="donut" height="280" :options="methodPieOptions" :series="methodPieSeries" />
+            <ChartCard title="Métodos de pago" subtitle="Distribución por forma de pago registrada.">
+                <apexchart v-if="current.net_sales" type="donut" height="280" :options="methodPieOptions" :series="methodPieSeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>
         </div>

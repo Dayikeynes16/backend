@@ -10,32 +10,45 @@ class SalesMetrics extends AbstractMetrics
     public function summary(DateRange $range, ?int $branchId, int $tenantId): array
     {
         return [
-            'current' => $this->aggregateFor($range, $branchId, $tenantId),
-            'previous' => $this->aggregateFor($range->previousComparable(), $branchId, $tenantId),
+            'current' => $this->aggregate($range, $branchId, $tenantId),
+            'previous' => $this->aggregate($range->previousComparable(), $branchId, $tenantId),
         ];
     }
 
-    public function aggregateFor(DateRange $range, ?int $branchId, int $tenantId): array
+    private function aggregate(DateRange $range, ?int $branchId, int $tenantId): array
     {
-        $completedQuery = fn () => DB::table('sales')
-            ->where('tenant_id', $tenantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', SaleStatus::Completed->value)
-            ->where('amount_pending', '<=', 0)
-            ->whereNull('deleted_at')
-            ->whereBetween('completed_at', [$range->start, $range->end]);
+        $gross = $this->grossSales($range, $branchId, $tenantId);
+        $cancelled = $this->cancelled($range, $branchId, $tenantId);
+        $tickets = $this->ticketStats($range, $branchId, $tenantId);
 
-        $row = $completedQuery()
-            ->selectRaw('COUNT(*) as ticket_count, COALESCE(SUM(total), 0) as total_sales, COALESCE(AVG(total), 0) as avg_ticket')
-            ->first();
+        $net = $gross - $cancelled['amount'];
 
-        $byMethod = $completedQuery()
-            ->selectRaw('payment_method, COALESCE(SUM(total), 0) as total')
-            ->groupBy('payment_method')
-            ->pluck('total', 'payment_method')
-            ->toArray();
+        return [
+            'gross_sales' => $gross,
+            'net_sales' => $net,
+            'collected' => $this->collected($range, $branchId, $tenantId),
+            'ticket_count' => $tickets['count'],
+            'avg_ticket' => $tickets['count'] > 0 ? round($net / $tickets['count'], 2) : null,
+            'cancelled_count' => $cancelled['count'],
+            'cancelled_amount' => $cancelled['amount'],
+        ];
+    }
 
-        $cancelled = DB::table('sales')
+    private function grossSales(DateRange $range, ?int $branchId, int $tenantId): float
+    {
+        return (float) $this->grossQuery($range, $branchId, $tenantId)->sum('total');
+    }
+
+    private function ticketStats(DateRange $range, ?int $branchId, int $tenantId): array
+    {
+        $count = (int) $this->grossQuery($range, $branchId, $tenantId)->count();
+
+        return ['count' => $count];
+    }
+
+    private function cancelled(DateRange $range, ?int $branchId, int $tenantId): array
+    {
+        $row = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', SaleStatus::Cancelled->value)
@@ -45,30 +58,42 @@ class SalesMetrics extends AbstractMetrics
             ->first();
 
         return [
-            'total_sales' => (float) $row->total_sales,
-            'ticket_count' => (int) $row->ticket_count,
-            'avg_ticket' => round((float) $row->avg_ticket, 2),
-            'cancelled_count' => (int) $cancelled->c,
-            'cancelled_amount' => (float) $cancelled->t,
-            'by_method' => [
-                'cash' => (float) ($byMethod['cash'] ?? 0),
-                'card' => (float) ($byMethod['card'] ?? 0),
-                'transfer' => (float) ($byMethod['transfer'] ?? 0),
-                'credit' => (float) ($byMethod['credit'] ?? 0),
-            ],
+            'count' => (int) $row->c,
+            'amount' => (float) $row->t,
         ];
     }
 
-    public function dailySeries(DateRange $range, ?int $branchId, int $tenantId): array
+    private function collected(DateRange $range, ?int $branchId, int $tenantId): float
+    {
+        return (float) DB::table('payments as p')
+            ->join('sales as s', 's.id', '=', 'p.sale_id')
+            ->where('s.tenant_id', $tenantId)
+            ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
+            ->whereNull('p.deleted_at')
+            ->whereBetween('p.created_at', [$range->start, $range->end])
+            ->sum('p.amount');
+    }
+
+    /**
+     * Query base para ventas brutas: entregadas, no canceladas, en el rango.
+     * Incluye Completed y Pending (esta última = entregada pero no cobrada).
+     * Excluye Active (carrito en curso) y Cancelled.
+     */
+    private function grossQuery(DateRange $range, ?int $branchId, int $tenantId)
     {
         return DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', SaleStatus::Completed->value)
-            ->where('amount_pending', '<=', 0)
+            ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value])
+            ->whereNull('cancelled_at')
             ->whereNull('deleted_at')
-            ->whereBetween('completed_at', [$range->start, $range->end])
-            ->selectRaw('DATE(completed_at) as day, COUNT(*) as tickets, SUM(total) as total')
+            ->whereBetween(DB::raw('COALESCE(completed_at, created_at)'), [$range->start, $range->end]);
+    }
+
+    public function dailySeries(DateRange $range, ?int $branchId, int $tenantId): array
+    {
+        return $this->grossQuery($range, $branchId, $tenantId)
+            ->selectRaw('DATE(COALESCE(completed_at, created_at)) as day, COUNT(*) as tickets, COALESCE(SUM(total), 0) as total')
             ->groupBy('day')
             ->orderBy('day')
             ->get()
@@ -82,14 +107,8 @@ class SalesMetrics extends AbstractMetrics
 
     public function hourDayHeatmap(DateRange $range, ?int $branchId, int $tenantId): array
     {
-        $rows = DB::table('sales')
-            ->where('tenant_id', $tenantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', SaleStatus::Completed->value)
-            ->where('amount_pending', '<=', 0)
-            ->whereNull('deleted_at')
-            ->whereBetween('completed_at', [$range->start, $range->end])
-            ->selectRaw('EXTRACT(ISODOW FROM completed_at) as dow, EXTRACT(HOUR FROM completed_at) as hour, COUNT(*) as tickets, SUM(total) as total')
+        $rows = $this->grossQuery($range, $branchId, $tenantId)
+            ->selectRaw('EXTRACT(ISODOW FROM COALESCE(completed_at, created_at)) as dow, EXTRACT(HOUR FROM COALESCE(completed_at, created_at)) as hour, COUNT(*) as tickets, COALESCE(SUM(total), 0) as total')
             ->groupBy('dow', 'hour')
             ->get();
 
@@ -112,33 +131,40 @@ class SalesMetrics extends AbstractMetrics
 
     public function dailyTable(DateRange $range, ?int $branchId, int $tenantId): array
     {
-        return DB::table('sales')
+        // Ventas brutas por día, filtradas al glosario canónico.
+        $grossByDay = $this->grossQuery($range, $branchId, $tenantId)
+            ->selectRaw('DATE(COALESCE(completed_at, created_at)) as day, COUNT(*) as tickets, COALESCE(SUM(total), 0) as total')
+            ->groupBy('day')
+            ->get()
+            ->keyBy('day');
+
+        // Cancelaciones por día (por cancelled_at).
+        $cancelledByDay = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where('status', SaleStatus::Cancelled->value)
             ->whereNull('deleted_at')
-            ->whereBetween('completed_at', [$range->start, $range->end])
-            ->selectRaw('
-                DATE(completed_at) as day,
-                SUM(CASE WHEN status = ? AND amount_pending <= 0 THEN 1 ELSE 0 END) as tickets,
-                SUM(CASE WHEN status = ? AND amount_pending <= 0 THEN total ELSE 0 END) as total,
-                AVG(CASE WHEN status = ? AND amount_pending <= 0 THEN total END) as avg_ticket,
-                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as cancelled
-            ', [
-                SaleStatus::Completed->value,
-                SaleStatus::Completed->value,
-                SaleStatus::Completed->value,
-                SaleStatus::Cancelled->value,
-            ])
+            ->whereBetween('cancelled_at', [$range->start, $range->end])
+            ->selectRaw('DATE(cancelled_at) as day, COUNT(*) as cancelled')
             ->groupBy('day')
-            ->orderByDesc('day')
             ->get()
-            ->map(fn ($r) => [
-                'day' => (string) $r->day,
-                'tickets' => (int) $r->tickets,
-                'total' => (float) $r->total,
-                'avg_ticket' => round((float) ($r->avg_ticket ?? 0), 2),
-                'cancelled' => (int) $r->cancelled,
-            ])
-            ->all();
+            ->keyBy('day');
+
+        $days = collect($grossByDay->keys())->merge($cancelledByDay->keys())->unique()->sortDesc()->values();
+
+        return $days->map(function ($day) use ($grossByDay, $cancelledByDay) {
+            $g = $grossByDay->get($day);
+            $c = $cancelledByDay->get($day);
+            $tickets = (int) ($g->tickets ?? 0);
+            $total = (float) ($g->total ?? 0);
+
+            return [
+                'day' => (string) $day,
+                'tickets' => $tickets,
+                'total' => $total,
+                'avg_ticket' => $tickets > 0 ? round($total / $tickets, 2) : 0.0,
+                'cancelled' => (int) ($c->cancelled ?? 0),
+            ];
+        })->all();
     }
 }

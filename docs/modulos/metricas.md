@@ -2,6 +2,42 @@
 
 Panel de reportes y análisis para **admin-sucursal** (una sucursal) y **admin-empresa** (multi-sucursal con selector o consolidado). Cubre siete ejes: ventas, margen, productos, clientes, cajeros, turnos y cobranza.
 
+## Glosario canónico
+
+Este glosario es la fuente de verdad del módulo. Todo cálculo nuevo o refactor debe referenciar estas definiciones. Ampliación formal: `docs/superpowers/specs/2026-04-20-metricas-fase-1-design.md`.
+
+### Flujo de dinero
+
+| Métrica | Definición | Notas |
+|---|---|---|
+| **Ventas brutas** (`gross_sales`) | Monto de ventas entregadas en el rango, antes de restar cancelaciones. `SUM(sales.total)` con `status IN (Completed, Pending)` AND `cancelled_at IS NULL` AND `deleted_at IS NULL`, agrupado por `COALESCE(completed_at, created_at)` dentro del rango. | Incluye crédito y pagos parciales. Excluye `Active` (carrito en curso) y `Cancelled`. |
+| **Ventas netas** (`net_sales`) | Ventas brutas − `SUM(total)` de ventas `Cancelled` con `cancelled_at` en el rango. | **KPI principal**. En UI se muestra como "Ventas". |
+| **Cobrado** (`collected`) | Dinero recibido en caja durante el rango. `SUM(payments.amount)` con `payments.created_at IN rango` AND `payments.deleted_at IS NULL`. | Única fuente: tabla `payments`. Incluye contado y abonos a crédito anterior. |
+| **Saldo pendiente generado** | Crédito otorgado en el rango. `SUM(sales.amount_pending)` donde `completed_at IN rango` y `amount_pending > 0`. | Alimenta vista Cobranza. |
+| **# Tickets** (`ticket_count`) | `COUNT(sales)` con los mismos filtros de Ventas brutas. | |
+| **Ticket promedio** (`avg_ticket`) | `net_sales / ticket_count`. | Si `ticket_count = 0` → `null` (UI muestra `—`). |
+| **Cancelaciones** (`cancelled_count` + `cancelled_amount`) | Conteo y monto de `status=Cancelled` agrupado por `cancelled_at` en rango. | Se muestran aparte. Ya restadas de Ventas netas. |
+| **Ganancia bruta** (`gross_profit`) | `SUM(subtotal − cost_price_at_sale × quantity)` sobre items de ventas no canceladas **donde `cost_price_at_sale IS NOT NULL`**. | Reportar cobertura: "X de Y items con costo registrado". |
+| **Margen %** | `gross_profit / revenue` del subconjunto con costo. | Base ≠ Ventas netas; documentado explícitamente en UI. |
+
+### Productos
+
+| Métrica | Definición | Notas |
+|---|---|---|
+| **Cantidad vendida** | `SUM(sale_items.quantity)` por `product_id`, respetando `unit_type`. | Formato UI: `12.350 kg`, `8 pz`. |
+| **Ingreso por producto** | `SUM(sale_items.subtotal)` por producto. | Cobertura 100%. |
+| **Costo por producto** | `SUM(cost_price_at_sale × quantity)` donde costo no es nulo. | Cobertura reportada. |
+| **Ganancia por producto** | Ingreso − Costo del subconjunto con costo. | Badge "sin costo" cuando aplique. |
+| **Margen % por producto** | Ganancia ÷ Ingreso del subconjunto con costo. | `—` si `items_with_cost = 0`. |
+
+### Reglas transversales
+
+- **Soft deletes**: siempre filtrar `deleted_at IS NULL` en `sales`, `sale_items`, `payments`, `products`, `customer_payments`.
+- **Timezone**: `config('app.timezone')`. No hay override por branch.
+- **Rango inclusive**: `DateRange::start = startOfDay()`, `end = endOfDay()`.
+- **Cobertura de costo < 95%**: UI marca la cifra como aproximada; nunca la oculta.
+- **Sin items con costo en rango**: `gross_profit` y margen se reportan como `—`, nunca como `0`.
+
 ## Rutas
 
 ### Admin sucursal (`role:admin-sucursal|superadmin`)
