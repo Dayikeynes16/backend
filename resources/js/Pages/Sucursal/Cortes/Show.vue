@@ -3,9 +3,14 @@ import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
-const props = defineProps({ shift: Object, tenant: Object, isAdmin: Boolean });
+const props = defineProps({
+    shift: Object,
+    tenant: Object,
+    isAdmin: Boolean,
+    paymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
+});
 
 const formatDT = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
@@ -39,19 +44,39 @@ const diffColor = (val) => {
     return 'text-green-600';
 };
 
-const conciliation = [
+// Para un corte HISTÓRICO mostramos solo los métodos que efectivamente se
+// declararon (declared_* no es NULL) o que tuvieron movimientos (total_* > 0).
+// Así respetamos el dato original: si transferencia se desactivó DESPUÉS del
+// cierre pero el corte la tenía, la seguimos mostrando.
+const ALL_METHODS = [
     { key: 'cash', label: 'Efectivo', color: 'emerald', iconBg: 'bg-emerald-100 text-emerald-600', textColor: 'text-emerald-600',
-      expected: Number(props.shift.expected_amount), declared: Number(props.shift.declared_amount), diff: Number(props.shift.difference),
+      declaredField: 'declared_amount', diffField: 'difference', expectedField: 'expected_amount', totalField: 'total_cash',
       icon: 'M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z' },
     { key: 'card', label: 'Tarjeta', color: 'blue', iconBg: 'bg-blue-100 text-blue-600', textColor: 'text-blue-600',
-      expected: Number(props.shift.total_card), declared: Number(props.shift.declared_card ?? props.shift.total_card), diff: Number(props.shift.difference_card ?? 0),
+      declaredField: 'declared_card', diffField: 'difference_card', expectedField: 'total_card', totalField: 'total_card',
       icon: 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z' },
     { key: 'transfer', label: 'Transferencia', color: 'violet', iconBg: 'bg-violet-100 text-violet-600', textColor: 'text-violet-600',
-      expected: Number(props.shift.total_transfer), declared: Number(props.shift.declared_transfer ?? props.shift.total_transfer), diff: Number(props.shift.difference_transfer ?? 0),
+      declaredField: 'declared_transfer', diffField: 'difference_transfer', expectedField: 'total_transfer', totalField: 'total_transfer',
       icon: 'M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5' },
 ];
 
-const totalDiff = conciliation.reduce((sum, m) => sum + m.diff, 0);
+const conciliation = computed(() => {
+    return ALL_METHODS
+        .filter(m => {
+            const declared = props.shift[m.declaredField];
+            const total = Number(props.shift[m.totalField] ?? 0);
+            // Mostrar si se declaró el método (no null) o si hubo movimientos.
+            return declared !== null && declared !== undefined ? true : total > 0;
+        })
+        .map(m => ({
+            ...m,
+            expected: Number(props.shift[m.expectedField] ?? 0),
+            declared: Number(props.shift[m.declaredField] ?? props.shift[m.totalField] ?? 0),
+            diff: Number(props.shift[m.diffField] ?? 0),
+        }));
+});
+
+const totalDiff = computed(() => conciliation.value.reduce((sum, m) => sum + m.diff, 0));
 </script>
 
 <template>

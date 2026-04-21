@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sucursal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use Illuminate\Http\RedirectResponse;
@@ -13,6 +14,35 @@ use Inertia\Response;
 
 class CashShiftController extends Controller
 {
+    /**
+     * Métodos de pago soportados por el modelo de cierre de turno.
+     * El backend mantiene columnas fijas (cash/card/transfer) por historia,
+     * pero la UI respeta lo habilitado por sucursal.
+     */
+    private const SUPPORTED_METHODS = ['cash', 'card', 'transfer'];
+
+    /**
+     * Resuelve los métodos de pago habilitados para una sucursal.
+     * Si la configuración es NULL, se asume todos activos (compat).
+     * @return array<int,string>
+     */
+    private function enabledMethodsFor(?int $branchId): array
+    {
+        if (! $branchId) {
+            return self::SUPPORTED_METHODS;
+        }
+
+        $branch = Branch::find($branchId);
+        $methods = $branch?->payment_methods_enabled;
+
+        if (! is_array($methods) || empty($methods)) {
+            return self::SUPPORTED_METHODS;
+        }
+
+        // Intersección con los soportados para protegernos contra slugs desconocidos.
+        return array_values(array_intersect(self::SUPPORTED_METHODS, $methods));
+    }
+
     public function active(): Response|RedirectResponse
     {
         $user = Auth::user();
@@ -24,6 +54,7 @@ class CashShiftController extends Controller
         if (! $shift) {
             return Inertia::render('Sucursal/Turno/Open', [
                 'tenant' => app('tenant'),
+                'paymentMethods' => $this->enabledMethodsFor($user->branch_id),
             ]);
         }
 
@@ -50,6 +81,7 @@ class CashShiftController extends Controller
                 'expected_cash' => round($expected, 2),
                 'payment_count' => $payments->pluck('sale_id')->unique()->count(),
             ],
+            'paymentMethods' => $this->enabledMethodsFor($user->branch_id),
             'tenant' => app('tenant'),
         ]);
     }
@@ -90,13 +122,6 @@ class CashShiftController extends Controller
             ->whereNull('closed_at')
             ->firstOrFail();
 
-        $validated = $request->validate([
-            'declared_amount' => 'required|numeric|min:0',
-            'declared_card' => 'required|numeric|min:0',
-            'declared_transfer' => 'required|numeric|min:0',
-            'notes' => 'nullable|string|max:500',
-        ]);
-
         $payments = Payment::where('user_id', $user->id)
             ->where('created_at', '>=', $shift->opened_at)
             ->get();
@@ -106,15 +131,47 @@ class CashShiftController extends Controller
         $totalTransfer = (float) $payments->where('method', 'transfer')->sum('amount');
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
 
-        $expectedCash = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
-        $declaredCash = round((float) $validated['declared_amount'], 2);
-        $declaredCard = round((float) $validated['declared_card'], 2);
-        $declaredTransfer = round((float) $validated['declared_transfer'], 2);
+        // Métodos que requieren declaración: habilitados en la sucursal +
+        // cualquier método con movimientos durante el turno (por si se desactivó
+        // a mitad del turno no perdemos la conciliación de dinero que sí entró).
+        $enabled = $this->enabledMethodsFor($user->branch_id);
+        $withMovement = array_filter([
+            'cash' => $totalCash > 0,
+            'card' => $totalCard > 0,
+            'transfer' => $totalTransfer > 0,
+        ]);
+        $effective = array_values(array_unique(array_merge($enabled, array_keys($withMovement))));
 
-        $diffCash = round($declaredCash - $expectedCash, 2);
-        $diffCard = round($declaredCard - $totalCard, 2);
-        $diffTransfer = round($declaredTransfer - $totalTransfer, 2);
-        $totalDiff = round($diffCash + $diffCard + $diffTransfer, 2);
+        // "Cash" siempre se exige: aunque no haya cobros en efectivo, siempre hay un
+        // fondo inicial que conciliar. Protege el caso de tener solo tarjeta habilitada.
+        if (! in_array('cash', $effective, true)) {
+            $effective[] = 'cash';
+        }
+
+        $rules = ['notes' => 'nullable|string|max:500'];
+        if (in_array('cash', $effective, true))     $rules['declared_amount']   = 'required|numeric|min:0';
+        if (in_array('card', $effective, true))     $rules['declared_card']     = 'required|numeric|min:0';
+        if (in_array('transfer', $effective, true)) $rules['declared_transfer'] = 'required|numeric|min:0';
+
+        $validated = $request->validate($rules);
+
+        $expectedCash = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
+
+        // Para métodos NO efectivos, se guarda NULL en declared_*/difference_* (significa "no aplica").
+        $declaredCash = array_key_exists('declared_amount', $validated)
+            ? round((float) $validated['declared_amount'], 2)
+            : null;
+        $declaredCard = array_key_exists('declared_card', $validated)
+            ? round((float) $validated['declared_card'], 2)
+            : null;
+        $declaredTransfer = array_key_exists('declared_transfer', $validated)
+            ? round((float) $validated['declared_transfer'], 2)
+            : null;
+
+        $diffCash = $declaredCash !== null ? round($declaredCash - $expectedCash, 2) : null;
+        $diffCard = $declaredCard !== null ? round($declaredCard - $totalCard, 2) : null;
+        $diffTransfer = $declaredTransfer !== null ? round($declaredTransfer - $totalTransfer, 2) : null;
+        $totalDiff = round(($diffCash ?? 0) + ($diffCard ?? 0) + ($diffTransfer ?? 0), 2);
 
         $shift->update([
             'closed_at' => now(),
@@ -123,14 +180,17 @@ class CashShiftController extends Controller
             'total_transfer' => $totalTransfer,
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
             'sale_count' => $payments->pluck('sale_id')->unique()->count(),
+            // declared_* puede ser NULL (columnas nullable) — null = "no aplica".
             'declared_amount' => $declaredCash,
             'declared_card' => $declaredCard,
             'declared_transfer' => $declaredTransfer,
             'expected_amount' => $expectedCash,
-            'difference' => $diffCash,
-            'difference_card' => $diffCard,
-            'difference_transfer' => $diffTransfer,
-            'notes' => $validated['notes'],
+            // difference_* no es nullable en DB; se persiste 0 cuando no aplica.
+            // El discriminador "no aplica vs cuadra" vive en declared_*.
+            'difference' => $diffCash ?? 0,
+            'difference_card' => $diffCard ?? 0,
+            'difference_transfer' => $diffTransfer ?? 0,
+            'notes' => $validated['notes'] ?? null,
         ]);
 
         return redirect()->route('sucursal.turno.active', app('tenant')->slug)
@@ -181,11 +241,16 @@ class CashShiftController extends Controller
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
 
         $expected = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
-        $declared = (float) $shift->declared_amount;
-        $difference = round($declared - $expected, 2);
 
-        $declaredCard = (float) $shift->declared_card;
-        $declaredTransfer = (float) $shift->declared_transfer;
+        // Respetar lo declarado originalmente: si un método se declaró con NULL
+        // (porque estaba desactivado al cierre) no lo "resucitamos" con 0.
+        $declaredCash = $shift->declared_amount !== null ? (float) $shift->declared_amount : null;
+        $declaredCard = $shift->declared_card !== null ? (float) $shift->declared_card : null;
+        $declaredTransfer = $shift->declared_transfer !== null ? (float) $shift->declared_transfer : null;
+
+        $diffCash = $declaredCash !== null ? round($declaredCash - $expected, 2) : null;
+        $diffCard = $declaredCard !== null ? round($declaredCard - $totalCard, 2) : null;
+        $diffTransfer = $declaredTransfer !== null ? round($declaredTransfer - $totalTransfer, 2) : null;
 
         $shift->update([
             'total_cash' => $totalCash,
@@ -194,12 +259,13 @@ class CashShiftController extends Controller
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
             'sale_count' => $payments->pluck('sale_id')->unique()->count(),
             'expected_amount' => $expected,
-            'difference' => $difference,
-            'difference_card' => round($declaredCard - $totalCard, 2),
-            'difference_transfer' => round($declaredTransfer - $totalTransfer, 2),
+            // difference_* no nullable; persistir 0 cuando no aplica.
+            'difference' => $diffCash ?? 0,
+            'difference_card' => $diffCard ?? 0,
+            'difference_transfer' => $diffTransfer ?? 0,
         ]);
 
-        $totalDiff = round($difference + ($declaredCard - $totalCard) + ($declaredTransfer - $totalTransfer), 2);
+        $totalDiff = round(($diffCash ?? 0) + ($diffCard ?? 0) + ($diffTransfer ?? 0), 2);
 
         return back()->with('success', 'Corte recalculado. Diferencia total: $' . number_format($totalDiff, 2));
     }
@@ -222,16 +288,23 @@ class CashShiftController extends Controller
             return back()->with('error', 'El cajero ya tiene un turno abierto. Debe cerrarlo primero.');
         }
 
+        // Reset a valores neutros. Columnas NOT NULL (total_*, sale_count,
+        // expected_amount, difference_*) vuelven a 0. Las nullable (declared_*,
+        // closed_at) a NULL. Al cerrar de nuevo se recalcula todo.
         $shift->update([
             'closed_at' => null,
-            'total_cash' => null,
-            'total_card' => null,
-            'total_transfer' => null,
-            'total_sales' => null,
-            'sale_count' => null,
+            'total_cash' => 0,
+            'total_card' => 0,
+            'total_transfer' => 0,
+            'total_sales' => 0,
+            'sale_count' => 0,
             'declared_amount' => null,
-            'expected_amount' => null,
-            'difference' => null,
+            'declared_card' => null,
+            'declared_transfer' => null,
+            'expected_amount' => 0,
+            'difference' => 0,
+            'difference_card' => 0,
+            'difference_transfer' => 0,
         ]);
 
         return redirect()->route('sucursal.cortes.index', app('tenant')->slug)
@@ -276,6 +349,7 @@ class CashShiftController extends Controller
 
         return Inertia::render('Sucursal/Cortes/Show', [
             'shift' => $shift,
+            'paymentMethods' => $this->enabledMethodsFor($shift->branch_id),
             'tenant' => app('tenant'),
             'isAdmin' => $isAdmin,
         ]);
