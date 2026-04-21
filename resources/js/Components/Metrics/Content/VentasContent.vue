@@ -43,19 +43,20 @@ const salesChartOptions = {
     legend: { fontSize: '12px' },
 };
 
-const methodPieSeries = computed(() => {
-    const m = current.value.by_method ?? {};
-    return [m.cash ?? 0, m.card ?? 0, m.transfer ?? 0, m.credit ?? 0];
-});
-const methodPieOptions = {
+const paymentMethods = computed(() => props.data?.by_payment_method ?? []);
+const methodPieSeries = computed(() => paymentMethods.value.map(m => m.total));
+const methodPieLabels = computed(() => paymentMethods.value.map(m => m.label));
+const methodPieTotal = computed(() => paymentMethods.value.reduce((sum, m) => sum + m.total, 0));
+
+const methodPieOptions = computed(() => ({
     chart: { type: 'donut', fontFamily: 'inherit' },
-    labels: ['Efectivo', 'Tarjeta', 'Transferencia', 'Crédito'],
-    colors: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'],
+    labels: methodPieLabels.value,
+    colors: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7'],
     legend: { position: 'bottom', fontSize: '12px' },
-    plotOptions: { pie: { donut: { size: '65%', labels: { show: true, total: { show: true, label: 'Total', formatter: () => formatCurrency(current.value.net_sales ?? 0) } } } } },
+    plotOptions: { pie: { donut: { size: '65%', labels: { show: true, total: { show: true, label: 'Total cobrado', formatter: () => formatCurrency(methodPieTotal.value) } } } } },
     tooltip: { y: { formatter: v => formatCurrency(v) } },
     dataLabels: { enabled: false },
-};
+}));
 
 const heatmapSeries = computed(() => {
     const matrix = props.data?.heatmap ?? {};
@@ -122,8 +123,8 @@ const tableColumns = [
                     <apexchart type="heatmap" height="280" :options="heatmapOptions" :series="heatmapSeries" />
                 </ChartCard>
             </div>
-            <ChartCard title="Métodos de pago" subtitle="Distribución por forma de pago registrada.">
-                <apexchart v-if="current.net_sales" type="donut" height="280" :options="methodPieOptions" :series="methodPieSeries" />
+            <ChartCard title="Métodos de pago" subtitle="Distribución del cobrado por forma de pago.">
+                <apexchart v-if="methodPieSeries.length" type="donut" height="280" :options="methodPieOptions" :series="methodPieSeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>
         </div>

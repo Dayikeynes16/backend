@@ -2,6 +2,7 @@
 
 namespace App\Services\Metrics;
 
+use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use Illuminate\Support\Facades\DB;
 
@@ -127,6 +128,33 @@ class SalesMetrics extends AbstractMetrics
         }
 
         return $matrix;
+    }
+
+    /**
+     * Desglose dinámico de pagos por método. Agrupa por payments.method
+     * (no sales.payment_method) para capturar pagos divididos correctamente.
+     * Devuelve labels resueltos desde PaymentMethod enum (tolera slugs no mapeados).
+     */
+    public function byPaymentMethod(DateRange $range, ?int $branchId, int $tenantId): array
+    {
+        $rows = DB::table('payments as p')
+            ->join('sales as s', 's.id', '=', 'p.sale_id')
+            ->where('s.tenant_id', $tenantId)
+            ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
+            ->whereNull('p.deleted_at')
+            ->whereBetween('p.created_at', [$range->start, $range->end])
+            ->selectRaw('p.method as method, COALESCE(SUM(p.amount), 0) as total, COUNT(*) as count, COALESCE(AVG(p.amount), 0) as average')
+            ->groupBy('p.method')
+            ->orderByDesc('total')
+            ->get();
+
+        return $rows->map(fn ($r) => [
+            'method' => (string) $r->method,
+            'label' => PaymentMethod::resolveLabel((string) $r->method),
+            'total' => (float) $r->total,
+            'count' => (int) $r->count,
+            'average' => round((float) $r->average, 2),
+        ])->all();
     }
 
     public function dailyTable(DateRange $range, ?int $branchId, int $tenantId): array

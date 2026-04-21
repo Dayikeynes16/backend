@@ -32,6 +32,7 @@ class SalesMetricsController extends Controller
             'previous_daily_series' => $service->dailySeries($range->previousComparable(), $branchId, $tenantId),
             'heatmap' => $service->hourDayHeatmap($range, $branchId, $tenantId),
             'daily_table' => $service->dailyTable($range, $branchId, $tenantId),
+            'by_payment_method' => $service->byPaymentMethod($range, $branchId, $tenantId),
         ]);
 
         return Inertia::render('Sucursal/Metricas/Ventas', [
