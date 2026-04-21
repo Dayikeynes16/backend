@@ -154,6 +154,7 @@ class ProductMetrics extends AbstractMetrics
             ->where('p.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('p.branch_id', $branchId))
             ->where('p.status', 'active')
+            ->whereNull('p.deleted_at')
             ->where(function ($q) use ($cutoff) {
                 $q->whereNull('lm.last_sold')->orWhere('lm.last_sold', '<', $cutoff);
             })

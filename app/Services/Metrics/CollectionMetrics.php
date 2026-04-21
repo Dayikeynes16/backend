@@ -51,32 +51,38 @@ class CollectionMetrics extends AbstractMetrics
 
     public function aging(?int $branchId, int $tenantId): array
     {
-        $now = now();
-        $buckets = ['0-30' => 0.0, '31-60' => 0.0, '61-plus' => 0.0];
-
-        $rows = DB::table('sales')
+        $row = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereNotNull('customer_id')
+            ->whereNull('deleted_at')
             ->where('amount_pending', '>', 0)
-            ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value])
-            ->select('amount_pending', 'completed_at', 'created_at')
-            ->get();
+            ->whereIn('status', [
+                SaleStatus::Completed->value,
+                SaleStatus::Pending->value,
+                SaleStatus::Active->value,
+            ])
+            ->selectRaw("
+                COALESCE(SUM(CASE
+                    WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) <= 30 THEN amount_pending
+                    ELSE 0
+                END), 0) AS bucket_0_30,
+                COALESCE(SUM(CASE
+                    WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) BETWEEN 31 AND 60 THEN amount_pending
+                    ELSE 0
+                END), 0) AS bucket_31_60,
+                COALESCE(SUM(CASE
+                    WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) > 60 THEN amount_pending
+                    ELSE 0
+                END), 0) AS bucket_61_plus
+            ")
+            ->first();
 
-        foreach ($rows as $r) {
-            $dateRef = $r->completed_at ?? $r->created_at;
-            $days = $now->diffInDays($dateRef);
-            $amt = (float) $r->amount_pending;
-            if ($days <= 30) {
-                $buckets['0-30'] += $amt;
-            } elseif ($days <= 60) {
-                $buckets['31-60'] += $amt;
-            } else {
-                $buckets['61-plus'] += $amt;
-            }
-        }
-
-        return $buckets;
+        return [
+            '0-30' => (float) $row->bucket_0_30,
+            '31-60' => (float) $row->bucket_31_60,
+            '61-plus' => (float) $row->bucket_61_plus,
+        ];
     }
 
     public function receivablesTable(?int $branchId, int $tenantId, int $limit = 200): array
