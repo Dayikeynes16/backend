@@ -11,6 +11,7 @@ const props = defineProps({ tenant: Object });
 const form = useForm({
     name: props.tenant.name,
     phone: props.tenant.phone || '',
+    owner_whatsapp: props.tenant.owner_whatsapp || '',
     address: props.tenant.address || '',
 });
 
@@ -40,8 +41,9 @@ const submit = () => {
                     </div>
                     <div class="grid gap-5 sm:grid-cols-2">
                         <div>
-                            <InputLabel for="phone" value="Telefono" />
-                            <TextInput id="phone" v-model="form.phone" type="text" class="mt-1.5 block w-full" />
+                            <InputLabel for="phone" value="Telefono general de la empresa" />
+                            <TextInput id="phone" v-model="form.phone" type="text" class="mt-1.5 block w-full" placeholder="Ej. 33 1234 5678" />
+                            <p class="mt-1 text-xs text-gray-400">Telefono de contacto institucional (aparece en tickets, comprobantes).</p>
                             <InputError :message="form.errors.phone" class="mt-1" />
                         </div>
                         <div>
@@ -49,6 +51,21 @@ const submit = () => {
                             <TextInput id="address" v-model="form.address" type="text" class="mt-1.5 block w-full" />
                             <InputError :message="form.errors.address" class="mt-1" />
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">WhatsApp del dueno / empresa</h2>
+                    <p class="mt-1 text-sm text-gray-500">Numero al que se enviaran los reportes de corte por WhatsApp. Puede ser tu celular personal. Es independiente del telefono general de la empresa y de los telefonos de cada sucursal.</p>
+                </div>
+                <div class="space-y-5 p-6">
+                    <div>
+                        <InputLabel for="owner_whatsapp" value="Numero de WhatsApp" />
+                        <TextInput id="owner_whatsapp" v-model="form.owner_whatsapp" type="text" class="mt-1.5 block w-full" placeholder="Ej. 3312345678 o +523312345678" />
+                        <p class="mt-1 text-xs text-gray-400">Si ingresas 10 digitos se asume Mexico (+52). Para otros paises incluye el prefijo con el signo +.</p>
+                        <InputError :message="form.errors.owner_whatsapp" class="mt-1" />
                     </div>
                 </div>
             </section>

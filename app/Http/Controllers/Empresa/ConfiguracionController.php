@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Empresa;
 
 use App\Http\Controllers\Controller;
+use App\Services\PhoneNormalizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -26,8 +27,13 @@ class ConfiguracionController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:20',
+            'owner_whatsapp' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
         ]);
+
+        $validated['owner_whatsapp'] = ! empty($validated['owner_whatsapp'])
+            ? PhoneNormalizer::normalize($validated['owner_whatsapp'])
+            : null;
 
         $tenant->update($validated);
 

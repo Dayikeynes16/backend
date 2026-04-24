@@ -85,3 +85,24 @@ Todos retornan JSON. El `Accept: application/json` se envía desde `useCustomerS
 - Item cuyo producto fue eliminado (`product_id` null) → usa `product_name` snapshoteado; ahorro = 0 si no hay `original_unit_price`.
 - Solo 1 venta → `avg_days_between = null`, `sales_per_month = 1`.
 - División por cero → guards en controller y frontend.
+
+## Enviar detalle de venta al cliente por WhatsApp
+
+En `SaleDetailModal.vue` aparece un botón verde "Enviar por WhatsApp" en el header si la venta tiene un cliente con teléfono (`customers.phone` es NOT NULL en schema, pero se valida igual por robustez).
+
+### Backend
+- `CustomerStatsController::saleDetail()` normaliza `customer.phone` con `PhoneNormalizer::normalize()` y construye la URL `wa.me` con `WhatsappMessageService::buildUrl()`.
+- El mensaje lo arma `WhatsappMessageService::buildCustomerSaleText(Sale $sale)` adaptándose al estado:
+  - **Pendiente (crédito)**: saludo + detalle + total / pagado / pendiente + productos + cierre amable.
+  - **Cobrada**: saludo + confirmación + total cobrado + método + productos + agradecimiento.
+  - **Cancelada**: saludo + aviso breve de cancelación.
+- Todo el texto se construye en backend (consistencia + testeable). El link se expone como `whatsapp_url` en el JSON del endpoint.
+
+### Frontend
+- `SaleDetailModal.vue` renderiza `<a>` con `target="_blank"` al link cuando `sale.whatsapp_url` no es null. El click del usuario es gesto suficiente para que el navegador permita abrir WhatsApp sin bloqueo.
+- Logo oficial WhatsApp + color brand #25D366.
+
+### Restricciones
+- No se envía automáticamente — solo se genera el link `wa.me` con mensaje prellenado. El usuario revisa y envía manualmente.
+- El texto se trunca si excede 3500 bytes.
+- Por ahora solo se expone desde el modal de detalle; no aparece en la fila de la tabla ni en Workbench.

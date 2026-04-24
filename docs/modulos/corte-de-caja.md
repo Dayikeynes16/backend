@@ -165,3 +165,43 @@ Admin selecciona venta cobrada → "Cancelar venta"
 - Al reabrir, se verifica que el cajero no tenga otro turno abierto.
 - Ediciones de pagos quedan auditadas con `updated_by`.
 - Cancelación de ventas cobradas muestra advertencia explícita.
+
+## Reporte por WhatsApp al dueño
+
+Tras cerrar un turno, la pantalla `Sucursal/Cortes/Show.vue` muestra un botón **"Enviar por WhatsApp"** que abre WhatsApp Web/App con un mensaje prellenado al número del dueño.
+
+### Dato
+
+- `tenants.owner_whatsapp` (string 20, nullable) — número en formato E.164, normalizado con `PhoneNormalizer::normalize()` al guardar. Se configura en **Empresa > Configuración** y solo es editable por `admin-empresa` / `superadmin`.
+- Es independiente de `tenants.phone` (teléfono institucional) y de `branches.phone` / `branches.public_phone` (operación de sucursal).
+
+### Flujo
+
+1. `Sucursal\CashShiftController::close()` redirige al detalle del corte recién cerrado (`sucursal.cortes.show`).
+2. `Sucursal\CashShiftController::show()` llama a `ShiftReportMessageService::buildShiftCloseText($shift)` y a `WhatsappMessageService::buildUrl($tenant->owner_whatsapp, $text)` solo si hay `owner_whatsapp` configurado y el turno está cerrado.
+3. Las props `whatsappUrl` y `hasOwnerWhatsapp` viajan a la vista. El botón se deshabilita con tooltip cuando `hasOwnerWhatsapp === false`.
+
+### Contenido del mensaje
+
+Construido en backend por `ShiftReportMessageService` (ver tests en `tests/Feature/Services/ShiftReportMessageServiceTest.php`):
+
+- Encabezado con empresa y sucursal.
+- Fecha, cajero y rango del turno.
+- Totales de ventas: total vendido, número de ventas, canceladas (si las hay).
+- Desglose por método de pago: efectivo, tarjeta, transferencia.
+- Bloque de efectivo: fondo inicial, retiros (si existen), esperado, declarado, diferencia.
+- Resumen de diferencias por método. Si todas son 0 muestra "Sin diferencias ✅".
+- Notas del corte (si existen).
+
+Ventas canceladas se consultan de `sales` filtradas por `branch_id`, `user_id` y `created_at` entre `opened_at` y `closed_at` del turno, con `status = cancelled`.
+
+### Apertura automática
+
+Tras cerrar un turno, `CashShiftController::close()` agrega el flash `auto_open_whatsapp: true`. La pantalla `Cortes/Show.vue` lee esa flag en `onMounted` y ejecuta `window.open(whatsappUrl, '_blank')`. Si el navegador bloquea el popup (falta de gesto reciente del usuario), se muestra un banner ámbar indicándole al usuario que debe hacer click en el botón. El botón queda siempre visible como fallback.
+
+### Restricciones
+
+- El mensaje se **genera en backend** (consistencia, testeable, reutilizable).
+- No se envía automáticamente: solo se genera el link `wa.me`. El usuario decide enviarlo (o lo hace el navegador si permite auto-open).
+- El texto se trunca si excede 3500 bytes.
+- El botón no aparece en panel Caja (`/caja/turno`) — solo en el flujo de Sucursal.

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SaleStatus;
 use App\Models\Sale;
 
 class WhatsappMessageService
@@ -74,6 +75,85 @@ class WhatsappMessageService
         $digits = PhoneNormalizer::digits($phoneE164);
 
         return 'https://wa.me/'.$digits.'?text='.rawurlencode($text);
+    }
+
+    /**
+     * Mensaje al cliente con el detalle de su venta.
+     * El formato se adapta al estado: pendiente (crédito), cobrada o cancelada.
+     */
+    public function buildCustomerSaleText(Sale $sale): string
+    {
+        $sale->loadMissing(['items', 'branch:id,tenant_id,name', 'customer:id,name', 'tenant:id,name']);
+
+        $customerName = $sale->customer?->name ?? 'cliente';
+        $businessLine = trim(($sale->tenant?->name ?? '').' — '.($sale->branch?->name ?? ''), ' —');
+        $status = $sale->status instanceof SaleStatus ? $sale->status : SaleStatus::tryFrom((string) $sale->status);
+
+        $lines = [];
+        $lines[] = 'Hola *'.$customerName.'*,';
+
+        if ($status === SaleStatus::Cancelled) {
+            $lines[] = 'Tu pedido *'.$sale->folio.'*'
+                .($businessLine !== '' ? ' de '.$businessLine : '')
+                .' fue cancelado. Si fue un error, contáctanos.';
+
+            return $this->truncateIfNeededSimple(implode("\n", $lines));
+        }
+
+        $isPaid = (float) $sale->amount_pending <= 0 && (float) $sale->amount_paid > 0;
+
+        $lines[] = $isPaid
+            ? 'Confirmamos tu compra *'.$sale->folio.'*'.($businessLine !== '' ? ' de '.$businessLine : '').'.'
+            : 'Te compartimos el detalle de tu pedido *'.$sale->folio.'*'.($businessLine !== '' ? ' de '.$businessLine : '').'.';
+        $lines[] = '';
+
+        $lines[] = '📅 Fecha: '.($sale->created_at?->format('d/m/Y') ?? '—');
+
+        if ($isPaid) {
+            $lines[] = '✅ Total cobrado: '.$this->money($sale->total);
+            if (! empty($sale->payment_method)) {
+                $lines[] = '💳 Método: '.$this->formatPaymentMethod($sale->payment_method);
+            }
+        } else {
+            $lines[] = '💰 Total: '.$this->money($sale->total);
+            if ((float) $sale->amount_paid > 0) {
+                $lines[] = '💳 Pagado: '.$this->money($sale->amount_paid);
+            }
+            $lines[] = '⚠️ Pendiente: '.$this->money($sale->amount_pending);
+        }
+
+        if ($sale->items && $sale->items->count() > 0) {
+            $lines[] = '';
+            $lines[] = 'Productos:';
+            foreach ($sale->items as $item) {
+                $qty = $this->formatQty((float) $item->quantity, $item->unit_type);
+                $lines[] = '• '.$qty.' × '.$item->product_name.' — '.$this->money($item->subtotal);
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = $isPaid
+            ? '¡Gracias por tu compra!'
+            : 'Cualquier duda con tu pedido, responde a este mensaje.';
+        if (! $isPaid) {
+            $lines[] = '¡Gracias por tu preferencia!';
+        }
+
+        return $this->truncateIfNeededSimple(implode("\n", $lines));
+    }
+
+    private function money($value): string
+    {
+        return '$'.number_format((float) $value, 2, '.', ',');
+    }
+
+    private function truncateIfNeededSimple(string $text): string
+    {
+        if (strlen($text) <= self::MAX_TEXT_BYTES) {
+            return $text;
+        }
+
+        return substr($text, 0, self::MAX_TEXT_BYTES - 3).'...';
     }
 
     private function formatQty(float $qty, ?string $unitType): string

@@ -248,6 +248,9 @@ Route::prefix('{tenant}')
                 // Assign customer to sale
                 Route::patch('mesa-de-trabajo/ventas/{sale}/cliente', [WorkbenchController::class, 'assignCustomer'])->name('workbench.assign-customer');
 
+                // WhatsApp link to customer (on-demand, no payload bloat)
+                Route::get('mesa-de-trabajo/ventas/{sale}/whatsapp-link', [WorkbenchController::class, 'whatsappLink'])->name('workbench.whatsapp-link');
+
                 // Config
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [SucursalConfiguracionController::class, 'update'])->name('configuracion.update');
@@ -283,6 +286,7 @@ Route::prefix('{tenant}')
                 Route::get('turno', [CajaTurnoController::class, 'index'])->name('turno');
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');
+                Route::get('turno/corte/{shift}', [CajaTurnoController::class, 'showCorte'])->name('turno.corte');
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
             });

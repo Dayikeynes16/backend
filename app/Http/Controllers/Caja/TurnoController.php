@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
+use App\Services\ShiftReportMessageService;
+use App\Services\WhatsappMessageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -133,9 +135,15 @@ class TurnoController extends Controller
         }
 
         $rules = ['notes' => 'nullable|string|max:500'];
-        if (in_array('cash', $effective, true))     $rules['declared_amount']   = 'required|numeric|min:0';
-        if (in_array('card', $effective, true))     $rules['declared_card']     = 'required|numeric|min:0';
-        if (in_array('transfer', $effective, true)) $rules['declared_transfer'] = 'required|numeric|min:0';
+        if (in_array('cash', $effective, true)) {
+            $rules['declared_amount'] = 'required|numeric|min:0';
+        }
+        if (in_array('card', $effective, true)) {
+            $rules['declared_card'] = 'required|numeric|min:0';
+        }
+        if (in_array('transfer', $effective, true)) {
+            $rules['declared_transfer'] = 'required|numeric|min:0';
+        }
 
         $validated = $request->validate($rules);
 
@@ -172,7 +180,49 @@ class TurnoController extends Controller
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        return redirect()->route('caja.turno', app('tenant')->slug)
-            ->with('success', 'Turno cerrado.');
+        return redirect()->route('caja.turno.corte', [app('tenant')->slug, $shift->id])
+            ->with('success', 'Turno cerrado.')
+            ->with('auto_open_whatsapp', true);
+    }
+
+    /**
+     * Resumen del corte recién cerrado (o histórico propio) con botón de
+     * reporte por WhatsApp al dueño. Solo el cajero dueño del shift puede
+     * verlo; admins tienen su propia pantalla en panel Sucursal.
+     */
+    public function showCorte(
+        CashRegisterShift $shift,
+        ShiftReportMessageService $reportService,
+        WhatsappMessageService $whatsappService,
+    ): Response {
+        $user = Auth::user();
+
+        if ($shift->user_id !== $user->id) {
+            abort(403, 'Este corte no es tuyo.');
+        }
+        if ($shift->tenant_id !== $user->tenant_id) {
+            abort(403, 'Este corte no pertenece a tu empresa.');
+        }
+        if ($shift->branch_id !== $user->branch_id) {
+            abort(403, 'Este corte no pertenece a tu sucursal.');
+        }
+
+        $shift->load(['user:id,name', 'withdrawals']);
+
+        $tenant = app('tenant');
+        $whatsappUrl = null;
+        $hasOwnerWhatsapp = ! empty($tenant->owner_whatsapp);
+        if ($hasOwnerWhatsapp && $shift->closed_at) {
+            $text = $reportService->buildShiftCloseText($shift);
+            $whatsappUrl = $whatsappService->buildUrl($tenant->owner_whatsapp, $text);
+        }
+
+        return Inertia::render('Caja/Turno/Corte', [
+            'shift' => $shift,
+            'tenant' => $tenant,
+            'whatsappUrl' => $whatsappUrl,
+            'hasOwnerWhatsapp' => $hasOwnerWhatsapp,
+            'autoOpenWhatsapp' => (bool) session('auto_open_whatsapp', false),
+        ]);
     }
 }

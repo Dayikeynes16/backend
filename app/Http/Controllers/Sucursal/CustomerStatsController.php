@@ -8,6 +8,9 @@ use App\Models\CashRegisterShift;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Sale;
+use App\Services\PhoneNormalizer;
+use App\Services\WhatsappMessageService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -65,8 +68,8 @@ class CustomerStatsController extends Controller
         $salesPerMonth = null;
 
         if ($saleCount >= 2 && $totals->first_sale_at && $totals->last_sale_at) {
-            $first = \Carbon\Carbon::parse($totals->first_sale_at);
-            $last = \Carbon\Carbon::parse($totals->last_sale_at);
+            $first = Carbon::parse($totals->first_sale_at);
+            $last = Carbon::parse($totals->last_sale_at);
             $spanDays = max($first->diffInDays($last), 1);
             $avgDaysBetween = round($spanDays / max($saleCount - 1, 1), 1);
 
@@ -127,7 +130,7 @@ class CustomerStatsController extends Controller
         $sales = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', SaleStatus::Cancelled->value)
             ->when($validated['from'] ?? null, fn ($q, $from) => $q->where('created_at', '>=', $from))
-            ->when($validated['to'] ?? null, fn ($q, $to) => $q->where('created_at', '<=', $to . ' 23:59:59'))
+            ->when($validated['to'] ?? null, fn ($q, $to) => $q->where('created_at', '<=', $to.' 23:59:59'))
             ->with([
                 'items:id,sale_id,product_name,quantity,unit_type,unit_price,original_unit_price,subtotal',
                 'payments:id,sale_id,method,amount,created_at',
@@ -182,8 +185,11 @@ class CustomerStatsController extends Controller
     /**
      * Single sale detail for modal (items + payments + cashier).
      */
-    public function saleDetail(Customer $customer, \App\Models\Sale $sale): JsonResponse
-    {
+    public function saleDetail(
+        Customer $customer,
+        Sale $sale,
+        WhatsappMessageService $whatsappService,
+    ): JsonResponse {
         $this->authorizeAccess($customer);
 
         if ($sale->customer_id !== $customer->id) {
@@ -196,6 +202,17 @@ class CustomerStatsController extends Controller
             'payments.user:id,name',
             'user:id,name',
         ]);
+
+        // Build WhatsApp link for the customer if they have a phone configured.
+        // Customer.phone is NOT NULL in schema but we guard defensively.
+        $whatsappUrl = null;
+        if (! empty($customer->phone)) {
+            $normalized = PhoneNormalizer::normalize($customer->phone);
+            if ($normalized !== '') {
+                $text = $whatsappService->buildCustomerSaleText($sale);
+                $whatsappUrl = $whatsappService->buildUrl($normalized, $text);
+            }
+        }
 
         return response()->json([
             'id' => $sale->id,
@@ -218,6 +235,12 @@ class CustomerStatsController extends Controller
                 'created_at' => $p->created_at,
                 'user' => $p->user ? ['id' => $p->user->id, 'name' => $p->user->name] : null,
             ]),
+            'customer' => [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'has_phone' => ! empty($customer->phone),
+            ],
+            'whatsapp_url' => $whatsappUrl,
         ]);
     }
 
@@ -295,6 +318,7 @@ class CustomerStatsController extends Controller
             ->take(100)
             ->map(function ($m) {
                 unset($m['sort_key']);
+
                 return $m;
             });
 

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
+use App\Services\ShiftReportMessageService;
+use App\Services\WhatsappMessageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -139,9 +141,15 @@ class CashShiftController extends Controller
         }
 
         $rules = ['notes' => 'nullable|string|max:500'];
-        if (in_array('cash', $effective, true))     $rules['declared_amount']   = 'required|numeric|min:0';
-        if (in_array('card', $effective, true))     $rules['declared_card']     = 'required|numeric|min:0';
-        if (in_array('transfer', $effective, true)) $rules['declared_transfer'] = 'required|numeric|min:0';
+        if (in_array('cash', $effective, true)) {
+            $rules['declared_amount'] = 'required|numeric|min:0';
+        }
+        if (in_array('card', $effective, true)) {
+            $rules['declared_card'] = 'required|numeric|min:0';
+        }
+        if (in_array('transfer', $effective, true)) {
+            $rules['declared_transfer'] = 'required|numeric|min:0';
+        }
 
         $validated = $request->validate($rules);
 
@@ -183,8 +191,9 @@ class CashShiftController extends Controller
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        return redirect()->route('sucursal.turno.active', app('tenant')->slug)
-            ->with('success', 'Turno cerrado. Diferencia total: $' . number_format($totalDiff, 2));
+        return redirect()->route('sucursal.cortes.show', [app('tenant')->slug, $shift->id])
+            ->with('success', 'Turno cerrado. Diferencia total: $'.number_format($totalDiff, 2))
+            ->with('auto_open_whatsapp', true);
     }
 
     public function history(Request $request): Response
@@ -257,7 +266,7 @@ class CashShiftController extends Controller
 
         $totalDiff = round(($diffCash ?? 0) + ($diffCard ?? 0) + ($diffTransfer ?? 0), 2);
 
-        return back()->with('success', 'Corte recalculado. Diferencia total: $' . number_format($totalDiff, 2));
+        return back()->with('success', 'Corte recalculado. Diferencia total: $'.number_format($totalDiff, 2));
     }
 
     public function reopen(CashRegisterShift $shift): RedirectResponse
@@ -316,8 +325,11 @@ class CashShiftController extends Controller
         }
     }
 
-    public function show(CashRegisterShift $shift): Response
-    {
+    public function show(
+        CashRegisterShift $shift,
+        ShiftReportMessageService $reportService,
+        WhatsappMessageService $whatsappService,
+    ): Response {
         $user = Auth::user();
 
         // Validate shift belongs to this branch and tenant
@@ -337,11 +349,26 @@ class CashShiftController extends Controller
 
         $shift->load(['user:id,name', 'withdrawals']);
 
+        // Build WhatsApp link only if the shift is closed and the tenant has
+        // an owner_whatsapp configured. Frontend uses has_owner_whatsapp to
+        // decide whether to enable the button or show the "configure first"
+        // tooltip.
+        $tenant = app('tenant');
+        $whatsappUrl = null;
+        $hasOwnerWhatsapp = ! empty($tenant->owner_whatsapp);
+        if ($hasOwnerWhatsapp && $shift->closed_at) {
+            $text = $reportService->buildShiftCloseText($shift);
+            $whatsappUrl = $whatsappService->buildUrl($tenant->owner_whatsapp, $text);
+        }
+
         return Inertia::render('Sucursal/Cortes/Show', [
             'shift' => $shift,
             'paymentMethods' => $this->enabledMethodsFor($shift->branch_id),
-            'tenant' => app('tenant'),
+            'tenant' => $tenant,
             'isAdmin' => $isAdmin,
+            'whatsappUrl' => $whatsappUrl,
+            'hasOwnerWhatsapp' => $hasOwnerWhatsapp,
+            'autoOpenWhatsapp' => (bool) session('auto_open_whatsapp', false),
         ]);
     }
 }

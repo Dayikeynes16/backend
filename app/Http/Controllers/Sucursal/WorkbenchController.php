@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Sucursal;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
-use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
@@ -13,10 +12,14 @@ use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Services\PhoneNormalizer;
+use App\Services\WhatsappMessageService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Enum;
 use Inertia\Inertia;
@@ -78,7 +81,7 @@ class WorkbenchController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user->hasRole('admin-sucursal') && !$user->hasRole('admin-empresa') && !$user->hasRole('superadmin')) {
+        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('admin-empresa') && ! $user->hasRole('superadmin')) {
             abort(403, 'No tienes permiso para crear ventas.');
         }
 
@@ -110,7 +113,7 @@ class WorkbenchController extends Controller
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$branchId]);
 
             $count = Sale::withoutGlobalScopes()->where('branch_id', $branchId)->count();
-            $folio = 'S-' . str_pad($count + 1, 5, '0', STR_PAD_LEFT);
+            $folio = 'S-'.str_pad($count + 1, 5, '0', STR_PAD_LEFT);
 
             $total = 0;
             $itemsData = [];
@@ -128,7 +131,7 @@ class WorkbenchController extends Controller
                 if (in_array($product->sale_mode, ['presentation', 'both']) && ! empty($item['presentation_id'])) {
                     $presentation = $product->presentations->find($item['presentation_id']);
                     $catalogPrice = $presentation ? (float) $presentation->price : (float) $product->price;
-                    $productName = $product->name . ' - ' . ($presentation->name ?? '');
+                    $productName = $product->name.' - '.($presentation->name ?? '');
                 } else {
                     $catalogPrice = (float) $product->price;
                     $productName = $product->name;
@@ -446,6 +449,43 @@ class WorkbenchController extends Controller
         }
 
         return back()->with('success', "Venta {$sale->folio} marcada como pendiente.");
+    }
+
+    /**
+     * Construye el link wa.me al vuelo con el detalle de la venta.
+     * Se calcula on-demand (no inflamos el payload inicial del workbench con URLs
+     * largas). El frontend llama este endpoint en el click del botón para que
+     * window.open vaya dentro del gesto del usuario y no lo bloquee el navegador.
+     */
+    public function whatsappLink(Sale $sale, WhatsappMessageService $whatsappService): JsonResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
+        }
+
+        $sale->loadMissing('customer:id,name,phone');
+
+        if (! $sale->customer) {
+            return response()->json(['url' => null, 'available' => false, 'reason' => 'no_customer']);
+        }
+        if (empty($sale->customer->phone)) {
+            return response()->json(['url' => null, 'available' => false, 'reason' => 'no_phone']);
+        }
+
+        $normalized = PhoneNormalizer::normalize($sale->customer->phone);
+        if ($normalized === '') {
+            return response()->json(['url' => null, 'available' => false, 'reason' => 'invalid_phone']);
+        }
+
+        $text = $whatsappService->buildCustomerSaleText($sale);
+        $url = $whatsappService->buildUrl($normalized, $text);
+
+        return response()->json(['url' => $url, 'available' => true]);
     }
 
     public function assignCustomer(Request $request, Sale $sale): RedirectResponse
