@@ -56,6 +56,54 @@ class ProductMetrics extends AbstractMetrics
         return 'COALESCE(s.completed_at, s.created_at)';
     }
 
+    /**
+     * SQL SUM que normaliza la cantidad a kilogramos/litros considerando:
+     *
+     *  - Líneas de peso variable (quantity_unit='kg' / 'g' / 'l' / 'ml').
+     *  - Líneas de presentación con contenido en peso/volumen, aprovechando
+     *    presentation_snapshot.content × presentation_snapshot.unit. P. ej.
+     *    "3 presentaciones de queso de 1 kg" → 3 × 1 kg = 3 kg.
+     *  - "2 medios quesos de 500 g" → 2 × 500 g = 1.000 kg.
+     *
+     * Líneas con quantity_unit='unit' cuyo snapshot apunta a 'pieza' (o sin
+     * snapshot) NO entran aquí — esas las cuenta quantityUnitsSql().
+     */
+    private function quantityKgSql(): string
+    {
+        return "SUM(CASE
+            WHEN COALESCE(si.quantity_unit, si.unit_type) = 'kg'  THEN si.quantity
+            WHEN COALESCE(si.quantity_unit, si.unit_type) = 'g'   THEN si.quantity / 1000.0
+            WHEN COALESCE(si.quantity_unit, si.unit_type) = 'l'   THEN si.quantity
+            WHEN COALESCE(si.quantity_unit, si.unit_type) = 'ml'  THEN si.quantity / 1000.0
+            WHEN si.quantity_unit = 'unit' AND si.presentation_snapshot IS NOT NULL
+                 AND si.presentation_snapshot->>'unit' IN ('kg', 'l')
+                THEN si.quantity * (si.presentation_snapshot->>'content')::numeric
+            WHEN si.quantity_unit = 'unit' AND si.presentation_snapshot IS NOT NULL
+                 AND si.presentation_snapshot->>'unit' IN ('g', 'ml')
+                THEN si.quantity * (si.presentation_snapshot->>'content')::numeric / 1000.0
+            ELSE 0
+        END)";
+    }
+
+    /**
+     * SQL SUM que cuenta la cantidad como unidades discretas:
+     *
+     *  - Líneas con unit_type='piece' o 'cut' (venta directa por pieza).
+     *  - Presentaciones cuyo snapshot.unit es 'pieza' (paquetes, no peso).
+     *  - Filas legacy con quantity_unit='unit' sin snapshot — se asume pieza.
+     */
+    private function quantityUnitsSql(): string
+    {
+        return "SUM(CASE
+            WHEN COALESCE(si.quantity_unit, si.unit_type) IN ('piece', 'cut') THEN si.quantity
+            WHEN si.quantity_unit = 'unit' AND (
+                si.presentation_snapshot IS NULL
+                OR si.presentation_snapshot->>'unit' = 'pieza'
+            ) THEN si.quantity
+            ELSE 0
+        END)";
+    }
+
     public function summary(DateRange $range, ?int $branchId, int $tenantId, array $statuses = ['completed']): array
     {
         $base = DB::table('sale_items as si')
@@ -72,17 +120,8 @@ class ProductMetrics extends AbstractMetrics
                 SUM(si.subtotal) as revenue,
                 SUM(COALESCE(si.cost_price_at_sale * si.quantity, 0)) as cost,
                 SUM(si.subtotal - COALESCE(si.cost_price_at_sale * si.quantity, 0)) as gross_profit,
-                SUM(CASE
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN (\'kg\') THEN si.quantity
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN (\'g\') THEN si.quantity / 1000.0
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN (\'l\') THEN si.quantity
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN (\'ml\') THEN si.quantity / 1000.0
-                    ELSE 0
-                END) as quantity_kg,
-                SUM(CASE
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN (\'piece\', \'cut\', \'unit\') THEN si.quantity
-                    ELSE 0
-                END) as quantity_units
+                '.$this->quantityKgSql().' as quantity_kg,
+                '.$this->quantityUnitsSql().' as quantity_units
             ')
             ->first();
 
@@ -146,29 +185,20 @@ class ProductMetrics extends AbstractMetrics
         $this->applyStatusFilter($query, $statuses);
 
         return $query
-            ->selectRaw("
+            ->selectRaw('
                 si.product_id,
                 MAX(si.product_name) as product_name,
                 MAX(c.name) as category_name,
                 MAX(p.image_path) as image_path,
                 MAX(p.unit_type) as unit_type,
                 COUNT(DISTINCT s.id) as ticket_count,
-                SUM(CASE
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN ('kg') THEN si.quantity
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN ('g') THEN si.quantity / 1000.0
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN ('l') THEN si.quantity
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN ('ml') THEN si.quantity / 1000.0
-                    ELSE 0
-                END) as quantity_kg,
-                SUM(CASE
-                    WHEN COALESCE(si.quantity_unit, si.unit_type) IN ('piece', 'cut', 'unit') THEN si.quantity
-                    ELSE 0
-                END) as quantity_units,
+                '.$this->quantityKgSql().' as quantity_kg,
+                '.$this->quantityUnitsSql().' as quantity_units,
                 SUM(si.subtotal) as revenue,
                 SUM(COALESCE(si.cost_price_at_sale * si.quantity, 0)) as cost,
                 SUM(si.subtotal - COALESCE(si.cost_price_at_sale * si.quantity, 0)) as gross_profit,
                 BOOL_OR(si.cost_price_at_sale IS NULL) as has_missing_cost
-            ")
+            ')
             ->groupBy('si.product_id')
             ->orderByDesc('revenue')
             ->get()
