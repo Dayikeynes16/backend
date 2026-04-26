@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
 import KpiCard from '@/Components/Metrics/KpiCard.vue';
 import ChartCard from '@/Components/Metrics/ChartCard.vue';
 import DataTable from '@/Components/Metrics/DataTable.vue';
@@ -170,6 +171,15 @@ const closeDetail = () => {
     }, 300);
 };
 
+// ─── Badge "costo parcial" ────────────────────────────────────────────
+// Tooltip custom + link directo a editar el producto (solo cuando
+// hay snapshotRoute, es decir, el contexto es Sucursal).
+const hoveredCostBadge = ref(null);
+const goToProductEdit = (productId) => {
+    if (!props.snapshotRoute || !props.tenant) return;
+    router.visit(route('sucursal.productos.edit', [props.tenant.slug, productId]));
+};
+
 // ─── Tabs auxiliares (sin movimiento + precio≤costo) ───────────────────
 const auxTab = ref('noMove');
 const noMoveColumns = [
@@ -311,8 +321,44 @@ const noStatuses = computed(() => (props.filters?.statuses?.value || []).length 
                             <!-- Ganancia -->
                             <td class="px-4 py-3 text-right">
                                 <p class="font-mono text-sm font-bold tabular-nums text-emerald-700">{{ formatCurrency(p.gross_profit) }}</p>
-                                <p v-if="p.has_missing_cost" class="text-[10px] font-medium text-amber-600" title="Algunas líneas no tenían costo registrado">⚠ costo parcial</p>
-                                <p v-else-if="p.revenue > 0" class="text-[10px] text-emerald-700/70">{{ Number(p.margin_pct).toFixed(1) }}% margen</p>
+                                <!-- Sin costo parcial: muestra margen normal -->
+                                <p v-if="!p.has_missing_cost && p.revenue > 0" class="text-[10px] text-emerald-700/70">{{ Number(p.margin_pct).toFixed(1) }}% margen</p>
+                                <!-- Costo parcial: badge con tooltip + link a editar producto (solo Sucursal) -->
+                                <div v-else-if="p.has_missing_cost" class="relative mt-0.5 inline-block">
+                                    <button type="button"
+                                        @click.stop="goToProductEdit(p.product_id)"
+                                        @mouseenter="hoveredCostBadge = p.product_id"
+                                        @mouseleave="hoveredCostBadge = null"
+                                        @focus="hoveredCostBadge = p.product_id"
+                                        @blur="hoveredCostBadge = null"
+                                        :class="['inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200 transition',
+                                            snapshotRoute
+                                                ? 'cursor-pointer hover:bg-amber-100 hover:ring-amber-300 active:scale-95'
+                                                : 'cursor-default']">
+                                        <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                            <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
+                                        </svg>
+                                        Costo parcial
+                                    </button>
+                                    <!-- Tooltip popover (encima de la fila, no recorta) -->
+                                    <Transition
+                                        enter-active-class="transition duration-150 ease-out"
+                                        leave-active-class="transition duration-100 ease-in"
+                                        enter-from-class="opacity-0 -translate-y-1"
+                                        leave-to-class="opacity-0 -translate-y-1">
+                                        <div v-if="hoveredCostBadge === p.product_id"
+                                            class="absolute right-0 top-full z-30 mt-1.5 w-60 rounded-xl bg-gray-900 px-3 py-2.5 text-left text-[11px] leading-relaxed text-white shadow-lg ring-1 ring-black/5">
+                                            <p class="font-semibold text-amber-200">Algunas ventas no tienen costo registrado.</p>
+                                            <p class="mt-1 text-gray-300">La ganancia puede estar sobreestimada porque esas líneas se cuentan con costo $0.</p>
+                                            <p v-if="snapshotRoute" class="mt-1.5 inline-flex items-center gap-1 font-medium text-amber-200">
+                                                Configurar costo →
+                                            </p>
+                                            <p v-else class="mt-1.5 text-gray-400">Configura el costo desde el panel de Sucursal.</p>
+                                            <!-- Punta del tooltip -->
+                                            <div class="absolute -top-1 right-3 h-2 w-2 rotate-45 bg-gray-900" />
+                                        </div>
+                                    </Transition>
+                                </div>
                             </td>
                             <!-- Ingreso -->
                             <td class="px-4 py-3 text-right font-mono text-sm font-semibold tabular-nums text-gray-900">{{ formatCurrency(p.revenue) }}</td>

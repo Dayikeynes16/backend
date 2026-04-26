@@ -42,10 +42,10 @@ const toneAccent = computed(() => ({
 </script>
 
 <template>
-    <div :class="['relative flex flex-col justify-between rounded-2xl border bg-gradient-to-br p-5 shadow-sm transition hover:shadow-md', toneRing, toneAccent]">
+    <div :class="['relative flex min-w-0 flex-col justify-between rounded-2xl border bg-gradient-to-br p-4 shadow-sm transition hover:shadow-md sm:p-5', toneRing, toneAccent]">
         <div class="flex items-start justify-between gap-2">
             <div class="flex min-w-0 items-center gap-1.5">
-                <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">{{ label }}</p>
+                <p class="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500 sm:text-xs sm:tracking-wider">{{ label }}</p>
                 <button v-if="tooltip" type="button"
                     @mouseenter="showTooltip = true" @mouseleave="showTooltip = false"
                     @click="showTooltip = !showTooltip" @blur="showTooltip = false"
@@ -54,12 +54,12 @@ const toneAccent = computed(() => ({
                     ?
                 </button>
             </div>
-            <span v-if="deltaLabel" :class="['rounded-full px-2 py-0.5 text-[11px] font-bold', deltaClasses]">{{ deltaLabel }}</span>
+            <span v-if="deltaLabel" :class="['shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums sm:text-[11px]', deltaClasses]">{{ deltaLabel }}</span>
         </div>
-        <p class="mt-3 text-2xl font-bold leading-tight tracking-tight text-gray-900">
+        <p class="mt-2 truncate font-bold leading-tight tracking-tight tabular-nums text-gray-900 sm:mt-3 text-lg sm:text-xl lg:text-2xl">
             <slot>{{ value }}</slot>
         </p>
-        <p v-if="hint" class="mt-1 text-xs text-gray-500">{{ hint }}</p>
+        <p v-if="hint" class="mt-1 line-clamp-2 text-[11px] leading-snug text-gray-500 sm:text-xs">{{ hint }}</p>
 
         <!-- Tooltip popover -->
         <Transition
@@ -68,7 +68,7 @@ const toneAccent = computed(() => ({
             enter-from-class="opacity-0 -translate-y-1"
             leave-to-class="opacity-0 -translate-y-1">
             <div v-if="showTooltip && tooltip"
-                class="absolute left-4 right-4 top-12 z-20 rounded-xl bg-gray-900 px-3 py-2 text-xs leading-relaxed text-white shadow-lg ring-1 ring-black/5">
+                class="absolute left-3 right-3 top-11 z-20 rounded-xl bg-gray-900 px-3 py-2 text-xs leading-relaxed text-white shadow-lg ring-1 ring-black/5 sm:left-4 sm:right-4 sm:top-12">
                 {{ tooltip }}
             </div>
         </Transition>

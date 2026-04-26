@@ -1,0 +1,68 @@
+// Helpers de presentación de rangos de fecha. Reutilizable en cualquier
+// vista que muestre un rango aplicado: Métricas, historial, cortes, etc.
+
+const PRESET_LABELS = {
+    today: 'Hoy',
+    yesterday: 'Ayer',
+    last_7_days: 'Últimos 7 días',
+    this_month: 'Este mes',
+    last_month: 'Mes pasado',
+    this_year: 'Este año',
+};
+
+const PRESET_LABELS_SHORT = {
+    today: 'Hoy',
+    yesterday: 'Ayer',
+    last_7_days: '7 días',
+    this_month: 'Este mes',
+    last_month: 'Mes pasado',
+    this_year: 'Este año',
+};
+
+const formatShortDate = (d) =>
+    d instanceof Date && !isNaN(d)
+        ? d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
+        : '';
+
+const formatLongDate = (d) =>
+    d instanceof Date && !isNaN(d)
+        ? d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+        : '';
+
+/**
+ * Etiqueta legible para "Mostrando: X". Se alimenta del composable
+ * `useMetricsFilters` (filters.preset, filters.isCustom, filters.from, filters.to).
+ */
+export function formatRangeLabel(filters) {
+    if (!filters?.isCustom?.value) {
+        const preset = filters?.preset?.value;
+        const presetLabel = PRESET_LABELS[preset] || preset || '—';
+        // Para "Hoy" y "Ayer" agregamos la fecha exacta para no dejar al usuario adivinando.
+        if (preset === 'today') {
+            return `${presetLabel} · ${formatLongDate(new Date())}`;
+        }
+        if (preset === 'yesterday') {
+            const y = new Date();
+            y.setDate(y.getDate() - 1);
+            return `${presetLabel} · ${formatLongDate(y)}`;
+        }
+        return presetLabel;
+    }
+
+    const fromVal = filters.from?.value;
+    const toVal = filters.to?.value;
+    if (!fromVal || !toVal) return 'Personalizado';
+
+    const from = new Date(fromVal);
+    const to = new Date(toVal);
+    if (isNaN(from) || isNaN(to)) return 'Personalizado';
+
+    const days = Math.floor((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    const dayWord = days === 1 ? 'día' : 'días';
+
+    return `Personalizado · ${formatShortDate(from)} → ${formatShortDate(to)} · ${days} ${dayWord}`;
+}
+
+export const presetLabels = PRESET_LABELS;
+export const presetLabelsShort = PRESET_LABELS_SHORT;
+export { formatShortDate, formatLongDate };

@@ -42,7 +42,7 @@ class ProductMetricsController extends Controller
                 'price' => (float) $p->price,
                 'cost_price' => $p->cost_price !== null ? (float) $p->cost_price : null,
                 'last_sold' => $p->last_sold,
-            ]),
+            ])->values()->all(),
             'price_below_cost' => $service->priceBelowCost($branchId, $tenantId),
         ]);
 

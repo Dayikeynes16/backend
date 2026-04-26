@@ -3,9 +3,17 @@ import { computed, ref } from 'vue';
 
 const props = defineProps({
     columns: { type: Array, required: true }, // [{ key, label, format?, align?, width? }]
-    rows: { type: Array, default: () => [] },
+    // Acepta Array o Object (defensivo: Inertia a veces serializa Collection
+    // como objeto cuando hay caché o claves no consecutivas).
+    rows: { type: [Array, Object], default: () => [] },
     pageSize: { type: Number, default: 50 },
     emptyMessage: { type: String, default: 'Sin datos en este rango' },
+});
+
+const normalizedRows = computed(() => {
+    if (Array.isArray(props.rows)) return props.rows;
+    if (props.rows && typeof props.rows === 'object') return Object.values(props.rows);
+    return [];
 });
 
 const sortKey = ref(null);
@@ -23,10 +31,10 @@ const toggleSort = (key) => {
 };
 
 const sortedRows = computed(() => {
-    if (!sortKey.value) return props.rows;
+    if (!sortKey.value) return normalizedRows.value;
     const key = sortKey.value;
     const dir = sortDir.value === 'asc' ? 1 : -1;
-    return [...props.rows].sort((a, b) => {
+    return [...normalizedRows.value].sort((a, b) => {
         const av = a[key];
         const bv = b[key];
         if (av === null || av === undefined) return 1;
@@ -102,7 +110,7 @@ const formatCell = (col, row) => {
             </table>
         </div>
         <div v-if="totalPages > 1" class="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-600">
-            <span>Página <b>{{ page }}</b> de <b>{{ totalPages }}</b> · {{ rows.length }} registros</span>
+            <span>Página <b>{{ page }}</b> de <b>{{ totalPages }}</b> · {{ normalizedRows.length }} registros</span>
             <div class="flex gap-1">
                 <button @click="goTo(page - 1)" :disabled="page === 1" class="rounded-md px-2 py-1 font-medium text-gray-700 hover:bg-white disabled:opacity-40">← Anterior</button>
                 <button @click="goTo(page + 1)" :disabled="page === totalPages" class="rounded-md px-2 py-1 font-medium text-gray-700 hover:bg-white disabled:opacity-40">Siguiente →</button>
