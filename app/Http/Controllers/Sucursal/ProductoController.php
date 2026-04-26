@@ -31,15 +31,26 @@ class ProductoController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $categories = Category::where('branch_id', $branchId)
+        // categoriesForFilter: lista plana de categorías activas, usada por el
+        // dropdown del filtro de Productos (igual que antes).
+        // categoriesForTab: lista completa con products_count para el tab de
+        // Categorías. Pocas categorías esperadas (3-10) → sin paginar.
+        $categoriesForFilter = Category::where('branch_id', $branchId)
             ->where('status', 'active')
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $categoriesForTab = Category::where('branch_id', $branchId)
+            ->withCount('products')
+            ->orderBy('name')
+            ->get(['id', 'name', 'status']);
+
         return Inertia::render('Sucursal/Productos/Index', [
             'productos' => $productos,
-            'categories' => $categories,
+            'categories' => $categoriesForFilter,
+            'categoriesForTab' => $categoriesForTab,
             'filters' => $request->only('search', 'category_id', 'sale_mode'),
+            'tab' => $request->input('tab', 'productos'),
             'tenant' => app('tenant'),
         ]);
     }

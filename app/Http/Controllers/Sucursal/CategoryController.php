@@ -7,27 +7,21 @@ use App\Models\Category;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
 {
-    public function index(Request $request): Response
+    /**
+     * Legacy route. La gestión de categorías vive ahora dentro de Productos
+     * como tab. Mantenemos la URL para no romper bookmarks/onboarding y
+     * redirigimos al tab correcto.
+     */
+    public function index(): RedirectResponse
     {
-        $branchId = Auth::user()->branch_id;
-
-        $categories = Category::where('branch_id', $branchId)
-            ->withCount('products')
-            ->when($request->search, fn ($q, $s) => $q->where('name', 'ilike', "%{$s}%"))
-            ->orderBy('name')
-            ->paginate(20)
-            ->withQueryString();
-
-        return Inertia::render('Sucursal/Categorias/Index', [
-            'categories' => $categories,
-            'filters' => $request->only('search'),
-            'tenant' => app('tenant'),
-        ]);
+        return redirect()->route('sucursal.productos.index', [
+            app('tenant')->slug,
+            'tab' => 'categorias',
+        ], 301);
     }
 
     public function store(Request $request): RedirectResponse
@@ -35,7 +29,14 @@ class CategoryController extends Controller
         $user = Auth::user();
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('categories', 'name')->where(fn ($q) => $q->where('branch_id', $user->branch_id)),
+            ],
+        ], [
+            'name.unique' => 'Ya existe una categoría con ese nombre en esta sucursal.',
         ]);
 
         Category::create([
@@ -49,13 +50,24 @@ class CategoryController extends Controller
 
     public function update(Request $request, Category $category): RedirectResponse
     {
-        if ($category->branch_id !== Auth::user()->branch_id) {
+        $user = Auth::user();
+
+        if ($category->branch_id !== $user->branch_id) {
             abort(403);
         }
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('categories', 'name')
+                    ->ignore($category->id)
+                    ->where(fn ($q) => $q->where('branch_id', $user->branch_id)),
+            ],
             'status' => 'required|in:active,inactive',
+        ], [
+            'name.unique' => 'Ya existe una categoría con ese nombre en esta sucursal.',
         ]);
 
         $category->update($validated);
@@ -67,6 +79,14 @@ class CategoryController extends Controller
     {
         if ($category->branch_id !== Auth::user()->branch_id) {
             abort(403);
+        }
+
+        // Bloqueo duro: si la categoría tiene productos asociados, no se
+        // elimina. El admin debe reasignar o eliminar los productos primero.
+        // Evita huérfanos silenciosos por la FK nullable en products.
+        $count = $category->products()->count();
+        if ($count > 0) {
+            return back()->with('error', "No puedes eliminar esta categoría: tiene {$count} producto".($count === 1 ? '' : 's').' asignado'.($count === 1 ? '' : 's').'. Reasigna o elimina los productos primero.');
         }
 
         $category->delete();

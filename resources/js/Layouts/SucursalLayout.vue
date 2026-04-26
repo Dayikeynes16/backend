@@ -8,8 +8,11 @@ const slug = computed(() => page.props.auth.tenant_slug);
 
 const navLinks = [
     { label: 'Dashboard', route: 'sucursal.dashboard', icon: 'dashboard' },
-    { label: 'Categorias', route: 'sucursal.categorias.index', match: 'sucursal.categorias', icon: 'categorias' },
-    { label: 'Productos', route: 'sucursal.productos.index', match: 'sucursal.productos', icon: 'productos' },
+    // Categorías ya no es item del sidebar — vive como tab dentro de Productos.
+    // Si alguien navega a /sucursal/categorias (legacy), el backend redirige
+    // a productos?tab=categorias. El match adicional aquí mantiene el item
+    // "Productos" resaltado en cualquier flow que aterrice en esa ruta.
+    { label: 'Productos', route: 'sucursal.productos.index', match: 'sucursal.productos', extraMatch: 'sucursal.categorias', icon: 'productos' },
     { label: 'Mesa de Trabajo', route: 'sucursal.workbench', icon: 'workbench' },
     { label: 'Pagos', route: 'sucursal.pagos.index', icon: 'pagos' },
     { label: 'Historial', route: 'sucursal.historial.index', icon: 'historial' },
@@ -22,7 +25,10 @@ const navLinks = [
 ];
 
 const isActive = (link) => {
-    if (link.match) return route().current(link.match + '*') || route().current(link.route);
+    if (link.match) {
+        if (route().current(link.match + '*') || route().current(link.route)) return true;
+        if (link.extraMatch && route().current(link.extraMatch + '*')) return true;
+    }
     return route().current(link.route);
 };
 
