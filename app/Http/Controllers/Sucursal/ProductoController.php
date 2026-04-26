@@ -23,6 +23,7 @@ class ProductoController extends Controller
         $productos = Product::query()
             ->where('branch_id', $branchId)
             ->with('category:id,name')
+            ->with(['presentations' => fn ($q) => $q->where('status', 'active')->orderBy('sort_order')])
             ->withCount('presentations')
             ->when($request->search, fn ($q, $s) => $q->where('name', 'ilike', "%{$s}%"))
             ->when($request->category_id, fn ($q, $c) => $q->where('category_id', $c))
@@ -223,6 +224,31 @@ class ProductoController extends Controller
 
         return redirect()->route('sucursal.productos.index', app('tenant')->slug)
             ->with('success', 'Producto actualizado.');
+    }
+
+    /**
+     * Toggle rápido desde el modal de detalle. Solo permite cambiar campos
+     * binarios seguros (status, visible_online) sin pasar por el form
+     * completo de update (que requiere imagen, presentaciones, etc.).
+     */
+    public function quickToggle(Request $request, Product $producto): RedirectResponse
+    {
+        if ($producto->branch_id !== Auth::user()->branch_id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'status' => ['sometimes', 'in:active,inactive'],
+            'visible_online' => ['sometimes', 'boolean'],
+        ]);
+
+        if (empty($validated)) {
+            return back()->with('error', 'Sin cambios.');
+        }
+
+        $producto->update($validated);
+
+        return back()->with('success', 'Producto actualizado.');
     }
 
     public function destroy(Product $producto): RedirectResponse
