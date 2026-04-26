@@ -7,6 +7,7 @@ import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { useSaleActions } from '@/composables/useSaleActions';
+import { displayName as itemDisplayName, displayQuantity as itemDisplayQuantity } from '@/composables/useSaleItemDisplay';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
@@ -221,8 +222,8 @@ const submitCancelRequest = (reason) => {
                                 </tr></thead>
                                 <tbody class="divide-y divide-gray-50">
                                     <tr v-for="item in selected.items" :key="item.id">
-                                        <td class="px-4 py-2.5 text-sm font-medium text-gray-900">{{ item.product_name }}</td>
-                                        <td class="px-4 py-2.5 text-right text-sm text-gray-600">{{ parseFloat(item.quantity) }} {{ unitLabel(item.unit_type) }}</td>
+                                        <td class="px-4 py-2.5 text-sm font-medium text-gray-900">{{ itemDisplayName(item) }}</td>
+                                        <td class="px-4 py-2.5 text-right text-sm text-gray-600">{{ itemDisplayQuantity(item) }}</td>
                                         <td class="px-4 py-2.5 text-right text-sm text-gray-600">${{ parseFloat(item.unit_price).toFixed(2) }}</td>
                                         <td class="px-4 py-2.5 text-right text-sm font-semibold text-gray-900">${{ parseFloat(item.subtotal).toFixed(2) }}</td>
                                     </tr>

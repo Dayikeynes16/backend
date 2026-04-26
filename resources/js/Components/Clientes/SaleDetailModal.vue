@@ -1,5 +1,6 @@
 <script setup>
 import Modal from '@/Components/Modal.vue';
+import { displayName, displayQuantity } from '@/composables/useSaleItemDisplay';
 import { ref, watch, computed } from 'vue';
 
 const props = defineProps({
@@ -48,11 +49,10 @@ watch(() => [props.show, props.saleId], ([show]) => {
 });
 
 const money = (v) => '$' + Number(v ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const qty = (v, unit) => {
-    const n = Number(v ?? 0);
-    const str = unit === 'kg' ? n.toFixed(3) : n.toFixed(0);
-    return `${str} ${unit || ''}`.trim();
-};
+// Quantity/name rendering goes through the shared formatter so legacy items
+// (only unit_type) and new items (with presentation_snapshot) both render correctly.
+const itemQuantity = (item) => displayQuantity(item);
+const itemName = (item) => displayName(item);
 const fmtDateTime = (v) => {
     if (!v) return '—';
     return new Date(v).toLocaleString('es-MX', {
@@ -143,8 +143,8 @@ const totalSaved = computed(() => {
                         </thead>
                         <tbody class="divide-y divide-gray-50 bg-white">
                             <tr v-for="item in sale.items" :key="item.id">
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ item.product_name }}</td>
-                                <td class="px-4 py-3 text-right text-sm tabular-nums text-gray-700">{{ qty(item.quantity, item.unit_type) }}</td>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ itemName(item) }}</td>
+                                <td class="px-4 py-3 text-right text-sm tabular-nums text-gray-700">{{ itemQuantity(item) }}</td>
                                 <td class="px-4 py-3 text-right text-sm tabular-nums">
                                     <div :class="Number(item.unit_price) < Number(item.original_unit_price) ? 'text-green-700 font-semibold' : 'text-gray-900'">{{ money(item.unit_price) }}</div>
                                     <div v-if="Number(item.unit_price) < Number(item.original_unit_price)" class="text-[11px] font-normal text-gray-400 line-through">{{ money(item.original_unit_price) }}</div>

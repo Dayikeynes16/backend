@@ -9,6 +9,8 @@ class WhatsappMessageService
 {
     private const MAX_TEXT_BYTES = 3500;
 
+    public function __construct(private SaleItemFormatter $itemFormatter = new SaleItemFormatter) {}
+
     public function buildOrderText(Sale $sale): string
     {
         $sale->loadMissing('items', 'branch', 'tenant');
@@ -24,8 +26,9 @@ class WhatsappMessageService
 
         $lines[] = '*Productos:*';
         foreach ($sale->items as $item) {
-            $qty = $this->formatQty((float) $item->quantity, $item->unit_type);
-            $lines[] = "• {$qty} × {$item->product_name} — $".number_format((float) $item->subtotal, 2);
+            $qty = $this->itemFormatter->displayQuantity($item);
+            $name = $this->itemFormatter->displayName($item);
+            $lines[] = "• {$qty} × {$name} — $".number_format((float) $item->subtotal, 2);
             if (! empty($item->notes)) {
                 $lines[] = '   _Nota: '.trim($item->notes).'_';
             }
@@ -126,8 +129,9 @@ class WhatsappMessageService
             $lines[] = '';
             $lines[] = 'Productos:';
             foreach ($sale->items as $item) {
-                $qty = $this->formatQty((float) $item->quantity, $item->unit_type);
-                $lines[] = '• '.$qty.' × '.$item->product_name.' — '.$this->money($item->subtotal);
+                $qty = $this->itemFormatter->displayQuantity($item);
+                $name = $this->itemFormatter->displayName($item);
+                $lines[] = '• '.$qty.' × '.$name.' — '.$this->money($item->subtotal);
             }
         }
 

@@ -1,4 +1,5 @@
 <script setup>
+import { compactLine } from '@/composables/useSaleItemDisplay';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
@@ -61,7 +62,7 @@ const previewWidth = computed(() => c.value.width === '58mm' ? '260px' : '340px'
                         <div class="my-2 border-t border-dashed border-gray-300" />
                         <div class="space-y-1">
                             <div v-for="item in sale.items" :key="item.id" class="flex justify-between text-xs">
-                                <span class="flex-1 truncate">{{ item.product_name }} x{{ parseFloat(item.quantity) }}</span>
+                                <span class="flex-1 truncate">{{ compactLine(item) }}</span>
                                 <span class="ml-2 font-medium">${{ parseFloat(item.subtotal).toFixed(2) }}</span>
                             </div>
                         </div>
@@ -108,7 +109,7 @@ const previewWidth = computed(() => c.value.width === '58mm' ? '260px' : '340px'
                 <div style="border-top: 1px dashed #000; margin: 6px 0;" />
                 <div style="margin-top: 6px;">
                     <div v-for="item in sale.items" :key="item.id" style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                        <span>{{ item.product_name }} x{{ parseFloat(item.quantity) }}</span>
+                        <span>{{ compactLine(item) }}</span>
                         <span>${{ parseFloat(item.subtotal).toFixed(2) }}</span>
                     </div>
                 </div>

@@ -127,22 +127,41 @@ class OrderController extends Controller
             $product = $products[$item['product_id']];
             $qty = (float) $item['quantity'];
             $presentationId = $item['presentation_id'] ?? null;
+            $presentation = null;
 
             if ($presentationId && in_array($product->sale_mode, ['presentation', 'both'], true)) {
                 $presentation = $product->presentations->find($presentationId);
-
                 if (! $presentation) {
                     return response()->json([
                         'error' => 'invalid_presentation',
                         'product_id' => $product->id,
                     ], 422);
                 }
+            }
 
+            if ($presentation) {
+                // Presentation line — see WorkbenchController::store for contract details.
                 $unitPrice = (float) $presentation->price;
                 $productName = $product->name.' - '.$presentation->name;
+                $unitTypeToPersist = 'unit';
+                $quantityUnit = 'unit';
+                $saleModeAtSale = 'presentation';
+                $presentationSnapshot = [
+                    'id' => $presentation->id,
+                    'name' => $presentation->name,
+                    'content' => (float) $presentation->content,
+                    'unit' => $presentation->unit,
+                    'price' => (float) $presentation->price,
+                ];
             } else {
                 $unitPrice = (float) $product->price;
                 $productName = $product->name;
+                $unitTypeToPersist = $product->unit_type;
+                $quantityUnit = $product->unit_type;
+                $saleModeAtSale = ($product->sale_mode === 'weight' || $product->sale_mode === 'both')
+                    ? 'weight'
+                    : 'piece';
+                $presentationSnapshot = null;
             }
 
             $lineSubtotal = round($qty * $unitPrice, 2);
@@ -150,13 +169,17 @@ class OrderController extends Controller
 
             $itemsData[] = [
                 'product_id' => $product->id,
+                'presentation_id' => $presentation?->id,
                 'product_name' => $productName,
-                'unit_type' => $product->unit_type,
+                'unit_type' => $unitTypeToPersist,
                 'quantity' => $qty,
                 'unit_price' => $unitPrice,
                 'original_unit_price' => $unitPrice,
                 'subtotal' => $lineSubtotal,
                 'notes' => $item['notes'] ?? null,
+                'presentation_snapshot' => $presentationSnapshot,
+                'sale_mode_at_sale' => $saleModeAtSale,
+                'quantity_unit' => $quantityUnit,
             ];
         }
 

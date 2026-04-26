@@ -121,20 +121,36 @@ class WorkbenchController extends Controller
             foreach ($request->items as $item) {
                 $product = $products[$item['product_id']];
                 $quantity = (float) $item['quantity'];
+                $presentation = null;
 
-                // Logical unit type: force 'kg' when sold by weight
-                $logicalUnitType = (in_array($product->sale_mode, ['weight', 'both']) && empty($item['presentation_id']))
-                    ? 'kg'
-                    : $product->unit_type;
-
-                // If presentation mode and presentation_id is provided
-                if (in_array($product->sale_mode, ['presentation', 'both']) && ! empty($item['presentation_id'])) {
+                if (in_array($product->sale_mode, ['presentation', 'both'], true) && ! empty($item['presentation_id'])) {
                     $presentation = $product->presentations->find($item['presentation_id']);
-                    $catalogPrice = $presentation ? (float) $presentation->price : (float) $product->price;
-                    $productName = $product->name.' - '.($presentation->name ?? '');
+                }
+
+                if ($presentation) {
+                    // Presentation line: quantity = number of presentations sold.
+                    // unit_type/quantity_unit = 'unit' (canonical for "N presentaciones").
+                    $catalogPrice = (float) $presentation->price;
+                    $productName = $product->name.' - '.$presentation->name;
+                    $unitTypeToPersist = 'unit';
+                    $quantityUnit = 'unit';
+                    $saleModeAtSale = 'presentation';
+                    $presentationSnapshot = $this->snapshotPresentation($presentation);
+                    $presentationIdToPersist = $presentation->id;
                 } else {
+                    // Weight / piece line: unit_type follows product semantics.
+                    // 'weight'/'both' without presentation → kg, otherwise product's unit_type.
                     $catalogPrice = (float) $product->price;
                     $productName = $product->name;
+                    $unitTypeToPersist = (in_array($product->sale_mode, ['weight', 'both'], true))
+                        ? 'kg'
+                        : $product->unit_type;
+                    $quantityUnit = $unitTypeToPersist;
+                    $saleModeAtSale = ($product->sale_mode === 'weight' || ($product->sale_mode === 'both'))
+                        ? 'weight'
+                        : 'piece';
+                    $presentationSnapshot = null;
+                    $presentationIdToPersist = null;
                 }
 
                 $unitPrice = $catalogPrice;
@@ -150,12 +166,16 @@ class WorkbenchController extends Controller
 
                 $itemsData[] = [
                     'product_id' => $product->id,
+                    'presentation_id' => $presentationIdToPersist,
                     'product_name' => $productName,
-                    'unit_type' => $logicalUnitType,
+                    'unit_type' => $unitTypeToPersist,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'original_unit_price' => $catalogPrice,
                     'subtotal' => $subtotal,
+                    'presentation_snapshot' => $presentationSnapshot,
+                    'sale_mode_at_sale' => $saleModeAtSale,
+                    'quantity_unit' => $quantityUnit,
                 ];
             }
 
@@ -177,6 +197,22 @@ class WorkbenchController extends Controller
         });
 
         return back()->with('success', 'Venta creada.');
+    }
+
+    /**
+     * Frozen snapshot of a presentation at sale time. Persisted in
+     * sale_items.presentation_snapshot so the line stays interpretable
+     * even if the catalog presentation is later edited or deleted.
+     */
+    private function snapshotPresentation(\App\Models\ProductPresentation $p): array
+    {
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'content' => (float) $p->content,
+            'unit' => $p->unit,
+            'price' => (float) $p->price,
+        ];
     }
 
     public function reopen(Sale $sale): RedirectResponse
