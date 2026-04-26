@@ -128,7 +128,6 @@ Route::prefix('{tenant}')
                 Route::get('/', [EmpresaDashboardController::class, 'index'])->name('dashboard');
 
                 Route::resource('sucursales', SucursalController::class)
-                    ->except('show')
                     ->parameters(['sucursales' => 'sucursal']);
 
                 Route::resource('usuarios', EmpresaUsuarioController::class)

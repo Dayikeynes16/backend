@@ -3,20 +3,19 @@ import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
-import MapPicker from '@/Components/MapPicker.vue';
+import MapPickerPro from '@/Components/MapPickerPro.vue';
+import HoursEditor from '@/Components/HoursEditor.vue';
+import PhoneFields from '@/Components/PhoneFields.vue';
+import DeliveryTiersEditor from '@/Components/DeliveryTiersEditor.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 const props = defineProps({ sucursal: Object, tenant: Object });
 
-const DAY_LABELS = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
-const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-
-const initialHours = DAY_KEYS.reduce((acc, key) => {
-    const entry = props.sucursal.hours?.[key];
-    acc[key] = entry ? { open: entry.open, close: entry.close } : { open: '', close: '' };
-    return acc;
-}, {});
+// Hours: el modelo en BD admite null por día. El componente HoursEditor
+// también, así que pasamos el objeto tal cual viene (o {} si null).
+const initialHours = props.sucursal.hours || {};
 
 const form = useForm({
     name: props.sucursal.name,
@@ -24,7 +23,6 @@ const form = useForm({
     address: props.sucursal.address || '',
     latitude: props.sucursal.latitude || '',
     longitude: props.sucursal.longitude || '',
-    schedule: props.sucursal.schedule || '',
     status: props.sucursal.status,
     online_ordering_enabled: !!props.sucursal.online_ordering_enabled,
     delivery_enabled: !!props.sucursal.delivery_enabled,
@@ -37,14 +35,17 @@ const form = useForm({
     hours: initialHours,
 });
 
-const addTier = () => {
-    const last = form.delivery_tiers[form.delivery_tiers.length - 1];
-    const nextKm = last ? Number(last.max_km || 0) + 2 : 2;
-    form.delivery_tiers.push({ max_km: nextKm, fee: 50 });
-};
-const removeTier = (idx) => { form.delivery_tiers.splice(idx, 1); };
-
 const submit = () => form.put(route('empresa.sucursales.update', [props.tenant.slug, props.sucursal.id]));
+
+// Banner de errores cruzados de validateOnlineOrderingConfig (backend).
+const crossErrors = computed(() => {
+    const errs = [];
+    if (form.errors.public_phone) errs.push(form.errors.public_phone);
+    if (form.errors.delivery_enabled) errs.push(form.errors.delivery_enabled);
+    if (form.errors.latitude) errs.push(form.errors.latitude);
+    if (form.errors.delivery_tiers && typeof form.errors.delivery_tiers === 'string') errs.push(form.errors.delivery_tiers);
+    return errs;
+});
 
 const destroy = () => {
     if (confirm('¿Eliminar esta sucursal? Se borraran todos sus productos, ventas y usuarios.')) {
@@ -56,6 +57,19 @@ const roleBadge = (name) => ({
     'admin-sucursal': { label: 'Admin Sucursal', cls: 'bg-orange-50 text-orange-700 ring-orange-600/20' },
     'cajero': { label: 'Cajero', cls: 'bg-gray-100 text-gray-600 ring-gray-300/50' },
 }[name] || { label: name, cls: 'bg-gray-100 text-gray-600 ring-gray-300/50' });
+
+// URL pública del menú: se construye en el cliente para que funcione tanto
+// en desarrollo (localhost) como en producción (dominio del tenant).
+const menuUrl = computed(() => `${window.location.origin}/menu/${props.tenant.slug}/s/${props.sucursal.id}`);
+
+const copyMenuUrl = async () => {
+    try {
+        await navigator.clipboard.writeText(menuUrl.value);
+    } catch (e) {
+        // Silencioso: si el navegador bloquea clipboard (p.ej. http en producción),
+        // el usuario puede copiar manualmente del campo visible.
+    }
+};
 </script>
 
 <template>
@@ -69,35 +83,27 @@ const roleBadge = (name) => ({
             </div>
         </template>
 
-        <form @submit.prevent="submit" class="mx-auto max-w-3xl space-y-8">
-            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+        <form @submit.prevent="submit" class="mx-auto max-w-3xl space-y-6 pb-12">
+            <!-- Banner de errores cruzados -->
+            <div v-if="crossErrors.length > 0" class="rounded-xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
+                <p class="text-sm font-bold text-red-900">Hay datos faltantes para guardar:</p>
+                <ul class="mt-1.5 list-disc pl-5 text-xs text-red-700">
+                    <li v-for="(err, i) in crossErrors" :key="i">{{ err }}</li>
+                </ul>
+            </div>
+
+            <!-- Información general -->
+            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-6 py-5">
-                    <h2 class="text-base font-bold text-gray-900">Informacion de la Sucursal</h2>
-                    <p class="mt-1 text-sm text-gray-500">Datos de contacto, ubicacion y estado del punto de venta.</p>
+                    <h2 class="text-base font-bold text-gray-900">Información general</h2>
+                    <p class="mt-1 text-sm text-gray-500">Identidad y dirección física de la sucursal.</p>
                 </div>
                 <div class="space-y-5 p-6">
-                    <div class="grid gap-5 sm:grid-cols-2">
+                    <div class="grid gap-5 sm:grid-cols-[2fr_1fr]">
                         <div>
-                            <InputLabel for="name" value="Nombre" />
+                            <InputLabel for="name" value="Nombre de la sucursal" />
                             <TextInput id="name" v-model="form.name" type="text" class="mt-1.5 block w-full" required />
                             <InputError :message="form.errors.name" class="mt-1" />
-                        </div>
-                        <div>
-                            <InputLabel for="phone" value="Telefono" />
-                            <TextInput id="phone" v-model="form.phone" type="text" class="mt-1.5 block w-full" />
-                            <InputError :message="form.errors.phone" class="mt-1" />
-                        </div>
-                    </div>
-                    <div>
-                        <InputLabel for="address" value="Direccion" />
-                        <TextInput id="address" v-model="form.address" type="text" class="mt-1.5 block w-full" />
-                        <InputError :message="form.errors.address" class="mt-1" />
-                    </div>
-                    <div class="grid gap-5 sm:grid-cols-2">
-                        <div>
-                            <InputLabel for="schedule" value="Horario" />
-                            <TextInput id="schedule" v-model="form.schedule" type="text" class="mt-1.5 block w-full" />
-                            <InputError :message="form.errors.schedule" class="mt-1" />
                         </div>
                         <div>
                             <InputLabel for="status" value="Estado" />
@@ -108,38 +114,76 @@ const roleBadge = (name) => ({
                             <InputError :message="form.errors.status" class="mt-1" />
                         </div>
                     </div>
+                    <div>
+                        <InputLabel for="address" value="Dirección" />
+                        <TextInput id="address" v-model="form.address" type="text" class="mt-1.5 block w-full" placeholder="Av. Juárez 123, Centro, Villahermosa" />
+                        <InputError :message="form.errors.address" class="mt-1" />
+                    </div>
+                </div>
+            </section>
+
+            <!-- Teléfonos (componente diferenciado) -->
+            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Teléfonos</h2>
+                    <p class="mt-1 text-sm text-gray-500">Distintos números para distintos usos.</p>
+                </div>
+                <div class="p-6">
+                    <PhoneFields
+                        v-model:phone="form.phone"
+                        v-model:public-phone="form.public_phone"
+                        :phone-error="form.errors.phone"
+                        :public-phone-error="form.errors.public_phone"
+                        :online-enabled="form.online_ordering_enabled" />
                 </div>
             </section>
 
             <!-- Ubicación -->
-            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-6 py-5">
-                    <h2 class="text-base font-bold text-gray-900">Ubicacion</h2>
-                    <p class="mt-1 text-sm text-gray-500">Selecciona la ubicacion en el mapa o ingresa las coordenadas.</p>
+                    <h2 class="text-base font-bold text-gray-900">Ubicación</h2>
+                    <p class="mt-1 text-sm text-gray-500">Coloca el pin exactamente en la entrada de la sucursal. Esto determina las distancias de envío en pedidos a domicilio.</p>
                 </div>
-                <div class="space-y-5 p-6">
-                    <MapPicker v-model:latitude="form.latitude" v-model:longitude="form.longitude" />
-                    <div class="grid gap-5 sm:grid-cols-2">
+                <div class="p-6">
+                    <MapPickerPro
+                        :latitude="form.latitude"
+                        :longitude="form.longitude"
+                        @confirmed="(lat, lng) => { form.latitude = lat; form.longitude = lng; }"
+                        @address-suggested="(addr) => { if (!form.address) form.address = addr; }" />
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div>
                             <InputLabel for="latitude" value="Latitud" />
-                            <TextInput id="latitude" v-model="form.latitude" type="text" class="mt-1.5 block w-full" placeholder="17.9891" />
+                            <TextInput id="latitude" v-model="form.latitude" type="text" class="mt-1 block w-full font-mono text-sm tabular-nums" placeholder="17.9891" />
                             <InputError :message="form.errors.latitude" class="mt-1" />
                         </div>
                         <div>
                             <InputLabel for="longitude" value="Longitud" />
-                            <TextInput id="longitude" v-model="form.longitude" type="text" class="mt-1.5 block w-full" placeholder="-92.9475" />
+                            <TextInput id="longitude" v-model="form.longitude" type="text" class="mt-1 block w-full font-mono text-sm tabular-nums" placeholder="-92.9475" />
                             <InputError :message="form.errors.longitude" class="mt-1" />
                         </div>
                     </div>
                 </div>
             </section>
 
+            <!-- Horarios -->
+            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Horarios de atención</h2>
+                    <p class="mt-1 text-sm text-gray-500">Define los días y horas en que la sucursal opera.</p>
+                </div>
+                <div class="p-6">
+                    <HoursEditor
+                        v-model="form.hours"
+                        :show-online-impact="form.online_ordering_enabled" />
+                </div>
+            </section>
+
             <!-- Pedidos online -->
-            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
                     <div>
-                        <h2 class="text-base font-bold text-gray-900">Pedidos online</h2>
-                        <p class="mt-1 text-sm text-gray-500">Menú público para que tus clientes hagan pedidos desde su celular y los reciban por WhatsApp.</p>
+                        <h2 class="text-base font-bold text-gray-900">Pedidos en línea</h2>
+                        <p class="mt-1 text-sm text-gray-500">Permite que tus clientes hagan pedidos desde el menú web público y los reciban por WhatsApp.</p>
                     </div>
                     <label class="inline-flex cursor-pointer items-center gap-2">
                         <input type="checkbox" v-model="form.online_ordering_enabled" class="peer sr-only" />
@@ -158,27 +202,19 @@ const roleBadge = (name) => ({
                             <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-4 transition hover:bg-gray-50">
                                 <input type="checkbox" v-model="form.pickup_enabled" class="mt-0.5 rounded text-red-600" />
                                 <div>
-                                    <p class="text-sm font-semibold text-gray-900">Recolección en sucursal</p>
+                                    <p class="text-sm font-semibold text-gray-900">🏪 Recolección en sucursal</p>
                                     <p class="text-xs text-gray-500">El cliente pasa por su pedido.</p>
                                 </div>
                             </label>
                             <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-4 transition hover:bg-gray-50">
                                 <input type="checkbox" v-model="form.delivery_enabled" class="mt-0.5 rounded text-red-600" />
                                 <div>
-                                    <p class="text-sm font-semibold text-gray-900">Envío a domicilio</p>
-                                    <p class="text-xs text-gray-500">Requiere ubicación y tarifas configuradas.</p>
+                                    <p class="text-sm font-semibold text-gray-900">🚚 Envío a domicilio</p>
+                                    <p class="text-xs text-gray-500">Requiere ubicación y tarifas.</p>
                                 </div>
                             </label>
                         </div>
                         <InputError :message="form.errors.delivery_enabled" class="mt-1" />
-                    </div>
-
-                    <!-- WhatsApp -->
-                    <div>
-                        <InputLabel for="public_phone" value="WhatsApp para recibir pedidos" />
-                        <TextInput id="public_phone" v-model="form.public_phone" type="text" placeholder="+529931234567" class="mt-1.5 block w-full sm:w-1/2" />
-                        <p class="mt-1 text-xs text-gray-400">Formato internacional (con país). Los pedidos llegarán a este número por mensaje con detalle completo.</p>
-                        <InputError :message="form.errors.public_phone" class="mt-1" />
                     </div>
 
                     <!-- Pedido mínimo -->
@@ -188,70 +224,36 @@ const roleBadge = (name) => ({
                             <span class="text-sm text-gray-500">$</span>
                             <TextInput id="min_order_amount" v-model="form.min_order_amount" type="number" step="0.01" min="0" placeholder="300" class="block w-full" />
                         </div>
+                        <p class="mt-1 text-xs text-gray-400">Si el pedido del cliente es menor a este monto, no podrá completarlo.</p>
                         <InputError :message="form.errors.min_order_amount" class="mt-1" />
                     </div>
 
-                    <!-- Tarifas de envío -->
+                    <!-- Tarifas de envío (componente reutilizable) -->
                     <div v-if="form.delivery_enabled">
-                        <div class="flex items-center justify-between">
-                            <InputLabel value="Tarifas de envío por distancia" />
-                            <button type="button" @click="addTier" class="inline-flex items-center gap-1 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 transition hover:bg-red-100">
-                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                                Agregar rango
-                            </button>
-                        </div>
-                        <p class="mt-1 text-xs text-gray-400">Define cuánto cobrar por envío según distancia. Ordenados de cerca a lejos. Fuera del último rango no se entrega.</p>
-                        <div v-if="form.delivery_tiers.length === 0" class="mt-3 rounded-xl border-2 border-dashed border-gray-200 px-6 py-6 text-center text-sm text-gray-400">
-                            Sin rangos configurados. Agrega al menos uno.
-                        </div>
-                        <div v-else class="mt-3 space-y-2">
-                            <div v-for="(tier, i) in form.delivery_tiers" :key="i" class="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-                                <span class="text-xs font-semibold text-gray-400">#{{ i + 1 }}</span>
-                                <div class="flex-1 grid grid-cols-2 gap-3">
-                                    <div>
-                                        <p class="text-[11px] font-medium text-gray-500">Hasta (km)</p>
-                                        <TextInput v-model="tier.max_km" type="number" step="0.1" min="0.1" class="mt-0.5 block w-full" />
-                                    </div>
-                                    <div>
-                                        <p class="text-[11px] font-medium text-gray-500">Tarifa ($)</p>
-                                        <TextInput v-model="tier.fee" type="number" step="0.01" min="0" class="mt-0.5 block w-full" />
-                                    </div>
-                                </div>
-                                <button type="button" @click="removeTier(i)" class="rounded-full p-1.5 text-gray-300 transition hover:bg-red-50 hover:text-red-500">
-                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                                </button>
-                            </div>
-                        </div>
+                        <InputLabel value="Tarifas de envío por distancia" />
+                        <p class="mt-1 mb-2 text-xs text-gray-400">Define cuánto cobrar según la distancia desde la sucursal. Fuera del último rango no se entrega.</p>
+                        <DeliveryTiersEditor v-model="form.delivery_tiers" />
                         <InputError :message="form.errors.delivery_tiers" class="mt-1" />
                     </div>
 
-                    <!-- Horarios -->
-                    <div>
-                        <InputLabel value="Horarios (opcional)" />
-                        <p class="mt-1 text-xs text-gray-400">Si configuras horarios, los pedidos web se bloquearán fuera de ellos. Deja un día vacío para cerrarlo.</p>
-                        <div class="mt-3 space-y-2">
-                            <div v-for="day in DAY_KEYS" :key="day" class="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-                                <span class="w-12 text-sm font-semibold text-gray-700">{{ DAY_LABELS[day] }}</span>
-                                <div class="flex-1 grid grid-cols-2 gap-3">
-                                    <div>
-                                        <p class="text-[11px] font-medium text-gray-500">Abre</p>
-                                        <input type="time" v-model="form.hours[day].open" class="mt-0.5 block w-full rounded-md border-gray-300 text-sm focus:border-red-400 focus:ring-red-300" />
-                                    </div>
-                                    <div>
-                                        <p class="text-[11px] font-medium text-gray-500">Cierra</p>
-                                        <input type="time" v-model="form.hours[day].close" class="mt-0.5 block w-full rounded-md border-gray-300 text-sm focus:border-red-400 focus:ring-red-300" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- URL pública -->
-                    <div class="rounded-xl border border-red-100 bg-red-50/40 p-4">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-red-700">URL pública</p>
-                        <p class="mt-1 font-mono text-sm text-gray-800">/menu/{{ tenant.slug }}</p>
-                        <p class="mt-1 text-xs text-gray-500">Comparte este link en redes, letreros o en tu WhatsApp Business.</p>
+                    <div class="rounded-xl border border-red-100 bg-gradient-to-r from-red-50/60 to-orange-50/60 p-4">
+                        <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-red-700/70">URL pública del menú</p>
+                        <div class="mt-1 flex items-center gap-2">
+                            <p class="flex-1 truncate font-mono text-sm text-gray-800">{{ menuUrl }}</p>
+                            <button type="button" @click="copyMenuUrl"
+                                class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 transition hover:bg-red-50 active:scale-95">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
+                                Copiar
+                            </button>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Comparte este link en redes, letreros o WhatsApp Business.</p>
                     </div>
+                </div>
+                <div v-else class="p-6">
+                    <p class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                        Los clientes <strong>no podrán hacer pedidos en línea</strong> en esta sucursal hasta que actives el toggle.
+                    </p>
                 </div>
             </section>
 

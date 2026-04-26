@@ -30,8 +30,22 @@ class ConfiguracionController extends Controller
                 'created_at' => $key->created_at->toDateTimeString(),
             ]);
 
+        // Snapshot read-only de los datos administrados por el admin de
+        // empresa. Incluye un schedule humano-legible derivado de hours
+        // (los datos reales de horario viven en hours JSONB).
+        $branchSnapshot = [
+            'name' => $branch->name,
+            'phone' => $branch->phone,
+            'address' => $branch->address,
+            'latitude' => $branch->latitude !== null ? (float) $branch->latitude : null,
+            'longitude' => $branch->longitude !== null ? (float) $branch->longitude : null,
+            'schedule_text' => $this->humanReadableHours($branch->hours) ?: $branch->schedule,
+            'hours' => $branch->hours,
+        ];
+
         return Inertia::render('Sucursal/Configuracion', [
             'branch' => $branch,
+            'branchSnapshot' => $branchSnapshot,
             'tenant' => $tenant,
             'apiKeys' => $apiKeys,
             'newKey' => session('newKey'),
@@ -42,19 +56,42 @@ class ConfiguracionController extends Controller
     {
         $branch = Branch::withoutGlobalScopes()->findOrFail(Auth::user()->branch_id);
 
+        // Admin-sucursal ya solo gestiona métodos de pago (operativo del POS).
+        // El nombre, dirección, teléfono, ubicación y horarios los administra
+        // el admin de empresa desde /empresa/sucursales/{id}/edit.
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'address' => 'nullable|string|max:500',
-            'latitude' => 'nullable|numeric|between:-90,90',
-            'longitude' => 'nullable|numeric|between:-180,180',
-            'schedule' => 'nullable|string|max:255',
             'payment_methods_enabled' => 'required|array|min:1',
             'payment_methods_enabled.*' => 'in:cash,card,transfer',
         ]);
 
         $branch->update($validated);
 
-        return back()->with('success', 'Configuracion actualizada.');
+        return back()->with('success', 'Métodos de pago actualizados.');
+    }
+
+    /**
+     * Convierte hours JSONB a texto legible para humanos.
+     * Ej. ['mon' => ['open'=>'07:00','close'=>'20:00'], ...] →
+     *     "Lun-Sáb 7:00-20:00, Dom cerrado"
+     * Devuelve null si hours está vacío.
+     */
+    private function humanReadableHours(?array $hours): ?string
+    {
+        if (empty($hours)) {
+            return null;
+        }
+
+        $labels = ['mon' => 'Lun', 'tue' => 'Mar', 'wed' => 'Mié', 'thu' => 'Jue', 'fri' => 'Vie', 'sat' => 'Sáb', 'sun' => 'Dom'];
+        $parts = [];
+        foreach ($labels as $key => $label) {
+            $day = $hours[$key] ?? null;
+            if (! $day || empty($day['open']) || empty($day['close'])) {
+                $parts[] = "{$label} cerrado";
+            } else {
+                $parts[] = "{$label} {$day['open']}-{$day['close']}";
+            }
+        }
+
+        return implode(' · ', $parts);
     }
 }

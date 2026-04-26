@@ -198,12 +198,13 @@ watch([() => props.latitude, () => props.longitude], ([lat, lng]) => {
         <!-- Map -->
         <div v-else class="overflow-hidden rounded-2xl ring-1 ring-gray-200">
             <div class="relative">
-                <div ref="mapContainer" class="h-[350px] w-full bg-gray-100">
-                    <div v-if="!mapReady" class="flex h-full items-center justify-center">
-                        <div class="text-center">
-                            <svg class="mx-auto h-8 w-8 animate-spin text-red-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                            <p class="mt-2 text-xs text-gray-400">Cargando mapa...</p>
-                        </div>
+                <div ref="mapContainer" class="h-[350px] w-full bg-gray-100"></div>
+
+                <!-- Overlays -->
+                <div v-if="!mapReady" class="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+                    <div class="text-center">
+                        <svg class="mx-auto h-8 w-8 animate-spin text-red-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                        <p class="mt-2 text-xs text-gray-400">Cargando mapa...</p>
                     </div>
                 </div>
 

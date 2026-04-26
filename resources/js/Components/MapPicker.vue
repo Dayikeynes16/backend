@@ -120,16 +120,21 @@ const useMyLocation = () => {
         </div>
 
         <!-- Map -->
-        <div v-else class="overflow-hidden rounded-xl ring-1 ring-gray-200">
-            <div class="relative">
-                <!-- Map container -->
-                <div ref="mapContainer" class="h-[350px] w-full bg-gray-100">
-                    <div v-if="!mapReady" class="flex h-full items-center justify-center">
-                        <div class="text-center">
-                            <svg class="mx-auto h-8 w-8 animate-spin text-red-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                            <p class="mt-2 text-sm text-gray-400">Cargando mapa...</p>
-                        </div>
+        <div v-else class="relative overflow-hidden rounded-xl ring-1 ring-gray-200">
+            <div ref="mapContainer" class="h-[400px] w-full bg-gray-100"></div>
+
+                <!-- Overlays -->
+                <div v-if="!mapReady && !error" class="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+                    <div class="text-center">
+                        <svg class="mx-auto h-8 w-8 animate-spin text-red-500" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        <p class="mt-2 text-sm text-gray-400">Cargando mapa...</p>
                     </div>
+                </div>
+                <div v-if="error" class="absolute inset-0 flex items-center justify-center px-6 text-center bg-gray-100 z-10">
+                    <p class="text-sm font-semibold text-amber-700">{{ error }}</p>
                 </div>
 
                 <!-- Fixed center pin (CSS overlay — NOT a map marker) -->
@@ -158,7 +163,6 @@ const useMyLocation = () => {
                     <svg v-else class="h-4 w-4 animate-spin text-red-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                     {{ locating ? 'Localizando...' : 'Mi ubicacion' }}
                 </button>
-            </div>
 
             <!-- Footer -->
             <div class="border-t border-gray-200 bg-gray-50 px-4 py-2.5">

@@ -15,16 +15,35 @@ class SucursalController extends Controller
 {
     public function index(Request $request): Response
     {
-        $sucursales = Branch::query()
+        $query = Branch::query()
             ->when($request->search, fn ($q, $s) => $q->where('name', 'ilike', "%{$s}%"))
+            ->when($request->filter === 'active', fn ($q) => $q->where('status', 'active'))
+            ->when($request->filter === 'inactive', fn ($q) => $q->where('status', 'inactive'))
+            ->when($request->filter === 'online', fn ($q) => $q->where('online_ordering_enabled', true))
+            ->when($request->filter === 'no_location', fn ($q) => $q->whereNull('latitude')->orWhereNull('longitude'))
             ->withCount('users')
-            ->orderBy('name')
+            ->orderBy('name');
+
+        $sucursales = $query
             ->paginate(15)
             ->withQueryString();
 
+        // Conteos agregados para badges en los chips de filtro.
+        $tenantId = app('tenant')->id;
+        $stats = [
+            'total' => Branch::where('tenant_id', $tenantId)->count(),
+            'active' => Branch::where('tenant_id', $tenantId)->where('status', 'active')->count(),
+            'inactive' => Branch::where('tenant_id', $tenantId)->where('status', 'inactive')->count(),
+            'online' => Branch::where('tenant_id', $tenantId)->where('online_ordering_enabled', true)->count(),
+            'no_location' => Branch::where('tenant_id', $tenantId)->where(function ($q) {
+                $q->whereNull('latitude')->orWhereNull('longitude');
+            })->count(),
+        ];
+
         return Inertia::render('Empresa/Sucursales/Index', [
             'sucursales' => $sucursales,
-            'filters' => $request->only('search'),
+            'filters' => $request->only('search', 'filter'),
+            'stats' => $stats,
             'tenant' => app('tenant'),
         ]);
     }
@@ -44,7 +63,6 @@ class SucursalController extends Controller
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'phone' => 'nullable|string|max:20',
-            'schedule' => 'nullable|string|max:255',
         ]);
 
         $tenant = app('tenant');
@@ -54,11 +72,26 @@ class SucursalController extends Controller
         }
 
         $validated['tenant_id'] = $tenant->id;
+        // schedule legacy se autogenera al editar la sucursal con sus horarios.
+        $validated['schedule'] = null;
 
         Branch::create($validated);
 
         return redirect()->route('empresa.sucursales.index', $tenant->slug)
             ->with('success', 'Sucursal creada exitosamente.');
+    }
+
+    public function show(Branch $sucursal): Response
+    {
+        $this->authorizeBranchAccess($sucursal);
+
+        $sucursal->load(['users' => fn ($q) => $q->with('roles')->orderBy('name')]);
+        $sucursal->loadCount('users');
+
+        return Inertia::render('Empresa/Sucursales/Show', [
+            'sucursal' => $sucursal,
+            'tenant' => app('tenant'),
+        ]);
     }
 
     public function edit(Branch $sucursal): Response
@@ -84,7 +117,6 @@ class SucursalController extends Controller
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'phone' => 'nullable|string|max:20',
-            'schedule' => 'nullable|string|max:255',
             'status' => 'required|in:active,inactive',
             'online_ordering_enabled' => 'sometimes|boolean',
             'delivery_enabled' => 'sometimes|boolean',
@@ -112,6 +144,13 @@ class SucursalController extends Controller
         if (array_key_exists('hours', $validated)) {
             $validated['hours'] = $this->normalizeHours($validated['hours']);
         }
+
+        // Auto-generar el campo legacy `schedule` desde el JSONB `hours` para
+        // mantener viva la compatibilidad con clientes que aún lo lean
+        // (BranchResource → API v1, decoración en panel admin). El admin de
+        // empresa ya no edita schedule manualmente; los datos reales viven
+        // en `hours`.
+        $validated['schedule'] = $this->summarizeHours($validated['hours'] ?? null);
 
         $sucursal->update($validated);
 
@@ -159,6 +198,7 @@ class SucursalController extends Controller
             $entry = $hours[$day] ?? null;
             if (! $entry || empty($entry['open']) || empty($entry['close'])) {
                 $normalized[$day] = null;
+
                 continue;
             }
             $normalized[$day] = [
@@ -168,6 +208,48 @@ class SucursalController extends Controller
         }
 
         return $normalized;
+    }
+
+    /**
+     * Resume hours JSONB en una cadena humano-legible para el campo
+     * legacy `schedule`. Agrupa días consecutivos con el mismo horario.
+     * Ej. {mon..sat: 7-20, sun: null} → "Lun-Sáb 7:00-20:00, Dom cerrado".
+     */
+    private function summarizeHours(?array $hours): ?string
+    {
+        if (empty($hours)) {
+            return null;
+        }
+
+        $labels = ['mon' => 'Lun', 'tue' => 'Mar', 'wed' => 'Mié', 'thu' => 'Jue', 'fri' => 'Vie', 'sat' => 'Sáb', 'sun' => 'Dom'];
+        $order = array_keys($labels);
+
+        // Construye lista por día con el "valor" compacto (closed o "open-close").
+        $perDay = [];
+        foreach ($order as $key) {
+            $day = $hours[$key] ?? null;
+            $perDay[$key] = (! $day || empty($day['open']) || empty($day['close']))
+                ? 'cerrado'
+                : "{$day['open']}-{$day['close']}";
+        }
+
+        // Agrupa días consecutivos con el mismo valor.
+        $groups = [];
+        $startIdx = 0;
+        for ($i = 1; $i <= count($order); $i++) {
+            $current = $perDay[$order[$startIdx]];
+            $next = $i < count($order) ? $perDay[$order[$i]] : null;
+            if ($current !== $next) {
+                $endIdx = $i - 1;
+                $startLabel = $labels[$order[$startIdx]];
+                $endLabel = $labels[$order[$endIdx]];
+                $range = $startIdx === $endIdx ? $startLabel : "{$startLabel}-{$endLabel}";
+                $groups[] = "{$range} {$current}";
+                $startIdx = $i;
+            }
+        }
+
+        return implode(', ', $groups);
     }
 
     public function destroy(Branch $sucursal): RedirectResponse

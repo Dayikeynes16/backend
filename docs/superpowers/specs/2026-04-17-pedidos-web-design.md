@@ -436,3 +436,6 @@ Estos cambios son aditivos y no rompen consumidores actuales de `SaleResource` (
 - [x] Soft-deletes de productos explícitos en query pública
 - [x] `latitude`/`longitude` existentes reutilizados (no duplicados)
 - [x] Phone normalizer compartido entre admin y flujo público
+
+
+gcloud services api-keys create --project=carniceria-el-puebla --display-name="Carniceria SaaS Maps"--allowed-referrers="https://backend-main-98d0p8.laravel.cloud/*","http://localhost:*/*","http://127.0.0.1:*/*"--api-target=service=maps-backend.googleapis.com--api-target=service=distance-matrix-backend.googleapis.com--api-target=service=places-backend.googleapis.com --api-target=service=geocoding-backend.googleapis.com

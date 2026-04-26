@@ -2,13 +2,15 @@
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
-import MapPicker from '@/Components/MapPicker.vue';
+import MapPickerPro from '@/Components/MapPickerPro.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({ tenant: Object });
 
-const form = useForm({ name: '', phone: '', address: '', latitude: '', longitude: '', schedule: '' });
+// schedule legacy se autogenera en el backend desde `hours` al editar la
+// sucursal después de crearla. El horario detallado se configura en Edit.
+const form = useForm({ name: '', phone: '', address: '', latitude: '', longitude: '' });
 
 const submit = () => form.post(route('empresa.sucursales.store', props.tenant.slug));
 </script>
@@ -44,36 +46,38 @@ const submit = () => form.post(route('empresa.sucursales.store', props.tenant.sl
                         </div>
                     </div>
                     <div>
-                        <InputLabel for="address" value="Direccion" />
-                        <TextInput id="address" v-model="form.address" type="text" class="mt-1.5 block w-full" placeholder="Av. Juarez 123, Centro, Villahermosa" />
+                        <InputLabel for="address" value="Dirección" />
+                        <TextInput id="address" v-model="form.address" type="text" class="mt-1.5 block w-full" placeholder="Av. Juárez 123, Centro, Villahermosa" />
                         <InputError :message="form.errors.address" class="mt-1" />
                     </div>
-                    <div>
-                        <InputLabel for="schedule" value="Horario" />
-                        <TextInput id="schedule" v-model="form.schedule" type="text" class="mt-1.5 block w-full" placeholder="Lun-Sab 7:00am - 8:00pm" />
-                        <InputError :message="form.errors.schedule" class="mt-1" />
-                    </div>
+                    <p class="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 ring-1 ring-inset ring-blue-200">
+                        💡 El <strong>horario detallado</strong> y los <strong>pedidos en línea</strong> los configuras al editar la sucursal una vez creada.
+                    </p>
                 </div>
             </section>
 
             <!-- Ubicación -->
             <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-6 py-5">
-                    <h2 class="text-base font-bold text-gray-900">Ubicacion</h2>
-                    <p class="mt-1 text-sm text-gray-500">Selecciona la ubicacion de la sucursal en el mapa o ingresa las coordenadas manualmente.</p>
+                    <h2 class="text-base font-bold text-gray-900">Ubicación</h2>
+                    <p class="mt-1 text-sm text-gray-500">Coloca el pin en la entrada de la sucursal y confírmalo.</p>
                 </div>
                 <div class="space-y-5 p-6">
-                    <MapPicker v-model:latitude="form.latitude" v-model:longitude="form.longitude" />
+                    <MapPickerPro
+                        :latitude="form.latitude"
+                        :longitude="form.longitude"
+                        @confirmed="(lat, lng) => { form.latitude = lat; form.longitude = lng; }"
+                        @address-suggested="(addr) => { if (!form.address) form.address = addr; }" />
 
                     <div class="grid gap-5 sm:grid-cols-2">
                         <div>
                             <InputLabel for="latitude" value="Latitud" />
-                            <TextInput id="latitude" v-model="form.latitude" type="text" class="mt-1.5 block w-full" placeholder="17.9891" />
+                            <TextInput id="latitude" v-model="form.latitude" type="text" class="mt-1.5 block w-full font-mono text-sm tabular-nums" placeholder="17.9891" />
                             <InputError :message="form.errors.latitude" class="mt-1" />
                         </div>
                         <div>
                             <InputLabel for="longitude" value="Longitud" />
-                            <TextInput id="longitude" v-model="form.longitude" type="text" class="mt-1.5 block w-full" placeholder="-92.9475" />
+                            <TextInput id="longitude" v-model="form.longitude" type="text" class="mt-1.5 block w-full font-mono text-sm tabular-nums" placeholder="-92.9475" />
                             <InputError :message="form.errors.longitude" class="mt-1" />
                         </div>
                     </div>
