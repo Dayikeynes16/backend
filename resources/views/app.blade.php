@@ -16,6 +16,11 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
+        <!-- Google Maps (for MapPicker in branch config) -->
+        @if(config('services.google_matrix.key'))
+        <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google_matrix.key') }}&libraries=geocoding&v=weekly" async defer></script>
+        @endif
+
         <!-- Scripts -->
         @routes
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])

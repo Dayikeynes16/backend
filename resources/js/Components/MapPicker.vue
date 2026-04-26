@@ -1,6 +1,5 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue';
-import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 
 const props = defineProps({
     latitude: { type: [String, Number], default: '' },
@@ -25,25 +24,41 @@ const updateFromCenter = () => {
     emit('update:longitude', center.lng().toFixed(7));
 };
 
-onMounted(async () => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY;
-    if (!apiKey) {
-        error.value = 'Agrega VITE_GOOGLE_MAPS_KEY en el archivo .env para habilitar el mapa.';
-        return;
-    }
+/**
+ * Wait for the Google Maps JS API to be available.
+ * The script is loaded via <script> tag in app.blade.php.
+ */
+const waitForGoogleMaps = () => {
+    return new Promise((resolve, reject) => {
+        if (window.google?.maps?.Map) {
+            resolve();
+            return;
+        }
+        let attempts = 0;
+        const interval = setInterval(() => {
+            attempts++;
+            if (window.google?.maps?.Map) {
+                clearInterval(interval);
+                resolve();
+            } else if (attempts > 50) { // ~5 seconds
+                clearInterval(interval);
+                reject(new Error('Google Maps no cargó a tiempo.'));
+            }
+        }, 100);
+    });
+};
 
+onMounted(async () => {
     try {
-        setOptions({ apiKey, version: 'weekly' });
-        const { Map } = await importLibrary('maps');
+        await waitForGoogleMaps();
 
         const center = props.latitude && props.longitude
             ? { lat: parseFloat(props.latitude), lng: parseFloat(props.longitude) }
             : defaultCenter;
 
-        map = new Map(mapContainer.value, {
+        map = new google.maps.Map(mapContainer.value, {
             center,
             zoom: props.latitude ? 17 : 13,
-            mapId: 'fdde83a3a31e9c57a579d06d',
             disableDefaultUI: true,
             zoomControl: true,
             fullscreenControl: true,

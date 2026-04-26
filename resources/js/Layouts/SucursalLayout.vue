@@ -21,6 +21,7 @@ const navLinks = [
     { label: 'Cancelaciones', route: 'sucursal.cancelaciones.index', icon: 'cancelaciones' },
     { label: 'Cortes', route: 'sucursal.cortes.index', match: 'sucursal.cortes', icon: 'cortes' },
     { label: 'Métricas', route: 'sucursal.metricas.index', match: 'sucursal.metricas', icon: 'metricas' },
+    { label: 'Menú online', route: 'sucursal.menu-online', icon: 'menuqr' },
     { label: 'Configuracion', route: 'sucursal.configuracion', icon: 'config' },
 ];
 
