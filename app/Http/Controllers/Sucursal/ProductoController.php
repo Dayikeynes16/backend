@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\SaleItem;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -224,6 +225,49 @@ class ProductoController extends Controller
 
         return redirect()->route('sucursal.productos.index', app('tenant')->slug)
             ->with('success', 'Producto actualizado.');
+    }
+
+    /**
+     * Snapshot ligero del producto en formato JSON. Lo usa la página de
+     * Métricas › Productos para abrir el modal de detalle desde la tabla
+     * sin recargar todos los datos del listado de productos.
+     */
+    public function snapshot(Product $producto): JsonResponse
+    {
+        if ($producto->branch_id !== Auth::user()->branch_id) {
+            abort(403);
+        }
+
+        $producto->load([
+            'category:id,name',
+            'presentations' => fn ($q) => $q->where('status', 'active')->orderBy('sort_order'),
+        ]);
+
+        return response()->json([
+            'id' => $producto->id,
+            'name' => $producto->name,
+            'description' => $producto->description,
+            'price' => (float) $producto->price,
+            'cost_price' => $producto->cost_price !== null ? (float) $producto->cost_price : null,
+            'sale_mode' => $producto->sale_mode,
+            'unit_type' => $producto->unit_type,
+            'status' => $producto->status,
+            'visibility' => $producto->visibility,
+            'visible_online' => (bool) $producto->visible_online,
+            'image_url' => $producto->image_url,
+            'category' => $producto->category ? [
+                'id' => $producto->category->id,
+                'name' => $producto->category->name,
+            ] : null,
+            'presentations' => $producto->presentations->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'content' => (float) $p->content,
+                'unit' => $p->unit,
+                'price' => (float) $p->price,
+                'sort_order' => $p->sort_order,
+            ]),
+        ]);
     }
 
     /**

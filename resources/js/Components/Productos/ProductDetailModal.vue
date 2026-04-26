@@ -9,6 +9,9 @@ const props = defineProps({
     show: { type: Boolean, default: false },
     product: { type: Object, default: null },
     tenant: { type: Object, required: true },
+    // Estadísticas del rango (solo cuando se abre desde Métricas).
+    // { revenue, gross_profit, margin_pct, quantity_kg, quantity_units, ticket_count, range_label }
+    rangeStats: { type: Object, default: null },
 });
 
 const emit = defineEmits(['close']);
@@ -161,6 +164,37 @@ const deleteProduct = () => {
                                 <div class="shrink-0 text-right">
                                     <p class="font-mono text-2xl font-extrabold tabular-nums text-gray-900">{{ money(p.price) }}</p>
                                     <p v-if="unitTypeLabel" class="mt-0.5 text-xs font-medium text-gray-400">/{{ unitTypeLabel }}</p>
+                                </div>
+                            </div>
+
+                            <!-- En este rango (solo cuando se abre desde Métricas) -->
+                            <div v-if="rangeStats" class="mt-5 border-t border-gray-100 pt-5">
+                                <div class="flex items-center justify-between">
+                                    <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">En este rango</p>
+                                    <p v-if="rangeStats.range_label" class="text-[10px] font-medium text-gray-400">{{ rangeStats.range_label }}</p>
+                                </div>
+                                <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    <div class="rounded-xl bg-blue-50/60 px-3 py-2.5">
+                                        <p class="text-[10px] font-medium uppercase tracking-wider text-blue-700/70">Ingreso</p>
+                                        <p class="font-mono text-sm font-bold tabular-nums text-blue-700">${{ Number(rangeStats.revenue ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
+                                    </div>
+                                    <div class="rounded-xl bg-emerald-50/60 px-3 py-2.5">
+                                        <p class="text-[10px] font-medium uppercase tracking-wider text-emerald-700/70">Ganancia</p>
+                                        <p class="font-mono text-sm font-bold tabular-nums text-emerald-700">${{ Number(rangeStats.gross_profit ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
+                                        <p v-if="rangeStats.margin_pct != null" class="text-[10px] text-emerald-700/60">{{ Number(rangeStats.margin_pct).toFixed(1) }}% margen</p>
+                                    </div>
+                                    <div class="rounded-xl bg-gray-50 px-3 py-2.5">
+                                        <p class="text-[10px] font-medium uppercase tracking-wider text-gray-500">Tickets</p>
+                                        <p class="font-mono text-sm font-bold tabular-nums text-gray-900">{{ Number(rangeStats.ticket_count ?? 0).toLocaleString('es-MX') }}</p>
+                                    </div>
+                                    <div v-if="Number(rangeStats.quantity_kg) > 0" class="rounded-xl bg-amber-50/60 px-3 py-2.5">
+                                        <p class="text-[10px] font-medium uppercase tracking-wider text-amber-700/70">Vendido (peso)</p>
+                                        <p class="font-mono text-sm font-bold tabular-nums text-amber-800">{{ Number(rangeStats.quantity_kg).toFixed(3) }} kg</p>
+                                    </div>
+                                    <div v-if="Number(rangeStats.quantity_units) > 0" class="rounded-xl bg-violet-50/60 px-3 py-2.5">
+                                        <p class="text-[10px] font-medium uppercase tracking-wider text-violet-700/70">Vendido (unid.)</p>
+                                        <p class="font-mono text-sm font-bold tabular-nums text-violet-800">× {{ Number(rangeStats.quantity_units).toLocaleString('es-MX') }}</p>
+                                    </div>
                                 </div>
                             </div>
 

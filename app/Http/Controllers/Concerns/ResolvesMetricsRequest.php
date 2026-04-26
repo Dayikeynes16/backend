@@ -57,6 +57,25 @@ trait ResolvesMetricsRequest
         return $request->boolean('refresh');
     }
 
+    /**
+     * Resuelve qué estados de venta incluir en las métricas.
+     * Default: ['completed'] (caja base, comportamiento histórico).
+     * Acepta query param `statuses=completed,pending,cancelled`.
+     */
+    protected function resolveStatuses(Request $request): array
+    {
+        $raw = $request->query('statuses', 'completed');
+        $list = is_array($raw) ? $raw : explode(',', (string) $raw);
+
+        $allowed = ['completed', 'pending', 'cancelled'];
+        $clean = array_values(array_unique(array_intersect(
+            $allowed,
+            array_map('strtolower', array_map('trim', $list))
+        )));
+
+        return ! empty($clean) ? $clean : ['completed'];
+    }
+
     protected function compareEnabled(Request $request): bool
     {
         return $request->boolean('compare', true);

@@ -15,6 +15,14 @@ export function useMetricsFilters(routeName) {
     const to = ref(initial.to ?? '');
     const compare = ref(page.props.compare ?? true);
     const branchId = ref(page.props.selected_branch_id ?? null);
+    // Estados de venta a considerar. Persiste en query string global así
+    // si el usuario activa "+ Pendientes" en Productos, sigue activo si
+    // navega a Margen u otra página de métricas.
+    const statuses = ref(
+        Array.isArray(page.props.statuses) && page.props.statuses.length > 0
+            ? [...page.props.statuses]
+            : ['completed']
+    );
 
     const isCustom = computed(() => preset.value === '__custom__' || (!preset.value && from.value && to.value));
 
@@ -29,6 +37,13 @@ export function useMetricsFilters(routeName) {
                 query.to = to.value;
             } else if (preset.value) {
                 query.preset = preset.value;
+            }
+            // Solo agregar statuses si NO es el default ['completed'].
+            // Mantiene URLs limpias para el caso común.
+            const statusesValue = (statuses.value || []).slice().sort();
+            const isDefault = statusesValue.length === 1 && statusesValue[0] === 'completed';
+            if (!isDefault && statusesValue.length > 0) {
+                query.statuses = statusesValue.join(',');
             }
             if (opts.refresh) query.refresh = 1;
             router.get(route(routeName, slug.value), query, {
@@ -65,8 +80,26 @@ export function useMetricsFilters(routeName) {
 
     const refresh = () => navigate({ refresh: true });
 
+    const toggleStatus = (s) => {
+        const current = new Set(statuses.value || []);
+        if (current.has(s)) {
+            current.delete(s);
+        } else {
+            current.add(s);
+        }
+        statuses.value = Array.from(current);
+        navigate();
+    };
+
+    const setStatuses = (arr) => {
+        statuses.value = Array.isArray(arr) ? [...arr] : ['completed'];
+        navigate();
+    };
+
     return {
-        preset, from, to, compare, branchId, isCustom,
-        setPreset, setCustom, setCompare, setBranchId, refresh, slug,
+        preset, from, to, compare, branchId, statuses, isCustom,
+        setPreset, setCustom, setCompare, setBranchId,
+        toggleStatus, setStatuses,
+        refresh, slug,
     };
 }

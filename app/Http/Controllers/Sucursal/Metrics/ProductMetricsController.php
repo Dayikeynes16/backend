@@ -21,18 +21,21 @@ class ProductMetricsController extends Controller
         $branchId = $this->resolveSucursalBranchId($request);
         $range = $this->resolveDateRange($request);
         $noMovementDays = (int) $request->query('no_movement_days', 30);
-        $key = $meta->cacheKey('productos:'.$noMovementDays, $range, $branchId, $tenantId);
+        $statuses = $this->resolveStatuses($request);
+
+        $statusKey = implode('-', $statuses);
+        $key = $meta->cacheKey("productos:{$noMovementDays}:{$statusKey}", $range, $branchId, $tenantId);
 
         if ($this->wantsRefresh($request)) {
             Cache::forget($key);
         }
 
         $data = Cache::remember($key, 300, fn () => [
-            'summary' => $service->summary($range, $branchId, $tenantId),
-            'top_by_revenue' => $service->topByRevenue($range, $branchId, $tenantId, 10),
-            'top_by_quantity' => $service->topByQuantity($range, $branchId, $tenantId, 10),
-            'category_share' => $service->byCategoryShare($range, $branchId, $tenantId),
-            'least_sold' => $service->leastSold($range, $branchId, $tenantId, 20),
+            'summary' => $service->summary($range, $branchId, $tenantId, $statuses),
+            'all_products' => $service->byProductFull($range, $branchId, $tenantId, $statuses),
+            'top_by_revenue' => $service->topByRevenue($range, $branchId, $tenantId, 10, $statuses),
+            'top_by_profit' => $service->topByProfit($range, $branchId, $tenantId, 10, $statuses),
+            'category_share' => $service->byCategoryShare($range, $branchId, $tenantId, $statuses),
             'no_movement' => $service->withoutMovement($range, $branchId, $tenantId, $noMovementDays)->limit(100)->get()->map(fn ($p) => [
                 'id' => (int) $p->id,
                 'name' => $p->name,
@@ -46,6 +49,7 @@ class ProductMetricsController extends Controller
         return Inertia::render('Sucursal/Metricas/Productos', [
             ...$this->commonProps($request, $range, $branchId),
             'no_movement_days' => $noMovementDays,
+            'statuses' => $statuses,
             'data' => $data,
         ]);
     }
