@@ -178,7 +178,12 @@ const submit = () => {
     };
 
     if (props.mode === 'edit') {
-        form.post(url, { ...opts, _method: 'put' });
+        // forceFormData impide el spoofing automático de método de Inertia,
+        // así que `_method: 'put'` debe ir DENTRO del payload (no como option).
+        // Laravel lee ese field para tratar el POST multipart como PUT.
+        form
+            .transform((data) => ({ ...data, _method: 'put' }))
+            .post(url, opts);
     } else {
         form.post(url, opts);
     }
