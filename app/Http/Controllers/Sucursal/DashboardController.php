@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CashRegisterShift;
+use App\Models\Expense;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -102,6 +104,8 @@ class DashboardController extends Controller
             ->whereDate('opened_at', '<=', $date)
             ->count();
 
+        $expenses = $this->expensesSnapshot(['branch_id' => $branchId], $date, $yesterday);
+
         return Inertia::render('Sucursal/Dashboard', [
             'totals' => $totals,
             'hoursData' => $hoursData,
@@ -115,8 +119,108 @@ class DashboardController extends Controller
             'cajeroCount' => $cajeroCount,
             'activeCashierCount' => $activeCashierCount,
             'selectedDate' => $date,
+            'expenses' => $expenses,
             'tenant' => app('tenant'),
         ]);
+    }
+
+    /**
+     * Snapshot del bloque de gastos para el dashboard. Acepta un filtro
+     * arbitrario (branch_id o tenant_id) para reutilizarse desde Empresa.
+     */
+    private function expensesSnapshot(array $filter, string $date, string $yesterday): array
+    {
+        $applyFilter = function ($query) use ($filter) {
+            foreach ($filter as $col => $val) {
+                if ($val === null || $val === '') {
+                    continue;
+                }
+                $query->where($col, $val);
+            }
+
+            return $query;
+        };
+
+        $totalToday = (float) $applyFilter(Expense::query())->whereDate('expense_at', $date)->sum('amount');
+        $totalYesterday = (float) $applyFilter(Expense::query())->whereDate('expense_at', $yesterday)->sum('amount');
+        $countToday = (int) $applyFilter(Expense::query())->whereDate('expense_at', $date)->count();
+
+        $deltaPct = $totalYesterday > 0
+            ? round((($totalToday - $totalYesterday) / $totalYesterday) * 100, 1)
+            : null;
+
+        // Sparkline: gastos por hora (mismo rango 7-19 que ventas)
+        $perHour = DB::table('expenses')
+            ->where(function ($q) use ($filter) {
+                foreach ($filter as $col => $val) {
+                    if ($val === null || $val === '') {
+                        continue;
+                    }
+                    $q->where($col, $val);
+                }
+            })
+            ->whereNull('deleted_at')
+            ->whereDate('expense_at', $date)
+            ->selectRaw('EXTRACT(HOUR FROM expense_at) as hour, COALESCE(SUM(amount), 0) as amount')
+            ->groupBy('hour')
+            ->get()
+            ->keyBy(fn ($r) => (int) $r->hour);
+
+        $hourly = [];
+        for ($h = 7; $h <= 19; $h++) {
+            $row = $perHour->get($h);
+            $hourly[] = [
+                'h' => (string) $h,
+                'amount' => $row ? (float) $row->amount : 0.0,
+            ];
+        }
+
+        // Top subcategorías del día
+        $topCategories = $applyFilter(Expense::query())
+            ->whereDate('expense_at', $date)
+            ->select('expense_subcategory_id', DB::raw('SUM(amount) as total'), DB::raw('COUNT(*) as count'))
+            ->groupBy('expense_subcategory_id')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->with('subcategory:id,expense_category_id,name', 'subcategory.category:id,name')
+            ->get()
+            ->map(fn ($r) => [
+                'subcategory' => $r->subcategory?->name,
+                'category' => $r->subcategory?->category?->name,
+                'total' => (float) $r->total,
+                'count' => (int) $r->count,
+            ])
+            ->values()
+            ->all();
+
+        $recent = $applyFilter(Expense::query())
+            ->whereDate('expense_at', $date)
+            ->with(['subcategory:id,name,expense_category_id', 'subcategory.category:id,name', 'branch:id,name', 'user:id,name'])
+            ->orderByDesc('expense_at')
+            ->limit(5)
+            ->get()
+            ->map(fn (Expense $e) => [
+                'id' => $e->id,
+                'concept' => $e->concept,
+                'amount' => (float) $e->amount,
+                'expense_at' => $e->expense_at,
+                'category' => $e->subcategory?->category?->name,
+                'subcategory' => $e->subcategory?->name,
+                'branch' => $e->branch?->name,
+                'user' => $e->user?->name,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'total' => $totalToday,
+            'total_yesterday' => $totalYesterday,
+            'count' => $countToday,
+            'delta_pct' => $deltaPct,
+            'hourly' => $hourly,
+            'top_categories' => $topCategories,
+            'recent' => $recent,
+        ];
     }
 
     /**
@@ -163,7 +267,7 @@ class DashboardController extends Controller
             ->get()
             ->map(fn ($r) => [
                 'method' => (string) $r->method,
-                'label' => \App\Enums\PaymentMethod::resolveLabel((string) $r->method),
+                'label' => PaymentMethod::resolveLabel((string) $r->method),
                 'total' => (float) $r->total,
                 'count' => (int) $r->count,
             ])
