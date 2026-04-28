@@ -10,23 +10,26 @@ use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
-use App\Http\Controllers\Empresa\TicketConfigController;
+use App\Http\Controllers\Empresa\ExpenseCategoryController as EmpresaExpenseCategoryController;
+use App\Http\Controllers\Empresa\ExpenseSubcategoryController as EmpresaExpenseSubcategoryController;
+use App\Http\Controllers\Empresa\GastoController as EmpresaGastoController;
+use App\Http\Controllers\Empresa\Metrics\CashierMetricsController as EmpresaCashierMetricsController;
+use App\Http\Controllers\Empresa\Metrics\CollectionMetricsController as EmpresaCollectionMetricsController;
+use App\Http\Controllers\Empresa\Metrics\CustomerMetricsController as EmpresaCustomerMetricsController;
+use App\Http\Controllers\Empresa\Metrics\MarginMetricsController as EmpresaMarginMetricsController;
+use App\Http\Controllers\Empresa\Metrics\MetricsIndexController as EmpresaMetricsIndexController;
+use App\Http\Controllers\Empresa\Metrics\ProductMetricsController as EmpresaProductMetricsController;
+use App\Http\Controllers\Empresa\Metrics\SalesMetricsController as EmpresaSalesMetricsController;
+use App\Http\Controllers\Empresa\Metrics\ShiftMetricsController as EmpresaShiftMetricsController;
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\SucursalController;
+use App\Http\Controllers\Empresa\TicketConfigController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
-use App\Http\Controllers\Empresa\Metrics\MetricsIndexController as EmpresaMetricsIndexController;
-use App\Http\Controllers\Empresa\Metrics\SalesMetricsController as EmpresaSalesMetricsController;
-use App\Http\Controllers\Empresa\Metrics\MarginMetricsController as EmpresaMarginMetricsController;
-use App\Http\Controllers\Empresa\Metrics\ProductMetricsController as EmpresaProductMetricsController;
-use App\Http\Controllers\Empresa\Metrics\CustomerMetricsController as EmpresaCustomerMetricsController;
-use App\Http\Controllers\Empresa\Metrics\CashierMetricsController as EmpresaCashierMetricsController;
-use App\Http\Controllers\Empresa\Metrics\ShiftMetricsController as EmpresaShiftMetricsController;
-use App\Http\Controllers\Empresa\Metrics\CollectionMetricsController as EmpresaCollectionMetricsController;
+use App\Http\Controllers\ExpenseAttachmentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
 use App\Http\Controllers\Sucursal\CancelRequestController;
 use App\Http\Controllers\Sucursal\CashShiftController;
-use App\Http\Controllers\Sucursal\SaleLockController;
 use App\Http\Controllers\Sucursal\CategoryController;
 use App\Http\Controllers\Sucursal\ConfiguracionController as SucursalConfiguracionController;
 use App\Http\Controllers\Sucursal\CustomerController;
@@ -34,23 +37,24 @@ use App\Http\Controllers\Sucursal\CustomerPaymentController;
 use App\Http\Controllers\Sucursal\CustomerPriceController;
 use App\Http\Controllers\Sucursal\CustomerStatsController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
+use App\Http\Controllers\Sucursal\GastoController as SucursalGastoController;
+use App\Http\Controllers\Sucursal\MenuQrController;
+use App\Http\Controllers\Sucursal\Metrics\CashierMetricsController as SucursalCashierMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\CollectionMetricsController as SucursalCollectionMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\CustomerMetricsController as SucursalCustomerMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\MarginMetricsController as SucursalMarginMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\MetricsIndexController as SucursalMetricsIndexController;
+use App\Http\Controllers\Sucursal\Metrics\ProductMetricsController as SucursalProductMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\SalesMetricsController as SucursalSalesMetricsController;
+use App\Http\Controllers\Sucursal\Metrics\ShiftMetricsController as SucursalShiftMetricsController;
 use App\Http\Controllers\Sucursal\PagosController;
 use App\Http\Controllers\Sucursal\PaymentController;
 use App\Http\Controllers\Sucursal\ProductoController;
 use App\Http\Controllers\Sucursal\SaleHistoryController;
-use App\Http\Controllers\Sucursal\ShiftController as SucursalShiftController;
-use App\Http\Controllers\Sucursal\WithdrawalController;
+use App\Http\Controllers\Sucursal\SaleLockController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
-use App\Http\Controllers\Sucursal\MenuQrController;
+use App\Http\Controllers\Sucursal\WithdrawalController;
 use App\Http\Controllers\Sucursal\WorkbenchController;
-use App\Http\Controllers\Sucursal\Metrics\MetricsIndexController as SucursalMetricsIndexController;
-use App\Http\Controllers\Sucursal\Metrics\SalesMetricsController as SucursalSalesMetricsController;
-use App\Http\Controllers\Sucursal\Metrics\MarginMetricsController as SucursalMarginMetricsController;
-use App\Http\Controllers\Sucursal\Metrics\ProductMetricsController as SucursalProductMetricsController;
-use App\Http\Controllers\Sucursal\Metrics\CustomerMetricsController as SucursalCustomerMetricsController;
-use App\Http\Controllers\Sucursal\Metrics\CashierMetricsController as SucursalCashierMetricsController;
-use App\Http\Controllers\Sucursal\Metrics\ShiftMetricsController as SucursalShiftMetricsController;
-use App\Http\Controllers\Sucursal\Metrics\CollectionMetricsController as SucursalCollectionMetricsController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -152,6 +156,30 @@ Route::prefix('{tenant}')
                     Route::get('cajeros', EmpresaCashierMetricsController::class)->name('cajeros');
                     Route::get('turnos', EmpresaShiftMetricsController::class)->name('turnos');
                     Route::get('cobranza', EmpresaCollectionMetricsController::class)->name('cobranza');
+                });
+
+                // Gastos
+                Route::prefix('gastos')->name('gastos.')->group(function () {
+                    // Categorías y subcategorías (van primero — rutas más específicas
+                    // antes de las dinámicas {gasto} para evitar conflictos).
+                    Route::post('categorias', [EmpresaExpenseCategoryController::class, 'store'])->name('categorias.store');
+                    Route::put('categorias/{category}', [EmpresaExpenseCategoryController::class, 'update'])->name('categorias.update');
+                    Route::delete('categorias/{category}', [EmpresaExpenseCategoryController::class, 'destroy'])->name('categorias.destroy');
+
+                    Route::post('subcategorias', [EmpresaExpenseSubcategoryController::class, 'store'])->name('subcategorias.store');
+                    Route::put('subcategorias/{subcategory}', [EmpresaExpenseSubcategoryController::class, 'update'])->name('subcategorias.update');
+                    Route::delete('subcategorias/{subcategory}', [EmpresaExpenseSubcategoryController::class, 'destroy'])->name('subcategorias.destroy');
+
+                    // Gastos
+                    Route::get('/', [EmpresaGastoController::class, 'index'])->name('index');
+                    Route::post('/', [EmpresaGastoController::class, 'store'])->name('store');
+                    Route::put('{gasto}', [EmpresaGastoController::class, 'update'])->name('update');
+                    Route::delete('{gasto}', [EmpresaGastoController::class, 'destroy'])->name('destroy');
+
+                    // Adjuntos
+                    Route::get('{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'download'])->name('adjuntos.download');
+                    Route::get('{gasto}/adjuntos/{attachment}/preview', [ExpenseAttachmentController::class, 'preview'])->name('adjuntos.preview');
+                    Route::delete('{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'destroy'])->name('adjuntos.destroy');
                 });
             });
 
@@ -269,6 +297,18 @@ Route::prefix('{tenant}')
                     Route::get('cajeros', SucursalCashierMetricsController::class)->name('cajeros');
                     Route::get('turnos', SucursalShiftMetricsController::class)->name('turnos');
                     Route::get('cobranza', SucursalCollectionMetricsController::class)->name('cobranza');
+                });
+
+                // Gastos
+                Route::prefix('gastos')->name('gastos.')->group(function () {
+                    Route::get('/', [SucursalGastoController::class, 'index'])->name('index');
+                    Route::post('/', [SucursalGastoController::class, 'store'])->name('store');
+                    Route::put('{gasto}', [SucursalGastoController::class, 'update'])->name('update');
+                    Route::delete('{gasto}', [SucursalGastoController::class, 'destroy'])->name('destroy');
+
+                    Route::get('{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'download'])->name('adjuntos.download');
+                    Route::get('{gasto}/adjuntos/{attachment}/preview', [ExpenseAttachmentController::class, 'preview'])->name('adjuntos.preview');
+                    Route::delete('{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'destroy'])->name('adjuntos.destroy');
                 });
             });
 

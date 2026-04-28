@@ -47,3 +47,13 @@ Route::middleware('role:cajero|superadmin')
 ## Modelo User
 
 El modelo `User` usa el trait `HasRoles` de Spatie. Tiene relaciones `tenant()` y `branch()` (ambas nullable para superadmin).
+
+## Matriz por módulo (resumen)
+
+| Módulo | superadmin | admin-empresa | admin-sucursal | cajero |
+|---|:-:|:-:|:-:|:-:|
+| Gastos (CRUD, ver) | ✅ | ✅ todas las sucursales | ✅ sólo su sucursal | ❌ |
+| Gastos · categorías/subcategorías | ✅ | ✅ | sólo lectura | ❌ |
+| Gastos · adjuntos (descarga/borrado) | ✅ | ✅ | ✅ sólo de su sucursal | ❌ |
+
+Detalle del módulo: ver `docs/modulos/gastos.md`.

@@ -103,5 +103,8 @@ class DemoSeeder extends Seeder
                 ...$p,
             ]);
         }
+
+        // Nota: el módulo de Gastos arranca vacío. Cada empresa crea sus
+        // propias categorías y subcategorías al estrenar el módulo.
     }
 }

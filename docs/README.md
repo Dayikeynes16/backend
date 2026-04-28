@@ -25,6 +25,7 @@ Stack: Laravel 13 · Vue 3 · Inertia · PostgreSQL · Laravel Reverb.
 - [API Keys](modulos/api-keys.md) — generación, revocación, panel admin-sucursal
 - [Ventas](modulos/ventas.md) — flujo API → cajero, estados, folio, snapshots
 - [Corte de Caja](modulos/corte-de-caja.md) — turnos, apertura/cierre, totales, historial
+- [Gastos](modulos/gastos.md) — categorías/subcategorías, registro, adjuntos privados, soft-delete
 - [Paneles Admin](modulos/paneles-admin.md) — dashboards por rol, navegación contextual
 
 ## Frontend

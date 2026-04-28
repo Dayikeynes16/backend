@@ -61,6 +61,27 @@ return [
             'report' => false,
         ],
 
+        /*
+        | Disco S3 privado dedicado (gastos: tickets, facturas, comprobantes).
+        | En Laravel Cloud: crear un Disk privado (Visibility: Private) y
+        | mapear sus credenciales a las variables AWS_PRIVATE_* listadas.
+        | Si las AWS_PRIVATE_* no se definen, hace fallback a las AWS_*
+        | normales (útil para sail dev / single-bucket).
+        */
+        's3_private' => [
+            'driver' => 's3',
+            'key' => env('AWS_PRIVATE_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID')),
+            'secret' => env('AWS_PRIVATE_SECRET_ACCESS_KEY', env('AWS_SECRET_ACCESS_KEY')),
+            'region' => env('AWS_PRIVATE_DEFAULT_REGION', env('AWS_DEFAULT_REGION', 'us-east-1')),
+            'bucket' => env('AWS_PRIVATE_BUCKET', env('AWS_BUCKET')),
+            'url' => env('AWS_PRIVATE_URL'),
+            'endpoint' => env('AWS_PRIVATE_ENDPOINT', env('AWS_ENDPOINT')),
+            'use_path_style_endpoint' => env('AWS_PRIVATE_USE_PATH_STYLE_ENDPOINT', env('AWS_USE_PATH_STYLE_ENDPOINT', false)),
+            'visibility' => 'private',
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*
