@@ -45,7 +45,17 @@ const today = localToday();
 // --- Internal state ---
 const open = ref(false);
 const containerRef = ref(null);
+const triggerRef = ref(null);
 const popoverRef = ref(null);
+const popoverStyle = ref({});
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
+const isMobile = computed(() => windowWidth.value < 640);
+
+// Dimensiones aproximadas usadas para placement smart.
+const POPOVER_W = 320;
+const POPOVER_H_ESTIMATE = 440;
+const VIEWPORT_PAD = 8;
+const TRIGGER_GAP = 6;
 
 // Range building state — primer click sets from, segundo click sets to.
 const rangeFrom = ref(null);
@@ -289,13 +299,13 @@ function toggleOpen() {
     if (props.disabled) return;
     open.value = !open.value;
     if (open.value) {
-        // Resetear estado de "armado" de rango al abrir
         rangeFrom.value = null;
         rangeHover.value = null;
-        // Sincronizar mes al valor actual
         const ref = isRange.value ? props.modelValue?.from : props.modelValue;
         const d = parseLocal(ref);
         if (d) monthDate.value = d;
+        // Posicionar tras render para tener triggerRef montado en DOM.
+        nextTickPosition();
     }
 }
 
@@ -305,13 +315,57 @@ function close() {
     rangeHover.value = null;
 }
 
-// --- Click outside ---
+// En mobile el wrapper externo es el backdrop. En desktop el wrapper no
+// recibe clicks (tamaño cero), así que esta función solo aplica a mobile.
+function onBackdropClick() {
+    if (isMobile.value) close();
+}
+
+/**
+ * Calcula la posición del popover usando getBoundingClientRect del trigger.
+ * En mobile se renderiza como bottom-sheet (clases vía isMobile, sin estilo
+ * inline). En desktop se posiciona fixed, con fallback a "abrir hacia arriba"
+ * si no cabe abajo y "alinear izquierda" si no cabe a la derecha.
+ */
+function updatePopoverPosition() {
+    if (!triggerRef.value || isMobile.value) {
+        popoverStyle.value = {};
+        return;
+    }
+    const rect = triggerRef.value.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    const spaceBelow = vh - rect.bottom - VIEWPORT_PAD;
+    const spaceAbove = rect.top - VIEWPORT_PAD;
+    const placeAbove = spaceBelow < POPOVER_H_ESTIMATE && spaceAbove >= POPOVER_H_ESTIMATE;
+
+    const top = placeAbove
+        ? Math.max(VIEWPORT_PAD, rect.top - POPOVER_H_ESTIMATE - TRIGGER_GAP)
+        : Math.min(rect.bottom + TRIGGER_GAP, vh - VIEWPORT_PAD - POPOVER_H_ESTIMATE);
+
+    let left = props.align === 'right' ? rect.right - POPOVER_W : rect.left;
+    if (left + POPOVER_W > vw - VIEWPORT_PAD) left = vw - POPOVER_W - VIEWPORT_PAD;
+    if (left < VIEWPORT_PAD) left = VIEWPORT_PAD;
+
+    popoverStyle.value = {
+        position: 'fixed',
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${POPOVER_W}px`,
+    };
+}
+
+function nextTickPosition() {
+    requestAnimationFrame(() => updatePopoverPosition());
+}
+
+// --- Listeners globales ---
 function handleClickOutside(e) {
     if (!open.value) return;
-    if (containerRef.value && !containerRef.value.contains(e.target)
-        && popoverRef.value && !popoverRef.value.contains(e.target)) {
-        close();
-    }
+    const inTrigger = triggerRef.value && triggerRef.value.contains(e.target);
+    const inPopover = popoverRef.value && popoverRef.value.contains(e.target);
+    if (!inTrigger && !inPopover) close();
 }
 
 function handleKeydown(e) {
@@ -319,13 +373,33 @@ function handleKeydown(e) {
     if (e.key === 'Escape') close();
 }
 
+function handleResize() {
+    windowWidth.value = window.innerWidth;
+    if (open.value) updatePopoverPosition();
+}
+
+/**
+ * Patrón iOS: cerrar al hacer scroll fuera del popover. El form modal de
+ * gastos tiene overflow-y-auto interno, lo cual movería el trigger sin
+ * mover el popover (que está teleported a body) → mejor cerrarlo.
+ */
+function handleScroll(e) {
+    if (!open.value) return;
+    if (popoverRef.value && popoverRef.value.contains(e.target)) return;
+    close();
+}
+
 onMounted(() => {
     document.addEventListener('mousedown', handleClickOutside, true);
     document.addEventListener('keydown', handleKeydown);
+    window.addEventListener('resize', handleResize);
+    document.addEventListener('scroll', handleScroll, true);
 });
 onBeforeUnmount(() => {
     document.removeEventListener('mousedown', handleClickOutside, true);
     document.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('resize', handleResize);
+    document.removeEventListener('scroll', handleScroll, true);
 });
 
 // Re-sync month when v-model changes externally
@@ -343,7 +417,7 @@ const triggerSizeClass = computed(() => props.size === 'sm'
 
 <template>
     <div ref="containerRef" class="relative inline-block">
-        <button type="button" :disabled="disabled" @click="toggleOpen"
+        <button type="button" ref="triggerRef" :disabled="disabled" @click="toggleOpen"
             :class="['inline-flex items-center gap-2 rounded-xl bg-white font-medium text-gray-800 ring-1 ring-gray-200 shadow-sm transition',
                 'hover:ring-gray-300 hover:bg-gray-50',
                 'focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-transparent',
@@ -359,78 +433,100 @@ const triggerSizeClass = computed(() => props.size === 'sm'
             </svg>
         </button>
 
-        <Transition
-            enter-active-class="transition duration-150 ease-out"
-            leave-active-class="transition duration-100 ease-in"
-            enter-from-class="opacity-0 -translate-y-1"
-            leave-to-class="opacity-0 -translate-y-1">
-            <div v-if="open" ref="popoverRef"
-                :class="['absolute z-50 mt-2 w-[320px] rounded-2xl bg-white shadow-xl ring-1 ring-gray-200/80 backdrop-blur',
-                    align === 'right' ? 'right-0' : 'left-0']">
-
-                <!-- Presets (range only) -->
-                <div v-if="isRange && presetOptions.length" class="flex flex-wrap gap-1.5 rounded-t-2xl border-b border-gray-100 bg-gray-50/60 p-3">
-                    <button v-for="p in presetOptions" :key="p.key" type="button" @click="applyPreset(p)"
-                        :class="['rounded-lg px-2.5 py-1.5 text-xs font-semibold transition active:scale-[0.97]',
-                            activePresetKey === p.key
-                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/80'
-                                : 'text-gray-500 hover:text-gray-800 hover:bg-white']">
-                        {{ p.label }}
-                    </button>
-                </div>
-
-                <!-- Single mode quick presets -->
-                <div v-else-if="!isRange" class="flex gap-1.5 rounded-t-2xl border-b border-gray-100 bg-gray-50/60 p-3">
-                    <button v-for="p in singlePresetOptions" :key="p.key" type="button" @click="applySinglePreset(p)"
-                        :disabled="isOutOfBounds(p.iso)"
-                        :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition active:scale-[0.97]',
-                            modelValue === p.iso
-                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/80'
-                                : 'text-gray-500 hover:text-gray-800 hover:bg-white',
-                            isOutOfBounds(p.iso) ? 'opacity-40 cursor-not-allowed' : '']">
-                        {{ p.label }}
-                    </button>
-                </div>
-
-                <!-- Month nav -->
-                <div class="flex items-center justify-between px-4 pt-3 pb-2">
-                    <button type="button" @click="prevMonth" class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-800" aria-label="Mes anterior">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
-                    </button>
-                    <span class="text-sm font-bold text-gray-900">{{ monthLabel }}</span>
-                    <button type="button" @click="nextMonth" class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-800" aria-label="Mes siguiente">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
-                    </button>
-                </div>
-
-                <!-- Weekday headers -->
-                <div class="grid grid-cols-7 px-3 pb-1 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                    <span v-for="w in weekDays" :key="w">{{ w }}</span>
-                </div>
-
-                <!-- Day grid -->
-                <div class="grid grid-cols-7 gap-y-0.5 px-3 pb-3">
-                    <button v-for="cell in calendarCells" :key="cell.iso" type="button"
-                        @click="onDayClick(cell.iso)"
-                        @mouseenter="onDayHover(cell.iso)"
-                        :disabled="isOutOfBounds(cell.iso)"
+        <!-- Popover teleported al body para escapar overflow/clipping del padre. -->
+        <Teleport to="body">
+            <Transition
+                :enter-active-class="isMobile ? 'transition duration-200 ease-out' : 'transition duration-150 ease-out'"
+                :leave-active-class="isMobile ? 'transition duration-150 ease-in' : 'transition duration-100 ease-in'"
+                :enter-from-class="isMobile ? 'opacity-0 translate-y-4' : 'opacity-0 -translate-y-1'"
+                :leave-to-class="isMobile ? 'opacity-0 translate-y-4' : 'opacity-0 -translate-y-1'">
+                <div v-if="open"
+                    :class="isMobile
+                        ? 'fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm'
+                        : ''"
+                    @click.self="onBackdropClick">
+                    <div ref="popoverRef"
+                        :style="isMobile ? null : popoverStyle"
                         :class="[
-                            'relative h-9 text-sm font-medium transition select-none',
-                            cell.inMonth ? 'text-gray-700' : 'text-gray-300',
-                            isOutOfBounds(cell.iso) ? 'opacity-30 cursor-not-allowed' : 'hover:bg-gray-100',
-                            // estado seleccionado
-                            isSelected(cell.iso) && !isRange ? 'bg-red-600 text-white rounded-full' : '',
-                            // range visualization
-                            isRange && isSelected(cell.iso) && !isRangeStart(cell.iso) && !isRangeEnd(cell.iso) ? 'bg-red-50 text-red-700' : '',
-                            isRangeStart(cell.iso) ? 'bg-red-600 text-white rounded-l-full' : '',
-                            isRangeEnd(cell.iso) ? 'bg-red-600 text-white rounded-r-full' : '',
-                            isInHoverPreview(cell.iso) ? 'bg-red-50 text-red-700' : '',
-                            isToday(cell.iso) && !isSelected(cell.iso) ? 'ring-1 ring-red-300 rounded-full' : '',
+                            'bg-white shadow-2xl ring-1 ring-gray-200/80',
+                            isMobile
+                                ? 'w-full max-h-[90vh] overflow-y-auto rounded-t-3xl pb-2'
+                                : 'z-[60] rounded-2xl',
                         ]">
-                        {{ cell.date.getDate() }}
-                    </button>
+                        <!-- Drag handle solo en mobile -->
+                        <div v-if="isMobile" class="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-gray-300" aria-hidden="true"></div>
+
+                        <!-- Presets (range only) -->
+                        <div v-if="isRange && presetOptions.length"
+                            :class="[
+                                'flex flex-wrap gap-1.5 border-b border-gray-100 bg-gray-50/60 p-3',
+                                isMobile ? '' : 'rounded-t-2xl',
+                            ]">
+                            <button v-for="p in presetOptions" :key="p.key" type="button" @click="applyPreset(p)"
+                                :class="['rounded-lg px-2.5 py-1.5 text-xs font-semibold transition active:scale-[0.97]',
+                                    activePresetKey === p.key
+                                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/80'
+                                        : 'text-gray-500 hover:text-gray-800 hover:bg-white']">
+                                {{ p.label }}
+                            </button>
+                        </div>
+
+                        <!-- Single mode quick presets -->
+                        <div v-else-if="!isRange"
+                            :class="[
+                                'flex gap-1.5 border-b border-gray-100 bg-gray-50/60 p-3',
+                                isMobile ? '' : 'rounded-t-2xl',
+                            ]">
+                            <button v-for="p in singlePresetOptions" :key="p.key" type="button" @click="applySinglePreset(p)"
+                                :disabled="isOutOfBounds(p.iso)"
+                                :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition active:scale-[0.97]',
+                                    modelValue === p.iso
+                                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/80'
+                                        : 'text-gray-500 hover:text-gray-800 hover:bg-white',
+                                    isOutOfBounds(p.iso) ? 'opacity-40 cursor-not-allowed' : '']">
+                                {{ p.label }}
+                            </button>
+                        </div>
+
+                        <!-- Month nav -->
+                        <div class="flex items-center justify-between px-4 pt-3 pb-2">
+                            <button type="button" @click="prevMonth" class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-800" aria-label="Mes anterior">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+                            </button>
+                            <span class="text-sm font-bold text-gray-900">{{ monthLabel }}</span>
+                            <button type="button" @click="nextMonth" class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-800" aria-label="Mes siguiente">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                            </button>
+                        </div>
+
+                        <!-- Weekday headers -->
+                        <div class="grid grid-cols-7 px-3 pb-1 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                            <span v-for="w in weekDays" :key="w">{{ w }}</span>
+                        </div>
+
+                        <!-- Day grid -->
+                        <div class="grid grid-cols-7 gap-y-0.5 px-3 pb-3">
+                            <button v-for="cell in calendarCells" :key="cell.iso" type="button"
+                                @click="onDayClick(cell.iso)"
+                                @mouseenter="onDayHover(cell.iso)"
+                                :disabled="isOutOfBounds(cell.iso)"
+                                :class="[
+                                    'relative h-9 text-sm font-medium transition select-none',
+                                    cell.inMonth ? 'text-gray-700' : 'text-gray-300',
+                                    isOutOfBounds(cell.iso) ? 'opacity-30 cursor-not-allowed' : 'hover:bg-gray-100',
+                                    isSelected(cell.iso) && !isRange ? 'bg-red-600 text-white rounded-full' : '',
+                                    isRange && isSelected(cell.iso) && !isRangeStart(cell.iso) && !isRangeEnd(cell.iso) ? 'bg-red-50 text-red-700' : '',
+                                    isRangeStart(cell.iso) ? 'bg-red-600 text-white rounded-l-full' : '',
+                                    isRangeEnd(cell.iso) ? 'bg-red-600 text-white rounded-r-full' : '',
+                                    isInHoverPreview(cell.iso) ? 'bg-red-50 text-red-700' : '',
+                                    isToday(cell.iso) && !isSelected(cell.iso) ? 'ring-1 ring-red-300 rounded-full' : '',
+                                ]">
+                                {{ cell.date.getDate() }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </Transition>
+            </Transition>
+        </Teleport>
     </div>
 </template>
