@@ -100,6 +100,38 @@ class CustomersIndexSummaryTest extends TestCase
         $this->assertEquals(0.0, (float) ($customers['Clean']['total_owed'] ?? 0));
     }
 
+    public function test_sort_by_debt_orders_highest_first_then_alphabetic(): void
+    {
+        $alfa = $this->makeCustomer(['name' => 'Alfa']);     // sin deuda
+        $bravo = $this->makeCustomer(['name' => 'Bravo']);   // deuda 500
+        $charlie = $this->makeCustomer(['name' => 'Charlie']); // deuda 1000
+        $delta = $this->makeCustomer(['name' => 'Delta']);   // sin deuda
+
+        $this->makeSale($bravo, ['amount_pending' => 500]);
+        $this->makeSale($charlie, ['amount_pending' => 1000]);
+
+        $this->actingAs($this->adminSucursal);
+        $response = $this->get(route('sucursal.clientes.index', $this->tenant->slug).'?sort=debt');
+        $names = collect($response->viewData('page')['props']['customers'])->pluck('name')->all();
+
+        // Charlie (1000) primero, luego Bravo (500), luego Alfa y Delta sin deuda
+        // alfabéticos al final.
+        $this->assertSame(['Charlie', 'Bravo', 'Alfa', 'Delta'], $names);
+    }
+
+    public function test_default_sort_is_alphabetic_by_name(): void
+    {
+        $this->makeCustomer(['name' => 'Zeta']);
+        $this->makeCustomer(['name' => 'Alfa']);
+        $this->makeCustomer(['name' => 'Mike']);
+
+        $this->actingAs($this->adminSucursal);
+        $response = $this->get(route('sucursal.clientes.index', $this->tenant->slug));
+        $names = collect($response->viewData('page')['props']['customers'])->pluck('name')->all();
+
+        $this->assertSame(['Alfa', 'Mike', 'Zeta'], $names);
+    }
+
     public function test_summary_is_not_filtered_by_search_or_status(): void
     {
         $this->makeCustomer(['name' => 'Activo Uno', 'status' => 'active']);

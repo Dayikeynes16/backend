@@ -23,6 +23,7 @@ const props = defineProps({
 // --- Filters ---
 const search = ref(props.filters?.search || '');
 const statusFilter = ref(props.filters?.status || '');
+const sort = ref(props.filters?.sort || 'name');
 
 let debounceTimer;
 const applyFilters = () => {
@@ -31,11 +32,33 @@ const applyFilters = () => {
         router.get(route('sucursal.clientes.index', props.tenant.slug), {
             search: search.value || undefined,
             status: statusFilter.value || undefined,
+            sort: sort.value !== 'name' ? sort.value : undefined,
         }, { preserveState: true, replace: true });
     }, 300);
 };
 watch(search, applyFilters);
 watch(statusFilter, () => { clearTimeout(debounceTimer); applyFilters(); });
+watch(sort, () => { clearTimeout(debounceTimer); applyFilters(); });
+
+// --- Sort menu ---
+const sortMenuOpen = ref(false);
+const sortOptions = [
+    { value: 'name', label: 'Nombre', sub: 'A → Z' },
+    { value: 'debt', label: 'Deuda', sub: 'Mayor primero' },
+];
+const currentSortLabel = computed(() => sortOptions.find(o => o.value === sort.value)?.label || 'Nombre');
+const setSort = (v) => { sort.value = v; sortMenuOpen.value = false; };
+const toggleSortMenu = () => { sortMenuOpen.value = !sortMenuOpen.value; };
+
+// Click outside del menu
+import { onMounted as _onMounted, onBeforeUnmount as _onBeforeUnmount } from 'vue';
+const sortMenuRef = ref(null);
+const onSortClickOutside = (e) => {
+    if (!sortMenuOpen.value) return;
+    if (sortMenuRef.value && !sortMenuRef.value.contains(e.target)) sortMenuOpen.value = false;
+};
+_onMounted(() => document.addEventListener('mousedown', onSortClickOutside, true));
+_onBeforeUnmount(() => document.removeEventListener('mousedown', onSortClickOutside, true));
 
 // --- Selection ---
 const selectedId = ref(null);
@@ -337,13 +360,51 @@ const priceSavings = (pp) => {
                         <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
                         <input v-model="search" type="text" placeholder="Buscar nombre o telefono..." class="w-full rounded-lg border-gray-200 py-2 pl-10 pr-4 text-sm placeholder-gray-400 focus:border-red-400 focus:ring-red-300" />
                     </div>
-                    <div class="flex gap-1.5">
-                        <button v-for="f in [{v:'',l:'Activos'},{v:'inactive',l:'Inactivos'},{v:'all',l:'Todos'}]"
-                            :key="f.v" @click="statusFilter = f.v === 'all' ? 'all' : f.v"
-                            :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                                (statusFilter === f.v || (!statusFilter && f.v === '')) ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">
-                            {{ f.l }}
-                        </button>
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex gap-1.5">
+                            <button v-for="f in [{v:'',l:'Activos'},{v:'inactive',l:'Inactivos'},{v:'all',l:'Todos'}]"
+                                :key="f.v" @click="statusFilter = f.v === 'all' ? 'all' : f.v"
+                                :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                                    (statusFilter === f.v || (!statusFilter && f.v === '')) ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">
+                                {{ f.l }}
+                            </button>
+                        </div>
+
+                        <!-- Sort dropdown estilo iOS -->
+                        <div ref="sortMenuRef" class="relative">
+                            <button type="button" @click="toggleSortMenu"
+                                :class="['inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+                                    sort !== 'name'
+                                        ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                                    sortMenuOpen ? 'ring-2 ring-red-300' : '']">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0-3.75-3.75M17.25 21 21 17.25" />
+                                </svg>
+                                <span>{{ currentSortLabel }}</span>
+                                <svg class="h-3 w-3 transition-transform" :class="sortMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                            </button>
+
+                            <Transition
+                                enter-active-class="transition duration-150 ease-out"
+                                leave-active-class="transition duration-100 ease-in"
+                                enter-from-class="opacity-0 -translate-y-1"
+                                leave-to-class="opacity-0 -translate-y-1">
+                                <div v-if="sortMenuOpen"
+                                    class="absolute right-0 top-full z-30 mt-1.5 w-48 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-gray-200/80">
+                                    <p class="px-3 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Ordenar por</p>
+                                    <button v-for="o in sortOptions" :key="o.value" type="button" @click="setSort(o.value)"
+                                        :class="['flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition hover:bg-gray-50',
+                                            sort === o.value ? 'bg-red-50/40' : '']">
+                                        <span class="flex flex-col">
+                                            <span :class="['font-semibold', sort === o.value ? 'text-red-700' : 'text-gray-800']">{{ o.label }}</span>
+                                            <span class="text-[11px] text-gray-400">{{ o.sub }}</span>
+                                        </span>
+                                        <svg v-if="sort === o.value" class="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                    </button>
+                                </div>
+                            </Transition>
+                        </div>
                     </div>
                 </div>
 

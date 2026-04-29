@@ -21,6 +21,10 @@ class CustomerController extends Controller
         $user = Auth::user();
         $branchId = $user->branch_id;
 
+        // Sort: 'name' (default alfabético) | 'debt' (mayor deuda primero,
+        // luego alfabético; los sin deuda quedan al final).
+        $sort = in_array($request->sort, ['name', 'debt'], true) ? $request->sort : 'name';
+
         $customers = Customer::where('branch_id', $branchId)
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q2) => $q2->where('name', 'ilike', "%{$s}%")
                 ->orWhere('phone', 'ilike', "%{$s}%")
@@ -33,7 +37,11 @@ class CustomerController extends Controller
             ->withSum([
                 'sales as total_owed' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value),
             ], 'amount_pending')
-            ->orderBy('name')
+            ->when($sort === 'debt', fn ($q) => $q
+                ->orderByRaw('COALESCE((select SUM(amount_pending) from sales where sales.customer_id = customers.id and sales.status != ? and sales.deleted_at is null), 0) DESC', [SaleStatus::Cancelled->value])
+                ->orderBy('name')
+            )
+            ->when($sort === 'name', fn ($q) => $q->orderBy('name'))
             ->get();
 
         $products = Product::where('branch_id', $branchId)
@@ -47,7 +55,10 @@ class CustomerController extends Controller
         return Inertia::render('Sucursal/Clientes/Index', [
             'customers' => $customers,
             'products' => $products,
-            'filters' => $request->only('search', 'status'),
+            'filters' => array_merge(
+                $request->only('search', 'status'),
+                ['sort' => $sort]
+            ),
             'tenant' => app('tenant'),
             'allowedPaymentMethods' => $allowedMethods,
             'customersSummary' => $this->buildCustomersSummary($branchId),
