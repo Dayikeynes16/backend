@@ -145,42 +145,101 @@ const iconPaths = {
         <EmptyState />
     </div>
     <div v-else class="space-y-6">
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
-            <KpiCard label="Ventas netas" tone="red"
-                :delta="deltaIf(salesCurrent.net_sales, salesPrevious.net_sales)"
-                hint="Ventas generadas en el período (excluye canceladas)"
-                tooltip="Suma de ventas creadas o completadas dentro del período. Incluye ventas pendientes y a crédito. Excluye canceladas. La fecha que cuenta es cuándo se generó la venta, no cuándo se pagó.">
-                {{ formatCurrency(salesCurrent.net_sales) }}
-            </KpiCard>
-            <KpiCard label="Ganancia bruta" tone="green"
-                :delta="deltaIf(marginCurrent.gross_profit, marginPrevious.gross_profit)"
-                :hint="marginCurrent.margin_pct ? `Margen ${marginCurrent.margin_pct}%` : 'Sin costos registrados'"
-                tooltip="Ingreso menos costo de producción de los productos vendidos. Solo incluye ventas cobradas al 100% y productos con costo registrado. Si faltan costos, la cifra real puede ser mayor.">
-                {{ formatCurrency(marginCurrent.gross_profit) }}
-            </KpiCard>
-            <KpiCard label="Ticket promedio" tone="neutral"
-                :delta="deltaIf(salesCurrent.avg_ticket, salesPrevious.avg_ticket)"
-                hint="Ventas netas ÷ # Tickets"
-                tooltip="Promedio de las ventas no canceladas del período. Incluye pendientes y a crédito.">
-                {{ formatCurrency(salesCurrent.avg_ticket) }}
-            </KpiCard>
-            <KpiCard label="# Tickets" tone="neutral"
-                :delta="deltaIf(salesCurrent.ticket_count, salesPrevious.ticket_count)"
-                hint="Ventas no canceladas"
-                tooltip="Cantidad de ventas creadas o completadas en el período (excluye canceladas).">
-                {{ formatNumber(salesCurrent.ticket_count) }}
-            </KpiCard>
-            <KpiCard label="Cobrado" tone="blue"
-                hint="Dinero recibido en el período"
-                tooltip="Suma de pagos recibidos dentro del período (por fecha de pago). Puede incluir pagos de ventas de días anteriores. NO es lo mismo que ventas netas.">
-                {{ formatCurrency(collection.total_collected) }}
-            </KpiCard>
-            <KpiCard label="Cancelaciones" tone="amber"
-                :hint="salesCurrent.cancelled_count ? `${salesCurrent.cancelled_count} ventas canceladas` : 'Sin canceladas'"
-                tooltip="Total de ventas canceladas en el período (por fecha de cancelación). El monto NO se descuenta de las ventas netas para evitar doble conteo.">
-                {{ formatCurrency(salesCurrent.cancelled_amount) }}
-            </KpiCard>
-        </div>
+        <!-- GRUPO 1 · Ventas generadas en el período -->
+        <section>
+            <header class="mb-2 flex items-center gap-2">
+                <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" /></svg>
+                </span>
+                <h2 class="text-sm font-bold uppercase tracking-[0.12em] text-gray-700">Ventas generadas</h2>
+                <span class="text-xs text-gray-400">· lo que se vendió en el período (no lo cobrado)</span>
+            </header>
+            <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <KpiCard label="Ventas netas" tone="red"
+                    :delta="deltaIf(salesCurrent.net_sales, salesPrevious.net_sales)"
+                    hint="Excluye canceladas"
+                    tooltip="Suma de ventas creadas o completadas dentro del período. Incluye pendientes y a crédito. Excluye canceladas. La fecha que cuenta es cuándo se generó la venta, no cuándo se pagó.">
+                    {{ formatCurrency(salesCurrent.net_sales) }}
+                </KpiCard>
+                <KpiCard label="# Tickets" tone="neutral"
+                    :delta="deltaIf(salesCurrent.ticket_count, salesPrevious.ticket_count)"
+                    hint="Ventas no canceladas"
+                    tooltip="Cantidad de ventas creadas o completadas en el período (excluye canceladas).">
+                    {{ formatNumber(salesCurrent.ticket_count) }}
+                </KpiCard>
+                <KpiCard label="Ticket promedio" tone="neutral"
+                    :delta="deltaIf(salesCurrent.avg_ticket, salesPrevious.avg_ticket)"
+                    hint="Ventas netas ÷ # Tickets"
+                    tooltip="Promedio de las ventas no canceladas del período. Incluye pendientes y a crédito.">
+                    {{ formatCurrency(salesCurrent.avg_ticket) }}
+                </KpiCard>
+                <KpiCard label="Cancelaciones" tone="amber"
+                    :hint="salesCurrent.cancelled_count ? `${salesCurrent.cancelled_count} ventas canceladas` : 'Sin canceladas'"
+                    tooltip="Total de ventas canceladas en el período (por fecha de cancelación). El monto NO se descuenta de las ventas netas para evitar doble conteo.">
+                    {{ formatCurrency(salesCurrent.cancelled_amount) }}
+                </KpiCard>
+            </div>
+        </section>
+
+        <!-- GRUPO 2 · Cobranza recibida en el período -->
+        <section>
+            <header class="mb-2 flex items-center gap-2">
+                <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75M2.25 6v9M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                </span>
+                <h2 class="text-sm font-bold uppercase tracking-[0.12em] text-gray-700">Cobranza</h2>
+                <span class="text-xs text-gray-400">· dinero realmente recibido en el período</span>
+            </header>
+            <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                <KpiCard label="Cobros globales" tone="blue"
+                    :hint="collection.payment_count ? `${collection.payment_count} cobros registrados` : 'Sin cobros'"
+                    tooltip="Pagos recibidos vía cobros globales (CustomerPayments) dentro del período. Estos son los pagos que aplican a múltiples ventas a la vez. NO incluye pagos individuales hechos directamente en una venta.">
+                    {{ formatCurrency(collection.total_collected) }}
+                </KpiCard>
+                <KpiCard label="Saldo por cobrar" tone="amber"
+                    hint="Total adeudado al cierre"
+                    tooltip="Suma de amount_pending de todas las ventas a clientes con saldo pendiente, sin importar el período. Es la cartera por cobrar al momento.">
+                    {{ formatCurrency(collection.total_pending_balance ?? 0) }}
+                </KpiCard>
+                <KpiCard label="Días promedio de cobro" tone="neutral"
+                    :hint="collection.avg_days_to_collect != null ? 'Desde venta hasta primer pago' : 'Sin datos suficientes'"
+                    tooltip="Promedio de días que tarda una venta a crédito en recibir su primer pago. Se calcula sobre ventas con al menos un pago registrado en el período.">
+                    {{ collection.avg_days_to_collect != null ? `${collection.avg_days_to_collect} días` : '—' }}
+                </KpiCard>
+            </div>
+        </section>
+
+        <!-- GRUPO 3 · Ganancia y cobertura de costos -->
+        <section>
+            <header class="mb-2 flex items-center gap-2">
+                <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                </span>
+                <h2 class="text-sm font-bold uppercase tracking-[0.12em] text-gray-700">Ganancia</h2>
+                <span class="text-xs text-gray-400">· solo ventas cobradas al 100% con costo registrado</span>
+            </header>
+            <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                <KpiCard label="Ganancia bruta" tone="green"
+                    :delta="deltaIf(marginCurrent.gross_profit, marginPrevious.gross_profit)"
+                    hint="Ingreso − costo"
+                    tooltip="Suma de (precio − costo) × cantidad de cada item vendido. Solo incluye ventas cobradas al 100% y productos con cost_price_at_sale registrado.">
+                    {{ formatCurrency(marginCurrent.gross_profit) }}
+                </KpiCard>
+                <KpiCard label="Margen" tone="green"
+                    :delta="deltaIf(marginCurrent.margin_pct, marginPrevious.margin_pct)"
+                    hint="Ganancia ÷ Ingreso"
+                    tooltip="Porcentaje de ganancia sobre ingreso, solo de las ventas con costo registrado.">
+                    {{ marginCurrent.margin_pct != null ? `${marginCurrent.margin_pct}%` : '—' }}
+                </KpiCard>
+                <KpiCard label="Cobertura de costos" tone="neutral"
+                    :hint="marginCurrent.items_without_cost ? `${marginCurrent.items_without_cost} item(s) sin costo` : 'Todos los items con costo'"
+                    tooltip="Qué porcentaje de los items vendidos tiene costo registrado. Si es bajo, la ganancia mostrada es solo parcial — la real puede ser mayor.">
+                    {{ marginCurrent.items_with_cost && (marginCurrent.items_with_cost + marginCurrent.items_without_cost) > 0
+                        ? `${Math.round((marginCurrent.items_with_cost / (marginCurrent.items_with_cost + marginCurrent.items_without_cost)) * 100)}%`
+                        : '—' }}
+                </KpiCard>
+            </div>
+        </section>
 
         <ChartCard title="Tendencia de ingresos" :subtitle="trendSubtitle">
             <div v-if="!timeSeries.current.length" class="py-10"><EmptyState /></div>

@@ -56,7 +56,10 @@ const toneAccent = computed(() => ({
             </div>
             <span v-if="deltaLabel" :class="['shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums sm:text-[11px]', deltaClasses]">{{ deltaLabel }}</span>
         </div>
-        <p class="mt-2 truncate font-bold leading-tight tracking-tight tabular-nums text-gray-900 sm:mt-3 text-lg sm:text-xl lg:text-2xl">
+        <!-- Valor: sin `truncate` para no cortar números grandes; usa font fluida
+             y `tabular-nums` para alineación consistente. break-words evita
+             desbordes en valores extremos. -->
+        <p class="mt-2 break-words font-bold leading-tight tracking-tight tabular-nums text-gray-900 sm:mt-3 text-lg sm:text-xl lg:text-2xl">
             <slot>{{ value }}</slot>
         </p>
         <p v-if="hint" class="mt-1 line-clamp-2 text-[11px] leading-snug text-gray-500 sm:text-xs">{{ hint }}</p>
