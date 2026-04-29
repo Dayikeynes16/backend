@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Customer;
@@ -9,6 +10,7 @@ use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,13 +22,17 @@ class CustomerController extends Controller
         $branchId = $user->branch_id;
 
         $customers = Customer::where('branch_id', $branchId)
-            ->when($request->search, fn ($q, $s) => $q->where(fn ($q2) =>
-                $q2->where('name', 'ilike', "%{$s}%")
-                   ->orWhere('phone', 'ilike', "%{$s}%")
+            ->when($request->search, fn ($q, $s) => $q->where(fn ($q2) => $q2->where('name', 'ilike', "%{$s}%")
+                ->orWhere('phone', 'ilike', "%{$s}%")
             ))
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->when(! $request->status, fn ($q) => $q->where('status', 'active'))
             ->with(['prices.product:id,name,price'])
+            // Subquery por cliente: deuda actual = SUM(amount_pending) en ventas
+            // no canceladas. Si no tiene ventas, retorna null → UI lo trata como 0.
+            ->withSum([
+                'sales as total_owed' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value),
+            ], 'amount_pending')
             ->orderBy('name')
             ->get();
 
@@ -44,7 +50,46 @@ class CustomerController extends Controller
             'filters' => $request->only('search', 'status'),
             'tenant' => app('tenant'),
             'allowedPaymentMethods' => $allowedMethods,
+            'customersSummary' => $this->buildCustomersSummary($branchId),
         ]);
+    }
+
+    /**
+     * Resumen agregado de la cartera de clientes de la sucursal.
+     * Es panorama de la cartera completa — no se filtra por search/status del listado.
+     */
+    private function buildCustomersSummary(int $branchId): array
+    {
+        $statusCounts = Customer::where('branch_id', $branchId)
+            ->select('status', DB::raw('COUNT(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        $active = (int) ($statusCounts['active'] ?? 0);
+        $inactive = (int) ($statusCounts['inactive'] ?? 0);
+        $total = $active + $inactive;
+
+        // Deuda total en la sucursal — sumar amount_pending de ventas no canceladas
+        // de clientes de esta sucursal.
+        $debtRow = DB::table('sales')
+            ->join('customers', 'customers.id', '=', 'sales.customer_id')
+            ->where('customers.branch_id', $branchId)
+            ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->where('sales.amount_pending', '>', 0)
+            ->whereNull('sales.deleted_at')
+            ->selectRaw('
+                COALESCE(SUM(sales.amount_pending), 0) as total_debt,
+                COUNT(DISTINCT sales.customer_id) as customers_with_debt
+            ')
+            ->first();
+
+        return [
+            'total' => $total,
+            'active' => $active,
+            'inactive' => $inactive,
+            'total_debt' => (float) ($debtRow->total_debt ?? 0),
+            'customers_with_debt' => (int) ($debtRow->customers_with_debt ?? 0),
+        ];
     }
 
     public function store(Request $request): RedirectResponse
@@ -112,6 +157,7 @@ class CustomerController extends Controller
 
         if ($customer->sales()->exists()) {
             $customer->update(['status' => 'inactive']);
+
             return back()->with('success', 'Cliente desactivado (tiene ventas asociadas).');
         }
 

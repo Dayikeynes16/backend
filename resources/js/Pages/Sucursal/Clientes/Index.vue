@@ -17,6 +17,7 @@ const props = defineProps({
     filters: Object,
     tenant: Object,
     allowedPaymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
+    customersSummary: { type: Object, default: null },
 });
 
 // --- Filters ---
@@ -289,7 +290,39 @@ const priceSavings = (pp) => {
     <SucursalLayout>
         <template #header><h1 class="text-xl font-bold text-gray-900">Clientes</h1></template>
 
-        <div class="flex h-[calc(100vh-8rem)] gap-5">
+        <!-- Resumen fijo de la cartera -->
+        <section v-if="customersSummary" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-gray-100">
+                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Total</p>
+                <p class="mt-1 font-mono text-xl font-bold tabular-nums text-gray-900">{{ customersSummary.total }}</p>
+            </div>
+            <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-gray-100">
+                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Activos</p>
+                <p class="mt-1 font-mono text-xl font-bold tabular-nums text-emerald-600">{{ customersSummary.active }}</p>
+            </div>
+            <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-gray-100">
+                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Inactivos</p>
+                <p class="mt-1 font-mono text-xl font-bold tabular-nums text-gray-400">{{ customersSummary.inactive }}</p>
+            </div>
+            <div :class="['rounded-2xl px-4 py-3 shadow-sm ring-1',
+                customersSummary.total_debt > 0
+                    ? 'bg-red-50/60 ring-red-100'
+                    : 'bg-white ring-gray-100']">
+                <p :class="['text-[10px] font-bold uppercase tracking-[0.12em]',
+                    customersSummary.total_debt > 0 ? 'text-red-600' : 'text-gray-400']">Deuda total</p>
+                <p :class="['mt-1 font-mono text-xl font-bold tabular-nums',
+                    customersSummary.total_debt > 0 ? 'text-red-700' : 'text-gray-300']">{{ money(customersSummary.total_debt) }}</p>
+            </div>
+            <div class="col-span-2 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-gray-100 sm:col-span-3 lg:col-span-1">
+                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Con deuda</p>
+                <p class="mt-1 font-mono text-xl font-bold tabular-nums text-gray-700">
+                    {{ customersSummary.customers_with_debt }}
+                    <span class="text-xs font-normal text-gray-400">de {{ customersSummary.total }}</span>
+                </p>
+            </div>
+        </section>
+
+        <div class="flex h-[calc(100vh-15rem)] gap-5">
             <!-- LEFT: Customer list -->
             <div class="flex w-[380px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="space-y-3 border-b border-gray-100 px-5 py-4">
@@ -318,9 +351,17 @@ const priceSavings = (pp) => {
                     <div v-for="c in customers" :key="c.id" @click="selectCustomer(c)"
                         :class="['cursor-pointer rounded-xl p-4 transition-all',
                             selectedId === c.id ? 'ring-2 ring-red-500 bg-red-50/40' : 'ring-1 ring-gray-100 hover:ring-gray-200 hover:bg-gray-50/50']">
-                        <div class="flex items-center justify-between">
+                        <div class="flex items-start justify-between gap-2">
                             <span class="text-sm font-bold text-gray-900">{{ c.name }}</span>
-                            <span v-if="c.status === 'inactive'" class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">Inactivo</span>
+                            <div class="flex shrink-0 items-center gap-1.5">
+                                <span v-if="parseFloat(c.total_owed) > 0"
+                                    class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-700 ring-1 ring-inset ring-red-200"
+                                    :title="'Saldo pendiente'">
+                                    <svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="3"/></svg>
+                                    {{ money(c.total_owed) }}
+                                </span>
+                                <span v-if="c.status === 'inactive'" class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">Inactivo</span>
+                            </div>
                         </div>
                         <p class="mt-1 text-xs text-gray-400">{{ c.phone }}</p>
                         <p v-if="c.prices?.length" class="mt-1 text-xs text-red-500">{{ c.prices.length }} precio{{ c.prices.length > 1 ? 's' : '' }} preferencial{{ c.prices.length > 1 ? 'es' : '' }}</p>
