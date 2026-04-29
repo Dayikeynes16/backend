@@ -3,7 +3,7 @@ import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import StatCard from '@/Components/Clientes/StatCard.vue';
 import SaleDetailModal from '@/Components/Clientes/SaleDetailModal.vue';
-import DateRangePicker from '@/Components/Clientes/DateRangePicker.vue';
+import DateField from '@/Components/DateField.vue';
 import PriceEditor from '@/Components/Clientes/PriceEditor.vue';
 import CustomerPaymentModal from '@/Components/Clientes/CustomerPaymentModal.vue';
 import GlobalPaymentDetailModal from '@/Components/Clientes/GlobalPaymentDetailModal.vue';
@@ -95,6 +95,28 @@ const historyPerPage = ref(25);
 const applyHistoryFilters = () => {
     loadHistory({ from: historyFrom.value || undefined, to: historyTo.value || undefined, per_page: historyPerPage.value });
 };
+
+// Adapter v-model entre el formato {from, to} de DateField y los refs
+// historyFrom/historyTo (strings) que ya usa loadHistory.
+const historyDateRange = computed({
+    get: () => ({ from: historyFrom.value || '', to: historyTo.value || '' }),
+    set: (v) => {
+        if (!v) return;
+        historyFrom.value = v.from || '';
+        historyTo.value = v.to || '';
+        applyHistoryFilters();
+    },
+});
+
+// Botón "Todo": limpia el rango y recarga el historial completo.
+const clearHistoryRange = () => {
+    if (!historyFrom.value && !historyTo.value) return;
+    historyFrom.value = '';
+    historyTo.value = '';
+    applyHistoryFilters();
+};
+
+const isAllTime = computed(() => !historyFrom.value && !historyTo.value);
 const goToHistoryPage = (pageUrl) => {
     if (!pageUrl) return;
     const url = new URL(pageUrl, window.location.origin);
@@ -643,11 +665,33 @@ const priceSavings = (pp) => {
 
                         <!-- TAB: COMPRAS -->
                         <div v-else-if="activeTab === 'compras'" class="p-6 space-y-5">
-                            <DateRangePicker
-                                v-model:from="historyFrom"
-                                v-model:to="historyTo"
-                                :loading="statsLoading.history"
-                                @apply="applyHistoryFilters" />
+                            <!-- Filtro de fechas: DateField (mode range) + botón Todo + loading discreto -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <DateField
+                                    v-model="historyDateRange"
+                                    mode="range"
+                                    align="left"
+                                    :max="(new Date()).toISOString().slice(0,10)"
+                                    :presets="['today','yesterday','last_7_days','last_30_days','this_month','last_month']"
+                                    placeholder="Selecciona rango" />
+
+                                <button type="button" @click="clearHistoryRange"
+                                    :class="['inline-flex h-10 items-center gap-1.5 rounded-xl px-3.5 text-sm font-semibold transition',
+                                        isAllTime
+                                            ? 'bg-gray-900 text-white shadow-sm'
+                                            : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50']"
+                                    :title="isAllTime ? 'Mostrando todo el historial' : 'Limpiar rango y mostrar todo'">
+                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>
+                                    Todo
+                                </button>
+
+                                <Transition enter-active-class="transition duration-150" leave-active-class="transition duration-100" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                                    <span v-if="statsLoading.history" class="inline-flex items-center gap-1.5 text-xs text-gray-400">
+                                        <svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                        <span class="font-medium">Cargando…</span>
+                                    </span>
+                                </Transition>
+                            </div>
 
                             <div v-if="statsLoading.history && !history" class="flex items-center justify-center gap-3 py-16 text-gray-400">
                                 <svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.37 0 0 5.37 0 12h4z"></path></svg>

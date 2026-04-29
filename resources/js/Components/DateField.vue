@@ -242,6 +242,11 @@ const presetOptions = computed(() => {
             d.setDate(d.getDate() - 6);
             return { from: toLocalDate(d), to: today };
         } },
+        last_30_days: { label: 'Últimos 30 días', range: () => {
+            const d = new Date();
+            d.setDate(d.getDate() - 29);
+            return { from: toLocalDate(d), to: today };
+        } },
         this_month: { label: 'Este mes', range: () => {
             const now = new Date();
             const first = new Date(now.getFullYear(), now.getMonth(), 1);
