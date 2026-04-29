@@ -5,6 +5,7 @@ import KpiCard from '@/Components/Metrics/KpiCard.vue';
 import ChartCard from '@/Components/Metrics/ChartCard.vue';
 import EmptyState from '@/Components/Metrics/EmptyState.vue';
 import { formatCurrency, formatNumber } from '@/composables/useCurrency';
+import { formatAbsoluteRange } from '@/composables/useDateRange';
 
 const props = defineProps({
     data: Object,
@@ -14,6 +15,25 @@ const props = defineProps({
 
 const page = usePage();
 const slug = computed(() => page.props.tenant?.slug ?? page.props.auth?.tenant_slug);
+const range = computed(() => page.props.range || null);
+
+const currentRangeText = computed(() => {
+    if (!range.value) return '';
+    return formatAbsoluteRange(range.value.from, range.value.to);
+});
+const previousRangeText = computed(() => {
+    if (!range.value?.previous) return '';
+    return formatAbsoluteRange(range.value.previous.from, range.value.previous.to);
+});
+
+// Subtítulo dinámico para "Tendencia de ingresos" — explica qué se compara
+// con fechas absolutas en lugar del genérico "Comparado con el periodo previo".
+const trendSubtitle = computed(() => {
+    if (props.compare && previousRangeText.value) {
+        return `Ventas generadas por día · ${currentRangeText.value} vs. ${previousRangeText.value}`;
+    }
+    return `Ventas generadas por día · ${currentRangeText.value}`;
+});
 
 const salesCurrent = computed(() => props.data?.sales?.current ?? {});
 const salesPrevious = computed(() => props.data?.sales?.previous ?? {});
@@ -33,13 +53,14 @@ const timeSeries = computed(() => ({
 }));
 
 const salesSeries = computed(() => {
-    const series = [{ name: 'Actual', data: timeSeries.value.current }];
+    const currentName = currentRangeText.value || 'Periodo actual';
+    const series = [{ name: currentName, data: timeSeries.value.current }];
     if (props.compare && timeSeries.value.previous.length) {
         const offset = timeSeries.value.previous.map((d, i) => ({
             x: timeSeries.value.current[i]?.x ?? d.x,
             y: d.y,
         }));
-        series.push({ name: 'Previo', data: offset });
+        series.push({ name: previousRangeText.value || 'Periodo previo', data: offset });
     }
     return series;
 });
@@ -125,35 +146,49 @@ const iconPaths = {
     </div>
     <div v-else class="space-y-6">
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
-            <KpiCard label="Ventas netas" tone="red" :delta="deltaIf(salesCurrent.net_sales, salesPrevious.net_sales)" hint="Excluye canceladas">
+            <KpiCard label="Ventas netas" tone="red"
+                :delta="deltaIf(salesCurrent.net_sales, salesPrevious.net_sales)"
+                hint="Ventas generadas en el período (excluye canceladas)"
+                tooltip="Suma de ventas creadas o completadas dentro del período. Incluye ventas pendientes y a crédito. Excluye canceladas. La fecha que cuenta es cuándo se generó la venta, no cuándo se pagó.">
                 {{ formatCurrency(salesCurrent.net_sales) }}
             </KpiCard>
-            <KpiCard label="Ganancia bruta" tone="green" :delta="deltaIf(marginCurrent.gross_profit, marginPrevious.gross_profit)"
-                :hint="marginCurrent.margin_pct ? `Margen ${marginCurrent.margin_pct}%` : ''">
+            <KpiCard label="Ganancia bruta" tone="green"
+                :delta="deltaIf(marginCurrent.gross_profit, marginPrevious.gross_profit)"
+                :hint="marginCurrent.margin_pct ? `Margen ${marginCurrent.margin_pct}%` : 'Sin costos registrados'"
+                tooltip="Ingreso menos costo de producción de los productos vendidos. Solo incluye ventas cobradas al 100% y productos con costo registrado. Si faltan costos, la cifra real puede ser mayor.">
                 {{ formatCurrency(marginCurrent.gross_profit) }}
             </KpiCard>
-            <KpiCard label="Ticket promedio" tone="neutral" :delta="deltaIf(salesCurrent.avg_ticket, salesPrevious.avg_ticket)">
+            <KpiCard label="Ticket promedio" tone="neutral"
+                :delta="deltaIf(salesCurrent.avg_ticket, salesPrevious.avg_ticket)"
+                hint="Ventas netas ÷ # Tickets"
+                tooltip="Promedio de las ventas no canceladas del período. Incluye pendientes y a crédito.">
                 {{ formatCurrency(salesCurrent.avg_ticket) }}
             </KpiCard>
-            <KpiCard label="# Tickets" tone="neutral" :delta="deltaIf(salesCurrent.ticket_count, salesPrevious.ticket_count)">
+            <KpiCard label="# Tickets" tone="neutral"
+                :delta="deltaIf(salesCurrent.ticket_count, salesPrevious.ticket_count)"
+                hint="Ventas no canceladas"
+                tooltip="Cantidad de ventas creadas o completadas en el período (excluye canceladas).">
                 {{ formatNumber(salesCurrent.ticket_count) }}
             </KpiCard>
-            <KpiCard label="Cobrado" tone="blue" hint="Pagos recibidos en el rango">
+            <KpiCard label="Cobrado" tone="blue"
+                hint="Dinero recibido en el período"
+                tooltip="Suma de pagos recibidos dentro del período (por fecha de pago). Puede incluir pagos de ventas de días anteriores. NO es lo mismo que ventas netas.">
                 {{ formatCurrency(collection.total_collected) }}
             </KpiCard>
             <KpiCard label="Cancelaciones" tone="amber"
-                :hint="salesCurrent.cancelled_count ? `${salesCurrent.cancelled_count} ventas` : ''">
+                :hint="salesCurrent.cancelled_count ? `${salesCurrent.cancelled_count} ventas canceladas` : 'Sin canceladas'"
+                tooltip="Total de ventas canceladas en el período (por fecha de cancelación). El monto NO se descuenta de las ventas netas para evitar doble conteo.">
                 {{ formatCurrency(salesCurrent.cancelled_amount) }}
             </KpiCard>
         </div>
 
-        <ChartCard title="Tendencia de ingresos" :subtitle="compare ? 'Comparado con el periodo previo' : 'Serie temporal'">
+        <ChartCard title="Tendencia de ingresos" :subtitle="trendSubtitle">
             <div v-if="!timeSeries.current.length" class="py-10"><EmptyState /></div>
             <apexchart v-else type="area" height="300" :options="salesChartOptions" :series="salesSeries" />
         </ChartCard>
 
         <div class="grid gap-6 lg:grid-cols-2">
-            <ChartCard title="Ventas por hora × día de la semana" subtitle="Identifica horas pico">
+            <ChartCard title="Ventas por hora y día de la semana" subtitle="Color = monto vendido. Más oscuro = más ventas. Identifica horas pico para planear staff y producción.">
                 <apexchart type="heatmap" height="260" :options="heatmapOptions" :series="heatmapSeries" />
             </ChartCard>
 

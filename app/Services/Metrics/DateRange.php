@@ -122,6 +122,8 @@ final class DateRange
 
     public function toArray(): array
     {
+        $prev = $this->previousComparable();
+
         return [
             'preset' => $this->preset,
             'from' => $this->start->toDateString(),
@@ -130,6 +132,14 @@ final class DateRange
             'to_iso' => $this->end->toIso8601String(),
             'label' => $this->label(),
             'days' => $this->days(),
+            // Rango previo expuesto para que el frontend pueda mostrar la
+            // comparación con fechas absolutas en lugar de "Actual / Previo".
+            'previous' => [
+                'from' => $prev->start->toDateString(),
+                'to' => $prev->end->toDateString(),
+                'label' => $prev->label(),
+                'days' => $prev->days(),
+            ],
         ];
     }
 }

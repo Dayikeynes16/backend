@@ -1,14 +1,29 @@
 <script setup>
 import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import KpiCard from '@/Components/Metrics/KpiCard.vue';
 import ChartCard from '@/Components/Metrics/ChartCard.vue';
 import DataTable from '@/Components/Metrics/DataTable.vue';
 import EmptyState from '@/Components/Metrics/EmptyState.vue';
 import { formatCurrency, formatNumber } from '@/composables/useCurrency';
+import { formatAbsoluteRange } from '@/composables/useDateRange';
 
 const props = defineProps({
     data: Object,
     compare: Boolean,
+});
+
+const page = usePage();
+const range = computed(() => page.props.range || null);
+const currentRangeText = computed(() => range.value ? formatAbsoluteRange(range.value.from, range.value.to) : '');
+const previousRangeText = computed(() => range.value?.previous ? formatAbsoluteRange(range.value.previous.from, range.value.previous.to) : '');
+
+const trendSubtitle = computed(() => {
+    const base = 'Cuenta cada venta el día que se creó/completó. Excluye canceladas.';
+    if (props.compare && previousRangeText.value) {
+        return `${base} · ${currentRangeText.value} vs. ${previousRangeText.value}`;
+    }
+    return `${base} · ${currentRangeText.value}`;
 });
 
 const current = computed(() => props.data?.summary?.current ?? {});
@@ -19,13 +34,14 @@ const d = (a, b) => (props.compare ? pct(a, b) : null);
 
 const salesSeries = computed(() => {
     const currentSeries = (props.data?.daily_series ?? []).map(r => ({ x: r.day, y: r.total }));
-    const series = [{ name: 'Actual', data: currentSeries }];
+    const currentName = currentRangeText.value || 'Periodo actual';
+    const series = [{ name: currentName, data: currentSeries }];
     if (props.compare) {
         const prev = (props.data?.previous_daily_series ?? []).map((r, i) => ({
             x: currentSeries[i]?.x ?? r.day,
             y: r.total,
         }));
-        if (prev.length) series.push({ name: 'Previo', data: prev });
+        if (prev.length) series.push({ name: previousRangeText.value || 'Periodo previo', data: prev });
     }
     return series;
 });
@@ -94,42 +110,56 @@ const tableColumns = [
 <template>
     <div v-if="!data"><EmptyState /></div>
     <div v-else class="space-y-6">
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
-            <KpiCard label="Ventas netas" tone="red" :delta="d(current.net_sales, previous.net_sales)" hint="Excluye canceladas">
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <KpiCard label="Ventas netas" tone="red"
+                :delta="d(current.net_sales, previous.net_sales)"
+                hint="Ventas generadas (excluye canceladas)"
+                tooltip="Suma de ventas creadas o completadas en el período. Incluye pendientes y a crédito. Excluye canceladas. La fecha que cuenta es cuándo se generó la venta, no cuándo se cobró.">
                 {{ formatCurrency(current.net_sales) }}
             </KpiCard>
-            <KpiCard label="# Tickets" :delta="d(current.ticket_count, previous.ticket_count)">
+            <KpiCard label="# Tickets"
+                :delta="d(current.ticket_count, previous.ticket_count)"
+                hint="Ventas no canceladas"
+                tooltip="Cantidad de ventas creadas o completadas en el período (excluye canceladas).">
                 {{ formatNumber(current.ticket_count) }}
             </KpiCard>
-            <KpiCard label="Ticket promedio" :delta="d(current.avg_ticket, previous.avg_ticket)">
+            <KpiCard label="Ticket promedio"
+                :delta="d(current.avg_ticket, previous.avg_ticket)"
+                hint="Ventas netas ÷ # Tickets"
+                tooltip="Promedio de las ventas no canceladas del período. Incluye pendientes y a crédito.">
                 {{ formatCurrency(current.avg_ticket) }}
             </KpiCard>
-            <KpiCard label="# Canceladas" tone="amber" :delta="d(current.cancelled_count, previous.cancelled_count)">
+            <KpiCard label="# Canceladas" tone="amber"
+                :delta="d(current.cancelled_count, previous.cancelled_count)"
+                hint="Por fecha de cancelación"
+                tooltip="Cantidad de ventas canceladas dentro del período (por fecha de cancelación, no de creación).">
                 {{ formatNumber(current.cancelled_count) }}
             </KpiCard>
-            <KpiCard label="Monto cancelado" tone="amber">
+            <KpiCard label="Monto cancelado" tone="amber"
+                hint="Total cancelado en el período"
+                tooltip="Suma de los totales de las ventas canceladas en el período. Esta cifra NO se descuenta de las ventas netas para evitar doble conteo.">
                 {{ formatCurrency(current.cancelled_amount) }}
             </KpiCard>
         </div>
 
-        <ChartCard title="Ventas brutas por día" subtitle="Ventas entregadas por día (incluye crédito). Excluye canceladas.">
+        <ChartCard title="Ventas generadas por día" :subtitle="trendSubtitle">
             <apexchart v-if="salesSeries[0].data.length" type="area" height="300" :options="salesChartOptions" :series="salesSeries" />
             <div v-else class="py-8"><EmptyState /></div>
         </ChartCard>
 
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="lg:col-span-2">
-                <ChartCard title="Ventas por hora × día" subtitle="Concentración de ventas por hora del día. Color = monto vendido.">
+                <ChartCard title="Ventas por hora y día de la semana" subtitle="Color = monto vendido. Más oscuro = más ventas. Identifica horas pico para planear staff y producción.">
                     <apexchart type="heatmap" height="280" :options="heatmapOptions" :series="heatmapSeries" />
                 </ChartCard>
             </div>
-            <ChartCard title="Métodos de pago" subtitle="Distribución del cobrado por forma de pago.">
+            <ChartCard title="Cobranza por método de pago" subtitle="Distribución de pagos recibidos en el período. Puede incluir pagos de ventas de días anteriores.">
                 <apexchart v-if="methodPieSeries.length" type="donut" height="280" :options="methodPieOptions" :series="methodPieSeries" />
                 <div v-else class="py-8"><EmptyState /></div>
             </ChartCard>
         </div>
 
-        <ChartCard title="Detalle por día" subtitle="Ordena haciendo click en la cabecera">
+        <ChartCard title="Detalle por día" subtitle="Cada fila es un día del período. Click en la cabecera para ordenar.">
             <DataTable :columns="tableColumns" :rows="data.daily_table ?? []" />
         </ChartCard>
     </div>

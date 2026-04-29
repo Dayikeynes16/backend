@@ -6,9 +6,12 @@
 // DateRangeFilter para no duplicar lógica visual y permitir reuso fuera
 // de Métricas (cortes, historial, etc.).
 
+import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import DateRangeFilter from '@/Components/Metrics/DateRangeFilter.vue';
+import { formatAbsoluteRange } from '@/composables/useDateRange';
 
-defineProps({
+const props = defineProps({
     title: String,
     subtitle: String,
     filters: { type: Object, required: true },
@@ -19,6 +22,19 @@ defineProps({
     showCompare: { type: Boolean, default: true },
     branches: { type: Array, default: () => [] },
     showBranchSelector: { type: Boolean, default: false },
+});
+
+const page = usePage();
+const range = computed(() => page.props.range || null);
+const compareEnabled = computed(() => props.filters.compare?.value === true);
+
+const currentRangeLabel = computed(() => {
+    if (!range.value) return '';
+    return formatAbsoluteRange(range.value.from, range.value.to);
+});
+const previousRangeLabel = computed(() => {
+    if (!range.value?.previous) return '';
+    return formatAbsoluteRange(range.value.previous.from, range.value.previous.to);
 });
 </script>
 
@@ -62,6 +78,21 @@ defineProps({
         <!-- Filtro de fechas (segmented + custom + resumen) -->
         <div class="px-5 py-4">
             <DateRangeFilter :filters="filters" />
+        </div>
+
+        <!-- Subheader: rango actual con fechas absolutas + comparativo -->
+        <div v-if="range" class="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-gray-100 bg-gray-50/60 px-5 py-2.5 text-xs">
+            <span class="inline-flex items-center gap-1.5 font-semibold text-gray-700">
+                <svg class="h-3.5 w-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
+                Mostrando: <span class="font-bold text-gray-900">{{ currentRangeLabel }}</span>
+                <span class="text-gray-400">· {{ range.label }}</span>
+            </span>
+            <span v-if="compareEnabled && previousRangeLabel" class="inline-flex items-center gap-1.5 text-gray-500">
+                <span class="text-gray-300">|</span>
+                <span>vs.</span>
+                <span class="font-semibold text-gray-700">{{ previousRangeLabel }}</span>
+                <span class="text-gray-400">(periodo previo)</span>
+            </span>
         </div>
     </div>
 </template>

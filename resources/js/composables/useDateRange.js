@@ -66,3 +66,35 @@ export function formatRangeLabel(filters) {
 export const presetLabels = PRESET_LABELS;
 export const presetLabelsShort = PRESET_LABELS_SHORT;
 export { formatShortDate, formatLongDate };
+
+/**
+ * Formatea un rango {from, to} a "1–28 abr 2026" o "1 abr – 3 may 2026".
+ * Acepta strings ISO YYYY-MM-DD. Útil para el header y subtítulos de Métricas.
+ */
+export function formatAbsoluteRange(from, to) {
+    if (!from || !to) return '—';
+    const a = new Date(from + 'T12:00:00');
+    const b = new Date(to + 'T12:00:00');
+    if (isNaN(a) || isNaN(b)) return '—';
+
+    if (from === to) {
+        return a.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    const sameMonth = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+    const sameYear = a.getFullYear() === b.getFullYear();
+
+    if (sameMonth) {
+        // "1–28 abr 2026"
+        const monthYear = a.toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
+        return `${a.getDate()}–${b.getDate()} ${monthYear}`;
+    }
+    if (sameYear) {
+        // "1 abr – 3 may 2026"
+        const startStr = a.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+        const endStr = b.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+        return `${startStr} – ${endStr}`;
+    }
+    // "28 dic 2025 – 5 ene 2026"
+    return `${formatShortDate(a)} – ${formatShortDate(b)}`;
+}
