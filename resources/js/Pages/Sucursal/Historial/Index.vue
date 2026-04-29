@@ -7,6 +7,7 @@ import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import EditPaymentForm from '@/Components/EditPaymentForm.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import TicketPrinter from '@/Components/TicketPrinter.vue';
+import DaySummaryBar from '@/Components/Historial/DaySummaryBar.vue';
 import { useSaleActions } from '@/composables/useSaleActions';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
@@ -14,6 +15,45 @@ import { ref, computed, watch } from 'vue';
 const props = defineProps({
     sales: Object, filters: Object, tenant: Object,
     paymentMethods: Array, canEditPayments: Boolean, canCancel: Boolean, canManageStatus: Boolean, branchInfo: Object,
+    daySummary: Object,
+});
+
+// --- Day summary KPIs y título ---
+const summaryTitle = computed(() => {
+    if (!props.daySummary?.date) return '';
+    const d = new Date(props.daySummary.date + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const dCmp = new Date(d); dCmp.setHours(0, 0, 0, 0);
+    const isToday = dCmp.getTime() === today.getTime();
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = dCmp.getTime() === yesterday.getTime();
+
+    const formatted = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const cap = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    if (isToday) return `Hoy · ${cap}`;
+    if (isYesterday) return `Ayer · ${cap}`;
+    return cap;
+});
+
+const summaryKpis = computed(() => {
+    const s = props.daySummary;
+    if (!s) return [];
+    return [
+        { label: 'Total vendido', value: s.total_sold, format: 'currency', hint: 'Solo ventas cobradas' },
+        { label: '# Ventas cobradas', value: s.sale_count, format: 'number' },
+        { label: 'Ticket promedio', value: s.avg_ticket, format: 'currency' },
+    ];
+});
+
+const summaryStatuses = computed(() => {
+    const bs = props.daySummary?.by_status;
+    if (!bs) return [];
+    return [
+        { key: 'completed', label: 'Cobradas', count: bs.completed?.count || 0, hue: 'text-emerald-700' },
+        { key: 'active', label: 'Activas', count: bs.active?.count || 0, hue: 'text-blue-700' },
+        { key: 'pending', label: 'Pendientes', count: bs.pending?.count || 0, hue: 'text-amber-700' },
+        { key: 'cancelled', label: 'Canceladas', count: bs.cancelled?.count || 0, hue: 'text-gray-500' },
+    ];
 });
 
 const methodMeta = {
@@ -194,7 +234,27 @@ const reopenSale = () => {
             <h1 class="text-xl font-bold text-gray-900">Historial de Ventas</h1>
         </template>
 
-        <div class="flex h-[calc(100vh-8rem)] gap-5">
+        <DaySummaryBar
+            v-if="daySummary"
+            class="mb-4"
+            storage-key="historial-ventas"
+            :title="summaryTitle"
+            legend="Solo incluye ventas cobradas. No considera pendientes, activas ni canceladas."
+            :kpis="summaryKpis"
+            :by-method="daySummary.by_method"
+            :payment-methods="paymentMethods">
+            <template #footer>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                    <span class="font-semibold text-gray-500">Estado del día:</span>
+                    <span v-for="s in summaryStatuses" :key="s.key" :class="s.hue">
+                        <span class="font-bold tabular-nums">{{ s.count }}</span>
+                        <span class="ml-1">{{ s.label.toLowerCase() }}</span>
+                    </span>
+                </div>
+            </template>
+        </DaySummaryBar>
+
+        <div class="flex h-[calc(100vh-14rem)] gap-5">
             <!-- LEFT: Sales list -->
             <div class="flex w-[420px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="space-y-3 border-b border-gray-100 px-5 py-4">

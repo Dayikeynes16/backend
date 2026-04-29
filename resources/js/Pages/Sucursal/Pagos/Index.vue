@@ -4,14 +4,63 @@ import DatePicker from '@/Components/DatePicker.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import EditPaymentForm from '@/Components/EditPaymentForm.vue';
 import FlashToast from '@/Components/FlashToast.vue';
+import DaySummaryBar from '@/Components/Historial/DaySummaryBar.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
-    payments: Object, totals: Object, users: Array,
+    payments: Object, users: Array,
     filters: Object, tenant: Object,
     canEditPayments: Boolean, paymentMethods: Array,
+    dailySummary: Object,
 });
+
+// --- Day summary helpers ---
+const summaryTitle = computed(() => {
+    if (!props.dailySummary?.date) return '';
+    const d = new Date(props.dailySummary.date + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const dCmp = new Date(d); dCmp.setHours(0, 0, 0, 0);
+    const isToday = dCmp.getTime() === today.getTime();
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = dCmp.getTime() === yesterday.getTime();
+
+    const formatted = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const cap = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    if (isToday) return `Hoy · ${cap}`;
+    if (isYesterday) return `Ayer · ${cap}`;
+    return cap;
+});
+
+const summaryKpis = computed(() => {
+    const s = props.dailySummary;
+    if (!s) return [];
+    return [
+        { label: 'Total cobrado', value: s.total_collected, format: 'currency' },
+        { label: '# Pagos', value: s.payment_count, format: 'number' },
+        { label: 'Pago promedio', value: s.avg_payment, format: 'currency' },
+    ];
+});
+
+// --- Sale-date chip helpers ---
+const isSameDay = (a, b) => {
+    if (!a || !b) return false;
+    const da = new Date(a); const db = new Date(b);
+    return da.getFullYear() === db.getFullYear()
+        && da.getMonth() === db.getMonth()
+        && da.getDate() === db.getDate();
+};
+
+const saleDateChip = (payment) => {
+    if (!payment?.sale?.created_at) return null;
+    if (isSameDay(payment.sale.created_at, payment.created_at)) return null;
+    const d = new Date(payment.sale.created_at);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    const dCmp = new Date(d); dCmp.setHours(0, 0, 0, 0);
+    if (dCmp.getTime() === yesterday.getTime()) return 'Venta de ayer';
+    return 'Venta del ' + d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+};
 
 const methodMeta = {
     cash:     { label: 'Efectivo',       color: 'text-emerald-600', bg: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20', iconBg: 'bg-emerald-100 text-emerald-600',
@@ -135,7 +184,7 @@ const editPaymentRoute = computed(() => {
 });
 
 const reloadData = () => {
-    router.reload({ only: ['payments', 'totals'], preserveScroll: true, onSuccess: () => {
+    router.reload({ only: ['payments', 'dailySummary'], preserveScroll: true, onSuccess: () => {
         const updated = allPayments.value.find(p => p.id === selectedId.value);
         if (updated) selected.value = updated;
     }});
@@ -158,32 +207,25 @@ const doDeletePayment = () => {
     <Head title="Pagos" />
     <SucursalLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-gray-900">Pagos</h1>
+            <div class="flex items-center justify-between gap-3">
+                <h1 class="text-xl font-bold text-gray-900">Pagos</h1>
+                <DatePicker v-model="date" />
+            </div>
         </template>
 
-        <div class="flex h-[calc(100vh-8rem)] gap-5">
+        <DaySummaryBar
+            v-if="dailySummary"
+            class="mb-4"
+            storage-key="pagos"
+            :title="summaryTitle"
+            legend="Incluye pagos recibidos en este día, aunque correspondan a ventas de días anteriores."
+            :kpis="summaryKpis"
+            :by-method="dailySummary.by_method"
+            :payment-methods="paymentMethods" />
+
+        <div class="flex h-[calc(100vh-14rem)] gap-5">
             <!-- LEFT PANEL -->
             <div class="flex w-[440px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-
-                <!-- KPI Hero -->
-                <div class="border-b border-gray-100 px-6 py-5">
-                    <div class="flex items-center justify-between mb-3">
-                        <p class="text-xs font-medium uppercase tracking-wider text-gray-400">Total cobrado</p>
-                        <DatePicker v-model="date" />
-                    </div>
-                    <p class="font-mono text-3xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(totals?.total || 0).toFixed(2) }}</p>
-
-                    <div class="mt-4 grid grid-cols-3 gap-2">
-                        <div v-for="m in ['cash', 'card', 'transfer']" :key="m"
-                            :class="['rounded-lg px-3 py-2.5', m === 'cash' ? 'bg-emerald-50' : m === 'card' ? 'bg-blue-50' : 'bg-violet-50']">
-                            <div class="flex items-center gap-1.5 mb-1">
-                                <svg :class="['h-3.5 w-3.5', methodMeta[m].color]" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" :d="methodMeta[m].icon" /></svg>
-                                <span :class="['text-[10px] font-medium', methodMeta[m].color]">{{ methodMeta[m].label }}</span>
-                            </div>
-                            <p :class="['font-mono text-sm font-bold tabular-nums', methodMeta[m].color]">${{ parseFloat(totals?.[m] || 0).toFixed(2) }}</p>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Filters -->
                 <div class="border-b border-gray-100 px-5 py-3 space-y-2.5">
@@ -215,6 +257,11 @@ const doDeletePayment = () => {
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2">
                                         <span class="text-sm font-bold text-gray-900">{{ payment.sale?.folio }}</span>
+                                        <span v-if="saleDateChip(payment)"
+                                            class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/20"
+                                            :title="'Esta venta se generó antes del día del pago'">
+                                            {{ saleDateChip(payment) }}
+                                        </span>
                                         <span v-if="payment.updated_by" class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 ring-1 ring-inset ring-orange-500/20">Editado</span>
                                     </div>
                                     <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(payment.amount).toFixed(2) }}</span>
@@ -283,7 +330,7 @@ const doDeletePayment = () => {
                                         <p class="text-xs text-gray-400">Monto cobrado</p>
                                         <p class="font-mono text-2xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(selected.amount).toFixed(2) }}</p>
                                     </div>
-                                    <div class="flex gap-6">
+                                    <div class="grid grid-cols-3 gap-4">
                                         <div>
                                             <p class="text-xs text-gray-400">Metodo</p>
                                             <div class="mt-0.5 flex items-center gap-1.5">
@@ -294,6 +341,10 @@ const doDeletePayment = () => {
                                         <div>
                                             <p class="text-xs text-gray-400">Cobrado por</p>
                                             <p class="mt-0.5 text-sm font-semibold text-gray-900">{{ selected.user?.name }}</p>
+                                        </div>
+                                        <div v-if="selected.sale?.created_at">
+                                            <p class="text-xs text-gray-400">Fecha de venta</p>
+                                            <p class="mt-0.5 text-sm font-semibold text-gray-900">{{ formatFullDate(selected.sale.created_at) }}</p>
                                         </div>
                                     </div>
                                 </div>
