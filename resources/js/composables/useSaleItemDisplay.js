@@ -61,6 +61,69 @@ export const saleMode = (item) => {
     return 'unknown';
 };
 
+/**
+ * Peso/contenido real efectivamente vendido. Espejo de
+ * App\Support\SaleItemMath::realContent.
+ *
+ *   1 presentación de 500 g  → { amount: 0.5, unit: 'kg', kind: 'weight' }
+ *   2 presentaciones de 5 kg → { amount: 10, unit: 'kg', kind: 'weight' }
+ *   1.250 kg libres          → { amount: 1.25, unit: 'kg', kind: 'weight' }
+ *   3 piezas / paquete       → { amount: 3, unit: 'piece', kind: 'piece' }
+ *   null si la línea legacy no es interpretable.
+ */
+export const realContent = (item) => {
+    const qty = Number(item?.quantity ?? 0);
+    const s = snapshot(item);
+    if (s && s.unit) {
+        const content = Number(s.content ?? 0);
+        switch (s.unit) {
+            case 'kg':
+            case 'l':
+                return { amount: round3(qty * content), unit: s.unit, kind: 'weight' };
+            case 'g':
+                return { amount: round3((qty * content) / 1000), unit: 'kg', kind: 'weight' };
+            case 'ml':
+                return { amount: round3((qty * content) / 1000), unit: 'l', kind: 'weight' };
+            default:
+                return { amount: qty, unit: 'piece', kind: 'piece' };
+        }
+    }
+    const unit = effectiveUnit(item);
+    switch (unit) {
+        case 'kg':
+        case 'l':
+            return { amount: round3(qty), unit, kind: 'weight' };
+        case 'g':
+            return { amount: round3(qty / 1000), unit: 'kg', kind: 'weight' };
+        case 'ml':
+            return { amount: round3(qty / 1000), unit: 'l', kind: 'weight' };
+        case 'piece':
+        case 'cut':
+        case 'unit':
+            return { amount: qty, unit: 'piece', kind: 'piece' };
+        default:
+            return null;
+    }
+};
+
+const round3 = (n) => Math.round(Number(n) * 1000) / 1000;
+
+/**
+ * Texto legible del peso real vendido. Vacío si la línea no es presentación
+ * con peso/volumen (no hay nada extra que mostrar).
+ *
+ *   2 medios quesos → "1.000 kg"
+ *   1 presentación de 5 kg → "5.000 kg"
+ *   2 piezas → ""  (en piezas no hay equivalencia útil)
+ *   1.250 kg libres → ""  (la cantidad ya es legible directamente)
+ */
+export const realContentDisplay = (item) => {
+    if (!snapshot(item)) return '';
+    const r = realContent(item);
+    if (!r || r.kind !== 'weight') return '';
+    return `${formatNumber(r.amount, r.unit)} ${r.unit}`;
+};
+
 /** Para tickets compactos que no quieren paréntesis. "× 2 medio queso 500 g" */
 export const compactLine = (item) => {
     const s = snapshot(item);

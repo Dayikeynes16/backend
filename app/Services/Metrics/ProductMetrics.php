@@ -3,6 +3,7 @@
 namespace App\Services\Metrics;
 
 use App\Enums\SaleStatus;
+use App\Support\SaleItemMath;
 use Illuminate\Support\Facades\DB;
 
 class ProductMetrics extends AbstractMetrics
@@ -114,12 +115,14 @@ class ProductMetrics extends AbstractMetrics
 
         $this->applyStatusFilter($base, $statuses);
 
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         // Totales globales del rango (para los KPIs de cabecera).
         $totals = (clone $base)
             ->selectRaw('
                 SUM(si.subtotal) as revenue,
-                SUM(COALESCE(si.cost_price_at_sale * si.quantity, 0)) as cost,
-                SUM(si.subtotal - COALESCE(si.cost_price_at_sale * si.quantity, 0)) as gross_profit,
+                SUM('.$lineCost.') as cost,
+                SUM(si.subtotal - ('.$lineCost.')) as gross_profit,
                 '.$this->quantityKgSql().' as quantity_kg,
                 '.$this->quantityUnitsSql().' as quantity_units
             ')
@@ -135,7 +138,7 @@ class ProductMetrics extends AbstractMetrics
 
         $mostProfitable = (clone $base)
             ->whereNotNull('si.cost_price_at_sale')
-            ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.subtotal - si.cost_price_at_sale * si.quantity) as profit')
+            ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.subtotal - ('.$lineCost.')) as profit')
             ->groupBy('si.product_id')
             ->orderByDesc('profit')
             ->first();
@@ -184,6 +187,8 @@ class ProductMetrics extends AbstractMetrics
 
         $this->applyStatusFilter($query, $statuses);
 
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         return $query
             ->selectRaw('
                 si.product_id,
@@ -195,8 +200,8 @@ class ProductMetrics extends AbstractMetrics
                 '.$this->quantityKgSql().' as quantity_kg,
                 '.$this->quantityUnitsSql().' as quantity_units,
                 SUM(si.subtotal) as revenue,
-                SUM(COALESCE(si.cost_price_at_sale * si.quantity, 0)) as cost,
-                SUM(si.subtotal - COALESCE(si.cost_price_at_sale * si.quantity, 0)) as gross_profit,
+                SUM('.$lineCost.') as cost,
+                SUM(si.subtotal - ('.$lineCost.')) as gross_profit,
                 BOOL_OR(si.cost_price_at_sale IS NULL) as has_missing_cost
             ')
             ->groupBy('si.product_id')
@@ -235,8 +240,10 @@ class ProductMetrics extends AbstractMetrics
 
         $this->applyStatusFilter($query, $statuses);
 
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         return $query
-            ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.quantity) as quantity, SUM(si.subtotal) as revenue, SUM(si.subtotal - COALESCE(si.cost_price_at_sale * si.quantity, 0)) as profit')
+            ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.quantity) as quantity, SUM(si.subtotal) as revenue, SUM(si.subtotal - ('.$lineCost.')) as profit')
             ->groupBy('si.product_id')
             ->orderByDesc('revenue')
             ->limit($limit)
@@ -262,8 +269,10 @@ class ProductMetrics extends AbstractMetrics
 
         $this->applyStatusFilter($query, $statuses);
 
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         return $query
-            ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.subtotal - si.cost_price_at_sale * si.quantity) as profit, SUM(si.subtotal) as revenue')
+            ->selectRaw('si.product_id, MAX(si.product_name) as product_name, SUM(si.subtotal - ('.$lineCost.')) as profit, SUM(si.subtotal) as revenue')
             ->groupBy('si.product_id')
             ->orderByDesc('profit')
             ->limit($limit)
@@ -314,8 +323,10 @@ class ProductMetrics extends AbstractMetrics
 
         $this->applyStatusFilter($query, $statuses);
 
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         return $query
-            ->selectRaw("COALESCE(c.name, 'Sin categoría') as category, SUM(si.subtotal) as revenue, SUM(si.subtotal - COALESCE(si.cost_price_at_sale * si.quantity, 0)) as profit")
+            ->selectRaw("COALESCE(c.name, 'Sin categoría') as category, SUM(si.subtotal) as revenue, SUM(si.subtotal - (".$lineCost.')) as profit')
             ->groupBy('c.name')
             ->orderByDesc('revenue')
             ->get()

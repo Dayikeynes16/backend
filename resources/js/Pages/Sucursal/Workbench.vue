@@ -9,7 +9,7 @@ import EditPaymentForm from '@/Components/EditPaymentForm.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { useSaleActions } from '@/composables/useSaleActions';
-import { displayName as itemDisplayName, displayQuantity as itemDisplayQuantity } from '@/composables/useSaleItemDisplay';
+import { displayName as itemDisplayName, displayQuantity as itemDisplayQuantity, realContentDisplay as itemRealContentDisplay } from '@/composables/useSaleItemDisplay';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
@@ -484,7 +484,10 @@ const customerHasPhone = computed(() => !!selected.value?.customer?.phone);
                                             {{ itemDisplayName(item) }}
                                             <p v-if="item.notes" class="mt-0.5 text-xs italic text-orange-700">💬 {{ item.notes }}</p>
                                         </td>
-                                        <td class="px-4 py-2.5 text-right text-sm text-gray-600">{{ itemDisplayQuantity(item) }}</td>
+                                        <td class="px-4 py-2.5 text-right text-sm text-gray-600">
+                                            <div>{{ itemDisplayQuantity(item) }}</div>
+                                            <div v-if="itemRealContentDisplay(item)" class="text-[11px] font-normal text-gray-400">≈ {{ itemRealContentDisplay(item) }}</div>
+                                        </td>
                                         <td class="px-4 py-2.5 text-right text-sm text-gray-600">${{ parseFloat(item.unit_price).toFixed(2) }}</td>
                                         <td class="px-4 py-2.5 text-right text-sm font-semibold text-gray-900">${{ parseFloat(item.subtotal).toFixed(2) }}</td>
                                     </tr>

@@ -1,6 +1,6 @@
 <script setup>
 import Modal from '@/Components/Modal.vue';
-import { displayName, displayQuantity } from '@/composables/useSaleItemDisplay';
+import { displayName, displayQuantity, realContentDisplay } from '@/composables/useSaleItemDisplay';
 import { ref, watch, computed } from 'vue';
 
 const props = defineProps({
@@ -53,6 +53,7 @@ const money = (v) => '$' + Number(v ?? 0).toLocaleString('es-MX', { minimumFract
 // (only unit_type) and new items (with presentation_snapshot) both render correctly.
 const itemQuantity = (item) => displayQuantity(item);
 const itemName = (item) => displayName(item);
+const itemRealContent = (item) => realContentDisplay(item);
 const fmtDateTime = (v) => {
     if (!v) return '—';
     return new Date(v).toLocaleString('es-MX', {
@@ -144,7 +145,10 @@ const totalSaved = computed(() => {
                         <tbody class="divide-y divide-gray-50 bg-white">
                             <tr v-for="item in sale.items" :key="item.id">
                                 <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ itemName(item) }}</td>
-                                <td class="px-4 py-3 text-right text-sm tabular-nums text-gray-700">{{ itemQuantity(item) }}</td>
+                                <td class="px-4 py-3 text-right text-sm tabular-nums text-gray-700">
+                                    <div>{{ itemQuantity(item) }}</div>
+                                    <div v-if="itemRealContent(item)" class="text-[11px] font-normal text-gray-400">≈ {{ itemRealContent(item) }}</div>
+                                </td>
                                 <td class="px-4 py-3 text-right text-sm tabular-nums">
                                     <div :class="Number(item.unit_price) < Number(item.original_unit_price) ? 'text-green-700 font-semibold' : 'text-gray-900'">{{ money(item.unit_price) }}</div>
                                     <div v-if="Number(item.unit_price) < Number(item.original_unit_price)" class="text-[11px] font-normal text-gray-400 line-through">{{ money(item.original_unit_price) }}</div>

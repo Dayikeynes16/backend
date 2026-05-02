@@ -11,9 +11,11 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\ProductPresentation;
 use App\Models\Sale;
 use App\Services\PhoneNormalizer;
 use App\Services\WhatsappMessageService;
+use App\Support\SaleItemMath;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -204,7 +206,7 @@ class WorkbenchController extends Controller
      * sale_items.presentation_snapshot so the line stays interpretable
      * even if the catalog presentation is later edited or deleted.
      */
-    private function snapshotPresentation(\App\Models\ProductPresentation $p): array
+    private function snapshotPresentation(ProductPresentation $p): array
     {
         return [
             'id' => $p->id,
@@ -546,28 +548,46 @@ class WorkbenchController extends Controller
 
         $customerId = $validated['customer_id'];
         $hadPayments = $sale->payments()->exists();
+        $skippedPiecePresentations = [];
 
-        DB::transaction(function () use ($sale, $customerId, $user) {
+        DB::transaction(function () use ($sale, $customerId, $user, &$skippedPiecePresentations) {
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$sale->branch_id]);
 
             $sale->load('items');
 
             if ($customerId) {
+                // El precio preferencial guardado se interpreta como $/kg
+                // (o $/l) del producto base. Para presentaciones con peso,
+                // se convierte a unit_price = $/base × content. Las piezas
+                // sin equivalencia en peso no aceptan precio $/kg → se
+                // saltan con aviso al usuario.
                 $customer = Customer::where('branch_id', $user->branch_id)->findOrFail($customerId);
                 $preferentialPrices = $customer->prices->keyBy('product_id');
 
                 foreach ($sale->items as $item) {
                     $prefPrice = $preferentialPrices->get($item->product_id);
-                    if ($prefPrice) {
-                        $newPrice = (float) $prefPrice->price;
-                        $item->update([
-                            'unit_price' => $newPrice,
-                            'subtotal' => round($newPrice * (float) $item->quantity, 2),
-                        ]);
+                    if (! $prefPrice) {
+                        continue;
                     }
+
+                    $pricePerBaseUnit = (float) $prefPrice->price;
+
+                    if (! SaleItemMath::isWeightOrVolume($item)) {
+                        $skippedPiecePresentations[] = $item->product_name;
+
+                        continue;
+                    }
+
+                    $newUnitPrice = SaleItemMath::unitPriceForBasePrice($item, $pricePerBaseUnit);
+                    $item->update([
+                        'unit_price' => $newUnitPrice,
+                        'subtotal' => round($newUnitPrice * (float) $item->quantity, 2),
+                    ]);
                 }
             } else {
-                // Desasignar: restaurar precios originales del catálogo
+                // Desasignar: presentaciones se restauran al precio congelado
+                // en su snapshot (no al precio actual del producto base).
+                // Líneas sin presentación caen al precio del catálogo.
                 $productIds = $sale->items->pluck('product_id')->unique();
                 $products = Product::withoutGlobalScopes()
                     ->whereIn('id', $productIds)
@@ -576,13 +596,12 @@ class WorkbenchController extends Controller
 
                 foreach ($sale->items as $item) {
                     $product = $products->get($item->product_id);
-                    if ($product) {
-                        $originalPrice = (float) $product->price;
-                        $item->update([
-                            'unit_price' => $originalPrice,
-                            'subtotal' => round($originalPrice * (float) $item->quantity, 2),
-                        ]);
-                    }
+                    $catalogPrice = $product ? (float) $product->price : 0.0;
+                    $restored = SaleItemMath::restoredUnitPrice($item, $catalogPrice);
+                    $item->update([
+                        'unit_price' => $restored,
+                        'subtotal' => round($restored * (float) $item->quantity, 2),
+                    ]);
                 }
             }
 
@@ -616,6 +635,11 @@ class WorkbenchController extends Controller
 
         if ($hadPayments) {
             $msg .= ' La venta tenia pagos registrados. Verifica que los montos sean correctos.';
+        }
+
+        if (! empty($skippedPiecePresentations)) {
+            $names = implode(', ', array_unique($skippedPiecePresentations));
+            $msg .= " Precio preferencial no aplicado a presentaciones por pieza sin equivalencia en kg/l: {$names}.";
         }
 
         return back()->with('success', $msg);

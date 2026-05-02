@@ -3,6 +3,7 @@
 namespace App\Services\Metrics;
 
 use App\Enums\SaleStatus;
+use App\Support\SaleItemMath;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -30,6 +31,8 @@ class MarginMetrics extends AbstractMetrics
 
     public function aggregateFor(DateRange $range, ?int $branchId, int $tenantId): array
     {
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         $row = DB::table('sale_items as si')
             ->join('sales as s', 's.id', '=', 'si.sale_id')
             ->where('s.tenant_id', $tenantId)
@@ -40,8 +43,8 @@ class MarginMetrics extends AbstractMetrics
             ->whereNotNull('si.cost_price_at_sale')
             ->selectRaw('
                 COALESCE(SUM(si.subtotal), 0) as revenue,
-                COALESCE(SUM(si.cost_price_at_sale * si.quantity), 0) as cost,
-                COALESCE(SUM(si.subtotal - (si.cost_price_at_sale * si.quantity)), 0) as gross_profit
+                COALESCE(SUM('.$lineCost.'), 0) as cost,
+                COALESCE(SUM(si.subtotal - ('.$lineCost.')), 0) as gross_profit
             ')
             ->first();
 
@@ -83,6 +86,8 @@ class MarginMetrics extends AbstractMetrics
 
     public function dailyGrossProfit(DateRange $range, ?int $branchId, int $tenantId): array
     {
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         return DB::table('sale_items as si')
             ->join('sales as s', 's.id', '=', 'si.sale_id')
             ->where('s.tenant_id', $tenantId)
@@ -92,7 +97,7 @@ class MarginMetrics extends AbstractMetrics
             ->whereNull('s.deleted_at')
             ->whereBetween('s.completed_at', [$range->start, $range->end])
             ->whereNotNull('si.cost_price_at_sale')
-            ->selectRaw('DATE(s.completed_at) as day, SUM(si.subtotal - (si.cost_price_at_sale * si.quantity)) as gross_profit')
+            ->selectRaw('DATE(s.completed_at) as day, SUM(si.subtotal - ('.$lineCost.')) as gross_profit')
             ->groupBy('day')
             ->orderBy('day')
             ->get()
@@ -105,6 +110,8 @@ class MarginMetrics extends AbstractMetrics
 
     public function byCategory(DateRange $range, ?int $branchId, int $tenantId): array
     {
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         return DB::table('sale_items as si')
             ->join('sales as s', 's.id', '=', 'si.sale_id')
             ->join('products as p', 'p.id', '=', 'si.product_id')
@@ -118,9 +125,9 @@ class MarginMetrics extends AbstractMetrics
             ->selectRaw("
                 COALESCE(c.name, 'Sin categoría') as category,
                 SUM(si.subtotal) as revenue,
-                SUM(si.cost_price_at_sale * si.quantity) as cost,
-                SUM(si.subtotal - (si.cost_price_at_sale * si.quantity)) as gross_profit
-            ")
+                SUM(".$lineCost.') as cost,
+                SUM(si.subtotal - ('.$lineCost.')) as gross_profit
+            ')
             ->groupBy('c.name')
             ->orderByDesc('gross_profit')
             ->get()
@@ -136,6 +143,8 @@ class MarginMetrics extends AbstractMetrics
 
     public function byProduct(DateRange $range, ?int $branchId, int $tenantId, int $limit = 100): array
     {
+        $lineCost = SaleItemMath::lineCostSql('si');
+
         $rows = DB::table('sale_items as si')
             ->join('sales as s', 's.id', '=', 'si.sale_id')
             ->where('s.tenant_id', $tenantId)
@@ -149,8 +158,8 @@ class MarginMetrics extends AbstractMetrics
                 MAX(si.product_name) as product_name,
                 SUM(si.quantity) as quantity,
                 SUM(si.subtotal) as revenue,
-                SUM(si.cost_price_at_sale * si.quantity) as cost,
-                SUM(si.subtotal - (si.cost_price_at_sale * si.quantity)) as gross_profit
+                SUM('.$lineCost.') as cost,
+                SUM(si.subtotal - ('.$lineCost.')) as gross_profit
             ')
             ->groupBy('si.product_id')
             ->orderByDesc('gross_profit')
