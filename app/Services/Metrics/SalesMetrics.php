@@ -92,10 +92,10 @@ class SalesMetrics extends AbstractMetrics
     }
 
     /**
-     * Serie diaria zero-filled: devuelve UN punto por cada día del rango,
-     * con total=0 y tickets=0 en días sin ventas. Esto garantiza que el
-     * chart de área tenga ≥2 puntos siempre que el rango cubra ≥2 días,
-     * y que la serie de comparación se alinee día por día.
+     * Serie diaria zero-filled: un punto por cada día del rango, con
+     * total=0 y tickets=0 en días sin ventas. Garantiza que el chart de
+     * área siempre tenga ≥2 puntos cuando el rango cubre ≥2 días y que
+     * la comparación con periodo previo se alinee día por día.
      */
     public function dailySeries(DateRange $range, ?int $branchId, int $tenantId): array
     {
@@ -103,23 +103,13 @@ class SalesMetrics extends AbstractMetrics
             ->selectRaw('DATE(COALESCE(completed_at, created_at)) as day, COUNT(*) as tickets, COALESCE(SUM(total), 0) as total')
             ->groupBy('day')
             ->get()
-            ->keyBy(fn ($r) => (string) $r->day);
+            ->mapWithKeys(fn ($r) => [(string) $r->day => [
+                'tickets' => (int) $r->tickets,
+                'total' => (float) $r->total,
+            ]])
+            ->all();
 
-        $series = [];
-        $cursor = $range->start->startOfDay();
-        $end = $range->end->startOfDay();
-        while ($cursor->lessThanOrEqualTo($end)) {
-            $day = $cursor->format('Y-m-d');
-            $r = $rows->get($day);
-            $series[] = [
-                'day' => $day,
-                'tickets' => (int) ($r->tickets ?? 0),
-                'total' => (float) ($r->total ?? 0),
-            ];
-            $cursor = $cursor->addDay();
-        }
-
-        return $series;
+        return $this->zeroFillDays($range, $rows, ['tickets' => 0, 'total' => 0.0]);
     }
 
     public function hourDayHeatmap(DateRange $range, ?int $branchId, int $tenantId): array

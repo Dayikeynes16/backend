@@ -50,4 +50,28 @@ abstract class AbstractMetrics
             'delta_pct' => $this->pct((float) $current, (float) $previous),
         ];
     }
+
+    /**
+     * Devuelve un punto por cada día del rango. Días sin fila reciben los
+     * valores de $default. Garantiza que las series temporales para charts
+     * tengan la misma cantidad de puntos que días en el rango y que la
+     * comparación con el periodo previo se alinee dia por dia.
+     *
+     * @param  array<string, array<string, mixed>>  $rowsByDay  Indexado por 'Y-m-d'.
+     * @param  array<string, mixed>  $default  Valores para días sin datos.
+     * @return list<array<string, mixed>>
+     */
+    protected function zeroFillDays(DateRange $range, array $rowsByDay, array $default): array
+    {
+        $series = [];
+        $cursor = $range->start->startOfDay();
+        $end = $range->end->startOfDay();
+        while ($cursor->lessThanOrEqualTo($end)) {
+            $day = $cursor->format('Y-m-d');
+            $series[] = array_merge(['day' => $day], $default, $rowsByDay[$day] ?? []);
+            $cursor = $cursor->addDay();
+        }
+
+        return $series;
+    }
 }

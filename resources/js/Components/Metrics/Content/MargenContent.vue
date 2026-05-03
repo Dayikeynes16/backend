@@ -5,6 +5,7 @@ import ChartCard from '@/Components/Metrics/ChartCard.vue';
 import DataTable from '@/Components/Metrics/DataTable.vue';
 import EmptyState from '@/Components/Metrics/EmptyState.vue';
 import MarginCoverageBanner from '@/Components/Metrics/MarginCoverageBanner.vue';
+import TimeSeriesCard from '@/Components/Metrics/TimeSeriesCard.vue';
 import { formatCurrency, formatNumber } from '@/composables/useCurrency';
 
 const props = defineProps({ data: Object, compare: Boolean });
@@ -25,21 +26,8 @@ const profitHint = computed(() => {
     return `Basado en ${withCost} items con costo registrado`;
 });
 
-const profitSeries = computed(() => [{
-    name: 'Ganancia',
-    data: (props.data?.daily_gross_profit ?? []).map(r => ({ x: r.day, y: r.gross_profit })),
-}]);
-const profitOptions = {
-    chart: { type: 'area', toolbar: { show: false }, fontFamily: 'inherit' },
-    colors: ['#059669'],
-    stroke: { curve: 'smooth', width: 3 },
-    fill: { type: 'gradient', gradient: { opacityFrom: 0.3, opacityTo: 0.02 } },
-    dataLabels: { enabled: false },
-    xaxis: { type: 'datetime' },
-    yaxis: { labels: { formatter: v => formatCurrency(v) } },
-    tooltip: { y: { formatter: v => formatCurrency(v) }, x: { format: 'dd MMM' } },
-    grid: { borderColor: '#f3f4f6', strokeDashArray: 3 },
-};
+const profitCurrent = computed(() => (props.data?.daily_gross_profit ?? []).map(r => ({ day: r.day, value: Number(r.gross_profit ?? 0) })));
+const profitPrevious = computed(() => (props.data?.previous_daily_gross_profit ?? []).map(r => ({ day: r.day, value: Number(r.gross_profit ?? 0) })));
 
 const categorySeries = computed(() => [{
     name: 'Margen %',
@@ -105,11 +93,16 @@ const focusUncostedTable = async () => {
             </KpiCard>
         </div>
 
-        <ChartCard title="Ganancia bruta diaria"
-            subtitle="Ingresos − costo al momento de venta. Solo items con costo registrado.">
-            <apexchart v-if="profitSeries[0].data.length" type="area" height="260" :options="profitOptions" :series="profitSeries" />
-            <div v-else class="py-8"><EmptyState /></div>
-        </ChartCard>
+        <TimeSeriesCard
+            title="Ganancia bruta diaria"
+            subtitle="Ingresos − costo al momento de venta. Solo items con costo registrado."
+            :current="profitCurrent"
+            :previous="profitPrevious"
+            value-label="Ganancia"
+            :format-value="formatCurrency"
+            color="#059669"
+            :compare="props.compare"
+        />
 
         <ChartCard title="Margen % por categoría"
             subtitle="(Ganancia ÷ ingreso) por categoría. Solo items con costo.">

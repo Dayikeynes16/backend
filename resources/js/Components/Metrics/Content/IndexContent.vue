@@ -4,6 +4,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import KpiCard from '@/Components/Metrics/KpiCard.vue';
 import ChartCard from '@/Components/Metrics/ChartCard.vue';
 import EmptyState from '@/Components/Metrics/EmptyState.vue';
+import TimeSeriesCard from '@/Components/Metrics/TimeSeriesCard.vue';
 import { formatCurrency, formatNumber } from '@/composables/useCurrency';
 import { formatAbsoluteRange } from '@/composables/useDateRange';
 
@@ -47,41 +48,8 @@ const pct = (a, b) => {
 };
 const deltaIf = (a, b) => (props.compare ? pct(a, b) : null);
 
-const timeSeries = computed(() => ({
-    current: (props.data?.daily_series ?? []).map(d => ({ x: d.day, y: d.total })),
-    previous: (props.data?.previous_daily_series ?? []).map(d => ({ x: d.day, y: d.total })),
-}));
-
-// Con zero-fill backend, `current` siempre trae ≥1 punto. Mostrar EmptyState
-// solo cuando ningun dia tuvo ventas reales (todos los totales = 0).
-const hasAnySales = computed(() => timeSeries.value.current.some(d => Number(d.y) > 0));
-
-const salesSeries = computed(() => {
-    const currentName = currentRangeText.value || 'Periodo actual';
-    const series = [{ name: currentName, data: timeSeries.value.current }];
-    if (props.compare && timeSeries.value.previous.length) {
-        const offset = timeSeries.value.previous.map((d, i) => ({
-            x: timeSeries.value.current[i]?.x ?? d.x,
-            y: d.y,
-        }));
-        series.push({ name: previousRangeText.value || 'Periodo previo', data: offset });
-    }
-    return series;
-});
-
-const salesChartOptions = {
-    chart: { type: 'area', toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit' },
-    colors: ['#dc2626', '#9ca3af'],
-    dataLabels: { enabled: false },
-    stroke: { curve: 'smooth', width: [3, 2] },
-    fill: { type: 'gradient', gradient: { shadeIntensity: 0.2, opacityFrom: 0.4, opacityTo: 0.02, stops: [0, 90, 100] } },
-    markers: { size: 4, strokeWidth: 0, hover: { size: 6 } },
-    xaxis: { type: 'datetime', labels: { style: { fontSize: '11px' } } },
-    yaxis: { labels: { formatter: (v) => formatCurrency(v), style: { fontSize: '11px' } } },
-    tooltip: { y: { formatter: (v) => formatCurrency(v) }, x: { format: 'dd MMM' } },
-    grid: { borderColor: '#f3f4f6', strokeDashArray: 3 },
-    legend: { fontSize: '12px', markers: { radius: 3 } },
-};
+const trendCurrent = computed(() => (props.data?.daily_series ?? []).map(d => ({ day: d.day, value: Number(d.total ?? 0) })));
+const trendPrevious = computed(() => (props.data?.previous_daily_series ?? []).map(d => ({ day: d.day, value: Number(d.total ?? 0) })));
 
 const heatmapSeries = computed(() => {
     const matrix = props.data?.heatmap ?? {};
@@ -246,10 +214,16 @@ const iconPaths = {
             </div>
         </section>
 
-        <ChartCard title="Tendencia de ingresos" :subtitle="trendSubtitle">
-            <div v-if="!hasAnySales" class="py-10"><EmptyState /></div>
-            <apexchart v-else type="area" height="300" :options="salesChartOptions" :series="salesSeries" />
-        </ChartCard>
+        <TimeSeriesCard
+            title="Tendencia de ingresos"
+            :subtitle="trendSubtitle"
+            :current="trendCurrent"
+            :previous="trendPrevious"
+            value-label="Ventas"
+            :format-value="formatCurrency"
+            color="#dc2626"
+            :compare="props.compare"
+        />
 
         <div class="grid gap-6 lg:grid-cols-2">
             <ChartCard title="Ventas por hora y día de la semana" subtitle="Color = monto vendido. Más oscuro = más ventas. Identifica horas pico para planear staff y producción.">

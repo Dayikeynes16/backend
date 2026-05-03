@@ -86,4 +86,23 @@ class MarginMetricsTest extends TestCase
         $this->assertEqualsWithDelta(70.0, $byName['A'], 0.01);
         $this->assertEqualsWithDelta(60.0, $byName['B'], 0.01); // (100-40)
     }
+
+    public function test_daily_gross_profit_zero_fills_days_in_range(): void
+    {
+        $p = $this->makeProduct(['cost_price' => 30]);
+        $this->makeCompletedSale(
+            ['completed_at' => '2026-04-15 10:00:00', 'amount_paid' => 100, 'amount_pending' => 0],
+            [['product_id' => $p->id, 'quantity' => 1, 'unit_price' => 100]]
+        );
+
+        $series = $this->svc->dailyGrossProfit(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+
+        $this->assertCount(17, $series, 'Debe haber un punto por dia (abril 1..17).');
+        $this->assertSame('2026-04-01', $series[0]['day']);
+        $this->assertSame(0.0, $series[0]['gross_profit']);
+        $this->assertSame('2026-04-15', $series[14]['day']);
+        $this->assertEqualsWithDelta(70.0, $series[14]['gross_profit'], 0.01);
+        $this->assertSame('2026-04-17', $series[16]['day']);
+        $this->assertSame(0.0, $series[16]['gross_profit']);
+    }
 }

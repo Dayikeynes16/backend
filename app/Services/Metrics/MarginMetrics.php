@@ -84,11 +84,16 @@ class MarginMetrics extends AbstractMetrics
         ];
     }
 
+    /**
+     * Ganancia bruta diaria zero-filled: un punto por cada día del rango,
+     * con gross_profit=0 en días sin ventas con costo. Garantiza que el
+     * chart siempre tenga puntos y la comparación se alinee día por día.
+     */
     public function dailyGrossProfit(DateRange $range, ?int $branchId, int $tenantId): array
     {
         $lineCost = SaleItemMath::lineCostSql('si');
 
-        return DB::table('sale_items as si')
+        $rows = DB::table('sale_items as si')
             ->join('sales as s', 's.id', '=', 'si.sale_id')
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
@@ -99,13 +104,13 @@ class MarginMetrics extends AbstractMetrics
             ->whereNotNull('si.cost_price_at_sale')
             ->selectRaw('DATE(s.completed_at) as day, SUM(si.subtotal - ('.$lineCost.')) as gross_profit')
             ->groupBy('day')
-            ->orderBy('day')
             ->get()
-            ->map(fn ($r) => [
-                'day' => (string) $r->day,
+            ->mapWithKeys(fn ($r) => [(string) $r->day => [
                 'gross_profit' => (float) $r->gross_profit,
-            ])
+            ]])
             ->all();
+
+        return $this->zeroFillDays($range, $rows, ['gross_profit' => 0.0]);
     }
 
     public function byCategory(DateRange $range, ?int $branchId, int $tenantId): array

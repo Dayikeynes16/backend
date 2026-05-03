@@ -29,6 +29,7 @@ class MarginMetricsController extends Controller
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId),
             'daily_gross_profit' => $service->dailyGrossProfit($range, $branchId, $tenantId),
+            'previous_daily_gross_profit' => $service->dailyGrossProfit($range->previousComparable(), $branchId, $tenantId),
             'by_category' => $service->byCategory($range, $branchId, $tenantId),
             'by_product' => $service->byProduct($range, $branchId, $tenantId, 100),
         ]);
