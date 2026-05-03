@@ -267,6 +267,45 @@ class SalesMetricsTest extends TestCase
         $this->assertSame(0.0, $r['collected']);
     }
 
+    public function test_daily_series_zero_fills_days_without_sales(): void
+    {
+        // Solo 1 venta en abril 15. Rango this_month = abril 1..17 (17 dias).
+        $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);
+
+        $series = $this->svc->dailySeries(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+
+        $this->assertCount(17, $series, 'Debe haber un punto por cada dia del rango (abril 1..17).');
+        $this->assertSame('2026-04-01', $series[0]['day']);
+        $this->assertSame('2026-04-17', $series[16]['day']);
+        $this->assertSame(0.0, $series[0]['total']);
+        $this->assertSame(0, $series[0]['tickets']);
+        $this->assertSame(100.0, $series[14]['total']); // dia 15 = indice 14
+        $this->assertSame(1, $series[14]['tickets']);
+        $this->assertSame(100.0, collect($series)->sum('total'));
+    }
+
+    public function test_daily_series_zero_fills_single_day_range(): void
+    {
+        // Preset today: rango es exactamente 1 dia. Una venta ese dia.
+        $this->makeCompletedSale(['total' => 50, 'completed_at' => '2026-04-17 10:00:00']);
+
+        $series = $this->svc->dailySeries(DateRange::preset('today'), $this->branch->id, $this->tenant->id);
+
+        $this->assertCount(1, $series);
+        $this->assertSame('2026-04-17', $series[0]['day']);
+        $this->assertSame(50.0, $series[0]['total']);
+    }
+
+    public function test_daily_series_zero_fills_when_no_sales_in_range(): void
+    {
+        // Sin ventas. this_month = abril 1..17.
+        $series = $this->svc->dailySeries(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+
+        $this->assertCount(17, $series);
+        $this->assertSame(0.0, collect($series)->sum('total'));
+        $this->assertSame(0, collect($series)->sum('tickets'));
+    }
+
     public function test_reconciles_summary_net_sales_with_daily_series_minus_cancelled(): void
     {
         // 2 ventas brutas + 1 cancelada en rango.

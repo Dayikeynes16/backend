@@ -46,12 +46,17 @@ const salesSeries = computed(() => {
     return series;
 });
 
+// Con zero-fill backend, salesSeries[0].data siempre tiene ≥1 punto. Mostrar
+// EmptyState solo cuando ningun dia tuvo ventas reales.
+const hasAnySales = computed(() => salesSeries.value[0].data.some(d => Number(d.y) > 0));
+
 const salesChartOptions = {
     chart: { type: 'area', toolbar: { show: false }, fontFamily: 'inherit' },
     colors: ['#dc2626', '#9ca3af'],
     stroke: { curve: 'smooth', width: [3, 2] },
     dataLabels: { enabled: false },
     fill: { type: 'gradient', gradient: { opacityFrom: 0.3, opacityTo: 0.02 } },
+    markers: { size: 4, strokeWidth: 0, hover: { size: 6 } },
     xaxis: { type: 'datetime' },
     yaxis: { labels: { formatter: v => formatCurrency(v) } },
     tooltip: { y: { formatter: v => formatCurrency(v) }, x: { format: 'dd MMM' } },
@@ -143,7 +148,7 @@ const tableColumns = [
         </div>
 
         <ChartCard title="Ventas generadas por día" :subtitle="trendSubtitle">
-            <apexchart v-if="salesSeries[0].data.length" type="area" height="300" :options="salesChartOptions" :series="salesSeries" />
+            <apexchart v-if="hasAnySales" type="area" height="300" :options="salesChartOptions" :series="salesSeries" />
             <div v-else class="py-8"><EmptyState /></div>
         </ChartCard>
 

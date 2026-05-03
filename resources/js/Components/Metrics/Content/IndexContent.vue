@@ -52,6 +52,10 @@ const timeSeries = computed(() => ({
     previous: (props.data?.previous_daily_series ?? []).map(d => ({ x: d.day, y: d.total })),
 }));
 
+// Con zero-fill backend, `current` siempre trae ≥1 punto. Mostrar EmptyState
+// solo cuando ningun dia tuvo ventas reales (todos los totales = 0).
+const hasAnySales = computed(() => timeSeries.value.current.some(d => Number(d.y) > 0));
+
 const salesSeries = computed(() => {
     const currentName = currentRangeText.value || 'Periodo actual';
     const series = [{ name: currentName, data: timeSeries.value.current }];
@@ -71,6 +75,7 @@ const salesChartOptions = {
     dataLabels: { enabled: false },
     stroke: { curve: 'smooth', width: [3, 2] },
     fill: { type: 'gradient', gradient: { shadeIntensity: 0.2, opacityFrom: 0.4, opacityTo: 0.02, stops: [0, 90, 100] } },
+    markers: { size: 4, strokeWidth: 0, hover: { size: 6 } },
     xaxis: { type: 'datetime', labels: { style: { fontSize: '11px' } } },
     yaxis: { labels: { formatter: (v) => formatCurrency(v), style: { fontSize: '11px' } } },
     tooltip: { y: { formatter: (v) => formatCurrency(v) }, x: { format: 'dd MMM' } },
@@ -242,7 +247,7 @@ const iconPaths = {
         </section>
 
         <ChartCard title="Tendencia de ingresos" :subtitle="trendSubtitle">
-            <div v-if="!timeSeries.current.length" class="py-10"><EmptyState /></div>
+            <div v-if="!hasAnySales" class="py-10"><EmptyState /></div>
             <apexchart v-else type="area" height="300" :options="salesChartOptions" :series="salesSeries" />
         </ChartCard>
 
