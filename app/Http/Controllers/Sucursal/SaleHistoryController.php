@@ -19,12 +19,17 @@ class SaleHistoryController extends Controller
         $branchId = Auth::user()->branch_id;
         $date = $request->date ?: now()->toDateString();
 
+        // Día canónico de una venta = COALESCE(completed_at, created_at).
+        // Para Completadas usa completed_at (cuando se cerró/cobró), para
+        // Pendientes/Activas/Canceladas sin completed_at cae a created_at.
+        // Es la misma convención que Métricas y Dashboard, así Historial
+        // queda alineado y los totales cuadran con esas pantallas.
         $sales = Sale::where('branch_id', $branchId)
             ->with(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name'])
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->when($request->search, fn ($q, $s) => $q->where('folio', 'ilike', "%{$s}%"))
-            ->whereDate('created_at', $date)
-            ->orderByDesc('created_at')
+            ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
+            ->orderByRaw('COALESCE(completed_at, created_at) DESC')
             ->orderByDesc('id')
             ->cursorPaginate(50)
             ->withQueryString();
@@ -55,22 +60,27 @@ class SaleHistoryController extends Controller
     /**
      * Resumen agregado de las ventas del día seleccionado.
      *
+     * Día canónico de una venta = COALESCE(completed_at, created_at):
+     *   - Completadas: el día que se cerró/cobró (completed_at).
+     *   - Pendientes/Activas/Canceladas sin completed_at: el día de creación.
+     *
      * Reglas:
-     * - Total vendido: SOLO ventas `completed` con created_at del día. Excluye
-     *   cancelled, pending y active (vivas/no cerradas).
+     * - Total vendido: SOLO ventas completed cuyo día canónico es el día.
+     *   Excluye cancelled, pending y active (vivas/no cerradas).
      * - Pagos por método: SUM de Payments amarrados a esas ventas completed.
-     *   Esto excluye automáticamente pagos hechos hoy sobre ventas de otros
-     *   días (porque la condición es DATE(sales.created_at) = $date).
+     *   Excluye pagos hechos hoy sobre ventas que pertenecen a otro día
+     *   canónico (cobranza en cuotas no infla el total del día actual).
      * - Métodos: se devuelve la lista de métodos activos de la sucursal,
-     *   incluyendo los que tuvieron $0 ese día (para que el UI los muestre
-     *   con valor 0 en lugar de ocultarlos).
+     *   incluyendo los que tuvieron $0 ese día.
      */
     private function buildDaySummary(int $branchId, string $date, array $paymentMethods): array
     {
-        // Conteos por status (todas las ventas del día — útil para mostrar
-        // transparencia: "X pendientes, Y canceladas").
+        $dayExpr = 'DATE(COALESCE(completed_at, created_at))';
+
+        // Conteos por status (todas las ventas del día canónico — útil
+        // para mostrar transparencia: "X pendientes, Y canceladas").
         $statusCounts = Sale::where('branch_id', $branchId)
-            ->whereDate('created_at', $date)
+            ->whereRaw("$dayExpr = ?", [$date])
             ->select('status', DB::raw('COUNT(*) as count'), DB::raw('SUM(total) as total'))
             ->groupBy('status')
             ->get()
@@ -91,15 +101,15 @@ class SaleHistoryController extends Controller
         $completedCount = $byStatus['completed']['count'];
         $avgTicket = $completedCount > 0 ? round($completedTotal / $completedCount, 2) : 0.0;
 
-        // Pagos por método de las ventas COMPLETED del día. Excluye soft-deleted.
+        // Pagos por método de las ventas COMPLETED del día canónico.
         // El JOIN con sales asegura que solo cuente pagos amarrados a ventas
-        // cuya fecha de creación es la del día consultado — un pago hecho hoy
-        // sobre una venta de ayer NO entra acá.
+        // cuyo COALESCE(completed_at, created_at) cae en el día consultado —
+        // un pago hecho hoy sobre una venta cerrada otro día NO entra acá.
         $byMethodRows = DB::table('payments as p')
             ->join('sales as s', 's.id', '=', 'p.sale_id')
             ->where('s.branch_id', $branchId)
             ->where('s.status', SaleStatus::Completed->value)
-            ->whereDate('s.created_at', $date)
+            ->whereRaw('DATE(COALESCE(s.completed_at, s.created_at)) = ?', [$date])
             ->whereNull('p.deleted_at')
             ->whereNull('s.deleted_at')
             ->selectRaw('p.method as method, COALESCE(SUM(p.amount), 0) as amount, COUNT(*) as count')
