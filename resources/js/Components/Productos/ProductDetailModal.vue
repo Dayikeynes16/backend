@@ -4,6 +4,7 @@
 // Edición compleja sigue viviendo en /productos/{id}/edit (la pantalla full).
 import { Link, router } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import PriceBreakdownSection from '@/Components/Productos/PriceBreakdownSection.vue';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -12,6 +13,18 @@ const props = defineProps({
     // Estadísticas del rango (solo cuando se abre desde Métricas).
     // { revenue, gross_profit, margin_pct, quantity_kg, quantity_units, ticket_count, range_label }
     rangeStats: { type: Object, default: null },
+    // Ruta nombrada (Ziggy) del endpoint de desglose. Si está presente y
+    // hay product+rangeStats, se renderiza la sección "Desglose de ventas".
+    breakdownRoute: { type: String, default: null },
+    // Query string ya armado con los filtros actuales (preset, statuses…).
+    breakdownQuery: { type: String, default: '' },
+});
+
+// URL completa del endpoint, construida cuando hay producto + ruta.
+const breakdownUrl = computed(() => {
+    if (!props.breakdownRoute || !props.product?.id) return null;
+    const base = route(props.breakdownRoute, [props.tenant.slug, props.product.id]);
+    return props.breakdownQuery ? `${base}?${props.breakdownQuery}` : base;
 });
 
 const emit = defineEmits(['close']);
@@ -196,6 +209,14 @@ const deleteProduct = () => {
                                         <p class="font-mono text-sm font-bold tabular-nums text-violet-800">× {{ Number(rangeStats.quantity_units).toLocaleString('es-MX') }}</p>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Desglose de ventas (solo cuando se abre desde Métricas) -->
+                            <div v-if="rangeStats && breakdownUrl" class="mt-5">
+                                <PriceBreakdownSection
+                                    :key="breakdownUrl"
+                                    :fetch-url="breakdownUrl"
+                                    :range-label="rangeStats.range_label || ''" />
                             </div>
 
                             <!-- Description -->

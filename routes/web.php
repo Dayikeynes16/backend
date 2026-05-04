@@ -194,6 +194,7 @@ Route::prefix('{tenant}')
                     ->except('show');
                 Route::patch('productos/{producto}/quick', [ProductoController::class, 'quickToggle'])->name('productos.quick');
                 Route::get('productos/{producto}/snapshot', [ProductoController::class, 'snapshot'])->name('productos.snapshot');
+                Route::get('productos/{producto}/price-breakdown', [ProductoController::class, 'priceBreakdown'])->name('productos.price-breakdown');
 
                 Route::resource('usuarios', SucursalUsuarioController::class)
                     ->except('show');

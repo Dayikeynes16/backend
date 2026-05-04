@@ -18,8 +18,9 @@ class MetricsIndexController extends Controller
         $tenantId = $this->tenantId();
         $branchId = $this->resolveEmpresaBranchId($request, $tenantId);
         $range = $this->resolveDateRange($request);
+        $statuses = $this->resolveStatuses($request);
 
-        $data = $service->dashboardSummary($range, $branchId, $tenantId, $this->wantsRefresh($request));
+        $data = $service->dashboardSummary($range, $branchId, $tenantId, $this->wantsRefresh($request), $statuses);
 
         return Inertia::render('Empresa/Metricas/Index', [
             ...$this->commonProps($request, $range, $branchId),

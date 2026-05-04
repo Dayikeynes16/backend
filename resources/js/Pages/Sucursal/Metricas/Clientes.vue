@@ -12,7 +12,7 @@ const filters = useMetricsFilters('sucursal.metricas.clientes');
 <template>
     <Head title="Métricas · Clientes" />
     <MetricsLayout active-axis="clientes" axis-label="Clientes" header-title="Métricas · Clientes">
-        <MetricsHeader title="Clientes" subtitle="Compradores, saldos pendientes y aging de cuentas." :filters="filters" />
+        <MetricsHeader title="Clientes" subtitle="Compradores, saldos pendientes y aging de cuentas." :filters="filters" show-status-chip />
         <ClientesContent :data="data" :inactive-days="inactive_days" />
     </MetricsLayout>
 </template>

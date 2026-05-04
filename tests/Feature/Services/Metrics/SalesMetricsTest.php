@@ -325,4 +325,63 @@ class SalesMetricsTest extends TestCase
         $this->assertSame($summary['gross_sales'], (float) $seriesTotal);
         $this->assertSame($summary['net_sales'], $summary['gross_sales'] - $summary['cancelled_amount']);
     }
+
+    public function test_statuses_filter_only_completed_excludes_pending(): void
+    {
+        Carbon::setTestNow('2026-04-15 10:00:00');
+        $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);
+        $this->makeCompletedSale([
+            'total' => 200,
+            'status' => SaleStatus::Pending->value,
+            'completed_at' => null,
+        ]);
+        Carbon::setTestNow('2026-04-17 10:00:00');
+
+        $range = DateRange::preset('this_month');
+        $onlyCompleted = $this->svc->summary($range, $this->branch->id, $this->tenant->id, ['completed'])['current'];
+        $bothStates = $this->svc->summary($range, $this->branch->id, $this->tenant->id, ['completed', 'pending'])['current'];
+
+        $this->assertSame(100.0, $onlyCompleted['gross_sales']);
+        $this->assertSame(1, $onlyCompleted['ticket_count']);
+
+        $this->assertSame(300.0, $bothStates['gross_sales']);
+        $this->assertSame(2, $bothStates['ticket_count']);
+    }
+
+    public function test_default_statuses_include_completed_and_pending(): void
+    {
+        // Sin pasar $statuses, debe respetar el nuevo default [completed, pending].
+        Carbon::setTestNow('2026-04-15 10:00:00');
+        $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);
+        $this->makeCompletedSale([
+            'total' => 200,
+            'status' => SaleStatus::Pending->value,
+            'completed_at' => null,
+        ]);
+        Carbon::setTestNow('2026-04-17 10:00:00');
+
+        $r = $this->svc->summary(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id)['current'];
+
+        $this->assertSame(300.0, $r['gross_sales']);
+        $this->assertSame(2, $r['ticket_count']);
+    }
+
+    public function test_statuses_filter_propagates_to_daily_series(): void
+    {
+        Carbon::setTestNow('2026-04-15 10:00:00');
+        $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);
+        $this->makeCompletedSale([
+            'total' => 200,
+            'status' => SaleStatus::Pending->value,
+            'completed_at' => null,
+        ]);
+        Carbon::setTestNow('2026-04-17 10:00:00');
+
+        $range = DateRange::preset('this_month');
+        $onlyCompleted = $this->svc->dailySeries($range, $this->branch->id, $this->tenant->id, ['completed']);
+        $bothStates = $this->svc->dailySeries($range, $this->branch->id, $this->tenant->id, ['completed', 'pending']);
+
+        $this->assertSame(100.0, collect($onlyCompleted)->sum('total'));
+        $this->assertSame(300.0, collect($bothStates)->sum('total'));
+    }
 }

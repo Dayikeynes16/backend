@@ -9,6 +9,7 @@
 import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import DateRangeFilter from '@/Components/Metrics/DateRangeFilter.vue';
+import StatusFilterChips from '@/Components/Metrics/StatusFilterChips.vue';
 import { formatAbsoluteRange } from '@/composables/useDateRange';
 
 const props = defineProps({
@@ -22,6 +23,11 @@ const props = defineProps({
     showCompare: { type: Boolean, default: true },
     branches: { type: Array, default: () => [] },
     showBranchSelector: { type: Boolean, default: false },
+    // Solo mostrar el chip de estados en pantallas de "venta generada"
+    // (Resumen, Ventas, Productos, Clientes). En Margen/Cobranza/Cajeros/
+    // Turnos no aplica porque esas usan su propia lógica fija.
+    showStatusChip: { type: Boolean, default: false },
+    statusChipShowCancelled: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -78,6 +84,11 @@ const previousRangeLabel = computed(() => {
         <!-- Filtro de fechas (segmented + custom + resumen) -->
         <div class="px-5 py-4">
             <DateRangeFilter :filters="filters" />
+        </div>
+
+        <!-- Chip de estados (solo en pantallas de "venta generada") -->
+        <div v-if="showStatusChip" class="border-t border-gray-100 px-5 py-3">
+            <StatusFilterChips :filters="filters" :show-cancelled="statusChipShowCancelled" compact />
         </div>
 
         <!-- Subheader: rango actual con fechas absolutas + comparativo -->

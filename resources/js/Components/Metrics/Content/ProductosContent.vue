@@ -5,7 +5,6 @@ import KpiCard from '@/Components/Metrics/KpiCard.vue';
 import ChartCard from '@/Components/Metrics/ChartCard.vue';
 import DataTable from '@/Components/Metrics/DataTable.vue';
 import EmptyState from '@/Components/Metrics/EmptyState.vue';
-import StatusFilterChips from '@/Components/Metrics/StatusFilterChips.vue';
 import MetricLegendCard from '@/Components/Metrics/MetricLegendCard.vue';
 import ProductDetailModal from '@/Components/Productos/ProductDetailModal.vue';
 import { formatCurrency, formatNumber } from '@/composables/useCurrency';
@@ -16,6 +15,25 @@ const props = defineProps({
     filters: Object,
     tenant: Object,
     snapshotRoute: { type: String, default: null }, // si null, click en fila no hace nada
+    breakdownRoute: { type: String, default: null }, // /productos/{id}/price-breakdown — opcional
+});
+
+// Query string con los filtros actuales para el endpoint de breakdown.
+// Mismo contrato que useMetricsFilters (preset|from+to, statuses).
+const breakdownQuery = computed(() => {
+    if (!props.filters) return '';
+    const params = new URLSearchParams();
+    if (props.filters.isCustom?.value && props.filters.from?.value && props.filters.to?.value) {
+        params.set('from', props.filters.from.value);
+        params.set('to', props.filters.to.value);
+    } else if (props.filters.preset?.value) {
+        params.set('preset', props.filters.preset.value);
+    }
+    const statuses = props.filters.statuses?.value;
+    if (Array.isArray(statuses) && statuses.length) {
+        params.set('statuses', statuses.join(','));
+    }
+    return params.toString();
 });
 
 const summary = computed(() => props.data?.summary ?? {});
@@ -216,10 +234,7 @@ const noStatuses = computed(() => (props.filters?.statuses?.value || []).length 
 <template>
     <div v-if="!data"><EmptyState /></div>
     <div v-else class="space-y-6">
-        <!-- Filtro de estados (chips) -->
-        <StatusFilterChips v-if="filters" :filters="filters" />
-
-        <!-- Aviso si no hay statuses seleccionados -->
+        <!-- Aviso si no hay statuses seleccionados (el chip vive en MetricsHeader). -->
         <div v-if="noStatuses" class="rounded-2xl bg-amber-50 px-5 py-4 ring-1 ring-amber-200">
             <p class="text-sm font-semibold text-amber-800">No hay estados seleccionados.</p>
             <p class="mt-0.5 text-xs text-amber-700">Selecciona al menos uno (Completadas, Pendientes, Canceladas) para ver datos.</p>
@@ -439,6 +454,8 @@ const noStatuses = computed(() => (props.filters?.statuses?.value || []).length 
             :product="selectedProductFull"
             :tenant="tenant"
             :range-stats="selectedRangeStats"
+            :breakdown-route="breakdownRoute"
+            :breakdown-query="breakdownQuery"
             @close="closeDetail" />
     </div>
 </template>

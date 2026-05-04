@@ -16,7 +16,7 @@ const filters = useMetricsFilters('empresa.metricas.clientes');
     <Head title="Métricas · Clientes" />
     <EmpresaLayout>
         <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Clientes</h2></template>
-        <MetricsHeader title="Clientes" subtitle="Compradores, saldos e inactivos" :filters="filters" :branches="branches" :show-branch-selector="true" />
+        <MetricsHeader title="Clientes" subtitle="Compradores, saldos e inactivos" :filters="filters" :branches="branches" :show-branch-selector="true" show-status-chip />
         <ClientesContent :data="data" :inactive-days="inactive_days" />
     </EmpresaLayout>
 </template>

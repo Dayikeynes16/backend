@@ -12,7 +12,7 @@ const filters = useMetricsFilters('sucursal.metricas.ventas');
 <template>
     <Head title="Métricas · Ventas" />
     <MetricsLayout active-axis="ventas" axis-label="Ventas" header-title="Métricas · Ventas">
-        <MetricsHeader title="Ventas" subtitle="Ingresos cobrados, tickets y métodos de pago en el rango." :filters="filters" />
+        <MetricsHeader title="Ventas" subtitle="Ingresos, tickets y métodos de pago en el rango." :filters="filters" show-status-chip />
         <VentasContent :data="data" :compare="compare" />
     </MetricsLayout>
 </template>

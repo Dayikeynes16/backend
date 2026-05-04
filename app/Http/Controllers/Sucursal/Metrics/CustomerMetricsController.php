@@ -21,15 +21,17 @@ class CustomerMetricsController extends Controller
         $branchId = $this->resolveSucursalBranchId($request);
         $range = $this->resolveDateRange($request);
         $inactiveDays = (int) $request->query('inactive_days', 30);
-        $key = $meta->cacheKey('clientes:'.$inactiveDays, $range, $branchId, $tenantId);
+        $statuses = $this->resolveStatuses($request);
+        $statusKey = implode('-', $statuses) ?: 'none';
+        $key = $meta->cacheKey("clientes:{$inactiveDays}:{$statusKey}", $range, $branchId, $tenantId);
 
         if ($this->wantsRefresh($request)) {
             Cache::forget($key);
         }
 
         $data = Cache::remember($key, 300, fn () => [
-            'summary' => $service->summary($range, $branchId, $tenantId),
-            'top_customers' => $service->topCustomers($range, $branchId, $tenantId, 10),
+            'summary' => $service->summary($range, $branchId, $tenantId, $statuses),
+            'top_customers' => $service->topCustomers($range, $branchId, $tenantId, 10, $statuses),
             'with_balance' => $service->withBalance($branchId, $tenantId, 200),
             'new_customers' => $service->newCustomers($range, $branchId, $tenantId, 200),
             'inactive' => $service->inactive($branchId, $tenantId, $inactiveDays, 200),

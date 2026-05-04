@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Http\Controllers\Concerns\ResolvesMetricsRequest;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\SaleItem;
+use App\Services\Metrics\ProductPriceBreakdown;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +19,8 @@ use Inertia\Response;
 
 class ProductoController extends Controller
 {
+    use ResolvesMetricsRequest;
+
     public function index(Request $request): Response
     {
         $branchId = Auth::user()->branch_id;
@@ -268,6 +272,26 @@ class ProductoController extends Controller
                 'sort_order' => $p->sort_order,
             ]),
         ]);
+    }
+
+    /**
+     * Desglose de ventas del producto en el rango: por precio, por cliente
+     * y por tipo de venta. Lazy-loaded desde el modal de Métricas.
+     */
+    public function priceBreakdown(Request $request, Product $producto, ProductPriceBreakdown $service): JsonResponse
+    {
+        if ($producto->branch_id !== Auth::user()->branch_id) {
+            abort(403);
+        }
+
+        $tenantId = $this->tenantId();
+        $branchId = $this->resolveSucursalBranchId($request);
+        $range = $this->resolveDateRange($request);
+        $statuses = $this->resolveStatuses($request);
+
+        return response()->json(
+            $service->build($producto->id, $tenantId, $branchId, $range, $statuses)
+        );
     }
 
     /**

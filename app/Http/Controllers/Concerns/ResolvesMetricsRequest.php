@@ -58,13 +58,20 @@ trait ResolvesMetricsRequest
     }
 
     /**
-     * Resuelve qué estados de venta incluir en las métricas.
-     * Default: ['completed'] (caja base, comportamiento histórico).
+     * Resuelve qué estados de venta incluir en las métricas de "venta generada"
+     * (Resumen, Ventas, Productos, Clientes). Default: ['completed', 'pending']
+     * — el panorama de lo que se entregó, cobrado o no.
      * Acepta query param `statuses=completed,pending,cancelled`.
      */
     protected function resolveStatuses(Request $request): array
     {
-        $raw = $request->query('statuses', 'completed');
+        $default = ['completed', 'pending'];
+        $raw = $request->query('statuses');
+
+        if ($raw === null || $raw === '') {
+            return $default;
+        }
+
         $list = is_array($raw) ? $raw : explode(',', (string) $raw);
 
         $allowed = ['completed', 'pending', 'cancelled'];
@@ -73,7 +80,7 @@ trait ResolvesMetricsRequest
             array_map('strtolower', array_map('trim', $list))
         )));
 
-        return ! empty($clean) ? $clean : ['completed'];
+        return ! empty($clean) ? $clean : $default;
     }
 
     protected function compareEnabled(Request $request): bool
@@ -94,6 +101,7 @@ trait ResolvesMetricsRequest
             'compare' => $this->compareEnabled($request),
             'refresh' => $this->wantsRefresh($request),
             'selected_branch_id' => $branchId,
+            'statuses' => $this->resolveStatuses($request),
             'tenant' => app('tenant'),
         ];
     }

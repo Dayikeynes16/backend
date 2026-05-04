@@ -18,7 +18,7 @@ const filters = useMetricsFilters('empresa.metricas.index');
     <Head title="Métricas" />
     <EmpresaLayout>
         <template #header><h2 class="text-lg font-bold text-gray-900">Métricas</h2></template>
-        <MetricsHeader title="Resumen" :subtitle="range?.label" :filters="filters" :branches="branches" :show-branch-selector="true" />
+        <MetricsHeader title="Resumen" :subtitle="range?.label" :filters="filters" :branches="branches" :show-branch-selector="true" show-status-chip />
         <BackfillBanner :date="backfill_run_at" :range="range" />
         <IndexContent :data="data" :compare="compare" scope="empresa" />
     </EmpresaLayout>

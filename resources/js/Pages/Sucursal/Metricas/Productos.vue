@@ -12,7 +12,7 @@ const filters = useMetricsFilters('sucursal.metricas.productos');
 <template>
     <Head title="Métricas · Productos" />
     <MetricsLayout active-axis="productos" axis-label="Productos" header-title="Métricas · Productos">
-        <MetricsHeader title="Productos" subtitle="Ingreso, ganancia y unidades vendidas por producto." :filters="filters" />
-        <ProductosContent :data="data" :no-movement-days="no_movement_days" :filters="filters" :tenant="tenant" snapshot-route="sucursal.productos.snapshot" />
+        <MetricsHeader title="Productos" subtitle="Ingreso, ganancia y unidades vendidas por producto." :filters="filters" show-status-chip status-chip-show-cancelled />
+        <ProductosContent :data="data" :no-movement-days="no_movement_days" :filters="filters" :tenant="tenant" snapshot-route="sucursal.productos.snapshot" breakdown-route="sucursal.productos.price-breakdown" />
     </MetricsLayout>
 </template>

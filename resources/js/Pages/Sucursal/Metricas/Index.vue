@@ -20,7 +20,7 @@ const filters = useMetricsFilters('sucursal.metricas.index');
 <template>
     <Head title="Métricas" />
     <MetricsLayout>
-        <MetricsHeader title="Resumen" subtitle="Panorama general de la sucursal en el rango seleccionado." :filters="filters" />
+        <MetricsHeader title="Resumen" subtitle="Panorama general de la sucursal en el rango seleccionado." :filters="filters" show-status-chip />
         <BackfillBanner :date="backfill_run_at" :range="range" />
         <IndexContent :data="data" :compare="compare" scope="sucursal" />
     </MetricsLayout>

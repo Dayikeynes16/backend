@@ -15,13 +15,15 @@ export function useMetricsFilters(routeName) {
     const to = ref(initial.to ?? '');
     const compare = ref(page.props.compare ?? true);
     const branchId = ref(page.props.selected_branch_id ?? null);
-    // Estados de venta a considerar. Persiste en query string global así
-    // si el usuario activa "+ Pendientes" en Productos, sigue activo si
-    // navega a Margen u otra página de métricas.
+    // Estados de venta a considerar para métricas de "venta generada"
+    // (Resumen, Ventas, Productos, Clientes). Default: Completed + Pending —
+    // refleja lo entregado en el período, esté cobrado o no. Persiste en
+    // query string para que sobreviva la navegación entre tabs.
+    const DEFAULT_STATUSES = ['completed', 'pending'];
     const statuses = ref(
         Array.isArray(page.props.statuses) && page.props.statuses.length > 0
             ? [...page.props.statuses]
-            : ['completed']
+            : [...DEFAULT_STATUSES]
     );
 
     const isCustom = computed(() => preset.value === '__custom__' || (!preset.value && from.value && to.value));
@@ -38,10 +40,12 @@ export function useMetricsFilters(routeName) {
             } else if (preset.value) {
                 query.preset = preset.value;
             }
-            // Solo agregar statuses si NO es el default ['completed'].
-            // Mantiene URLs limpias para el caso común.
+            // Solo agregar statuses si NO es el default. Mantiene URLs limpias.
             const statusesValue = (statuses.value || []).slice().sort();
-            const isDefault = statusesValue.length === 1 && statusesValue[0] === 'completed';
+            const defaultSorted = [...DEFAULT_STATUSES].sort();
+            const isDefault =
+                statusesValue.length === defaultSorted.length &&
+                statusesValue.every((s, i) => s === defaultSorted[i]);
             if (!isDefault && statusesValue.length > 0) {
                 query.statuses = statusesValue.join(',');
             }
@@ -92,7 +96,7 @@ export function useMetricsFilters(routeName) {
     };
 
     const setStatuses = (arr) => {
-        statuses.value = Array.isArray(arr) ? [...arr] : ['completed'];
+        statuses.value = Array.isArray(arr) ? [...arr] : [...DEFAULT_STATUSES];
         navigate();
     };
 

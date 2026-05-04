@@ -16,7 +16,7 @@ const filters = useMetricsFilters('empresa.metricas.ventas');
     <Head title="Métricas · Ventas" />
     <EmpresaLayout>
         <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Ventas</h2></template>
-        <MetricsHeader title="Ventas" :subtitle="range?.label" :filters="filters" :branches="branches" :show-branch-selector="true" />
+        <MetricsHeader title="Ventas" :subtitle="range?.label" :filters="filters" :branches="branches" :show-branch-selector="true" show-status-chip />
         <VentasContent :data="data" :compare="compare" />
     </EmpresaLayout>
 </template>

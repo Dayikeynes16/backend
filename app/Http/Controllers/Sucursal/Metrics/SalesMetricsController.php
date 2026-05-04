@@ -20,18 +20,20 @@ class SalesMetricsController extends Controller
         $tenantId = $this->tenantId();
         $branchId = $this->resolveSucursalBranchId($request);
         $range = $this->resolveDateRange($request);
-        $key = $meta->cacheKey('ventas', $range, $branchId, $tenantId);
+        $statuses = $this->resolveStatuses($request);
+        $statusKey = implode('-', $statuses) ?: 'none';
+        $key = $meta->cacheKey("ventas:{$statusKey}", $range, $branchId, $tenantId);
 
         if ($this->wantsRefresh($request)) {
             Cache::forget($key);
         }
 
         $data = Cache::remember($key, 300, fn () => [
-            'summary' => $service->summary($range, $branchId, $tenantId),
-            'daily_series' => $service->dailySeries($range, $branchId, $tenantId),
-            'previous_daily_series' => $service->dailySeries($range->previousComparable(), $branchId, $tenantId),
-            'heatmap' => $service->hourDayHeatmap($range, $branchId, $tenantId),
-            'daily_table' => $service->dailyTable($range, $branchId, $tenantId),
+            'summary' => $service->summary($range, $branchId, $tenantId, $statuses),
+            'daily_series' => $service->dailySeries($range, $branchId, $tenantId, $statuses),
+            'previous_daily_series' => $service->dailySeries($range->previousComparable(), $branchId, $tenantId, $statuses),
+            'heatmap' => $service->hourDayHeatmap($range, $branchId, $tenantId, $statuses),
+            'daily_table' => $service->dailyTable($range, $branchId, $tenantId, $statuses),
             'by_payment_method' => $service->byPaymentMethod($range, $branchId, $tenantId),
         ]);
 

@@ -16,7 +16,7 @@ const filters = useMetricsFilters('empresa.metricas.productos');
     <Head title="Métricas · Productos" />
     <EmpresaLayout>
         <template #header><h2 class="text-lg font-bold text-gray-900">Métricas · Productos</h2></template>
-        <MetricsHeader title="Productos" subtitle="Ingreso, ganancia y unidades vendidas por producto." :filters="filters" :branches="branches" :show-branch-selector="true" />
+        <MetricsHeader title="Productos" subtitle="Ingreso, ganancia y unidades vendidas por producto." :filters="filters" :branches="branches" :show-branch-selector="true" show-status-chip status-chip-show-cancelled />
         <!-- Empresa: sin snapshot-route (modal deshabilitado, gestión de productos vive en Sucursal). -->
         <ProductosContent :data="data" :no-movement-days="no_movement_days" :filters="filters" :tenant="tenant" />
     </EmpresaLayout>

@@ -8,19 +8,22 @@ use Illuminate\Support\Facades\DB;
 
 class SalesMetrics extends AbstractMetrics
 {
-    public function summary(DateRange $range, ?int $branchId, int $tenantId): array
+    /** @var list<string> */
+    public const DEFAULT_STATUSES = ['completed', 'pending'];
+
+    public function summary(DateRange $range, ?int $branchId, int $tenantId, array $statuses = self::DEFAULT_STATUSES): array
     {
         return [
-            'current' => $this->aggregate($range, $branchId, $tenantId),
-            'previous' => $this->aggregate($range->previousComparable(), $branchId, $tenantId),
+            'current' => $this->aggregate($range, $branchId, $tenantId, $statuses),
+            'previous' => $this->aggregate($range->previousComparable(), $branchId, $tenantId, $statuses),
         ];
     }
 
-    private function aggregate(DateRange $range, ?int $branchId, int $tenantId): array
+    private function aggregate(DateRange $range, ?int $branchId, int $tenantId, array $statuses): array
     {
-        $gross = $this->grossSales($range, $branchId, $tenantId);
+        $gross = $this->grossSales($range, $branchId, $tenantId, $statuses);
         $cancelled = $this->cancelled($range, $branchId, $tenantId);
-        $tickets = $this->ticketStats($range, $branchId, $tenantId);
+        $tickets = $this->ticketStats($range, $branchId, $tenantId, $statuses);
 
         $net = $gross - $cancelled['amount'];
 
@@ -35,14 +38,14 @@ class SalesMetrics extends AbstractMetrics
         ];
     }
 
-    private function grossSales(DateRange $range, ?int $branchId, int $tenantId): float
+    private function grossSales(DateRange $range, ?int $branchId, int $tenantId, array $statuses): float
     {
-        return (float) $this->grossQuery($range, $branchId, $tenantId)->sum('total');
+        return (float) $this->grossQuery($range, $branchId, $tenantId, $statuses)->sum('total');
     }
 
-    private function ticketStats(DateRange $range, ?int $branchId, int $tenantId): array
+    private function ticketStats(DateRange $range, ?int $branchId, int $tenantId, array $statuses): array
     {
-        $count = (int) $this->grossQuery($range, $branchId, $tenantId)->count();
+        $count = (int) $this->grossQuery($range, $branchId, $tenantId, $statuses)->count();
 
         return ['count' => $count];
     }
@@ -76,19 +79,52 @@ class SalesMetrics extends AbstractMetrics
     }
 
     /**
-     * Query base para ventas brutas: entregadas, no canceladas, en el rango.
-     * Incluye Completed y Pending (esta última = entregada pero no cobrada).
-     * Excluye Active (carrito en curso) y Cancelled.
+     * Query base para ventas brutas. Acepta el filtro dinámico de estados
+     * desde el chip global (default: Completed + Pending). Excluye cancelled_at
+     * a nivel de fila aunque venga 'cancelled' en $statuses, porque el caller
+     * típico es "venta generada" — usa cancelled() para ese conteo.
      */
-    private function grossQuery(DateRange $range, ?int $branchId, int $tenantId)
+    private function grossQuery(DateRange $range, ?int $branchId, int $tenantId, array $statuses)
     {
-        return DB::table('sales')
+        $values = $this->normalizeStatuses($statuses);
+
+        $query = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value])
-            ->whereNull('cancelled_at')
             ->whereNull('deleted_at')
             ->whereBetween(DB::raw('COALESCE(completed_at, created_at)'), [$range->start, $range->end]);
+
+        if (empty($values)) {
+            return $query->whereRaw('1=0');
+        }
+
+        $query->whereIn('status', $values);
+
+        // Si NO se pidió cancelled explícitamente, excluir filas con cancelled_at
+        // (defensivo — algunas ventas pueden tener cancelled_at sin status=cancelled).
+        if (! in_array(SaleStatus::Cancelled->value, $values, true)) {
+            $query->whereNull('cancelled_at');
+        }
+
+        return $query;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeStatuses(array $statuses): array
+    {
+        return collect($statuses)
+            ->map(fn ($s) => match (strtolower((string) $s)) {
+                'completed' => SaleStatus::Completed->value,
+                'pending' => SaleStatus::Pending->value,
+                'cancelled' => SaleStatus::Cancelled->value,
+                default => null,
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
@@ -97,9 +133,9 @@ class SalesMetrics extends AbstractMetrics
      * área siempre tenga ≥2 puntos cuando el rango cubre ≥2 días y que
      * la comparación con periodo previo se alinee día por día.
      */
-    public function dailySeries(DateRange $range, ?int $branchId, int $tenantId): array
+    public function dailySeries(DateRange $range, ?int $branchId, int $tenantId, array $statuses = self::DEFAULT_STATUSES): array
     {
-        $rows = $this->grossQuery($range, $branchId, $tenantId)
+        $rows = $this->grossQuery($range, $branchId, $tenantId, $statuses)
             ->selectRaw('DATE(COALESCE(completed_at, created_at)) as day, COUNT(*) as tickets, COALESCE(SUM(total), 0) as total')
             ->groupBy('day')
             ->get()
@@ -112,9 +148,9 @@ class SalesMetrics extends AbstractMetrics
         return $this->zeroFillDays($range, $rows, ['tickets' => 0, 'total' => 0.0]);
     }
 
-    public function hourDayHeatmap(DateRange $range, ?int $branchId, int $tenantId): array
+    public function hourDayHeatmap(DateRange $range, ?int $branchId, int $tenantId, array $statuses = self::DEFAULT_STATUSES): array
     {
-        $rows = $this->grossQuery($range, $branchId, $tenantId)
+        $rows = $this->grossQuery($range, $branchId, $tenantId, $statuses)
             ->selectRaw('EXTRACT(ISODOW FROM COALESCE(completed_at, created_at)) as dow, EXTRACT(HOUR FROM COALESCE(completed_at, created_at)) as hour, COUNT(*) as tickets, COALESCE(SUM(total), 0) as total')
             ->groupBy('dow', 'hour')
             ->get();
@@ -163,10 +199,10 @@ class SalesMetrics extends AbstractMetrics
         ])->all();
     }
 
-    public function dailyTable(DateRange $range, ?int $branchId, int $tenantId): array
+    public function dailyTable(DateRange $range, ?int $branchId, int $tenantId, array $statuses = self::DEFAULT_STATUSES): array
     {
         // Ventas brutas por día, filtradas al glosario canónico.
-        $grossByDay = $this->grossQuery($range, $branchId, $tenantId)
+        $grossByDay = $this->grossQuery($range, $branchId, $tenantId, $statuses)
             ->selectRaw('DATE(COALESCE(completed_at, created_at)) as day, COUNT(*) as tickets, COALESCE(SUM(total), 0) as total')
             ->groupBy('day')
             ->get()

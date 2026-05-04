@@ -7,17 +7,33 @@ use Illuminate\Support\Facades\DB;
 
 class CustomerMetrics extends AbstractMetrics
 {
-    public function summary(DateRange $range, ?int $branchId, int $tenantId): array
+    /** @var list<string> */
+    public const DEFAULT_STATUSES = ['completed', 'pending'];
+
+    public function summary(DateRange $range, ?int $branchId, int $tenantId, array $statuses = self::DEFAULT_STATUSES): array
     {
-        $buyingCount = DB::table('sales')
+        $values = $this->normalizeStatuses($statuses);
+        $onlyCompleted = $values === [SaleStatus::Completed->value];
+
+        $buyingQuery = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', SaleStatus::Completed->value)
-            ->where('amount_pending', '<=', 0)
             ->whereNotNull('customer_id')
-            ->whereBetween('completed_at', [$range->start, $range->end])
-            ->distinct('customer_id')
-            ->count('customer_id');
+            ->whereNull('deleted_at')
+            ->whereBetween(DB::raw('COALESCE(completed_at, created_at)'), [$range->start, $range->end]);
+
+        if (empty($values)) {
+            $buyingQuery->whereRaw('1=0');
+        } else {
+            $buyingQuery->whereIn('status', $values);
+            // Modo histórico: si solo se pidió completed, exigir cobrada al 100%.
+            if ($onlyCompleted) {
+                $buyingQuery->where('amount_pending', '<=', 0);
+            }
+        }
+
+        $buyingCount = (clone $buyingQuery)->distinct('customer_id')->count('customer_id');
+        $avgTicket = (clone $buyingQuery)->avg('total');
 
         $newCount = DB::table('customers')
             ->where('tenant_id', $tenantId)
@@ -25,6 +41,7 @@ class CustomerMetrics extends AbstractMetrics
             ->whereBetween('created_at', [$range->start, $range->end])
             ->count();
 
+        // Saldos por cobrar — independiente del chip (es estado actual, no del rango).
         $withBalance = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
@@ -33,15 +50,6 @@ class CustomerMetrics extends AbstractMetrics
             ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value])
             ->selectRaw('COUNT(DISTINCT customer_id) as cnt, COALESCE(SUM(amount_pending), 0) as total_pending')
             ->first();
-
-        $avgTicket = DB::table('sales')
-            ->where('tenant_id', $tenantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', SaleStatus::Completed->value)
-            ->where('amount_pending', '<=', 0)
-            ->whereNotNull('customer_id')
-            ->whereBetween('completed_at', [$range->start, $range->end])
-            ->avg('total');
 
         return [
             'buying_customers' => (int) $buyingCount,
@@ -52,15 +60,28 @@ class CustomerMetrics extends AbstractMetrics
         ];
     }
 
-    public function topCustomers(DateRange $range, ?int $branchId, int $tenantId, int $limit = 10): array
+    public function topCustomers(DateRange $range, ?int $branchId, int $tenantId, int $limit = 10, array $statuses = self::DEFAULT_STATUSES): array
     {
-        return DB::table('sales as s')
+        $values = $this->normalizeStatuses($statuses);
+        $onlyCompleted = $values === [SaleStatus::Completed->value];
+
+        $query = DB::table('sales as s')
             ->join('customers as c', 'c.id', '=', 's.customer_id')
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
-            ->where('s.status', SaleStatus::Completed->value)
-            ->where('s.amount_pending', '<=', 0)
-            ->whereBetween('s.completed_at', [$range->start, $range->end])
+            ->whereNull('s.deleted_at')
+            ->whereBetween(DB::raw('COALESCE(s.completed_at, s.created_at)'), [$range->start, $range->end]);
+
+        if (empty($values)) {
+            return [];
+        }
+
+        $query->whereIn('s.status', $values);
+        if ($onlyCompleted) {
+            $query->where('s.amount_pending', '<=', 0);
+        }
+
+        return $query
             ->selectRaw('c.id, c.name, COUNT(s.id) as tickets, SUM(s.total) as total')
             ->groupBy('c.id', 'c.name')
             ->orderByDesc('total')
@@ -72,6 +93,24 @@ class CustomerMetrics extends AbstractMetrics
                 'tickets' => (int) $r->tickets,
                 'total' => (float) $r->total,
             ])
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeStatuses(array $statuses): array
+    {
+        return collect($statuses)
+            ->map(fn ($s) => match (strtolower((string) $s)) {
+                'completed' => SaleStatus::Completed->value,
+                'pending' => SaleStatus::Pending->value,
+                'cancelled' => SaleStatus::Cancelled->value,
+                default => null,
+            })
+            ->filter()
+            ->unique()
+            ->values()
             ->all();
     }
 
@@ -145,7 +184,7 @@ class CustomerMetrics extends AbstractMetrics
                 SaleStatus::Pending->value,
                 SaleStatus::Active->value,
             ])
-            ->selectRaw("
+            ->selectRaw('
                 COALESCE(SUM(CASE
                     WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) <= 30 THEN amount_pending
                     ELSE 0
@@ -158,7 +197,7 @@ class CustomerMetrics extends AbstractMetrics
                     WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) > 60 THEN amount_pending
                     ELSE 0
                 END), 0) AS bucket_61_plus
-            ")
+            ')
             ->first();
 
         return [
