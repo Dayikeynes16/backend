@@ -74,11 +74,11 @@ class SaleHistorySummaryTest extends TestCase
         $this->assertSame(1, $summary['by_status']['cancelled']['count']);
     }
 
-    public function test_day_summary_does_not_count_payments_made_today_for_sales_completed_yesterday(): void
+    public function test_day_summary_does_not_count_payments_made_today_for_old_sales(): void
     {
-        // Venta cerrada AYER (completed_at=ayer), pagada HOY a crédito.
-        // Bajo la convención COALESCE(completed_at, created_at) la venta
-        // pertenece al día canónico de ayer, no al día del pago.
+        // Venta CREADA ayer, pagada hoy. Como Historial filtra por
+        // created_at, pertenece a ayer y no debe sumar al total de hoy
+        // ni a sus métodos de pago.
         $oldSale = $this->makeSale([
             'total' => 1000,
             'status' => SaleStatus::Completed,
@@ -111,8 +111,8 @@ class SaleHistorySummaryTest extends TestCase
         $response = $this->get(route('sucursal.historial.index', $this->tenant->slug).'?date='.now()->toDateString());
         $summary = $response->viewData('page')['props']['daySummary'];
 
-        // Total vendido del día solo cuenta la venta cerrada hoy (300), no la
-        // cerrada ayer aunque haya sido cobrada hoy.
+        // Total vendido del día solo cuenta la venta de hoy (300), no la de
+        // ayer aunque haya sido cobrada hoy.
         $this->assertSame(300.0, $summary['total_sold']);
         $this->assertSame(1, $summary['sale_count']);
 
@@ -121,63 +121,29 @@ class SaleHistorySummaryTest extends TestCase
         $this->assertEquals(300.0, $byMethod['card']['amount']);
     }
 
-    public function test_day_summary_uses_completed_at_for_sale_created_yesterday_completed_today(): void
+    public function test_index_returns_only_completed_sales(): void
     {
-        // El caso clave que motivó la migración:
-        // Venta CREADA ayer (carrito abierto cerca de medianoche) y
-        // CERRADA hoy. El día canónico es hoy → debe contarse hoy y
-        // cuadrar con Métricas/Dashboard.
-        $sale = $this->makeSale([
-            'total' => 1226.50,
-            'status' => SaleStatus::Completed,
-            'created_at' => now()->subDay()->setTime(23, 55),
-            'completed_at' => now()->setTime(0, 5),
-        ]);
-        Payment::create([
-            'sale_id' => $sale->id,
-            'user_id' => $this->cajero->id,
-            'method' => 'cash',
-            'amount' => 1226.50,
-            'created_at' => now(),
-        ]);
-
-        $this->actingAs($this->adminSucursal);
-        $response = $this->get(route('sucursal.historial.index', $this->tenant->slug).'?date='.now()->toDateString());
-        $summary = $response->viewData('page')['props']['daySummary'];
-
-        $this->assertSame(1226.50, $summary['total_sold']);
-        $this->assertSame(1, $summary['sale_count']);
-    }
-
-    public function test_day_summary_uses_created_at_when_completed_at_is_null(): void
-    {
-        // Pendientes/Activas/Canceladas sin completed_at deben caer al
-        // día de creación (fallback del COALESCE).
+        // Asegura que la lista del Historial filtra a status=Completed
+        // independientemente de lo que llegue en query string.
         $today = now()->toDateString();
-        $this->makeSale([
-            'total' => 200,
-            'status' => SaleStatus::Pending,
-            'amount_paid' => 0,
-            'amount_pending' => 200,
-            'created_at' => now(),
-            'completed_at' => null,
-        ]);
-        $this->makeSale([
-            'total' => 80,
-            'status' => SaleStatus::Active,
-            'amount_paid' => 0,
-            'amount_pending' => 80,
-            'created_at' => now(),
-            'completed_at' => null,
-        ]);
+        $this->makeSale(['total' => 100, 'status' => SaleStatus::Completed, 'created_at' => now()]);
+        $this->makeSale(['total' => 200, 'status' => SaleStatus::Pending, 'amount_paid' => 0, 'amount_pending' => 200, 'created_at' => now()]);
+        $this->makeSale(['total' => 300, 'status' => SaleStatus::Cancelled, 'created_at' => now()]);
+        $this->makeSale(['total' => 400, 'status' => SaleStatus::Active, 'amount_paid' => 0, 'amount_pending' => 400, 'created_at' => now()]);
 
         $this->actingAs($this->adminSucursal);
-        $response = $this->get(route('sucursal.historial.index', $this->tenant->slug).'?date='.$today);
-        $summary = $response->viewData('page')['props']['daySummary'];
 
-        $this->assertSame(1, $summary['by_status']['pending']['count']);
-        $this->assertSame(1, $summary['by_status']['active']['count']);
-        $this->assertSame(0.0, $summary['total_sold']); // pendientes y activas no suman
+        // Sin status param → solo completed.
+        $response = $this->get(route('sucursal.historial.index', $this->tenant->slug).'?date='.$today);
+        $sales = $response->viewData('page')['props']['sales']['data'];
+        $this->assertCount(1, $sales);
+        $this->assertSame('completed', $sales[0]['status']);
+
+        // Con status=cancelled en URL → IGNORADO, sigue mostrando solo completed.
+        $response = $this->get(route('sucursal.historial.index', $this->tenant->slug).'?date='.$today.'&status=cancelled');
+        $sales = $response->viewData('page')['props']['sales']['data'];
+        $this->assertCount(1, $sales);
+        $this->assertSame('completed', $sales[0]['status']);
     }
 
     public function test_day_summary_handles_mixed_payments_correctly(): void

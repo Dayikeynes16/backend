@@ -45,17 +45,6 @@ const summaryKpis = computed(() => {
     ];
 });
 
-const summaryStatuses = computed(() => {
-    const bs = props.daySummary?.by_status;
-    if (!bs) return [];
-    return [
-        { key: 'completed', label: 'Cobradas', count: bs.completed?.count || 0, hue: 'text-emerald-700' },
-        { key: 'active', label: 'Activas', count: bs.active?.count || 0, hue: 'text-blue-700' },
-        { key: 'pending', label: 'Pendientes', count: bs.pending?.count || 0, hue: 'text-amber-700' },
-        { key: 'cancelled', label: 'Canceladas', count: bs.cancelled?.count || 0, hue: 'text-gray-500' },
-    ];
-});
-
 const methodMeta = {
     cash:     { label: 'Efectivo',       color: 'text-emerald-600', iconBg: 'bg-emerald-100 text-emerald-600',
                 icon: 'M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z' },
@@ -70,7 +59,6 @@ const enabledMethods = computed(() =>
 
 // --- Filters ---
 const search = ref(props.filters?.search || '');
-const status = ref(props.filters?.status || '');
 const date = ref(props.filters?.date || '');
 
 // --- Accumulated sales list ---
@@ -98,14 +86,12 @@ const applyFilters = () => {
         selected.value = null;
         router.get(route('sucursal.historial.index', props.tenant.slug), {
             search: search.value || undefined,
-            status: status.value || undefined,
             date: date.value || undefined,
         }, { preserveState: true, replace: true });
     }, 300);
 };
 
 watch(search, applyFilters);
-watch(status, () => { clearTimeout(debounceTimer); applyFilters(); });
 watch(date, () => { clearTimeout(debounceTimer); applyFilters(); });
 
 // --- Infinite scroll ---
@@ -115,7 +101,6 @@ const loadMore = () => {
     router.get(route('sucursal.historial.index', props.tenant.slug), {
         cursor: nextCursor.value,
         search: search.value || undefined,
-        status: status.value || undefined,
         date: date.value || undefined,
     }, {
         preserveState: true, preserveScroll: true, only: ['sales'],
@@ -239,20 +224,10 @@ const reopenSale = () => {
             class="mb-4"
             storage-key="historial-ventas"
             :title="summaryTitle"
-            legend="Solo incluye ventas cobradas. No considera pendientes, activas ni canceladas."
+            legend="Ventas cobradas creadas ese día."
             :kpis="summaryKpis"
             :by-method="daySummary.by_method"
-            :payment-methods="paymentMethods">
-            <template #footer>
-                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
-                    <span class="font-semibold text-gray-500">Estado del día:</span>
-                    <span v-for="s in summaryStatuses" :key="s.key" :class="s.hue">
-                        <span class="font-bold tabular-nums">{{ s.count }}</span>
-                        <span class="ml-1">{{ s.label.toLowerCase() }}</span>
-                    </span>
-                </div>
-            </template>
-        </DaySummaryBar>
+            :payment-methods="paymentMethods" />
 
         <div class="flex h-[calc(100vh-14rem)] gap-5">
             <!-- LEFT: Sales list -->
@@ -264,13 +239,6 @@ const reopenSale = () => {
                             <input v-model="search" type="text" placeholder="Buscar folio..." class="w-full rounded-lg border-gray-200 py-2 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:border-red-400 focus:ring-red-300" />
                         </div>
                         <DatePicker v-model="date" />
-                    </div>
-                    <div class="flex gap-1.5">
-                        <button v-for="f in [{v:'',l:'Todas'},{v:'active',l:'Activas'},{v:'pending',l:'Pendientes'},{v:'completed',l:'Cobradas'},{v:'cancelled',l:'Canceladas'}]"
-                            :key="f.v" @click="status = f.v"
-                            :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', status === f.v ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">
-                            {{ f.l }}
-                        </button>
                     </div>
                 </div>
 
