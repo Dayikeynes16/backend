@@ -327,6 +327,7 @@ Route::prefix('{tenant}')
                 Route::post('ventas/{sale}/heartbeat', [SaleLockController::class, 'heartbeat'])->name('sale.heartbeat');
                 Route::patch('ventas/{sale}/estado', [CajaWorkbenchController::class, 'updateStatus'])->name('update-status');
                 Route::post('ventas/{sale}/solicitar-cancelacion', [CajaWorkbenchController::class, 'requestCancel'])->name('request-cancel');
+                Route::patch('ventas/{sale}/cliente', [CajaWorkbenchController::class, 'assignCustomer'])->name('assign-customer');
                 Route::get('ventas/{sale}/whatsapp-link', [CajaWorkbenchController::class, 'whatsappLink'])->name('whatsapp-link');
                 Route::post('ventas/{sale}/whatsapp-phone', [CajaWorkbenchController::class, 'storeWhatsappPhone'])->name('whatsapp-phone');
                 Route::delete('ventas/{sale}/whatsapp-phone', [CajaWorkbenchController::class, 'destroyWhatsappPhone'])->name('whatsapp-phone.destroy');

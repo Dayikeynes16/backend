@@ -7,7 +7,9 @@ use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
+use App\Models\Customer;
 use App\Models\Sale;
+use App\Services\AssignCustomerToSale;
 use App\Services\PhoneNormalizer;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\JsonResponse;
@@ -43,6 +45,14 @@ class WorkbenchController extends Controller
         $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
         $paymentMethods = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
 
+        // Lista para asignar cliente a una venta. El cajero solo puede *asignar*
+        // clientes existentes — no crear/editar/eliminar (ese CRUD vive en el
+        // módulo de Sucursal y está protegido por roles).
+        $customers = Customer::where('branch_id', $user->branch_id)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'phone']);
+
         return Inertia::render('Caja/Workbench', [
             'sales' => $sales,
             'tenant' => app('tenant'),
@@ -54,6 +64,7 @@ class WorkbenchController extends Controller
                 'ticket_config' => $branch->ticket_config,
             ],
             'paymentMethods' => $paymentMethods,
+            'customers' => $customers,
         ]);
     }
 
@@ -126,6 +137,47 @@ class WorkbenchController extends Controller
         ]);
 
         return back()->with('success', "Solicitud de cancelacion enviada para {$sale->folio}.");
+    }
+
+    /**
+     * Asigna o desasigna un cliente existente a la venta. El cajero NO puede
+     * crear, editar ni eliminar clientes — eso vive en el módulo de Sucursal.
+     * Aquí solo se permite seleccionar uno ya existente para que se apliquen
+     * sus precios preferenciales y para tener el teléfono asociado.
+     */
+    public function assignCustomer(Request $request, Sale $sale, AssignCustomerToSale $service): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403);
+        }
+
+        if ($sale->status === SaleStatus::Cancelled) {
+            return back()->with('error', 'No se puede asignar cliente a una venta cancelada.');
+        }
+
+        $validated = $request->validate([
+            'customer_id' => 'nullable|integer|exists:customers,id',
+        ]);
+
+        $customerId = $validated['customer_id'];
+        $result = $service->execute($sale, $customerId, $user->branch_id);
+
+        $msg = $customerId
+            ? "Cliente asignado a venta {$sale->folio}."
+            : "Cliente removido de venta {$sale->folio}.";
+
+        if ($result['had_payments']) {
+            $msg .= ' La venta tenia pagos registrados. Verifica que los montos sean correctos.';
+        }
+
+        if (! empty($result['skipped_piece_presentations'])) {
+            $names = implode(', ', array_unique($result['skipped_piece_presentations']));
+            $msg .= " Precio preferencial no aplicado a presentaciones por pieza sin equivalencia en kg/l: {$names}.";
+        }
+
+        return back()->with('success', $msg);
     }
 
     /**

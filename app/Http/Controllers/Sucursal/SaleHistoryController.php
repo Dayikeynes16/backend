@@ -24,7 +24,7 @@ class SaleHistoryController extends Controller
         // siguen su propia lógica (canónica, basada en completed_at) para
         // análisis de negocio.
         $sales = Sale::where('branch_id', $branchId)
-            ->with(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name'])
+            ->with(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer:id,name,phone'])
             ->where('status', SaleStatus::Completed->value)
             ->when($request->search, fn ($q, $s) => $q->where('folio', 'ilike', "%{$s}%"))
             ->whereDate('created_at', $date)

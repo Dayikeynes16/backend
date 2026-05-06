@@ -13,9 +13,9 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductPresentation;
 use App\Models\Sale;
+use App\Services\AssignCustomerToSale;
 use App\Services\PhoneNormalizer;
 use App\Services\WhatsappMessageService;
-use App\Support\SaleItemMath;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -565,7 +565,7 @@ class WorkbenchController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    public function assignCustomer(Request $request, Sale $sale): RedirectResponse
+    public function assignCustomer(Request $request, Sale $sale, AssignCustomerToSale $service): RedirectResponse
     {
         $user = Auth::user();
 
@@ -586,108 +586,18 @@ class WorkbenchController extends Controller
         ]);
 
         $customerId = $validated['customer_id'];
-        $hadPayments = $sale->payments()->exists();
-        $skippedPiecePresentations = [];
-
-        DB::transaction(function () use ($sale, $customerId, $user, &$skippedPiecePresentations) {
-            DB::statement('SELECT pg_advisory_xact_lock(?)', [$sale->branch_id]);
-
-            $sale->load('items');
-
-            if ($customerId) {
-                // El precio preferencial guardado se interpreta como $/kg
-                // (o $/l) del producto base. Para presentaciones con peso,
-                // se convierte a unit_price = $/base × content. Las piezas
-                // sin equivalencia en peso no aceptan precio $/kg → se
-                // saltan con aviso al usuario.
-                $customer = Customer::where('branch_id', $user->branch_id)->findOrFail($customerId);
-                $preferentialPrices = $customer->prices->keyBy('product_id');
-
-                foreach ($sale->items as $item) {
-                    $prefPrice = $preferentialPrices->get($item->product_id);
-                    if (! $prefPrice) {
-                        continue;
-                    }
-
-                    $pricePerBaseUnit = (float) $prefPrice->price;
-
-                    if (! SaleItemMath::isWeightOrVolume($item)) {
-                        $skippedPiecePresentations[] = $item->product_name;
-
-                        continue;
-                    }
-
-                    $newUnitPrice = SaleItemMath::unitPriceForBasePrice($item, $pricePerBaseUnit);
-                    $item->update([
-                        'unit_price' => $newUnitPrice,
-                        'subtotal' => round($newUnitPrice * (float) $item->quantity, 2),
-                    ]);
-                }
-            } else {
-                // Desasignar: presentaciones se restauran al precio congelado
-                // en su snapshot (no al precio actual del producto base).
-                // Líneas sin presentación caen al precio del catálogo.
-                $productIds = $sale->items->pluck('product_id')->unique();
-                $products = Product::withoutGlobalScopes()
-                    ->whereIn('id', $productIds)
-                    ->get(['id', 'price'])
-                    ->keyBy('id');
-
-                foreach ($sale->items as $item) {
-                    $product = $products->get($item->product_id);
-                    $catalogPrice = $product ? (float) $product->price : 0.0;
-                    $restored = SaleItemMath::restoredUnitPrice($item, $catalogPrice);
-                    $item->update([
-                        'unit_price' => $restored,
-                        'subtotal' => round($restored * (float) $item->quantity, 2),
-                    ]);
-                }
-            }
-
-            $newTotal = round((float) $sale->items()->sum('subtotal'), 2);
-            $amountPaid = (float) $sale->amount_paid;
-            $newPending = round(max($newTotal - $amountPaid, 0), 2);
-
-            $updateData = [
-                'customer_id' => $customerId,
-                'total' => $newTotal,
-                'amount_pending' => $newPending,
-            ];
-
-            // Cuando se asigna un cliente a una venta POS, el teléfono manual
-            // (capturado desde el flujo "Enviar por WhatsApp") deja de ser
-            // relevante: el cliente trae su propio teléfono y el manual se
-            // convertiría en un dato fantasma que no se usa. Lo limpiamos.
-            // Las ventas origen `web` conservan `contact_phone` porque ahí ese
-            // dato vino del checkout y forma parte del registro del pedido.
-            if ($customerId && $sale->origin !== 'web') {
-                $updateData['contact_phone'] = null;
-            }
-
-            if ($newPending <= 0 && $amountPaid > 0 && $sale->status !== SaleStatus::Completed) {
-                $updateData['status'] = SaleStatus::Completed;
-                $updateData['completed_at'] = now();
-            }
-
-            $sale->update($updateData);
-        });
-
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
-        }
+        $result = $service->execute($sale, $customerId, $user->branch_id);
 
         $msg = $customerId
             ? "Cliente asignado a venta {$sale->folio}."
             : "Cliente removido de venta {$sale->folio}.";
 
-        if ($hadPayments) {
+        if ($result['had_payments']) {
             $msg .= ' La venta tenia pagos registrados. Verifica que los montos sean correctos.';
         }
 
-        if (! empty($skippedPiecePresentations)) {
-            $names = implode(', ', array_unique($skippedPiecePresentations));
+        if (! empty($result['skipped_piece_presentations'])) {
+            $names = implode(', ', array_unique($result['skipped_piece_presentations']));
             $msg .= " Precio preferencial no aplicado a presentaciones por pieza sin equivalencia en kg/l: {$names}.";
         }
 

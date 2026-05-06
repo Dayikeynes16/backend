@@ -16,7 +16,7 @@ import { displayName as itemDisplayName, displayQuantity as itemDisplayQuantity 
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
-const props = defineProps({ sales: Array, tenant: Object, branchId: Number, branchInfo: Object, paymentMethods: Array });
+const props = defineProps({ sales: Array, tenant: Object, branchId: Number, branchInfo: Object, paymentMethods: Array, customers: Array });
 
 const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
 const enabledMethods = computed(() =>
@@ -117,6 +117,35 @@ const submitCancelRequest = (reason) => {
         onFinish: () => { cancelProcessing.value = false; },
     });
 };
+
+// --- Customer assignment ---
+// El cajero puede asignar clientes existentes (con sus precios preferenciales)
+// pero NO crearlos/editarlos/borrarlos — ese CRUD vive en módulo Sucursal.
+const showCustomerSearch = ref(false);
+const customerQuery = ref('');
+const filteredCustomers = computed(() => {
+    if (!customerQuery.value) return (props.customers || []).slice(0, 5);
+    const q = customerQuery.value.toLowerCase();
+    return (props.customers || []).filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 5);
+});
+const assignCustomerForm = useForm({ customer_id: null });
+const assignCustomer = (customerId) => {
+    assignCustomerForm.customer_id = customerId;
+    assignCustomerForm.patch(route('caja.assign-customer', [props.tenant.slug, selected.value.id]), {
+        preserveScroll: true,
+        onSuccess: () => { showCustomerSearch.value = false; customerQuery.value = ''; },
+    });
+};
+const removeCustomer = () => {
+    assignCustomerForm.customer_id = null;
+    assignCustomerForm.patch(route('caja.assign-customer', [props.tenant.slug, selected.value.id]), {
+        preserveScroll: true,
+    });
+};
+const customerInitials = computed(() => {
+    const name = selected.value?.customer?.name || '';
+    return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
+});
 
 // --- WhatsApp ---
 const {
@@ -268,6 +297,66 @@ const {
                             <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>
                             {{ whatsappError }}
                         </p>
+                    </div>
+
+                    <!-- Customer assignment -->
+                    <div class="border-b border-gray-100 px-6 py-3">
+                        <!-- With customer -->
+                        <div v-if="selected.customer">
+                            <div class="group flex items-center gap-3 rounded-xl bg-gradient-to-r from-red-50/60 via-white to-white px-3 py-2.5 ring-1 ring-red-100/70 transition hover:ring-red-200">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-600 text-sm font-bold text-white shadow-sm ring-2 ring-white">
+                                    {{ customerInitials }}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <p class="truncate text-sm font-bold text-gray-900">{{ selected.customer.name }}</p>
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700 ring-1 ring-inset ring-green-600/20">
+                                            <svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clip-rule="evenodd" /></svg>
+                                            Preferencial
+                                        </span>
+                                    </div>
+                                    <div class="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
+                                        <svg class="h-3 w-3 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
+                                        <span class="tabular-nums">{{ selected.customer.phone }}</span>
+                                    </div>
+                                </div>
+                                <div class="flex shrink-0 items-center gap-1">
+                                    <button @click="removeCustomer" :disabled="assignCustomerForm.processing"
+                                        title="Quitar cliente"
+                                        aria-label="Quitar cliente"
+                                        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-300 transition hover:bg-red-50 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-200">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Without customer -->
+                        <div v-else class="relative">
+                            <button v-if="!showCustomerSearch" @click="showCustomerSearch = true"
+                                class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>
+                                Asignar cliente
+                            </button>
+                            <div v-if="showCustomerSearch" class="space-y-2">
+                                <div class="flex items-center gap-2">
+                                    <input v-model="customerQuery" type="text" placeholder="Buscar por nombre o teléfono..."
+                                        class="flex-1 rounded-lg border-gray-200 py-1.5 text-sm placeholder-gray-400 focus:border-red-400 focus:ring-red-300" autofocus />
+                                    <button @click="showCustomerSearch = false; customerQuery = '';" class="rounded-full p-1.5 text-gray-400 hover:text-gray-600">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                                <div v-if="filteredCustomers.length > 0" class="rounded-lg ring-1 ring-gray-100 divide-y divide-gray-50">
+                                    <button v-for="c in filteredCustomers" :key="c.id" type="button"
+                                        @click="assignCustomer(c.id)"
+                                        :disabled="assignCustomerForm.processing"
+                                        class="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition hover:bg-gray-50 disabled:opacity-50">
+                                        <span class="font-medium text-gray-900">{{ c.name }}</span>
+                                        <span class="text-xs text-gray-400">{{ c.phone }}</span>
+                                    </button>
+                                </div>
+                                <p v-else class="px-1 text-xs text-gray-400">No se encontraron clientes.</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Scrollable content -->
