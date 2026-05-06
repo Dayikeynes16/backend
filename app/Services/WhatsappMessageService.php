@@ -81,6 +81,33 @@ class WhatsappMessageService
     }
 
     /**
+     * Resuelve el teléfono de la venta (cliente asignado o capturado en la venta)
+     * y devuelve la URL lista para WhatsApp. Cuando no hay teléfono, indica que
+     * el frontend debe pedirlo al usuario.
+     *
+     * @return array{url: ?string, available: bool, reason?: string}
+     */
+    public function linkForSale(Sale $sale): array
+    {
+        $sale->loadMissing('customer:id,name,phone');
+
+        $rawPhone = $sale->customer?->phone ?: $sale->contact_phone;
+
+        if (empty($rawPhone)) {
+            return ['url' => null, 'available' => false, 'reason' => 'needs_phone'];
+        }
+
+        $normalized = PhoneNormalizer::normalize($rawPhone);
+        if ($normalized === '') {
+            return ['url' => null, 'available' => false, 'reason' => 'invalid_phone'];
+        }
+
+        $text = $this->buildCustomerSaleText($sale);
+
+        return ['url' => $this->buildUrl($normalized, $text), 'available' => true];
+    }
+
+    /**
      * Mensaje al cliente con el detalle de su venta.
      * El formato se adapta al estado: pendiente (crédito), cobrada o cancelada.
      */

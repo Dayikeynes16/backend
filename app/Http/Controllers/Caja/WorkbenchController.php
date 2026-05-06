@@ -4,14 +4,17 @@ namespace App\Http\Controllers\Caja;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
-use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Sale;
+use App\Services\PhoneNormalizer;
+use App\Services\WhatsappMessageService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Enum;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,7 +35,7 @@ class WorkbenchController extends Controller
 
         $sales = Sale::where('branch_id', $user->branch_id)
             ->whereIn('status', [SaleStatus::Active, SaleStatus::Pending])
-            ->with(['items', 'payments', 'lockedByUser:id,name'])
+            ->with(['items', 'payments', 'lockedByUser:id,name', 'customer:id,name,phone'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
@@ -123,5 +126,72 @@ class WorkbenchController extends Controller
         ]);
 
         return back()->with('success', "Solicitud de cancelacion enviada para {$sale->folio}.");
+    }
+
+    /**
+     * Devuelve el link wa.me de la venta usando customer.phone o contact_phone.
+     * Si no hay teléfono, retorna `reason: needs_phone` para que el frontend
+     * abra el modal de captura.
+     */
+    public function whatsappLink(Sale $sale, WhatsappMessageService $whatsappService): JsonResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
+        }
+
+        return response()->json($whatsappService->linkForSale($sale));
+    }
+
+    /**
+     * Guarda el teléfono capturado en `contact_phone` (E.164) y devuelve el link.
+     * No crea cliente.
+     */
+    public function storeWhatsappPhone(Request $request, Sale $sale, WhatsappMessageService $whatsappService): JsonResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
+        }
+
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'regex:/^\d{10}$/'],
+        ], [
+            'phone.regex' => 'El teléfono debe tener 10 dígitos.',
+            'phone.required' => 'Ingresa un teléfono.',
+        ]);
+
+        $sale->update([
+            'contact_phone' => PhoneNormalizer::normalize($validated['phone']),
+        ]);
+
+        return response()->json($whatsappService->linkForSale($sale->fresh()));
+    }
+
+    /**
+     * Quita el teléfono manual (`contact_phone`) de la venta.
+     */
+    public function destroyWhatsappPhone(Sale $sale): JsonResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
+        }
+
+        $sale->update(['contact_phone' => null]);
+
+        return response()->json(['ok' => true]);
     }
 }

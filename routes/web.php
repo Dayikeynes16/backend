@@ -280,6 +280,8 @@ Route::prefix('{tenant}')
 
                 // WhatsApp link to customer (on-demand, no payload bloat)
                 Route::get('mesa-de-trabajo/ventas/{sale}/whatsapp-link', [WorkbenchController::class, 'whatsappLink'])->name('workbench.whatsapp-link');
+                Route::post('mesa-de-trabajo/ventas/{sale}/whatsapp-phone', [WorkbenchController::class, 'storeWhatsappPhone'])->name('workbench.whatsapp-phone');
+                Route::delete('mesa-de-trabajo/ventas/{sale}/whatsapp-phone', [WorkbenchController::class, 'destroyWhatsappPhone'])->name('workbench.whatsapp-phone.destroy');
 
                 // Config
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
@@ -325,6 +327,9 @@ Route::prefix('{tenant}')
                 Route::post('ventas/{sale}/heartbeat', [SaleLockController::class, 'heartbeat'])->name('sale.heartbeat');
                 Route::patch('ventas/{sale}/estado', [CajaWorkbenchController::class, 'updateStatus'])->name('update-status');
                 Route::post('ventas/{sale}/solicitar-cancelacion', [CajaWorkbenchController::class, 'requestCancel'])->name('request-cancel');
+                Route::get('ventas/{sale}/whatsapp-link', [CajaWorkbenchController::class, 'whatsappLink'])->name('whatsapp-link');
+                Route::post('ventas/{sale}/whatsapp-phone', [CajaWorkbenchController::class, 'storeWhatsappPhone'])->name('whatsapp-phone');
+                Route::delete('ventas/{sale}/whatsapp-phone', [CajaWorkbenchController::class, 'destroyWhatsappPhone'])->name('whatsapp-phone.destroy');
                 Route::get('turno', [CajaTurnoController::class, 'index'])->name('turno');
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');

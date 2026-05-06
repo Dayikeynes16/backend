@@ -494,6 +494,11 @@ class WorkbenchController extends Controller
      * Se calcula on-demand (no inflamos el payload inicial del workbench con URLs
      * largas). El frontend llama este endpoint en el click del botón para que
      * window.open vaya dentro del gesto del usuario y no lo bloquee el navegador.
+     *
+     * Resolución del teléfono: primero el del cliente asignado; si no existe, el
+     * `contact_phone` que se haya capturado previamente en la venta. Cuando no
+     * hay ninguno, se devuelve `reason: needs_phone` para que el frontend abra
+     * el modal de captura.
      */
     public function whatsappLink(Sale $sale, WhatsappMessageService $whatsappService): JsonResponse
     {
@@ -506,24 +511,58 @@ class WorkbenchController extends Controller
             abort(403, 'Esta venta no pertenece a tu empresa.');
         }
 
-        $sale->loadMissing('customer:id,name,phone');
+        return response()->json($whatsappService->linkForSale($sale));
+    }
 
-        if (! $sale->customer) {
-            return response()->json(['url' => null, 'available' => false, 'reason' => 'no_customer']);
+    /**
+     * Guarda el teléfono capturado en `contact_phone` (E.164) y devuelve el link.
+     * No crea cliente — el dato queda en la venta para futuros envíos y para
+     * que en el futuro se pueda cruzar con clientes que se den de alta con
+     * el mismo número.
+     */
+    public function storeWhatsappPhone(Request $request, Sale $sale, WhatsappMessageService $whatsappService): JsonResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
         }
-        if (empty($sale->customer->phone)) {
-            return response()->json(['url' => null, 'available' => false, 'reason' => 'no_phone']);
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
         }
 
-        $normalized = PhoneNormalizer::normalize($sale->customer->phone);
-        if ($normalized === '') {
-            return response()->json(['url' => null, 'available' => false, 'reason' => 'invalid_phone']);
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'regex:/^\d{10}$/'],
+        ], [
+            'phone.regex' => 'El teléfono debe tener 10 dígitos.',
+            'phone.required' => 'Ingresa un teléfono.',
+        ]);
+
+        $sale->update([
+            'contact_phone' => PhoneNormalizer::normalize($validated['phone']),
+        ]);
+
+        return response()->json($whatsappService->linkForSale($sale->fresh()));
+    }
+
+    /**
+     * Quita el teléfono manual (`contact_phone`) de la venta. No afecta al
+     * teléfono del cliente asignado — eso vive en el módulo de clientes.
+     */
+    public function destroyWhatsappPhone(Sale $sale): JsonResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
         }
 
-        $text = $whatsappService->buildCustomerSaleText($sale);
-        $url = $whatsappService->buildUrl($normalized, $text);
+        $sale->update(['contact_phone' => null]);
 
-        return response()->json(['url' => $url, 'available' => true]);
+        return response()->json(['ok' => true]);
     }
 
     public function assignCustomer(Request $request, Sale $sale): RedirectResponse
@@ -614,6 +653,16 @@ class WorkbenchController extends Controller
                 'total' => $newTotal,
                 'amount_pending' => $newPending,
             ];
+
+            // Cuando se asigna un cliente a una venta POS, el teléfono manual
+            // (capturado desde el flujo "Enviar por WhatsApp") deja de ser
+            // relevante: el cliente trae su propio teléfono y el manual se
+            // convertiría en un dato fantasma que no se usa. Lo limpiamos.
+            // Las ventas origen `web` conservan `contact_phone` porque ahí ese
+            // dato vino del checkout y forma parte del registro del pedido.
+            if ($customerId && $sale->origin !== 'web') {
+                $updateData['contact_phone'] = null;
+            }
 
             if ($newPending <= 0 && $amountPaid > 0 && $sale->status !== SaleStatus::Completed) {
                 $updateData['status'] = SaleStatus::Completed;
