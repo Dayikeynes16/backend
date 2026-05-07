@@ -4,15 +4,14 @@ namespace App\Http\Controllers\Sucursal;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
-use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
-use App\Models\CashRegisterShift;
-use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\RecalculateClosedShifts;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -129,46 +128,7 @@ class CancelRequestController extends Controller
 
     private function recalculateAffectedShifts(Sale $sale): void
     {
-        $payments = Payment::withTrashed()
-            ->where('sale_id', $sale->id)
-            ->get();
-
-        $affectedUserIds = $payments->pluck('user_id')->unique();
-
-        foreach ($affectedUserIds as $userId) {
-            $userPayments = $payments->where('user_id', $userId);
-            $earliest = $userPayments->min('created_at');
-
-            $shifts = CashRegisterShift::where('user_id', $userId)
-                ->whereNotNull('closed_at')
-                ->where('opened_at', '<=', $earliest)
-                ->get();
-
-            foreach ($shifts as $shift) {
-                $shiftPayments = Payment::where('user_id', $shift->user_id)
-                    ->where('created_at', '>=', $shift->opened_at)
-                    ->where('created_at', '<=', $shift->closed_at)
-                    ->get();
-
-                $totalCash = (float) $shiftPayments->where('method', 'cash')->sum('amount');
-                $totalCard = (float) $shiftPayments->where('method', 'card')->sum('amount');
-                $totalTransfer = (float) $shiftPayments->where('method', 'transfer')->sum('amount');
-                $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
-
-                $expected = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
-                $declared = (float) $shift->declared_amount;
-
-                $shift->update([
-                    'total_cash' => $totalCash,
-                    'total_card' => $totalCard,
-                    'total_transfer' => $totalTransfer,
-                    'total_sales' => $totalCash + $totalCard + $totalTransfer,
-                    'sale_count' => $shiftPayments->pluck('sale_id')->unique()->count(),
-                    'expected_amount' => $expected,
-                    'difference' => round($declared - $expected, 2),
-                ]);
-            }
-        }
+        app(RecalculateClosedShifts::class)->forSale($sale);
     }
 
     public function reject(Sale $sale): RedirectResponse

@@ -35,11 +35,17 @@ const summaryTitle = computed(() => {
 const summaryKpis = computed(() => {
     const s = props.dailySummary;
     if (!s) return [];
-    return [
-        { label: 'Total cobrado', value: s.total_collected, format: 'currency' },
-        { label: '# Pagos', value: s.payment_count, format: 'number' },
-        { label: 'Pago promedio', value: s.avg_payment, format: 'currency' },
+    const kpis = [
+        { label: 'Total cobrado', value: s.total_collected, format: 'currency', hint: 'Dinero ingresado el día' },
+        { label: 'De ventas de hoy', value: s.collected_from_today, format: 'currency' },
     ];
+    // El KPI de cuentas anteriores aparece solo si hay abonos retroactivos —
+    // así el resumen no se siente vacío en días normales.
+    if (s.collected_from_previous > 0) {
+        kpis.push({ label: 'Abonos a cuentas anteriores', value: s.collected_from_previous, format: 'currency' });
+    }
+    kpis.push({ label: '# Pagos', value: s.payment_count, format: 'number' });
+    return kpis;
 });
 
 // --- Sale-date chip helpers ---

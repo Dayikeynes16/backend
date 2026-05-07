@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use App\Services\ShiftReportMessageService;
+use App\Services\ShiftTotalsCalculator;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -103,7 +104,7 @@ class TurnoController extends Controller
             ->with('success', 'Turno abierto.');
     }
 
-    public function close(Request $request): RedirectResponse
+    public function close(Request $request, ShiftTotalsCalculator $calculator): RedirectResponse
     {
         $user = Auth::user();
 
@@ -111,13 +112,12 @@ class TurnoController extends Controller
             ->whereNull('closed_at')
             ->firstOrFail();
 
-        $payments = Payment::where('user_id', $user->id)
-            ->where('created_at', '>=', $shift->opened_at)
-            ->get();
+        $closingAt = now();
+        $totals = $calculator->compute($user->branch_id, $user->id, $shift->opened_at, $closingAt);
 
-        $totalCash = (float) $payments->where('method', 'cash')->sum('amount');
-        $totalCard = (float) $payments->where('method', 'card')->sum('amount');
-        $totalTransfer = (float) $payments->where('method', 'transfer')->sum('amount');
+        $totalCash = $totals['total_cash'];
+        $totalCard = $totals['total_card'];
+        $totalTransfer = $totals['total_transfer'];
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
 
         // Métodos efectivos: habilitados en la sucursal + los que tuvieron movimientos
@@ -162,12 +162,18 @@ class TurnoController extends Controller
         $diffTransfer = $declaredTransfer !== null ? round($declaredTransfer - $totalTransfer, 2) : null;
 
         $shift->update([
-            'closed_at' => now(),
+            'closed_at' => $closingAt,
             'total_cash' => $totalCash,
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
+            // total_sales (legacy) = cobranza total del turno (lo que entró al
+            // cajón). Se conserva; en la UI se etiqueta como "Cobrado en turno".
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
-            'sale_count' => $payments->pluck('sale_id')->unique()->count(),
+            'sale_count' => $totals['collections_count'],
+            'sales_generated_amount' => $totals['sales_generated_amount'],
+            'sales_generated_count' => $totals['sales_generated_count'],
+            'collections_from_today_amount' => $totals['collections_from_today_amount'],
+            'collections_from_previous_amount' => $totals['collections_from_previous_amount'],
             'declared_amount' => $declaredCash,
             'declared_card' => $declaredCard,
             'declared_transfer' => $declaredTransfer,

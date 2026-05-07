@@ -26,13 +26,17 @@ class PagosController extends Controller
                 fn ($q) => $q->whereDate('payments.created_at', today())
             );
 
-        // Totals (same filters, no pagination)
+        // Totals con split de "ventas de hoy" vs "cuentas anteriores".
+        // Necesitamos el JOIN a sales para clasificar por antigüedad.
         $totals = (clone $baseQuery)
+            ->join('sales as s', 's.id', '=', 'payments.sale_id')
             ->select(DB::raw("
-                COALESCE(SUM(amount), 0) as total,
-                COALESCE(SUM(CASE WHEN method = 'cash' THEN amount END), 0) as cash,
-                COALESCE(SUM(CASE WHEN method = 'card' THEN amount END), 0) as card,
-                COALESCE(SUM(CASE WHEN method = 'transfer' THEN amount END), 0) as transfer
+                COALESCE(SUM(payments.amount), 0) as total,
+                COALESCE(SUM(CASE WHEN payments.method = 'cash' THEN payments.amount END), 0) as cash,
+                COALESCE(SUM(CASE WHEN payments.method = 'card' THEN payments.amount END), 0) as card,
+                COALESCE(SUM(CASE WHEN payments.method = 'transfer' THEN payments.amount END), 0) as transfer,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(payments.created_at) THEN payments.amount END), 0) as from_today,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(payments.created_at) THEN payments.amount END), 0) as from_previous
             "))
             ->first();
 

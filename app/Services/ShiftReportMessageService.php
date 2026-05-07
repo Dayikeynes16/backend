@@ -36,18 +36,31 @@ class ShiftReportMessageService
         $lines[] = '';
 
         $lines[] = '━━━━━━━━━━━━━━━━━━';
-        $lines[] = '*VENTAS*';
-        $lines[] = '• Total vendido: '.$this->money($shift->total_sales);
-        $lines[] = '• N.° de ventas: '.(int) $shift->sale_count;
+
+        // Sección "VENTAS GENERADAS HOY" — sólo lo que realmente se vendió en
+        // el turno. Los abonos a cuentas viejas NO entran aquí.
+        $lines[] = '🛒 *VENTAS GENERADAS*';
+        $lines[] = '• Total: '.$this->money($shift->sales_generated_amount).' ('.(int) $shift->sales_generated_count.' '.($shift->sales_generated_count == 1 ? 'venta' : 'ventas').')';
         if ($cancelledCount > 0) {
             $lines[] = '• Canceladas: '.$cancelledCount.' ('.$this->money($cancelledAmount).')';
         }
         $lines[] = '';
 
-        $lines[] = '*MÉTODOS DE PAGO*';
+        // Sección "DINERO INGRESADO EN CAJA" — lo que entró al cajón, separado
+        // entre cobranza de ventas del turno y abonos a cuentas anteriores.
+        $totalCollected = (float) $shift->total_cash + (float) $shift->total_card + (float) $shift->total_transfer;
+        $fromToday = (float) $shift->collections_from_today_amount;
+        $fromPrevious = (float) $shift->collections_from_previous_amount;
+
+        $lines[] = '💰 *DINERO INGRESADO EN CAJA*';
         $lines[] = '• Efectivo: '.$this->money($shift->total_cash);
         $lines[] = '• Tarjeta: '.$this->money($shift->total_card);
         $lines[] = '• Transferencia: '.$this->money($shift->total_transfer);
+        $lines[] = '• *Total cobrado: '.$this->money($totalCollected).'*';
+        if ($fromPrevious > 0) {
+            $lines[] = '   ↳ De ventas de hoy: '.$this->money($fromToday);
+            $lines[] = '   ↳ Abonos a cuentas anteriores: '.$this->money($fromPrevious);
+        }
         $lines[] = '';
 
         $lines[] = '*EFECTIVO*';

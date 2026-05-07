@@ -11,12 +11,15 @@ use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\RecalculateClosedShifts;
 use App\Services\SalePaymentService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerPaymentController extends Controller
 {
@@ -85,7 +88,7 @@ class CustomerPaymentController extends Controller
                     ->withoutGlobalScopes()
                     ->where('branch_id', $customer->branch_id)
                     ->count();
-                $folio = 'CG-' . str_pad($count + 1, 5, '0', STR_PAD_LEFT);
+                $folio = 'CG-'.str_pad($count + 1, 5, '0', STR_PAD_LEFT);
 
                 $customerPayment = CustomerPayment::create([
                     'tenant_id' => $customer->tenant_id,
@@ -105,13 +108,19 @@ class CustomerPaymentController extends Controller
                 $applied = [];
 
                 foreach ($sales as $sale) {
-                    if ($remaining <= 0) break;
+                    if ($remaining <= 0) {
+                        break;
+                    }
 
                     $currentPending = (float) $sale->fresh()->amount_pending;
-                    if ($currentPending <= 0) continue;
+                    if ($currentPending <= 0) {
+                        continue;
+                    }
 
                     $portion = round(min($remaining, $currentPending), 2);
-                    if ($portion <= 0) continue;
+                    if ($portion <= 0) {
+                        continue;
+                    }
 
                     Payment::create([
                         'sale_id' => $sale->id,
@@ -143,9 +152,9 @@ class CustomerPaymentController extends Controller
                     'affected_sale_ids' => collect($applied)->pluck('sale_id')->all(),
                 ];
             });
-        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+        } catch (HttpResponseException $e) {
             throw $e;
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             return response()->json(['message' => $e->getMessage()], $e->getStatusCode());
         }
 
@@ -240,7 +249,9 @@ class CustomerPaymentController extends Controller
         // Post-commit: recalc de shifts cerrados afectados + broadcast
         foreach ($affectedSaleIds as $saleId) {
             $sale = Sale::find($saleId);
-            if (! $sale) continue;
+            if (! $sale) {
+                continue;
+            }
 
             $this->recalculateAffectedShifts($sale);
 
@@ -262,52 +273,10 @@ class CustomerPaymentController extends Controller
 
     /**
      * Recalcula turnos cerrados que incluyeron pagos de esta venta.
-     * Copia adaptada de WorkbenchController::recalculateAffectedShifts
-     * para no acoplar esta feature al controlador de workbench.
      */
     private function recalculateAffectedShifts(Sale $sale): void
     {
-        $payments = Payment::withTrashed()
-            ->where('sale_id', $sale->id)
-            ->get();
-
-        $affectedUserIds = $payments->pluck('user_id')->unique();
-
-        foreach ($affectedUserIds as $userId) {
-            $userPayments = $payments->where('user_id', $userId);
-            $earliest = $userPayments->min('created_at');
-            if (! $earliest) continue;
-
-            $shifts = CashRegisterShift::where('user_id', $userId)
-                ->whereNotNull('closed_at')
-                ->where('opened_at', '<=', $earliest)
-                ->get();
-
-            foreach ($shifts as $shift) {
-                $shiftPayments = Payment::where('user_id', $shift->user_id)
-                    ->where('created_at', '>=', $shift->opened_at)
-                    ->where('created_at', '<=', $shift->closed_at)
-                    ->get();
-
-                $totalCash = (float) $shiftPayments->where('method', 'cash')->sum('amount');
-                $totalCard = (float) $shiftPayments->where('method', 'card')->sum('amount');
-                $totalTransfer = (float) $shiftPayments->where('method', 'transfer')->sum('amount');
-                $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
-
-                $expected = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
-                $declared = (float) $shift->declared_amount;
-
-                $shift->update([
-                    'total_cash' => $totalCash,
-                    'total_card' => $totalCard,
-                    'total_transfer' => $totalTransfer,
-                    'total_sales' => $totalCash + $totalCard + $totalTransfer,
-                    'sale_count' => $shiftPayments->pluck('sale_id')->unique()->count(),
-                    'expected_amount' => $expected,
-                    'difference' => round($declared - $expected, 2),
-                ]);
-            }
-        }
+        app(RecalculateClosedShifts::class)->forSale($sale);
     }
 
     /**

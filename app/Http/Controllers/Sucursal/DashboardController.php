@@ -44,6 +44,12 @@ class DashboardController extends Controller
             ? round((($totalsToday - $totalsYesterday) / $totalsYesterday) * 100, 1)
             : null;
 
+        // Cobranza del día: TODOS los payments creados en `date`, separando los
+        // que aplican a ventas creadas el mismo día vs los que aplican a ventas
+        // anteriores (abonos a cuentas viejas). El desglose por método y por
+        // antigüedad va en `paymentMethods`.
+        $collected = $this->collectionsBreakdown(['s.branch_id' => $branchId], $date);
+
         $totals = [
             'total_sales' => $totalsToday,
             'total_sales_yesterday' => $totalsYesterday,
@@ -54,13 +60,18 @@ class DashboardController extends Controller
             'total_card' => (float) $salesForDate->where('payment_method', 'card')->sum('total'),
             'total_transfer' => (float) $salesForDate->where('payment_method', 'transfer')->sum('total'),
             'average' => $salesForDate->count() > 0 ? round((float) $salesForDate->avg('total'), 2) : 0,
+            // KPI separado: dinero ingresado hoy (cobranza), distinto de "vendido hoy".
+            'total_collected' => $collected['total'],
+            'collected_from_today' => $collected['from_today'],
+            'collected_from_previous' => $collected['from_previous'],
         ];
 
         // Ventas por hora (hoy y ayer) — rango 7h a 19h (13 horas = rango operativo típico).
         $hoursData = $this->hourlyBreakdown($branchId, $date);
         $yesterdayHoursData = $this->hourlyBreakdown($branchId, $yesterday);
 
-        // Desglose de métodos de pago (dinámico, no hardcoded).
+        // Desglose de cobranza por método de pago (no son "ventas por método",
+        // son "pagos cobrados por método"; pueden incluir abonos a cuentas viejas).
         $paymentMethods = $this->paymentMethodsBreakdown($branchId, $date);
 
         $topProducts = SaleItem::select('product_name', DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(subtotal) as total_revenue'))
@@ -252,7 +263,10 @@ class DashboardController extends Controller
     }
 
     /**
-     * Desglose por método de pago del día. Dinámico — agrupado por payments.method.
+     * Cobranza del día por método con split entre "de ventas de hoy" y
+     * "de cuentas anteriores" (abonos retroactivos).
+     *
+     * @param  array<string,mixed>  $filter  filtros aplicados a la tabla sales (alias `s`)
      */
     private function paymentMethodsBreakdown(int $branchId, string $date): array
     {
@@ -260,8 +274,15 @@ class DashboardController extends Controller
             ->join('sales as s', 's.id', '=', 'p.sale_id')
             ->where('s.branch_id', $branchId)
             ->whereNull('p.deleted_at')
+            ->whereNull('s.deleted_at')
             ->whereDate('p.created_at', $date)
-            ->selectRaw('p.method as method, COALESCE(SUM(p.amount), 0) as total, COUNT(*) as count')
+            ->selectRaw('
+                p.method as method,
+                COALESCE(SUM(p.amount), 0) as total,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) as from_today,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) as from_previous,
+                COUNT(*) as count
+            ')
             ->groupBy('p.method')
             ->orderByDesc('total')
             ->get()
@@ -269,8 +290,46 @@ class DashboardController extends Controller
                 'method' => (string) $r->method,
                 'label' => PaymentMethod::resolveLabel((string) $r->method),
                 'total' => (float) $r->total,
+                'from_today' => (float) $r->from_today,
+                'from_previous' => (float) $r->from_previous,
                 'count' => (int) $r->count,
             ])
             ->all();
+    }
+
+    /**
+     * Totales de cobranza del día (suma de todos los métodos) con split por
+     * origen: pagos a ventas creadas ese mismo día vs pagos a ventas anteriores.
+     *
+     * @param  array<string,mixed>  $filter  ej. ['s.branch_id' => 1] o ['s.tenant_id' => 1]
+     * @return array{total: float, from_today: float, from_previous: float}
+     */
+    private function collectionsBreakdown(array $filter, string $date): array
+    {
+        $row = DB::table('payments as p')
+            ->join('sales as s', 's.id', '=', 'p.sale_id')
+            ->where(function ($q) use ($filter) {
+                foreach ($filter as $col => $val) {
+                    if ($val === null || $val === '') {
+                        continue;
+                    }
+                    $q->where($col, $val);
+                }
+            })
+            ->whereNull('p.deleted_at')
+            ->whereNull('s.deleted_at')
+            ->whereDate('p.created_at', $date)
+            ->selectRaw('
+                COALESCE(SUM(p.amount), 0) as total,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) as from_today,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) as from_previous
+            ')
+            ->first();
+
+        return [
+            'total' => round((float) $row->total, 2),
+            'from_today' => round((float) $row->from_today, 2),
+            'from_previous' => round((float) $row->from_previous, 2),
+        ];
     }
 }

@@ -24,7 +24,7 @@ class ShiftReportMessageServiceTest extends TestCase
         parent::setUp();
         $this->seedTenant();
         app()->instance('tenant', $this->tenant);
-        $this->svc = new ShiftReportMessageService();
+        $this->svc = new ShiftReportMessageService;
         Carbon::setTestNow('2026-04-24 20:45:00');
     }
 
@@ -48,6 +48,13 @@ class ShiftReportMessageServiceTest extends TestCase
             'total_transfer' => 1140,
             'total_sales' => 12540,
             'sale_count' => 48,
+            // Fixture por default: todo cobrado fueron ventas del propio turno
+            // (sin abonos retroactivos). Las pruebas que cubren el caso del
+            // incidente sobreescriben estos valores.
+            'sales_generated_amount' => 12540,
+            'sales_generated_count' => 48,
+            'collections_from_today_amount' => 12540,
+            'collections_from_previous_amount' => 0,
             'declared_amount' => 7680,
             'declared_card' => 3200,
             'declared_transfer' => 1140,
@@ -68,15 +75,61 @@ class ShiftReportMessageServiceTest extends TestCase
         $this->assertStringContainsString('Test — Sucursal 1', $text);
         $this->assertStringContainsString('Cajero: cajero', $text);
         $this->assertStringContainsString('24/04/2026 20:45', $text);
-        $this->assertStringContainsString('Total vendido: $12,540.00', $text);
-        $this->assertStringContainsString('N.° de ventas: 48', $text);
+        // Nueva nomenclatura: separa ventas generadas de cobranza.
+        $this->assertStringContainsString('VENTAS GENERADAS', $text);
+        $this->assertStringContainsString('Total: $12,540.00 (48 ventas)', $text);
+        $this->assertStringContainsString('DINERO INGRESADO EN CAJA', $text);
         $this->assertStringContainsString('Efectivo: $8,200.00', $text);
         $this->assertStringContainsString('Tarjeta: $3,200.00', $text);
         $this->assertStringContainsString('Transferencia: $1,140.00', $text);
+        $this->assertStringContainsString('Total cobrado: $12,540.00', $text);
         $this->assertStringContainsString('Fondo inicial: $500.00', $text);
         $this->assertStringContainsString('Esperado: $7,700.00', $text);
         $this->assertStringContainsString('Declarado: $7,680.00', $text);
         $this->assertStringContainsString('Diferencia: -$20.00', $text);
+    }
+
+    public function test_separates_today_sales_from_old_debt_collections(): void
+    {
+        // Caso del incidente: $30k abonados a deudas viejas + $5k de ventas hoy.
+        $shift = $this->makeClosedShift([
+            'total_cash' => 35000,
+            'total_card' => 0,
+            'total_transfer' => 0,
+            'total_sales' => 35000, // legacy = cobranza total
+            'sale_count' => 5,
+            'sales_generated_amount' => 5000,
+            'sales_generated_count' => 4,
+            'collections_from_today_amount' => 5000,
+            'collections_from_previous_amount' => 30000,
+            'declared_amount' => 35500,
+            'expected_amount' => 35500,
+            'difference' => 0,
+        ]);
+
+        $text = $this->svc->buildShiftCloseText($shift);
+
+        // Lo "vendido" debe reflejar SOLO lo del turno, no los $30k abonados.
+        $this->assertStringContainsString('Total: $5,000.00 (4 ventas)', $text);
+        // El total cobrado sí incluye todo (el cajón cuadra contra esto).
+        $this->assertStringContainsString('Total cobrado: $35,000.00', $text);
+        // Y el split debe ser explícito.
+        $this->assertStringContainsString('De ventas de hoy: $5,000.00', $text);
+        $this->assertStringContainsString('Abonos a cuentas anteriores: $30,000.00', $text);
+        // Lo más importante: NO confundir cobranza con vendido.
+        $this->assertStringNotContainsString('Total: $35,000.00 (', $text);
+    }
+
+    public function test_omits_split_lines_when_no_old_debt_collections(): void
+    {
+        $shift = $this->makeClosedShift(); // collections_from_previous = 0
+
+        $text = $this->svc->buildShiftCloseText($shift);
+
+        // Si no hay abonos retroactivos, no se muestra el desglose: ahorra
+        // ruido visual en el día normal.
+        $this->assertStringNotContainsString('De ventas de hoy:', $text);
+        $this->assertStringNotContainsString('Abonos a cuentas anteriores:', $text);
     }
 
     public function test_omits_cancelled_line_when_there_are_none(): void
@@ -165,7 +218,11 @@ class ShiftReportMessageServiceTest extends TestCase
         $text = $this->svc->buildShiftCloseText($shift);
 
         $this->assertStringContainsString('Sin diferencias', $text);
-        $this->assertStringNotContainsString('• Total: ', $text);
+        // El per-method breakdown de diferencias no debe aparecer.
+        // (`• Total cobrado:` siempre aparece en la sección de cobranza, así
+        //  validamos la línea de diferencias por su sufijo numérico signado.)
+        $this->assertStringNotContainsString('• Total: -$', $text);
+        $this->assertStringNotContainsString('• Total: +$', $text);
     }
 
     public function test_shows_per_method_breakdown_when_any_diff_non_zero(): void

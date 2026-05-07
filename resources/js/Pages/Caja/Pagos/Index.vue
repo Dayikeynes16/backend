@@ -136,6 +136,18 @@ const paidPct = computed(() => {
                     </div>
                     <p class="font-mono text-3xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(totals?.total || 0).toFixed(2) }}</p>
 
+                    <!-- Origen del dinero (split por antigüedad de la venta) -->
+                    <div v-if="parseFloat(totals?.from_previous || 0) > 0" class="mt-3 grid grid-cols-2 gap-2">
+                        <div class="rounded-lg bg-emerald-50 px-3 py-2">
+                            <p class="text-[10px] font-medium uppercase tracking-wide text-emerald-600">De ventas de hoy</p>
+                            <p class="mt-0.5 font-mono text-sm font-bold tabular-nums text-emerald-700">${{ parseFloat(totals?.from_today || 0).toFixed(2) }}</p>
+                        </div>
+                        <div class="rounded-lg bg-amber-50 px-3 py-2">
+                            <p class="text-[10px] font-medium uppercase tracking-wide text-amber-600">Cuentas anteriores</p>
+                            <p class="mt-0.5 font-mono text-sm font-bold tabular-nums text-amber-700">${{ parseFloat(totals?.from_previous || 0).toFixed(2) }}</p>
+                        </div>
+                    </div>
+
                     <!-- Method breakdown cards -->
                     <div class="mt-4 grid grid-cols-3 gap-2">
                         <div v-for="m in ['cash', 'card', 'transfer']" :key="m"

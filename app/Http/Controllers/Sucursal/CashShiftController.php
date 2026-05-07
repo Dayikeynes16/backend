@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use App\Services\ShiftReportMessageService;
+use App\Services\ShiftTotalsCalculator;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -106,7 +107,7 @@ class CashShiftController extends Controller
             ->with('success', 'Turno abierto.');
     }
 
-    public function close(Request $request): RedirectResponse
+    public function close(Request $request, ShiftTotalsCalculator $calculator): RedirectResponse
     {
         $user = Auth::user();
 
@@ -114,13 +115,12 @@ class CashShiftController extends Controller
             ->whereNull('closed_at')
             ->firstOrFail();
 
-        $payments = Payment::where('user_id', $user->id)
-            ->where('created_at', '>=', $shift->opened_at)
-            ->get();
+        $closingAt = now();
+        $totals = $calculator->compute($user->branch_id, $user->id, $shift->opened_at, $closingAt);
 
-        $totalCash = (float) $payments->where('method', 'cash')->sum('amount');
-        $totalCard = (float) $payments->where('method', 'card')->sum('amount');
-        $totalTransfer = (float) $payments->where('method', 'transfer')->sum('amount');
+        $totalCash = $totals['total_cash'];
+        $totalCard = $totals['total_card'];
+        $totalTransfer = $totals['total_transfer'];
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
 
         // Métodos que requieren declaración: habilitados en la sucursal +
@@ -172,12 +172,20 @@ class CashShiftController extends Controller
         $totalDiff = round(($diffCash ?? 0) + ($diffCard ?? 0) + ($diffTransfer ?? 0), 2);
 
         $shift->update([
-            'closed_at' => now(),
+            'closed_at' => $closingAt,
             'total_cash' => $totalCash,
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
+            // total_sales (legacy) = cobranza total del turno = lo que entró al
+            // cajón. Se mantiene para no romper código que la consume; en la UI
+            // se etiqueta como "Cobrado en turno".
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
-            'sale_count' => $payments->pluck('sale_id')->unique()->count(),
+            'sale_count' => $totals['collections_count'],
+            // Métricas separadas: ventas reales del turno vs cobranza retroactiva.
+            'sales_generated_amount' => $totals['sales_generated_amount'],
+            'sales_generated_count' => $totals['sales_generated_count'],
+            'collections_from_today_amount' => $totals['collections_from_today_amount'],
+            'collections_from_previous_amount' => $totals['collections_from_previous_amount'],
             // declared_* puede ser NULL (columnas nullable) — null = "no aplica".
             'declared_amount' => $declaredCash,
             'declared_card' => $declaredCard,
@@ -220,7 +228,7 @@ class CashShiftController extends Controller
         ]);
     }
 
-    public function recalculate(CashRegisterShift $shift): RedirectResponse
+    public function recalculate(CashRegisterShift $shift, ShiftTotalsCalculator $calculator): RedirectResponse
     {
         $user = Auth::user();
         $this->authorizeAdmin($user, $shift);
@@ -229,14 +237,11 @@ class CashShiftController extends Controller
             return back()->with('error', 'Solo se pueden recalcular turnos cerrados.');
         }
 
-        $payments = Payment::where('user_id', $shift->user_id)
-            ->where('created_at', '>=', $shift->opened_at)
-            ->when($shift->closed_at, fn ($q) => $q->where('created_at', '<=', $shift->closed_at))
-            ->get();
+        $totals = $calculator->compute($shift->branch_id, $shift->user_id, $shift->opened_at, $shift->closed_at);
 
-        $totalCash = (float) $payments->where('method', 'cash')->sum('amount');
-        $totalCard = (float) $payments->where('method', 'card')->sum('amount');
-        $totalTransfer = (float) $payments->where('method', 'transfer')->sum('amount');
+        $totalCash = $totals['total_cash'];
+        $totalCard = $totals['total_card'];
+        $totalTransfer = $totals['total_transfer'];
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
 
         $expected = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
@@ -256,7 +261,11 @@ class CashShiftController extends Controller
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
-            'sale_count' => $payments->pluck('sale_id')->unique()->count(),
+            'sale_count' => $totals['collections_count'],
+            'sales_generated_amount' => $totals['sales_generated_amount'],
+            'sales_generated_count' => $totals['sales_generated_count'],
+            'collections_from_today_amount' => $totals['collections_from_today_amount'],
+            'collections_from_previous_amount' => $totals['collections_from_previous_amount'],
             'expected_amount' => $expected,
             // difference_* no nullable; persistir 0 cuando no aplica.
             'difference' => $diffCash ?? 0,

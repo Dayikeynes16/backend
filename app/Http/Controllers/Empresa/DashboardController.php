@@ -61,6 +61,9 @@ class DashboardController extends Controller
             ? round((($totalsToday - $totalsYesterday) / $totalsYesterday) * 100, 1)
             : null;
 
+        // Cobranza del día con split por origen (ventas de hoy vs cuentas viejas).
+        $collected = $this->collectionsBreakdown($scopeFilter, $date);
+
         $totals = [
             'total_sales' => $totalsToday,
             'total_sales_yesterday' => $totalsYesterday,
@@ -71,6 +74,9 @@ class DashboardController extends Controller
             'total_card' => (float) $salesForDate->where('payment_method', 'card')->sum('total'),
             'total_transfer' => (float) $salesForDate->where('payment_method', 'transfer')->sum('total'),
             'average' => $salesForDate->count() > 0 ? round((float) $salesForDate->avg('total'), 2) : 0,
+            'total_collected' => $collected['total'],
+            'collected_from_today' => $collected['from_today'],
+            'collected_from_previous' => $collected['from_previous'],
         ];
 
         $hoursData = $this->hourlyBreakdown($scopeFilter, $date);
@@ -187,11 +193,16 @@ class DashboardController extends Controller
         return $out;
     }
 
+    /**
+     * Cobranza del día por método con split entre "de ventas de hoy" y
+     * "de cuentas anteriores" (abonos retroactivos).
+     */
     private function paymentMethodsBreakdown(array $filter, string $date): array
     {
         $query = DB::table('payments as p')
             ->join('sales as s', 's.id', '=', 'p.sale_id')
             ->whereNull('p.deleted_at')
+            ->whereNull('s.deleted_at')
             ->whereDate('p.created_at', $date);
 
         foreach ($filter as $col => $val) {
@@ -202,7 +213,13 @@ class DashboardController extends Controller
         }
 
         return $query
-            ->selectRaw('p.method as method, COALESCE(SUM(p.amount), 0) as total, COUNT(*) as count')
+            ->selectRaw('
+                p.method as method,
+                COALESCE(SUM(p.amount), 0) as total,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) as from_today,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) as from_previous,
+                COUNT(*) as count
+            ')
             ->groupBy('p.method')
             ->orderByDesc('total')
             ->get()
@@ -210,9 +227,44 @@ class DashboardController extends Controller
                 'method' => (string) $r->method,
                 'label' => PaymentMethod::resolveLabel((string) $r->method),
                 'total' => (float) $r->total,
+                'from_today' => (float) $r->from_today,
+                'from_previous' => (float) $r->from_previous,
                 'count' => (int) $r->count,
             ])
             ->all();
+    }
+
+    /**
+     * Totales de cobranza del día con split por origen.
+     *
+     * @return array{total: float, from_today: float, from_previous: float}
+     */
+    private function collectionsBreakdown(array $filter, string $date): array
+    {
+        $query = DB::table('payments as p')
+            ->join('sales as s', 's.id', '=', 'p.sale_id')
+            ->whereNull('p.deleted_at')
+            ->whereNull('s.deleted_at')
+            ->whereDate('p.created_at', $date);
+
+        foreach ($filter as $col => $val) {
+            if ($val === null || $val === '') {
+                continue;
+            }
+            $query->where('s.'.$col, $val);
+        }
+
+        $row = $query->selectRaw('
+                COALESCE(SUM(p.amount), 0) as total,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) as from_today,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) as from_previous
+            ')->first();
+
+        return [
+            'total' => round((float) $row->total, 2),
+            'from_today' => round((float) $row->from_today, 2),
+            'from_previous' => round((float) $row->from_previous, 2),
+        ];
     }
 
     private function expensesSnapshot(array $filter, string $date, string $yesterday): array

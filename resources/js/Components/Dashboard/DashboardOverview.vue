@@ -206,7 +206,7 @@ const scopeLabel = computed(() => {
         <!-- KPI ROW -->
         <div class="cn-kpi-row">
             <div class="cn-kpi cn-kpi--wine">
-                <div class="cn-kpi__label">Ventas</div>
+                <div class="cn-kpi__label">Ventas generadas hoy</div>
                 <div class="cn-kpi__value">
                     <span class="cn-currency">$</span>{{ splitAmount(totals.total_sales)[0] }}<span class="cn-currency">.{{ splitAmount(totals.total_sales)[1] }}</span>
                 </div>
@@ -218,6 +218,23 @@ const scopeLabel = computed(() => {
                 <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
                     <path :d="salesSpark.area" fill="#F8DDE0" opacity="0.5"/>
                     <path :d="salesSpark.line" fill="none" stroke="#C9374A" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+            </div>
+
+            <!-- KPI: Cobranza hoy (separado de Ventas — incluye abonos a cuentas viejas) -->
+            <div v-if="totals.total_collected !== undefined" class="cn-kpi cn-kpi--green">
+                <div class="cn-kpi__label">Cobranza hoy</div>
+                <div class="cn-kpi__value">
+                    <span class="cn-currency">$</span>{{ splitAmount(totals.total_collected)[0] }}<span class="cn-currency">.{{ splitAmount(totals.total_collected)[1] }}</span>
+                </div>
+                <div class="cn-kpi__delta" style="color: var(--cn-ink-3)">
+                    <span v-if="totals.collected_from_previous > 0">
+                        ↳ ${{ splitAmount(totals.collected_from_previous)[0] }} de cuentas anteriores
+                    </span>
+                    <span v-else>Dinero ingresado en caja</span>
+                </div>
+                <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
+                    <rect x="0" y="13" width="120" height="2" fill="#E6F4EE"/>
                 </svg>
             </div>
 
@@ -419,8 +436,8 @@ const scopeLabel = computed(() => {
             <div class="cn-chart-card">
                 <div class="cn-chart-head">
                     <div>
-                        <div class="cn-chart-title">Métodos de pago</div>
-                        <div class="cn-chart-subtitle">Distribución del día</div>
+                        <div class="cn-chart-title">Cobranza por método</div>
+                        <div class="cn-chart-subtitle">Dinero ingresado hoy (incluye abonos a cuentas anteriores)</div>
                     </div>
                 </div>
                 <div v-if="!paymentMethods || paymentMethods.length === 0" class="cn-empty">Sin pagos registrados</div>

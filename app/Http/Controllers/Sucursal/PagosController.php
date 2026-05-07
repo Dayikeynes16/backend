@@ -62,41 +62,59 @@ class PagosController extends Controller
 
     /**
      * Resumen del día seleccionado para Pagos. Filtra por la fecha en que se
-     * cobraron los pagos (`payments.created_at`) — incluye pagos hoy de ventas
-     * de días anteriores. Excluye pagos soft-deleted (de ventas canceladas).
+     * cobraron los pagos (`payments.created_at`) e incluye el split entre
+     * pagos a ventas del día y abonos a ventas anteriores (cuentas viejas).
+     * Excluye pagos soft-deleted (de ventas canceladas).
      */
     private function buildDailySummary(int $branchId, string $date, array $paymentMethods): array
     {
-        // Agregación dinámica por método, sin importar cuántos haya activos.
+        // Agregación dinámica por método con split por antigüedad de la venta.
         $byMethodRows = DB::table('payments as p')
             ->join('sales as s', 's.id', '=', 'p.sale_id')
             ->where('s.branch_id', $branchId)
             ->whereDate('p.created_at', $date)
             ->whereNull('p.deleted_at')
-            ->selectRaw('p.method as method, COALESCE(SUM(p.amount), 0) as amount, COUNT(*) as count')
+            ->whereNull('s.deleted_at')
+            ->selectRaw('
+                p.method as method,
+                COALESCE(SUM(p.amount), 0) as amount,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) as from_today,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) as from_previous,
+                COUNT(*) as count
+            ')
             ->groupBy('p.method')
             ->get()
             ->keyBy('method');
 
         $byMethod = [];
         $totalCollected = 0.0;
+        $totalFromToday = 0.0;
+        $totalFromPrevious = 0.0;
         $paymentCount = 0;
         foreach ($paymentMethods as $method) {
             $row = $byMethodRows->get($method);
             $amount = $row ? (float) $row->amount : 0.0;
             $count = $row ? (int) $row->count : 0;
+            $fromToday = $row ? (float) $row->from_today : 0.0;
+            $fromPrevious = $row ? (float) $row->from_previous : 0.0;
             $byMethod[] = [
                 'method' => $method,
                 'amount' => $amount,
                 'count' => $count,
+                'from_today' => $fromToday,
+                'from_previous' => $fromPrevious,
             ];
             $totalCollected += $amount;
+            $totalFromToday += $fromToday;
+            $totalFromPrevious += $fromPrevious;
             $paymentCount += $count;
         }
 
         return [
             'date' => $date,
             'total_collected' => $totalCollected,
+            'collected_from_today' => round($totalFromToday, 2),
+            'collected_from_previous' => round($totalFromPrevious, 2),
             'payment_count' => $paymentCount,
             'avg_payment' => $paymentCount > 0 ? round($totalCollected / $paymentCount, 2) : 0.0,
             'by_method' => $byMethod,
