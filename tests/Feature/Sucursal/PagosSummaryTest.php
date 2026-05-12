@@ -3,6 +3,7 @@
 namespace Tests\Feature\Sucursal;
 
 use App\Enums\SaleStatus;
+use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Sale;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -144,6 +145,37 @@ class PagosSummaryTest extends TestCase
 
         $this->assertSame(0.0, $summary['total_collected']);
         $this->assertSame(0, $summary['payment_count']);
+    }
+
+    public function test_pagos_list_can_be_filtered_by_customer_presence(): void
+    {
+        $customer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Cliente Uno',
+            'phone' => '5551234567',
+        ]);
+
+        $saleWithCustomer = $this->makeSale(['created_at' => now(), 'customer_id' => $customer->id]);
+        $saleWalkIn = $this->makeSale(['created_at' => now()]);
+
+        $paymentWith = Payment::create(['sale_id' => $saleWithCustomer->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 100, 'created_at' => now()]);
+        $paymentWalkIn = Payment::create(['sale_id' => $saleWalkIn->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 50, 'created_at' => now()]);
+
+        $this->actingAs($this->adminSucursal);
+        $date = now()->toDateString();
+        $base = route('sucursal.pagos.index', $this->tenant->slug);
+
+        $all = $this->get("{$base}?date={$date}")->viewData('page')['props']['payments']['data'];
+        $this->assertEqualsCanonicalizing([$paymentWith->id, $paymentWalkIn->id], collect($all)->pluck('id')->all());
+
+        $withCustomer = $this->get("{$base}?date={$date}&customer=with")->viewData('page')['props']['payments']['data'];
+        $this->assertSame([$paymentWith->id], collect($withCustomer)->pluck('id')->all());
+        $this->assertSame('Cliente Uno', $withCustomer[0]['sale']['customer']['name']);
+
+        $withoutCustomer = $this->get("{$base}?date={$date}&customer=without")->viewData('page')['props']['payments']['data'];
+        $this->assertSame([$paymentWalkIn->id], collect($withoutCustomer)->pluck('id')->all());
+        $this->assertNull($withoutCustomer[0]['sale']['customer']);
     }
 
     public function test_daily_summary_groups_correctly_by_active_methods_only(): void

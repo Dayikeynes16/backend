@@ -5,7 +5,7 @@ import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import EditPaymentForm from '@/Components/EditPaymentForm.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import DaySummaryBar from '@/Components/Historial/DaySummaryBar.vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
@@ -90,6 +90,8 @@ const statusBadge = (s) => ({
 const method = ref(props.filters?.method || '');
 const userId = ref(props.filters?.user_id || '');
 const date = ref(props.filters?.date || '');
+// customerFilter: '' = todos, 'with' = pagos de ventas con cliente, 'without' = de mostrador.
+const customerFilter = ref(props.filters?.customer || '');
 
 // --- Accumulated payments list ---
 const allPayments = ref([...props.payments.data]);
@@ -118,6 +120,7 @@ const applyFilters = () => {
             method: method.value || undefined,
             user_id: userId.value || undefined,
             date: date.value || undefined,
+            customer: customerFilter.value || undefined,
         }, { preserveState: true, replace: true });
     }, 300);
 };
@@ -125,6 +128,7 @@ const applyFilters = () => {
 watch(method, () => { clearTimeout(debounceTimer); applyFilters(); });
 watch(userId, () => { clearTimeout(debounceTimer); applyFilters(); });
 watch(date, () => { clearTimeout(debounceTimer); applyFilters(); });
+watch(customerFilter, () => { clearTimeout(debounceTimer); applyFilters(); });
 
 // --- Infinite scroll ---
 const loadMore = () => {
@@ -135,6 +139,7 @@ const loadMore = () => {
         method: method.value || undefined,
         user_id: userId.value || undefined,
         date: date.value || undefined,
+        customer: customerFilter.value || undefined,
     }, {
         preserveState: true, preserveScroll: true, only: ['payments'],
         onSuccess: () => {
@@ -248,6 +253,14 @@ const doDeletePayment = () => {
                             {{ f.l }}
                         </button>
                     </div>
+                    <div class="flex gap-1.5">
+                        <button v-for="f in [{v:'',l:'Todos'},{v:'with',l:'Con cliente'},{v:'without',l:'Sin cliente'}]"
+                            :key="f.v" @click="customerFilter = f.v"
+                            :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                                customerFilter === f.v ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">
+                            {{ f.l }}
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Payments list -->
@@ -272,9 +285,13 @@ const doDeletePayment = () => {
                                     </div>
                                     <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(payment.amount).toFixed(2) }}</span>
                                 </div>
-                                <div class="mt-1 flex items-center justify-between">
-                                    <span class="text-xs text-gray-400 truncate">{{ payment.user?.name }}</span>
-                                    <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                <div class="mt-1 flex items-center justify-between gap-2">
+                                    <span class="min-w-0 truncate text-xs text-gray-400">
+                                        <span v-if="payment.sale?.customer" class="font-medium text-gray-500">{{ payment.sale.customer.name }}</span>
+                                        <span v-else class="italic text-gray-300">Mostrador</span>
+                                        <span class="text-gray-300"> · {{ payment.user?.name }}</span>
+                                    </span>
+                                    <span class="shrink-0 text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
                                 </div>
                             </div>
                         </div>
@@ -387,11 +404,17 @@ const doDeletePayment = () => {
 
                         <!-- Section B: Venta asociada -->
                         <div v-if="selected.sale" class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
-                            <div class="flex items-center justify-between bg-gray-50 px-5 py-3">
-                                <div class="flex items-center gap-2.5">
+                            <div class="flex items-center justify-between gap-3 bg-gray-50 px-5 py-3">
+                                <div class="flex min-w-0 items-center gap-2.5">
                                     <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">Venta</h3>
-                                    <span class="text-sm font-bold text-gray-900">{{ selected.sale.folio }}</span>
+                                    <Link :href="route('sucursal.historial.index', { tenant: tenant.slug, search: selected.sale.folio })"
+                                        class="text-sm font-bold text-red-600 hover:underline" title="Ver esta venta en el historial">{{ selected.sale.folio }}</Link>
                                     <span :class="[statusBadge(selected.sale.status).cls, 'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset']">{{ statusBadge(selected.sale.status).label }}</span>
+                                </div>
+                                <div class="flex shrink-0 items-center gap-1.5 text-xs">
+                                    <svg class="h-3.5 w-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                                    <span v-if="selected.sale.customer" class="font-semibold text-gray-700">{{ selected.sale.customer.name }}</span>
+                                    <span v-else class="italic text-gray-400">Venta de mostrador</span>
                                 </div>
                             </div>
                             <div class="px-5 py-4">

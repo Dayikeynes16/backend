@@ -21,17 +21,26 @@ class PagosController extends Controller
         $tenantId = app('tenant')->id;
         $date = $request->date ?: now()->toDateString();
 
-        // baseQuery aplica filtros del usuario (method, user_id) sobre el listado.
-        // El resumen del día NO se filtra por method/user — siempre muestra el
+        // baseQuery aplica los filtros del usuario (method, user_id, customer)
+        // sobre el listado. El resumen del día NO se filtra — siempre muestra el
         // panorama completo del día independiente de los filtros del listado.
-        $baseQuery = Payment::whereHas('sale', fn ($q) => $q->where('branch_id', $branchId))
+        // customer: 'with' = pagos de ventas con cliente, 'without' = de mostrador.
+        $baseQuery = Payment::whereHas('sale', function ($q) use ($branchId, $request) {
+            $q->where('branch_id', $branchId);
+            if ($request->customer === 'with') {
+                $q->whereNotNull('customer_id');
+            } elseif ($request->customer === 'without') {
+                $q->whereNull('customer_id');
+            }
+        })
             ->when($request->method, fn ($q, $m) => $q->where('method', $m))
             ->when($request->user_id, fn ($q, $id) => $q->where('user_id', $id))
             ->whereDate('payments.created_at', $date);
 
         $payments = $baseQuery
             ->with([
-                'sale:id,folio,total,status,branch_id,amount_paid,amount_pending,created_at',
+                'sale:id,folio,total,status,branch_id,amount_paid,amount_pending,created_at,customer_id',
+                'sale.customer:id,name',
                 'sale.payments' => fn ($q) => $q->with('user:id,name')->orderBy('created_at'),
                 'user:id,name',
                 'updatedByUser:id,name',
@@ -67,7 +76,7 @@ class PagosController extends Controller
         return Inertia::render('Sucursal/Pagos/Index', [
             'payments' => $payments,
             'users' => $users,
-            'filters' => $request->only(['method', 'user_id', 'date']),
+            'filters' => $request->only(['method', 'user_id', 'date', 'customer']),
             'tenant' => app('tenant'),
             'canEditPayments' => $canEditPayments,
             'paymentMethods' => $paymentMethods,
