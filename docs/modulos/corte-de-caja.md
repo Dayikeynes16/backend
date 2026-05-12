@@ -183,17 +183,18 @@ Tras cerrar un turno, la pantalla `Sucursal/Cortes/Show.vue` muestra un botón *
 
 ### Contenido del mensaje
 
-Construido en backend por `ShiftReportMessageService` (ver tests en `tests/Feature/Services/ShiftReportMessageServiceTest.php`):
+Construido en backend por `ShiftReportMessageService` (ver tests en `tests/Feature/Services/ShiftReportMessageServiceTest.php`). Pensado para leerse rápido en el teléfono — el veredicto del arqueo va arriba del todo:
 
-- Encabezado con empresa y sucursal.
-- Fecha, cajero y rango del turno.
-- Totales de ventas: total vendido, número de ventas, canceladas (si las hay).
-- Desglose por método de pago: efectivo, tarjeta, transferencia.
-- Bloque de efectivo: fondo inicial, retiros (si existen), esperado, declarado, diferencia.
-- Resumen de diferencias por método. Si todas son 0 muestra "Sin diferencias ✅".
-- Notas del corte (si existen).
+1. **Encabezado**: empresa — sucursal.
+2. **Veredicto del arqueo** (lo primero que se ve): `✅ Caja cuadrada`, `⚠️ Faltante de $X en efectivo`, `⚠️ Sobrante de $X en efectivo`, `⚠️ Descuadre en otro método` o `📋 Cierre sin conteo de efectivo declarado`.
+3. **Cierre / Cajero / Turno** (rango con duración legible, p.ej. `08:00 → 22:15 (14 h 15 min)`).
+4. **🛒 VENTAS DEL TURNO** _(lo que se vendió)_: `N ventas · $total` desde `sales_generated_*`; si hubo canceladas, `Canceladas: N ($monto) — no cuentan en el total`.
+5. **💰 DINERO COBRADO EN EL TURNO** _(lo que entró al cajón)_: efectivo / tarjeta / transferencia + total cobrado. Si hubo abonos a cuentas anteriores, se desglosa `De ventas del turno` vs `Abonos a fiados anteriores`.
+6. **🧾 ARQUEO DE EFECTIVO** con la cuenta explícita: `fondo inicial + efectivo cobrado − retiros = esperado en cajón` → `contado por el cajero` → `diferencia` (o "Diferencia: ninguna ✅"). Si el conteo no se declaró, lo indica.
+7. **Descuadre en tarjeta / transferencia**: solo si el cajero las declaró Y la diferencia es ≠ 0 (`declarado $X vs registrado $Y ($Z)`). Si cuadran o no se declararon, no se mencionan.
+8. **Notas del cajero** (si existen).
 
-Ventas canceladas se consultan de `sales` filtradas por `branch_id`, `user_id` y `created_at` entre `opened_at` y `closed_at` del turno, con `status = cancelled`.
+Ventas canceladas se consultan de `sales` filtradas por `branch_id`, `user_id` y `created_at` entre `opened_at` y `closed_at` del turno, con `status = cancelled`. El "esperado en cajón" es `opening_amount + total_cash − retiros` (mismo cálculo que en el cierre y en `RecalculateClosedShifts`).
 
 ### Apertura automática
 
