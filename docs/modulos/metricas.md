@@ -10,13 +10,12 @@ Este glosario es la fuente de verdad del módulo. Todo cálculo nuevo o refactor
 
 | Métrica | Definición | Notas |
 |---|---|---|
-| **Ventas brutas** (`gross_sales`) | Monto de ventas entregadas en el rango, antes de restar cancelaciones. `SUM(sales.total)` con `status IN (Completed, Pending)` AND `cancelled_at IS NULL` AND `deleted_at IS NULL`, agrupado por `COALESCE(completed_at, created_at)` dentro del rango. | Incluye crédito y pagos parciales. Excluye `Active` (carrito en curso) y `Cancelled`. |
-| **Ventas netas** (`net_sales`) | Ventas brutas − `SUM(total)` de ventas `Cancelled` con `cancelled_at` en el rango. | **KPI principal**. En UI se muestra como "Ventas". |
+| **Ventas** (`gross_sales` = `net_sales`) | `SUM(sales.total)` de las ventas con `status` en el conjunto seleccionado **(default: solo `Completed`)** AND `cancelled_at IS NULL` (salvo que se incluya `cancelled`) AND `deleted_at IS NULL`, agrupado por `COALESCE(completed_at, created_at)` dentro del rango. | **KPI principal**, en UI "Ventas" / "Ventas netas". Por default solo `Completed`; el chip de estados permite añadir `Pending` y/o `Cancelled`. Incluye crédito y pagos parciales. `net_sales == gross_sales` — las cancelaciones **ya no se restan** (ver fila Cancelaciones). |
 | **Cobrado** (`collected`) | Dinero recibido en caja durante el rango. `SUM(payments.amount)` con `payments.created_at IN rango` AND `payments.deleted_at IS NULL`. | Única fuente: tabla `payments`. Incluye contado y abonos a crédito anterior. |
 | **Saldo pendiente generado** | Crédito otorgado en el rango. `SUM(sales.amount_pending)` donde `completed_at IN rango` y `amount_pending > 0`. | Alimenta vista Cobranza. |
-| **# Tickets** (`ticket_count`) | `COUNT(sales)` con los mismos filtros de Ventas brutas. | |
-| **Ticket promedio** (`avg_ticket`) | `net_sales / ticket_count`. | Si `ticket_count = 0` → `null` (UI muestra `—`). |
-| **Cancelaciones** (`cancelled_count` + `cancelled_amount`) | Conteo y monto de `status=Cancelled` agrupado por `cancelled_at` en rango. | Se muestran aparte. Ya restadas de Ventas netas. |
+| **# Tickets** (`ticket_count`) | `COUNT(sales)` con los mismos filtros de Ventas. | |
+| **Ticket promedio** (`avg_ticket`) | `gross_sales / ticket_count`. | Si `ticket_count = 0` → `null` (UI muestra `—`). |
+| **Cancelaciones** (`cancelled_count` + `cancelled_amount`) | Conteo y monto de `status=Cancelled` agrupado por `cancelled_at` en rango. | Cifra **informativa**, se muestra aparte. **No** se resta de Ventas. |
 | **Ganancia bruta** (`gross_profit`) | `SUM(subtotal − cost_price_at_sale × quantity)` sobre items de ventas no canceladas **donde `cost_price_at_sale IS NOT NULL`**. | Reportar cobertura: "X de Y items con costo registrado". |
 | **Margen %** | `gross_profit / revenue` del subconjunto con costo. | Base ≠ Ventas netas; documentado explícitamente en UI. |
 
@@ -102,7 +101,7 @@ app/
 
 ### Resumen del día (`DailySummaryService`)
 
-`app/Services/DailySummaryService.php` es la **fuente única de verdad** para el "resumen de hoy" de las pantallas operativas: Dashboard (Sucursal y Empresa), Historial y Pagos. No reimplementa nada: arma un `DateRange` de un solo día y **delega los agregados de venta a `SalesMetrics::summary()`**, de modo que esas pantallas y el módulo de Métricas muestran exactamente los mismos números para un mismo día (misma fecha canónica `COALESCE(completed_at, created_at)`, mismo glosario).
+`app/Services/DailySummaryService.php` es la **fuente única de verdad** para el "resumen de hoy" de las pantallas operativas: Dashboard (Sucursal y Empresa), Historial y Pagos. No reimplementa nada: arma un `DateRange` de un solo día y **delega los agregados de venta a `SalesMetrics::summary()`** con el default de estados (solo `Completed`), de modo que esas pantallas y el módulo de Métricas (con su chip en "Completadas") muestran exactamente los mismos números para un mismo día — misma fecha canónica `COALESCE(completed_at, created_at)`, mismo glosario. Las cancelaciones del día se exponen como cifra aparte (`cancelled_amount`/`cancelled_count`), no se restan de "Ventas netas".
 
 Lo único propio del servicio es la **cobranza del día desglosada por método** con split por antigüedad de la venta — `from_today` (ventas cuyo día canónico es la fecha) vs `from_previous` (abonos a cuentas anteriores) —, un cálculo específico de "hoy" que no aplica a rangos arbitrarios. Lista siempre los métodos habilitados aunque tengan `$0`.
 

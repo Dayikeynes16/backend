@@ -64,23 +64,25 @@ class SaleHistorySummaryTest extends TestCase
         return $this->get($url)->viewData('page')['props']['sales']['data'];
     }
 
-    public function test_day_summary_counts_completed_and_pending_and_subtracts_cancellations(): void
+    public function test_day_summary_counts_only_completed_and_reports_cancellations_separately(): void
     {
-        // Cobrada (cuenta en ventas netas)
+        // Cobrada al contado (cuenta)
         $this->makeSale(['total' => 200, 'status' => SaleStatus::Completed, 'created_at' => now()]);
-        // Pendiente (cuenta en ventas netas — venta del día, aún no cobrada)
-        $this->makeSale(['total' => 500, 'status' => SaleStatus::Pending, 'amount_paid' => 0, 'amount_pending' => 500, 'created_at' => now()]);
+        // "Cobrada" a crédito (status completed con saldo pendiente) — también cuenta
+        $this->makeSale(['total' => 500, 'status' => SaleStatus::Completed, 'amount_paid' => 0, 'amount_pending' => 500, 'created_at' => now()]);
+        // Pendiente (NO cuenta)
+        $this->makeSale(['total' => 999, 'status' => SaleStatus::Pending, 'amount_paid' => 0, 'amount_pending' => 999, 'created_at' => now()]);
         // Activa (NO cuenta — todavía en mesa de trabajo)
         $this->makeSale(['total' => 300, 'status' => SaleStatus::Active, 'amount_paid' => 0, 'amount_pending' => 300, 'created_at' => now()]);
-        // Cancelada (NO cuenta en brutas; se resta de las netas)
-        $this->makeSale(['total' => 200, 'status' => SaleStatus::Cancelled, 'created_at' => now(), 'cancelled_at' => now()]);
+        // Cancelada (NO cuenta en ventas; se reporta aparte, NO se resta)
+        $this->makeSale(['total' => 50, 'status' => SaleStatus::Cancelled, 'created_at' => now(), 'cancelled_at' => now()]);
 
         $summary = $this->daySummary();
 
-        $this->assertSame(500.0, $summary['total_sold']);   // (200 + 500) brutas - 200 canceladas
+        $this->assertSame(700.0, $summary['total_sold']);   // 200 + 500 (solo completadas)
         $this->assertSame(2, $summary['sale_count']);
-        $this->assertSame(250.0, $summary['avg_ticket']);   // 500 / 2
-        $this->assertSame(200.0, $summary['cancelled_amount']);
+        $this->assertSame(350.0, $summary['avg_ticket']);   // 700 / 2
+        $this->assertSame(50.0, $summary['cancelled_amount']);  // reportada aparte, no restada
         $this->assertSame(1, $summary['cancelled_count']);
     }
 

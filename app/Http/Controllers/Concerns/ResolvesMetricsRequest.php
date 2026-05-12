@@ -59,13 +59,14 @@ trait ResolvesMetricsRequest
 
     /**
      * Resuelve qué estados de venta incluir en las métricas de "venta generada"
-     * (Resumen, Ventas, Productos, Clientes). Default: ['completed', 'pending']
-     * — el panorama de lo que se entregó, cobrado o no.
+     * (Resumen, Ventas, Productos, Clientes). Default: ['completed'] — solo
+     * ventas cobradas/cerradas, igual que el resto de pantallas (Dashboard,
+     * Historial). El chip de estados permite añadir 'pending' y/o 'cancelled'.
      * Acepta query param `statuses=completed,pending,cancelled`.
      */
     protected function resolveStatuses(Request $request): array
     {
-        $default = ['completed', 'pending'];
+        $default = ['completed'];
         $raw = $request->query('statuses');
 
         if ($raw === null || $raw === '') {

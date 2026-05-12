@@ -118,10 +118,11 @@ class DailySummaryServiceTest extends TestCase
             0.01
         );
 
-        // Valores concretos del escenario.
-        $this->assertEqualsWithDelta(1900.0, $day['sales']['gross_sales'], 0.01); // A 1000 + B 500 + C 400
-        $this->assertEqualsWithDelta(901.0, $day['sales']['net_sales'], 0.01);     // 1900 - 999 cancelada
-        $this->assertSame(3, $day['sales']['ticket_count']);
+        // Valores concretos del escenario: solo completadas (A 1000 + B 500).
+        // C es pending → no cuenta. D es cancelada → no cuenta, se reporta aparte.
+        $this->assertEqualsWithDelta(1500.0, $day['sales']['gross_sales'], 0.01);
+        $this->assertEqualsWithDelta(1500.0, $day['sales']['net_sales'], 0.01);   // net == gross (no se restan cancelaciones)
+        $this->assertSame(2, $day['sales']['ticket_count']);
         $this->assertEqualsWithDelta(999.0, $day['sales']['cancelled_amount'], 0.01);
         $this->assertSame(1, $day['sales']['cancelled_count']);
     }
@@ -136,8 +137,8 @@ class DailySummaryServiceTest extends TestCase
         $this->assertEqualsWithDelta(800.0, $day['sales_yesterday']['net_sales'], 0.01);
         $this->assertSame(1, $day['sales_yesterday']['ticket_count']);
 
-        // delta = (901 - 800) / 800 * 100 = 12.625 → 12.6
-        $this->assertSame(12.6, $day['delta_pct']);
+        // delta = (1500 - 800) / 800 * 100 = 87.5
+        $this->assertSame(87.5, $day['delta_pct']);
     }
 
     public function test_collections_block_totals_and_origin_split(): void
@@ -176,12 +177,12 @@ class DailySummaryServiceTest extends TestCase
 
         $hourly = app(DailySummaryService::class)->hourlySeries($this->branch->id, $this->tenant->id, self::DATE);
 
-        // A 10:00 → $1000, B 11:00 → $500, C 12:00 → $400.
+        // Solo completadas: A 10:00 → $1000, B 11:00 → $500.
         $this->assertEqualsWithDelta(1000.0, $hourly[10]['total'], 0.01);
         $this->assertSame(1, $hourly[10]['trx']);
         $this->assertEqualsWithDelta(500.0, $hourly[11]['total'], 0.01);
-        $this->assertEqualsWithDelta(400.0, $hourly[12]['total'], 0.01);
-        // La cancelada de las 09:30 NO aparece, ni la venta de ayer/mañana.
+        // C (pending, 12:00), D (cancelada, 09:30) y E (venta de ayer) NO aparecen.
+        $this->assertArrayNotHasKey(12, $hourly);
         $this->assertArrayNotHasKey(9, $hourly);
         $this->assertArrayNotHasKey(16, $hourly);
     }

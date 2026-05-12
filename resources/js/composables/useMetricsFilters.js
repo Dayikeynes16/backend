@@ -16,10 +16,12 @@ export function useMetricsFilters(routeName) {
     const compare = ref(page.props.compare ?? true);
     const branchId = ref(page.props.selected_branch_id ?? null);
     // Estados de venta a considerar para métricas de "venta generada"
-    // (Resumen, Ventas, Productos, Clientes). Default: Completed + Pending —
-    // refleja lo entregado en el período, esté cobrado o no. Persiste en
-    // query string para que sobreviva la navegación entre tabs.
-    const DEFAULT_STATUSES = ['completed', 'pending'];
+    // (Resumen, Ventas, Productos, Clientes). Default: solo Completed —
+    // igual que el resto de pantallas (Dashboard, Historial). Los chips
+    // permiten añadir Pending/Cancelled; persiste en query string para que
+    // sobreviva la navegación entre tabs. Debe coincidir con
+    // ResolvesMetricsRequest::resolveStatuses() / SalesMetrics::DEFAULT_STATUSES.
+    const DEFAULT_STATUSES = ['completed'];
     const statuses = ref(
         Array.isArray(page.props.statuses) && page.props.statuses.length > 0
             ? [...page.props.statuses]

@@ -202,12 +202,19 @@ class DashboardControllerTest extends TestCase
 
     public function test_admin_sucursal_dashboard_totals_come_from_daily_summary(): void
     {
-        // Venta cobrada hoy ($600) y una cancelada hoy ($100): netas = 500.
+        // Venta completada hoy ($600), una pendiente hoy ($300, NO cuenta) y una
+        // cancelada hoy ($100, NO se resta — se reporta aparte).
         Sale::create([
             'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id, 'user_id' => $this->cajero->id,
             'folio' => 'F-OK', 'payment_method' => 'cash',
             'total' => 600, 'amount_paid' => 600, 'amount_pending' => 0,
             'status' => SaleStatus::Completed, 'origin' => 'admin', 'completed_at' => now(),
+        ]);
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id, 'user_id' => $this->cajero->id,
+            'folio' => 'F-PEND', 'payment_method' => 'cash',
+            'total' => 300, 'amount_paid' => 0, 'amount_pending' => 300,
+            'status' => SaleStatus::Pending, 'origin' => 'admin', 'completed_at' => now(),
         ]);
         Sale::create([
             'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id, 'user_id' => $this->cajero->id,
@@ -221,10 +228,10 @@ class DashboardControllerTest extends TestCase
         $totals = $this->get(route('sucursal.dashboard', $this->tenant->slug))
             ->viewData('page')['props']['totals'];
 
-        $this->assertEqualsWithDelta(500.0, $totals['net_sales'], 0.01);
+        $this->assertEqualsWithDelta(600.0, $totals['net_sales'], 0.01);  // solo la completada
         $this->assertSame(1, $totals['sale_count']);
-        $this->assertEqualsWithDelta(500.0, $totals['avg_ticket'], 0.01);
-        $this->assertEqualsWithDelta(100.0, $totals['cancelled_amount'], 0.01);
+        $this->assertEqualsWithDelta(600.0, $totals['avg_ticket'], 0.01);
+        $this->assertEqualsWithDelta(100.0, $totals['cancelled_amount'], 0.01);  // reportada, no restada
         $this->assertSame(1, $totals['cancelled_count']);
     }
 }

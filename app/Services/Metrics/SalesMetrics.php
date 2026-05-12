@@ -8,8 +8,15 @@ use Illuminate\Support\Facades\DB;
 
 class SalesMetrics extends AbstractMetrics
 {
-    /** @var list<string> */
-    public const DEFAULT_STATUSES = ['completed', 'pending'];
+    /**
+     * Estados que cuentan como "venta" por default en todas las pantallas.
+     * Solo `completed` (ventas cobradas/cerradas). Las pendientes y canceladas
+     * se pueden añadir vía el chip de estados en Métricas, pero no entran al
+     * número principal de "Ventas".
+     *
+     * @var list<string>
+     */
+    public const DEFAULT_STATUSES = ['completed'];
 
     public function summary(DateRange $range, ?int $branchId, int $tenantId, array $statuses = self::DEFAULT_STATUSES): array
     {
@@ -25,14 +32,15 @@ class SalesMetrics extends AbstractMetrics
         $cancelled = $this->cancelled($range, $branchId, $tenantId);
         $tickets = $this->ticketStats($range, $branchId, $tenantId, $statuses);
 
-        $net = $gross - $cancelled['amount'];
-
+        // "Ventas netas" = suma de las ventas de los estados seleccionados
+        // (default: solo Completed). Las cancelaciones se reportan aparte como
+        // cifra informativa; NO se restan aquí.
         return [
             'gross_sales' => $gross,
-            'net_sales' => $net,
+            'net_sales' => $gross,
             'collected' => $this->collected($range, $branchId, $tenantId),
             'ticket_count' => $tickets['count'],
-            'avg_ticket' => $tickets['count'] > 0 ? round($net / $tickets['count'], 2) : null,
+            'avg_ticket' => $tickets['count'] > 0 ? round($gross / $tickets['count'], 2) : null,
             'cancelled_count' => $cancelled['count'],
             'cancelled_amount' => $cancelled['amount'],
         ];

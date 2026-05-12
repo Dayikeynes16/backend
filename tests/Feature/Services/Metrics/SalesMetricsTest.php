@@ -80,11 +80,12 @@ class SalesMetricsTest extends TestCase
         $this->assertSame(3, $r['ticket_count']);
     }
 
-    public function test_includes_pending_sales_in_gross_sales(): void
+    public function test_excludes_pending_sales_by_default(): void
     {
-        // Pending = delivered but not yet collected (per SaleStatus enum comments).
-        // Uses created_at since completed_at is null.
+        // Default statuses = [completed], así que las pendientes NO entran al
+        // número de "Ventas". Se pueden añadir vía el chip de estados.
         Carbon::setTestNow('2026-04-15 10:00:00');
+        $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);
         $this->makeCompletedSale([
             'total' => 120,
             'status' => SaleStatus::Pending->value,
@@ -93,9 +94,14 @@ class SalesMetricsTest extends TestCase
         Carbon::setTestNow('2026-04-17 10:00:00');
 
         $r = $this->current();
-        $this->assertSame(120.0, $r['gross_sales']);
-        $this->assertSame(120.0, $r['net_sales']);
+        $this->assertSame(100.0, $r['gross_sales']);
+        $this->assertSame(100.0, $r['net_sales']);
         $this->assertSame(1, $r['ticket_count']);
+
+        // Con el chip de "Pendientes" activo, sí se suman.
+        $withPending = $this->svc->summary(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id, ['completed', 'pending'])['current'];
+        $this->assertSame(220.0, $withPending['gross_sales']);
+        $this->assertSame(2, $withPending['ticket_count']);
     }
 
     public function test_excludes_cancelled_sales_from_gross_sales(): void
@@ -111,7 +117,7 @@ class SalesMetricsTest extends TestCase
         $this->assertSame(100.0, $r['gross_sales']);
     }
 
-    public function test_subtracts_cancelled_amount_from_net_sales_when_cancelled_at_in_range(): void
+    public function test_cancellations_are_reported_separately_not_subtracted_from_net_sales(): void
     {
         $this->makeCompletedSale(['total' => 500, 'completed_at' => '2026-04-15 10:00:00']);
         $this->makeCompletedSale([
@@ -122,8 +128,8 @@ class SalesMetricsTest extends TestCase
 
         $r = $this->current();
         $this->assertSame(500.0, $r['gross_sales']);
-        $this->assertSame(300.0, $r['net_sales']);
-        $this->assertSame(1, $r['cancelled_count']);
+        $this->assertSame(500.0, $r['net_sales']);   // ya NO se resta la cancelación
+        $this->assertSame(1, $r['cancelled_count']); // pero sí se reporta aparte
         $this->assertSame(200.0, $r['cancelled_amount']);
     }
 
@@ -306,9 +312,9 @@ class SalesMetricsTest extends TestCase
         $this->assertSame(0, collect($series)->sum('tickets'));
     }
 
-    public function test_reconciles_summary_net_sales_with_daily_series_minus_cancelled(): void
+    public function test_reconciles_summary_with_daily_series(): void
     {
-        // 2 ventas brutas + 1 cancelada en rango.
+        // 2 ventas + 1 cancelada en rango.
         $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);
         $this->makeCompletedSale(['total' => 250, 'completed_at' => '2026-04-16 10:00:00']);
         $this->makeCompletedSale([
@@ -322,8 +328,10 @@ class SalesMetricsTest extends TestCase
         $series = $this->svc->dailySeries($range, $this->branch->id, $this->tenant->id);
         $seriesTotal = collect($series)->sum('total');
 
+        $this->assertSame(350.0, $summary['gross_sales']);
+        $this->assertSame($summary['gross_sales'], $summary['net_sales']);     // net == gross (sin restar cancelaciones)
         $this->assertSame($summary['gross_sales'], (float) $seriesTotal);
-        $this->assertSame($summary['net_sales'], $summary['gross_sales'] - $summary['cancelled_amount']);
+        $this->assertSame(50.0, $summary['cancelled_amount']);                  // la cancelada se reporta aparte
     }
 
     public function test_statuses_filter_only_completed_excludes_pending(): void
@@ -348,9 +356,9 @@ class SalesMetricsTest extends TestCase
         $this->assertSame(2, $bothStates['ticket_count']);
     }
 
-    public function test_default_statuses_include_completed_and_pending(): void
+    public function test_default_statuses_only_completed(): void
     {
-        // Sin pasar $statuses, debe respetar el nuevo default [completed, pending].
+        // Sin pasar $statuses, el default es [completed] — la pendiente no cuenta.
         Carbon::setTestNow('2026-04-15 10:00:00');
         $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);
         $this->makeCompletedSale([
@@ -362,8 +370,8 @@ class SalesMetricsTest extends TestCase
 
         $r = $this->svc->summary(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id)['current'];
 
-        $this->assertSame(300.0, $r['gross_sales']);
-        $this->assertSame(2, $r['ticket_count']);
+        $this->assertSame(100.0, $r['gross_sales']);
+        $this->assertSame(1, $r['ticket_count']);
     }
 
     public function test_statuses_filter_propagates_to_daily_series(): void
