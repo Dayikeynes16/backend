@@ -170,6 +170,27 @@ class SaleHistorySummaryTest extends TestCase
         $this->assertSame([$oldSale->id], array_column($found, 'id'));
     }
 
+    public function test_search_by_folio_finds_a_pending_sale_from_another_day(): void
+    {
+        // Venta PENDIENTE de hace 3 días — el caso reportado: no aparece en
+        // "hoy" ni saltaría el filtro de estado si no se buscara.
+        $pending = $this->makeSale([
+            'total' => 400,
+            'status' => SaleStatus::Pending,
+            'amount_paid' => 0,
+            'amount_pending' => 400,
+            'created_at' => now()->subDays(3),
+            'completed_at' => null,
+        ]);
+
+        $today = $this->listedSales();
+        $this->assertNotContains($pending->id, array_column($today, 'id'));
+
+        $found = $this->listedSales('&search='.$pending->folio);
+        $this->assertSame([$pending->id], array_column($found, 'id'));
+        $this->assertSame('pending', $found[0]['status']);
+    }
+
     public function test_day_summary_collections_split_mixed_payments_by_method(): void
     {
         $sale = $this->makeSale(['total' => 500, 'status' => SaleStatus::Completed, 'amount_paid' => 500, 'created_at' => now()]);
