@@ -20,16 +20,17 @@ class SaleHistoryController extends Controller
         $tenantId = app('tenant')->id;
         $date = $request->date ?: now()->toDateString();
 
-        // Historial muestra las ventas del día (fecha canónica COALESCE(completed_at,
-        // created_at), igual que Métricas/Dashboard): cobradas o pendientes, sin
-        // canceladas. Buscar por folio levanta esos filtros y muestra cualquier estado.
+        // Sin búsqueda: ventas del día (fecha canónica COALESCE(completed_at,
+        // created_at), igual que Métricas/Dashboard), solo cobradas o pendientes.
+        // Buscar por folio ignora la fecha y el estado: busca en todo el historial
+        // de la sucursal, así una venta de otro día aparece sin tener que cambiar la fecha.
         $sales = Sale::where('branch_id', $branchId)
             ->with(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer:id,name,phone'])
-            ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
             ->when(
                 $request->search,
                 fn ($q, $term) => $q->where('folio', 'ilike', "%{$term}%"),
-                fn ($q) => $q->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value]),
+                fn ($q) => $q->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
+                    ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value]),
             )
             ->orderByDesc('created_at')
             ->orderByDesc('id')

@@ -150,6 +150,26 @@ class SaleHistorySummaryTest extends TestCase
         $this->assertSame('cancelled', $sales[0]['status']);
     }
 
+    public function test_search_by_folio_finds_sales_from_other_days(): void
+    {
+        // Venta de hace 5 días — no debe aparecer en el listado del día de hoy...
+        $oldSale = $this->makeSale([
+            'total' => 750,
+            'status' => SaleStatus::Completed,
+            'created_at' => now()->subDays(5),
+            'completed_at' => now()->subDays(5),
+        ]);
+        $this->makeSale(['total' => 100, 'status' => SaleStatus::Completed, 'created_at' => now()]);
+
+        // ...sin búsqueda, mirando "hoy", no está.
+        $today = $this->listedSales();
+        $this->assertNotContains($oldSale->id, array_column($today, 'id'));
+
+        // ...pero al buscar por su folio aparece, aunque la fecha siga puesta en hoy.
+        $found = $this->listedSales('&search='.$oldSale->folio);
+        $this->assertSame([$oldSale->id], array_column($found, 'id'));
+    }
+
     public function test_day_summary_collections_split_mixed_payments_by_method(): void
     {
         $sale = $this->makeSale(['total' => 500, 'status' => SaleStatus::Completed, 'amount_paid' => 500, 'created_at' => now()]);
