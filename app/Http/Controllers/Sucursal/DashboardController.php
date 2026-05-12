@@ -40,7 +40,7 @@ class DashboardController extends Controller
         $c = $day['collections'];
 
         $totals = [
-            // Ventas netas del día (cobradas o pendientes, excluye canceladas).
+            // Ventas netas del día = suma de ventas completadas; cancelaciones aparte (no se restan).
             'net_sales' => $s['net_sales'],
             'net_sales_yesterday' => $sy['net_sales'],
             'delta_pct' => $day['delta_pct'],
@@ -55,9 +55,13 @@ class DashboardController extends Controller
             'collected_from_previous' => $c['from_previous'],
         ];
 
-        // Ventas por hora (hoy y ayer) — rango 7h a 19h (13 horas = rango operativo típico).
-        $hoursData = $this->shapeHourly($summary->hourlySeries($branchId, $tenantId, $date));
-        $yesterdayHoursData = $this->shapeHourly($summary->hourlySeries($branchId, $tenantId, $yesterday));
+        // Ventas por hora — hoy vs ayer. La ventana se adapta a las ventas reales
+        // (de la primera a la última hora con ventas, hoy o ayer); si no hubo, 7h–19h.
+        $hourlyToday = $summary->hourlySeries($branchId, $tenantId, $date);
+        $hourlyYesterday = $summary->hourlySeries($branchId, $tenantId, $yesterday);
+        [$startHour, $endHour] = $this->hourlyWindow($hourlyToday, $hourlyYesterday);
+        $hoursData = $this->shapeHourly($hourlyToday, $startHour, $endHour);
+        $yesterdayHoursData = $this->shapeHourly($hourlyYesterday, $startHour, $endHour);
 
         // Top productos del día (ventas no canceladas, por fecha canónica).
         $topProducts = SaleItem::select('product_name', DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(subtotal) as total_revenue'))
@@ -223,16 +227,36 @@ class DashboardController extends Controller
     }
 
     /**
+     * Ventana de horas a pintar en el chart "ventas por hora": de la primera a
+     * la última hora con ventas (hoy o ayer), con 1h de margen a cada lado.
+     * Si no hubo ventas en ninguno de los dos días, ventana por defecto 7h–19h.
+     *
+     * @param  array<int, array{trx: int, total: float}>  $today
+     * @param  array<int, array{trx: int, total: float}>  $yesterday
+     * @return array{0: int, 1: int} [horaInicio, horaFin] (0–23)
+     */
+    private function hourlyWindow(array $today, array $yesterday): array
+    {
+        $hours = array_keys($today + $yesterday);
+        if ($hours === []) {
+            return [7, 19];
+        }
+
+        return [max(0, min($hours) - 1), min(23, max($hours) + 1)];
+    }
+
+    /**
      * Convierte el mapa hora→{trx,total} de SalesMetrics al formato del chart
-     * "ventas por hora": lista fija de 7h a 19h con ceros donde no hubo ventas.
+     * "ventas por hora": una entrada por cada hora del rango [$startHour, $endHour],
+     * con ceros donde no hubo ventas.
      *
      * @param  array<int, array{trx: int, total: float}>  $byHour
      * @return list<array{h: string, sales: float, trx: int}>
      */
-    private function shapeHourly(array $byHour): array
+    private function shapeHourly(array $byHour, int $startHour, int $endHour): array
     {
         $out = [];
-        for ($h = 7; $h <= 19; $h++) {
+        for ($h = $startHour; $h <= $endHour; $h++) {
             $out[] = [
                 'h' => (string) $h,
                 'sales' => (float) ($byHour[$h]['total'] ?? 0),

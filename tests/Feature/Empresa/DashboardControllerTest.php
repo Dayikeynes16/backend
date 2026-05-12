@@ -234,4 +234,44 @@ class DashboardControllerTest extends TestCase
         $this->assertEqualsWithDelta(100.0, $totals['cancelled_amount'], 0.01);  // reportada, no restada
         $this->assertSame(1, $totals['cancelled_count']);
     }
+
+    public function test_hours_chart_window_expands_to_actual_sales(): void
+    {
+        // Ventas a las 5am y a las 10pm de hoy → el chart debe cubrir esas horas.
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id, 'user_id' => $this->cajero->id,
+            'folio' => 'F-EARLY', 'payment_method' => 'cash',
+            'total' => 100, 'amount_paid' => 100, 'amount_pending' => 0,
+            'status' => SaleStatus::Completed, 'origin' => 'admin',
+            'completed_at' => now()->startOfDay()->setHour(5),
+        ]);
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id, 'user_id' => $this->cajero->id,
+            'folio' => 'F-LATE', 'payment_method' => 'cash',
+            'total' => 200, 'amount_paid' => 200, 'amount_pending' => 0,
+            'status' => SaleStatus::Completed, 'origin' => 'admin',
+            'completed_at' => now()->startOfDay()->setHour(22),
+        ]);
+
+        $this->actingAs($this->adminSucursal);
+        $hours = $this->get(route('sucursal.dashboard', $this->tenant->slug))->viewData('page')['props']['hoursData'];
+        $byHour = collect($hours)->keyBy(fn ($r) => (int) $r['h']);
+        $allHours = $byHour->keys()->all();
+
+        $this->assertSame(4, min($allHours));   // 5 - 1h de margen
+        $this->assertSame(23, max($allHours));  // 22 + 1h, clamp a 23
+        $this->assertGreaterThan(0, $byHour[5]['trx']);
+        $this->assertGreaterThan(0, $byHour[22]['trx']);
+        $this->assertSame(0, $byHour[12]['trx']);  // hora sin ventas, presente con 0
+    }
+
+    public function test_hours_chart_defaults_to_business_hours_when_no_sales(): void
+    {
+        $this->actingAs($this->adminSucursal);
+        $hours = $this->get(route('sucursal.dashboard', $this->tenant->slug))->viewData('page')['props']['hoursData'];
+        $allHours = array_map(fn ($r) => (int) $r['h'], $hours);
+
+        $this->assertSame(7, min($allHours));
+        $this->assertSame(19, max($allHours));
+    }
 }
