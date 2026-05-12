@@ -94,8 +94,8 @@ class PagosSummaryTest extends TestCase
         $this->assertSame(2, $summary['payment_count']);
 
         $byMethod = collect($summary['by_method'])->keyBy('method');
-        $this->assertEquals(800.0, $byMethod['cash']['amount']);
-        $this->assertEquals(200.0, $byMethod['card']['amount']);
+        $this->assertEquals(800.0, $byMethod['cash']['total']);
+        $this->assertEquals(200.0, $byMethod['card']['total']);
     }
 
     public function test_daily_summary_excludes_payments_made_other_days(): void
@@ -159,9 +159,9 @@ class PagosSummaryTest extends TestCase
         $summary = $response->viewData('page')['props']['dailySummary'];
 
         $byMethod = collect($summary['by_method'])->keyBy('method');
-        $this->assertEquals(100.0, $byMethod['cash']['amount']);
-        $this->assertEquals(200.0, $byMethod['card']['amount']);
-        $this->assertEquals(300.0, $byMethod['transfer']['amount']);
+        $this->assertEquals(100.0, $byMethod['cash']['total']);
+        $this->assertEquals(200.0, $byMethod['card']['total']);
+        $this->assertEquals(300.0, $byMethod['transfer']['total']);
         $this->assertSame(600.0, $summary['total_collected']);
     }
 }

@@ -128,7 +128,8 @@ const peakIdx = computed(() => {
 const peakHour = computed(() => chartData.value[peakIdx.value]?.h ?? '—');
 const peakTrx = computed(() => chartData.value[peakIdx.value]?.trx ?? 0);
 const totalTrx = computed(() => chartData.value.reduce((s, d) => s + d.trx, 0));
-const avgTicket = computed(() => totalTrx.value > 0 ? props.totals.total_sales / totalTrx.value : 0);
+// Ticket promedio: viene del backend (net_sales / ticket_count), no se calcula en frontend.
+const avgTicket = computed(() => Number(props.totals?.avg_ticket ?? 0));
 
 const hover = ref(null);
 
@@ -167,14 +168,14 @@ const maxExpenseCat = computed(() => {
     return Math.max(...vals, 1);
 });
 
-// Utilidad neta = ventas - gastos del día
+// Utilidad operativa = ventas netas − gastos del día
 const netProfit = computed(() => {
-    const sales = Number(props.totals?.total_sales ?? 0);
+    const sales = Number(props.totals?.net_sales ?? 0);
     const exp = Number(props.expenses?.total ?? 0);
     return sales - exp;
 });
 const netProfitYesterday = computed(() => {
-    const sales = Number(props.totals?.total_sales_yesterday ?? 0);
+    const sales = Number(props.totals?.net_sales_yesterday ?? 0);
     const exp = Number(props.expenses?.total_yesterday ?? 0);
     return sales - exp;
 });
@@ -206,11 +207,14 @@ const scopeLabel = computed(() => {
         <!-- KPI ROW -->
         <div class="cn-kpi-row">
             <div class="cn-kpi cn-kpi--wine">
-                <div class="cn-kpi__label">Ventas generadas hoy</div>
+                <div class="cn-kpi__label">Ventas netas hoy</div>
                 <div class="cn-kpi__value">
-                    <span class="cn-currency">$</span>{{ splitAmount(totals.total_sales)[0] }}<span class="cn-currency">.{{ splitAmount(totals.total_sales)[1] }}</span>
+                    <span class="cn-currency">$</span>{{ splitAmount(totals.net_sales)[0] }}<span class="cn-currency">.{{ splitAmount(totals.net_sales)[1] }}</span>
                 </div>
-                <div v-if="totals.delta_pct !== null && totals.delta_pct !== undefined" :class="['cn-kpi__delta', { neg: totals.delta_pct < 0 }]">
+                <div v-if="totals.cancelled_count > 0" class="cn-kpi__delta" style="color: var(--cn-amber)">
+                    {{ totals.cancelled_count }} cancelada{{ totals.cancelled_count > 1 ? 's' : '' }} · −${{ splitAmount(totals.cancelled_amount)[0] }}
+                </div>
+                <div v-else-if="totals.delta_pct !== null && totals.delta_pct !== undefined" :class="['cn-kpi__delta', { neg: totals.delta_pct < 0 }]">
                     <svg width="10" height="10" viewBox="0 0 10 10" :style="{ transform: totals.delta_pct < 0 ? 'rotate(180deg)' : 'none' }"><path d="M5 1 L9 7 L1 7 Z" fill="currentColor"/></svg>
                     {{ totals.delta_pct >= 0 ? '+' : '' }}{{ totals.delta_pct }}% vs ayer
                 </div>
@@ -242,7 +246,7 @@ const scopeLabel = computed(() => {
                 <div class="cn-kpi__label">Transacciones</div>
                 <div class="cn-kpi__value">{{ totals.sale_count }}</div>
                 <div class="cn-kpi__delta">
-                    {{ totals.sale_count - (totals.sale_count_yesterday ?? 0) >= 0 ? '+' : '' }}{{ totals.sale_count - (totals.sale_count_yesterday ?? 0) }} vs ayer
+                    {{ totals.sale_count - (totals.sale_count_yesterday ?? 0) >= 0 ? '+' : '' }}{{ totals.sale_count - (totals.sale_count_yesterday ?? 0) }} vs ayer · ${{ fmt(avgTicket) }}/ticket
                 </div>
                 <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
                     <path :d="trxSpark.area" fill="#FEF3E6" opacity="0.5"/>
@@ -269,9 +273,9 @@ const scopeLabel = computed(() => {
                 </svg>
             </div>
 
-            <!-- KPI: Utilidad neta -->
+            <!-- KPI: Utilidad operativa -->
             <div v-if="expenses" :class="['cn-kpi', netProfit >= 0 ? 'cn-kpi--green' : 'cn-kpi--wine']">
-                <div class="cn-kpi__label">Utilidad neta</div>
+                <div class="cn-kpi__label">Utilidad operativa</div>
                 <div class="cn-kpi__value" :style="{ color: netProfit >= 0 ? 'var(--cn-green)' : 'var(--cn-wine-500)' }">
                     <span class="cn-currency">$</span>{{ splitAmount(netProfit)[0] }}<span class="cn-currency">.{{ splitAmount(netProfit)[1] }}</span>
                 </div>
@@ -280,7 +284,7 @@ const scopeLabel = computed(() => {
                     <svg width="10" height="10" viewBox="0 0 10 10" :style="{ transform: netProfitDelta < 0 ? 'rotate(180deg)' : 'none' }"><path d="M5 1 L9 7 L1 7 Z" fill="currentColor"/></svg>
                     {{ netProfitDelta >= 0 ? '+' : '' }}{{ netProfitDelta }}% vs ayer
                 </div>
-                <div v-else class="cn-kpi__delta" style="color: var(--cn-ink-3)">Ventas − gastos del día</div>
+                <div v-else class="cn-kpi__delta" style="color: var(--cn-ink-3)">Ventas netas − gastos del día</div>
                 <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
                     <rect x="0" y="13" width="120" height="2" :fill="netProfit >= 0 ? '#E6F4EE' : '#F8DDE0'"/>
                 </svg>
@@ -357,7 +361,7 @@ const scopeLabel = computed(() => {
                 <div class="cn-chart-stats">
                     <div>
                         <div class="cn-stat__label">Total hoy</div>
-                        <div class="cn-stat__value">${{ splitAmount(totals.total_sales)[0] }}<span style="color: var(--cn-ink-3); font-size: 13px">.{{ splitAmount(totals.total_sales)[1] }}</span></div>
+                        <div class="cn-stat__value">${{ splitAmount(totals.net_sales)[0] }}<span style="color: var(--cn-ink-3); font-size: 13px">.{{ splitAmount(totals.net_sales)[1] }}</span></div>
                     </div>
                     <div>
                         <div class="cn-stat__label">Ticket promedio</div>
@@ -437,7 +441,7 @@ const scopeLabel = computed(() => {
                 <div class="cn-chart-head">
                     <div>
                         <div class="cn-chart-title">Cobranza por método</div>
-                        <div class="cn-chart-subtitle">Dinero ingresado hoy (incluye abonos a cuentas anteriores)</div>
+                        <div class="cn-chart-subtitle">Pagos recibidos hoy · {{ totals.collected_from_previous > 0 ? `$${fmt(totals.collected_from_previous)} de cuentas anteriores` : 'Todo de ventas de hoy' }}</div>
                     </div>
                 </div>
                 <div v-if="!paymentMethods || paymentMethods.length === 0" class="cn-empty">Sin pagos registrados</div>

@@ -68,7 +68,7 @@ class DashboardControllerTest extends TestCase
         $response = $this->get(route('empresa.dashboard', $this->tenant->slug));
         $totals = $response->viewData('page')['props']['totals'];
         // Suma de las 2 sucursales
-        $this->assertEquals(1200, $totals['total_sales']);
+        $this->assertEquals(1200, $totals['net_sales']);
         $this->assertEquals(2, $totals['sale_count']);
     }
 
@@ -90,7 +90,7 @@ class DashboardControllerTest extends TestCase
         $this->actingAs($this->adminEmpresa);
         $response = $this->get(route('empresa.dashboard', $this->tenant->slug).'?branch_id='.$this->secondBranch->id);
         $totals = $response->viewData('page')['props']['totals'];
-        $this->assertEquals(700, $totals['total_sales']);
+        $this->assertEquals(700, $totals['net_sales']);
         $this->assertEquals(1, $totals['sale_count']);
     }
 
@@ -169,7 +169,7 @@ class DashboardControllerTest extends TestCase
         $response = $this->get(route('empresa.dashboard', $this->tenant->slug));
         $totals = $response->viewData('page')['props']['totals'];
         // El total del otro tenant NO debe aparecer
-        $this->assertEquals(0, $totals['total_sales']);
+        $this->assertEquals(0, $totals['net_sales']);
     }
 
     public function test_cajero_cannot_access_empresa_dashboard(): void
@@ -198,5 +198,33 @@ class DashboardControllerTest extends TestCase
         $expenses = $response->viewData('page')['props']['expenses'];
         $this->assertEquals(100, $expenses['total']);
         $this->assertEquals(1, $expenses['count']);
+    }
+
+    public function test_admin_sucursal_dashboard_totals_come_from_daily_summary(): void
+    {
+        // Venta cobrada hoy ($600) y una cancelada hoy ($100): netas = 500.
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id, 'user_id' => $this->cajero->id,
+            'folio' => 'F-OK', 'payment_method' => 'cash',
+            'total' => 600, 'amount_paid' => 600, 'amount_pending' => 0,
+            'status' => SaleStatus::Completed, 'origin' => 'admin', 'completed_at' => now(),
+        ]);
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id, 'user_id' => $this->cajero->id,
+            'folio' => 'F-CANCEL', 'payment_method' => 'cash',
+            'total' => 100, 'amount_paid' => 0, 'amount_pending' => 100,
+            'status' => SaleStatus::Cancelled, 'origin' => 'admin',
+            'completed_at' => now(), 'cancelled_at' => now(),
+        ]);
+
+        $this->actingAs($this->adminSucursal);
+        $totals = $this->get(route('sucursal.dashboard', $this->tenant->slug))
+            ->viewData('page')['props']['totals'];
+
+        $this->assertEqualsWithDelta(500.0, $totals['net_sales'], 0.01);
+        $this->assertSame(1, $totals['sale_count']);
+        $this->assertEqualsWithDelta(500.0, $totals['avg_ticket'], 0.01);
+        $this->assertEqualsWithDelta(100.0, $totals['cancelled_amount'], 0.01);
+        $this->assertSame(1, $totals['cancelled_count']);
     }
 }

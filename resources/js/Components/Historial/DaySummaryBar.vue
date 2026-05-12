@@ -8,7 +8,7 @@
  * - title         string · "Hoy · Lun 28 abr 2026"
  * - legend        string · texto explicativo en gris (ej. "Sólo cobradas")
  * - kpis          array · [{ label, value, format: 'currency'|'number'|'text' }]
- * - byMethod      array · [{ method, amount, count? }] (filtra por activos)
+ * - byMethod      array · [{ method, label?, total, count? }] (filtra por activos)
  * - paymentMethods array · slugs activos (cash, card, transfer, etc.)
  * - storageKey    string · key para persistir el estado expand/collapse
  *
@@ -66,9 +66,10 @@ const visibleMethods = computed(() => {
     return props.byMethod
         .filter(m => active.size === 0 || active.has(m.method))
         .map(m => {
-            const meta = methodMeta[m.method] || { label: titleCase(m.method), hue: 'gray', icon: methodMeta.cash.icon };
+            const meta = methodMeta[m.method] || { label: m.label || titleCase(m.method), hue: 'gray', icon: methodMeta.cash.icon };
             return {
                 ...m,
+                amount: Number(m.total ?? 0),
                 label: meta.label,
                 hue: meta.hue,
                 icon: meta.icon,

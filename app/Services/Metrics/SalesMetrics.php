@@ -148,6 +148,28 @@ class SalesMetrics extends AbstractMetrics
         return $this->zeroFillDays($range, $rows, ['tickets' => 0, 'total' => 0.0]);
     }
 
+    /**
+     * Ventas agrupadas por hora del día (0–23) para una fecha o rango corto,
+     * usando la misma fecha canónica y el mismo filtro de estados que el resto
+     * de métricas de venta. Devuelve únicamente las horas con movimiento; el
+     * caller decide qué rango de horas pinta.
+     *
+     * @param  list<string>  $statuses
+     * @return array<int, array{trx: int, total: float}> indexado por hora (0–23)
+     */
+    public function hourlySeries(DateRange $range, ?int $branchId, int $tenantId, array $statuses = self::DEFAULT_STATUSES): array
+    {
+        return $this->grossQuery($range, $branchId, $tenantId, $statuses)
+            ->selectRaw('EXTRACT(HOUR FROM COALESCE(completed_at, created_at)) as hour, COUNT(*) as trx, COALESCE(SUM(total), 0) as total')
+            ->groupBy('hour')
+            ->get()
+            ->mapWithKeys(fn ($r) => [(int) $r->hour => [
+                'trx' => (int) $r->trx,
+                'total' => (float) $r->total,
+            ]])
+            ->all();
+    }
+
     public function hourDayHeatmap(DateRange $range, ?int $branchId, int $tenantId, array $statuses = self::DEFAULT_STATUSES): array
     {
         $rows = $this->grossQuery($range, $branchId, $tenantId, $statuses)

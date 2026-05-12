@@ -100,6 +100,18 @@ app/
 - Filtro por tenant explícito (defensa en profundidad) — no dependemos solo del global scope.
 - Controllers parsean filtros, arman `DateRange`, invocan el servicio, renderizan Inertia.
 
+### Resumen del día (`DailySummaryService`)
+
+`app/Services/DailySummaryService.php` es la **fuente única de verdad** para el "resumen de hoy" de las pantallas operativas: Dashboard (Sucursal y Empresa), Historial y Pagos. No reimplementa nada: arma un `DateRange` de un solo día y **delega los agregados de venta a `SalesMetrics::summary()`**, de modo que esas pantallas y el módulo de Métricas muestran exactamente los mismos números para un mismo día (misma fecha canónica `COALESCE(completed_at, created_at)`, mismo glosario).
+
+Lo único propio del servicio es la **cobranza del día desglosada por método** con split por antigüedad de la venta — `from_today` (ventas cuyo día canónico es la fecha) vs `from_previous` (abonos a cuentas anteriores) —, un cálculo específico de "hoy" que no aplica a rangos arbitrarios. Lista siempre los métodos habilitados aunque tengan `$0`.
+
+- `forDate(?int $branchId, int $tenantId, string $date, array $paymentMethods)` → `['sales' => …, 'sales_yesterday' => …, 'delta_pct' => …, 'collections' => …]`
+- `hourlySeries(?int $branchId, int $tenantId, string $date)` → mapa `hora => {trx, total}` (delega en `SalesMetrics::hourlySeries()`)
+- `branchId = null` agrega todas las sucursales del tenant.
+
+Equivalencia verificada en `tests/Feature/Services/DailySummaryServiceTest.php` (los números de `DailySummaryService` coinciden con los de `SalesMetrics` para el mismo día).
+
 ### Caché
 
 - Key: `metrics:{tenantId}:{branchIdOrAll}:{axis}:{rangeHash}`

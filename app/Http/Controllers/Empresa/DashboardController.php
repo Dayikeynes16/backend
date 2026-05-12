@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Empresa;
 
-use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
@@ -12,6 +11,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
+use App\Services\DailySummaryService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +28,7 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, DailySummaryService $summary): Response
     {
         $tenant = app('tenant');
         $tz = config('app.timezone');
@@ -37,56 +37,39 @@ class DashboardController extends Controller
         $yesterday = $dateObj->subDay()->toDateString();
 
         $branchFilter = $request->integer('branch_id') ?: null;
-        // Filtro base: si hay sucursal seleccionada, lo restringimos a esa.
-        // Si no, agregamos a todas las sucursales del tenant.
         $scopeFilter = $branchFilter
             ? ['branch_id' => $branchFilter]
             : ['tenant_id' => $tenant->id];
 
-        $salesForDate = Sale::query()
-            ->where(fn ($q) => $this->applyFilter($q, $scopeFilter))
-            ->where('status', SaleStatus::Completed)
-            ->whereDate('completed_at', $date)
-            ->get();
-
-        $salesYesterday = Sale::query()
-            ->where(fn ($q) => $this->applyFilter($q, $scopeFilter))
-            ->where('status', SaleStatus::Completed)
-            ->whereDate('completed_at', $yesterday)
-            ->get();
-
-        $totalsToday = (float) $salesForDate->sum('total');
-        $totalsYesterday = (float) $salesYesterday->sum('total');
-        $deltaPct = $totalsYesterday > 0
-            ? round((($totalsToday - $totalsYesterday) / $totalsYesterday) * 100, 1)
-            : null;
-
-        // Cobranza del día con split por origen (ventas de hoy vs cuentas viejas).
-        $collected = $this->collectionsBreakdown($scopeFilter, $date);
+        // --- Fuente única de verdad: DailySummaryService (delega en SalesMetrics) ---
+        // Fecha canónica: COALESCE(completed_at, created_at) — la misma que Métricas.
+        $day = $summary->forDate($branchFilter, $tenant->id, $date);
+        $s = $day['sales'];
+        $sy = $day['sales_yesterday'];
+        $c = $day['collections'];
 
         $totals = [
-            'total_sales' => $totalsToday,
-            'total_sales_yesterday' => $totalsYesterday,
-            'delta_pct' => $deltaPct,
-            'sale_count' => $salesForDate->count(),
-            'sale_count_yesterday' => $salesYesterday->count(),
-            'total_cash' => (float) $salesForDate->where('payment_method', 'cash')->sum('total'),
-            'total_card' => (float) $salesForDate->where('payment_method', 'card')->sum('total'),
-            'total_transfer' => (float) $salesForDate->where('payment_method', 'transfer')->sum('total'),
-            'average' => $salesForDate->count() > 0 ? round((float) $salesForDate->avg('total'), 2) : 0,
-            'total_collected' => $collected['total'],
-            'collected_from_today' => $collected['from_today'],
-            'collected_from_previous' => $collected['from_previous'],
+            'net_sales' => $s['net_sales'],
+            'net_sales_yesterday' => $sy['net_sales'],
+            'delta_pct' => $day['delta_pct'],
+            'sale_count' => $s['ticket_count'],
+            'sale_count_yesterday' => $sy['ticket_count'],
+            'avg_ticket' => $s['avg_ticket'],
+            'cancelled_amount' => $s['cancelled_amount'],
+            'cancelled_count' => $s['cancelled_count'],
+            'total_collected' => $c['total'],
+            'collected_from_today' => $c['from_today'],
+            'collected_from_previous' => $c['from_previous'],
         ];
 
-        $hoursData = $this->hourlyBreakdown($scopeFilter, $date);
-        $yesterdayHoursData = $this->hourlyBreakdown($scopeFilter, $yesterday);
-        $paymentMethods = $this->paymentMethodsBreakdown($scopeFilter, $date);
+        $hoursData = $this->shapeHourly($summary->hourlySeries($branchFilter, $tenant->id, $date));
+        $yesterdayHoursData = $this->shapeHourly($summary->hourlySeries($branchFilter, $tenant->id, $yesterday));
 
         $topProducts = SaleItem::select('product_name', DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(subtotal) as total_revenue'))
             ->whereHas('sale', fn ($q) => $this->applyFilter($q, $scopeFilter)
-                ->where('status', SaleStatus::Completed)
-                ->whereDate('completed_at', $date)
+                ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value])
+                ->whereNull('cancelled_at')
+                ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
             )
             ->groupBy('product_name')
             ->orderByDesc('total_revenue')
@@ -139,7 +122,7 @@ class DashboardController extends Controller
             'totals' => $totals,
             'hoursData' => $hoursData,
             'yesterdayHoursData' => $yesterdayHoursData,
-            'paymentMethods' => $paymentMethods,
+            'paymentMethods' => $c['by_method'],
             'topProducts' => $topProducts,
             'recentShifts' => $recentShifts,
             'pendingCount' => $pendingCount,
@@ -168,103 +151,25 @@ class DashboardController extends Controller
         return $query;
     }
 
-    private function hourlyBreakdown(array $filter, string $date): array
+    /**
+     * Convierte el mapa hora→{trx,total} de SalesMetrics al formato del chart
+     * "ventas por hora": lista fija de 7h a 19h con ceros donde no hubo ventas.
+     *
+     * @param  array<int, array{trx: int, total: float}>  $byHour
+     * @return list<array{h: string, sales: float, trx: int}>
+     */
+    private function shapeHourly(array $byHour): array
     {
-        $rows = DB::table('sales')
-            ->where(fn ($q) => $this->applyFilter($q, $filter))
-            ->where('status', SaleStatus::Completed->value)
-            ->whereNull('deleted_at')
-            ->whereDate('completed_at', $date)
-            ->selectRaw('EXTRACT(HOUR FROM completed_at) as hour, COUNT(*) as trx, COALESCE(SUM(total), 0) as sales')
-            ->groupBy('hour')
-            ->get()
-            ->keyBy(fn ($r) => (int) $r->hour);
-
         $out = [];
         for ($h = 7; $h <= 19; $h++) {
-            $row = $rows->get($h);
             $out[] = [
                 'h' => (string) $h,
-                'sales' => $row ? (float) $row->sales : 0.0,
-                'trx' => $row ? (int) $row->trx : 0,
+                'sales' => (float) ($byHour[$h]['total'] ?? 0),
+                'trx' => (int) ($byHour[$h]['trx'] ?? 0),
             ];
         }
 
         return $out;
-    }
-
-    /**
-     * Cobranza del día por método con split entre "de ventas de hoy" y
-     * "de cuentas anteriores" (abonos retroactivos).
-     */
-    private function paymentMethodsBreakdown(array $filter, string $date): array
-    {
-        $query = DB::table('payments as p')
-            ->join('sales as s', 's.id', '=', 'p.sale_id')
-            ->whereNull('p.deleted_at')
-            ->whereNull('s.deleted_at')
-            ->whereDate('p.created_at', $date);
-
-        foreach ($filter as $col => $val) {
-            if ($val === null || $val === '') {
-                continue;
-            }
-            $query->where('s.'.$col, $val);
-        }
-
-        return $query
-            ->selectRaw('
-                p.method as method,
-                COALESCE(SUM(p.amount), 0) as total,
-                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) as from_today,
-                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) as from_previous,
-                COUNT(*) as count
-            ')
-            ->groupBy('p.method')
-            ->orderByDesc('total')
-            ->get()
-            ->map(fn ($r) => [
-                'method' => (string) $r->method,
-                'label' => PaymentMethod::resolveLabel((string) $r->method),
-                'total' => (float) $r->total,
-                'from_today' => (float) $r->from_today,
-                'from_previous' => (float) $r->from_previous,
-                'count' => (int) $r->count,
-            ])
-            ->all();
-    }
-
-    /**
-     * Totales de cobranza del día con split por origen.
-     *
-     * @return array{total: float, from_today: float, from_previous: float}
-     */
-    private function collectionsBreakdown(array $filter, string $date): array
-    {
-        $query = DB::table('payments as p')
-            ->join('sales as s', 's.id', '=', 'p.sale_id')
-            ->whereNull('p.deleted_at')
-            ->whereNull('s.deleted_at')
-            ->whereDate('p.created_at', $date);
-
-        foreach ($filter as $col => $val) {
-            if ($val === null || $val === '') {
-                continue;
-            }
-            $query->where('s.'.$col, $val);
-        }
-
-        $row = $query->selectRaw('
-                COALESCE(SUM(p.amount), 0) as total,
-                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) as from_today,
-                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) as from_previous
-            ')->first();
-
-        return [
-            'total' => round((float) $row->total, 2),
-            'from_today' => round((float) $row->from_today, 2),
-            'from_previous' => round((float) $row->from_previous, 2),
-        ];
     }
 
     private function expensesSnapshot(array $filter, string $date, string $yesterday): array

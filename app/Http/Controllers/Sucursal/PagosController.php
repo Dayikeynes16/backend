@@ -6,18 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\DailySummaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PagosController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, DailySummaryService $summary): Response
     {
         $user = Auth::user();
         $branchId = $user->branch_id;
+        $tenantId = app('tenant')->id;
         $date = $request->date ?: now()->toDateString();
 
         // baseQuery aplica filtros del usuario (method, user_id) sobre el listado.
@@ -49,6 +50,20 @@ class PagosController extends Controller
         $paymentMethods = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
         $canEditPayments = $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin');
 
+        // Resumen del día vía servicio centralizado (fuente única de verdad).
+        $day = $summary->forDate($branchId, $tenantId, $date, $paymentMethods);
+        $c = $day['collections'];
+
+        $dailySummary = [
+            'date' => $date,
+            'total_collected' => $c['total'],
+            'collected_from_today' => $c['from_today'],
+            'collected_from_previous' => $c['from_previous'],
+            'payment_count' => $c['payment_count'],
+            'avg_payment' => $c['payment_count'] > 0 ? round($c['total'] / $c['payment_count'], 2) : 0.0,
+            'by_method' => $c['by_method'],
+        ];
+
         return Inertia::render('Sucursal/Pagos/Index', [
             'payments' => $payments,
             'users' => $users,
@@ -56,68 +71,7 @@ class PagosController extends Controller
             'tenant' => app('tenant'),
             'canEditPayments' => $canEditPayments,
             'paymentMethods' => $paymentMethods,
-            'dailySummary' => $this->buildDailySummary($branchId, $date, $paymentMethods),
+            'dailySummary' => $dailySummary,
         ]);
-    }
-
-    /**
-     * Resumen del día seleccionado para Pagos. Filtra por la fecha en que se
-     * cobraron los pagos (`payments.created_at`) e incluye el split entre
-     * pagos a ventas del día y abonos a ventas anteriores (cuentas viejas).
-     * Excluye pagos soft-deleted (de ventas canceladas).
-     */
-    private function buildDailySummary(int $branchId, string $date, array $paymentMethods): array
-    {
-        // Agregación dinámica por método con split por antigüedad de la venta.
-        $byMethodRows = DB::table('payments as p')
-            ->join('sales as s', 's.id', '=', 'p.sale_id')
-            ->where('s.branch_id', $branchId)
-            ->whereDate('p.created_at', $date)
-            ->whereNull('p.deleted_at')
-            ->whereNull('s.deleted_at')
-            ->selectRaw('
-                p.method as method,
-                COALESCE(SUM(p.amount), 0) as amount,
-                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) as from_today,
-                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) as from_previous,
-                COUNT(*) as count
-            ')
-            ->groupBy('p.method')
-            ->get()
-            ->keyBy('method');
-
-        $byMethod = [];
-        $totalCollected = 0.0;
-        $totalFromToday = 0.0;
-        $totalFromPrevious = 0.0;
-        $paymentCount = 0;
-        foreach ($paymentMethods as $method) {
-            $row = $byMethodRows->get($method);
-            $amount = $row ? (float) $row->amount : 0.0;
-            $count = $row ? (int) $row->count : 0;
-            $fromToday = $row ? (float) $row->from_today : 0.0;
-            $fromPrevious = $row ? (float) $row->from_previous : 0.0;
-            $byMethod[] = [
-                'method' => $method,
-                'amount' => $amount,
-                'count' => $count,
-                'from_today' => $fromToday,
-                'from_previous' => $fromPrevious,
-            ];
-            $totalCollected += $amount;
-            $totalFromToday += $fromToday;
-            $totalFromPrevious += $fromPrevious;
-            $paymentCount += $count;
-        }
-
-        return [
-            'date' => $date,
-            'total_collected' => $totalCollected,
-            'collected_from_today' => round($totalFromToday, 2),
-            'collected_from_previous' => round($totalFromPrevious, 2),
-            'payment_count' => $paymentCount,
-            'avg_payment' => $paymentCount > 0 ? round($totalCollected / $paymentCount, 2) : 0.0,
-            'by_method' => $byMethod,
-        ];
     }
 }

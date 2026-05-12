@@ -42,11 +42,18 @@ const summaryTitle = computed(() => {
 const summaryKpis = computed(() => {
     const s = props.daySummary;
     if (!s) return [];
-    return [
-        { label: 'Total vendido', value: s.total_sold, format: 'currency', hint: 'Solo ventas cobradas' },
-        { label: '# Ventas cobradas', value: s.sale_count, format: 'number' },
+    const kpis = [
+        { label: 'Ventas netas', value: s.total_sold, format: 'currency', hint: 'Cobradas o pendientes del día, sin canceladas' },
+        { label: '# Tickets', value: s.sale_count, format: 'number' },
         { label: 'Ticket promedio', value: s.avg_ticket, format: 'currency' },
     ];
+    if (s.cancelled_count > 0) {
+        kpis.push({ label: 'Cancelaciones', value: s.cancelled_amount, format: 'currency', hint: `${s.cancelled_count} cancelada${s.cancelled_count > 1 ? 's' : ''}` });
+    }
+    if (s.collected_from_previous > 0) {
+        kpis.push({ label: 'Abonos anteriores', value: s.collected_from_previous, format: 'currency', hint: 'Pagos de ventas de días previos' });
+    }
+    return kpis;
 });
 
 const methodMeta = {
@@ -255,7 +262,7 @@ const {
             class="mb-4"
             storage-key="historial-ventas"
             :title="summaryTitle"
-            legend="Ventas cobradas creadas ese día."
+            legend="Ventas del día — cobradas o pendientes, sin canceladas."
             :kpis="summaryKpis"
             :by-method="daySummary.by_method"
             :payment-methods="paymentMethods" />
