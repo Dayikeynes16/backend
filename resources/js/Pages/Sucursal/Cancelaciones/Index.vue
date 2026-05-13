@@ -1,23 +1,23 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
-import DatePicker from '@/Components/DatePicker.vue';
+import DateRangeFilter from '@/Components/Metrics/DateRangeFilter.vue';
 import FlashToast from '@/Components/FlashToast.vue';
-import { Head, useForm, router } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
 const props = defineProps({
     requests: Array,
     stats: Object,
     topReasons: Array,
     history: Array,
-    filters: Object,
+    range: Object,
     tenant: Object,
 });
 
-const date = ref(props.filters?.date || '');
-watch(date, (v) => {
-    router.get(route('sucursal.cancelaciones.index', props.tenant.slug), { date: v || undefined }, { preserveState: true, replace: true });
-});
+// useMetricsFilters lee page.props.range/tenant/compare/selected_branch_id y
+// se encarga de sincronizar preset/from/to con la URL al cambiar el rango.
+const filters = useMetricsFilters('sucursal.cancelaciones.index');
 
 const cancelReasons = ['Venta duplicada', 'Producto equivocado', 'Cliente no quiso', 'Error de captura'];
 const approvingId = ref(null);
@@ -61,7 +61,14 @@ const toggleHistory = (id) => {
     <Head title="Cancelaciones" />
     <SucursalLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-gray-900">Cancelaciones</h1>
+            <div class="flex items-center justify-between gap-3">
+                <h1 class="text-xl font-bold text-gray-900">Cancelaciones</h1>
+                <Link :href="route('sucursal.metricas.cancelaciones', tenant.slug)"
+                    class="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:text-red-700">
+                    Ver analítica completa
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+                </Link>
+            </div>
         </template>
 
         <div class="mx-auto max-w-5xl space-y-6">
@@ -72,19 +79,24 @@ const toggleHistory = (id) => {
                     <p class="mt-1 text-2xl font-bold text-amber-600">{{ requests.length }}</p>
                 </div>
                 <div class="rounded-xl border-l-4 border-red-500 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-medium text-gray-500">Canceladas hoy</p>
+                    <p class="text-xs font-medium text-gray-500">Canceladas en el rango</p>
                     <p class="mt-1 text-2xl font-bold text-red-600">{{ stats.cancelled_count }}</p>
                 </div>
                 <div class="rounded-xl border-l-4 border-gray-400 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-medium text-gray-500">Total cancelado hoy</p>
+                    <p class="text-xs font-medium text-gray-500">Total cancelado</p>
                     <p class="mt-1 text-2xl font-bold text-gray-900">${{ stats.cancelled_total.toFixed(2) }}</p>
                 </div>
             </div>
 
-            <!-- Top reasons (last 30 days) -->
+            <!-- Selector de rango -->
+            <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
+                <DateRangeFilter :filters="filters" />
+            </div>
+
+            <!-- Top reasons (del rango seleccionado) -->
             <div v-if="topReasons.length > 0" class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-6 py-4">
-                    <h2 class="text-sm font-bold text-gray-900">Motivos frecuentes <span class="font-normal text-gray-400">(ultimos 30 dias)</span></h2>
+                    <h2 class="text-sm font-bold text-gray-900">Motivos del rango</h2>
                 </div>
                 <div class="divide-y divide-gray-50">
                     <div v-for="reason in topReasons" :key="reason.cancel_reason" class="flex items-center justify-between px-6 py-3">
@@ -112,9 +124,6 @@ const toggleHistory = (id) => {
                             Historial
                             <div v-if="activeTab === 'history'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600 rounded-full" />
                         </button>
-                    </div>
-                    <div v-if="activeTab === 'history'">
-                        <DatePicker v-model="date" :allow-future="false" />
                     </div>
                 </div>
 

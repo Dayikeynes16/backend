@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Sucursal;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
+use App\Http\Controllers\Concerns\ResolvesMetricsRequest;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Services\RecalculateClosedShifts;
@@ -17,12 +18,14 @@ use Inertia\Response;
 
 class CancelRequestController extends Controller
 {
+    use ResolvesMetricsRequest;
+
     public function index(Request $request): Response
     {
         $user = Auth::user();
         $branchId = $user->branch_id;
 
-        // Pending requests (existing)
+        // Solicitudes pendientes — independientes del rango.
         $requests = Sale::where('branch_id', $branchId)
             ->whereNotNull('cancel_requested_at')
             ->whereNull('cancelled_at')
@@ -31,32 +34,32 @@ class CancelRequestController extends Controller
             ->orderByDesc('cancel_requested_at')
             ->get();
 
-        // Date filter for stats/history (default: today)
-        $date = $request->input('date', now()->toDateString());
+        // Rango (mismo patrón que Métricas: preset/from/to). Default: hoy.
+        $range = $this->resolveDateRange($request);
 
-        // Cancelled sales for the selected date
+        // Stats del rango
         $cancelledQuery = Sale::where('branch_id', $branchId)
             ->where('status', SaleStatus::Cancelled)
-            ->whereDate('cancelled_at', $date);
+            ->whereBetween('cancelled_at', [$range->start, $range->end]);
 
-        $cancelledToday = (clone $cancelledQuery)->count();
+        $cancelledCount = (clone $cancelledQuery)->count();
         $cancelledTotal = (clone $cancelledQuery)->sum('total');
 
-        // Top cancellation reasons (last 30 days)
+        // Motivos top del rango (antes: hardcodeado 30 días)
         $topReasons = Sale::where('branch_id', $branchId)
             ->where('status', SaleStatus::Cancelled)
             ->whereNotNull('cancel_reason')
-            ->where('cancelled_at', '>=', now()->subDays(30))
+            ->whereBetween('cancelled_at', [$range->start, $range->end])
             ->select('cancel_reason', DB::raw('count(*) as count'), DB::raw('sum(total) as total'))
             ->groupBy('cancel_reason')
             ->orderByDesc('count')
             ->limit(5)
             ->get();
 
-        // Recent cancelled sales history for the selected date
+        // Historial detallado del rango
         $history = Sale::where('branch_id', $branchId)
             ->where('status', SaleStatus::Cancelled)
-            ->whereDate('cancelled_at', $date)
+            ->whereBetween('cancelled_at', [$range->start, $range->end])
             ->with(['cancelledByUser:id,name', 'cancelRequestedByUser:id,name', 'items'])
             ->orderByDesc('cancelled_at')
             ->get();
@@ -64,14 +67,14 @@ class CancelRequestController extends Controller
         return Inertia::render('Sucursal/Cancelaciones/Index', [
             'requests' => $requests,
             'stats' => [
-                'cancelled_count' => $cancelledToday,
+                'cancelled_count' => $cancelledCount,
                 'cancelled_total' => round((float) $cancelledTotal, 2),
-                'date' => $date,
             ],
             'topReasons' => $topReasons,
             'history' => $history,
-            'filters' => ['date' => $date],
-            'tenant' => app('tenant'),
+            // commonProps de Métricas (range + compare + selected_branch_id + statuses)
+            // para que el componente DateRangeFilter pueda reutilizar useMetricsFilters.
+            ...$this->commonProps($request, $range, $branchId),
         ]);
     }
 
