@@ -99,6 +99,7 @@ const subpages = computed(() => {
         { key: 'cajeros', label: 'Cajeros', hint: 'Desempeño', icon: 'badge' },
         { key: 'turnos', label: 'Turnos', hint: 'Diferencias de caja', icon: 'shift' },
         { key: 'cobranza', label: 'Cobranza', hint: 'Cuentas por cobrar', icon: 'money' },
+        { key: 'cancelaciones', label: 'Cancelaciones', hint: 'Motivos y tiempo de respuesta', icon: 'cancel' },
     ].map(s => ({ ...s, route: `${prefix}.metricas.${s.key}` }));
 });
 
@@ -110,6 +111,7 @@ const iconPaths = {
     badge: 'M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818',
     shift: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
     money: 'M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12',
+    cancel: 'M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
 };
 </script>
 

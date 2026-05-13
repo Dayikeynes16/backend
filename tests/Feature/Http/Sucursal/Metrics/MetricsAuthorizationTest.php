@@ -25,7 +25,7 @@ class MetricsAuthorizationTest extends TestCase
 
     public function test_admin_sucursal_can_view_all_axis_pages(): void
     {
-        $axes = ['ventas', 'margen', 'productos', 'clientes', 'cajeros', 'turnos', 'cobranza'];
+        $axes = ['ventas', 'margen', 'productos', 'clientes', 'cajeros', 'turnos', 'cobranza', 'cancelaciones'];
         foreach ($axes as $axis) {
             $this->actingAs($this->adminSucursal)
                 ->get(route("sucursal.metricas.{$axis}", $this->tenant->slug))

@@ -13,6 +13,7 @@ use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardControll
 use App\Http\Controllers\Empresa\ExpenseCategoryController as EmpresaExpenseCategoryController;
 use App\Http\Controllers\Empresa\ExpenseSubcategoryController as EmpresaExpenseSubcategoryController;
 use App\Http\Controllers\Empresa\GastoController as EmpresaGastoController;
+use App\Http\Controllers\Empresa\Metrics\CancellationMetricsController as EmpresaCancellationMetricsController;
 use App\Http\Controllers\Empresa\Metrics\CashierMetricsController as EmpresaCashierMetricsController;
 use App\Http\Controllers\Empresa\Metrics\CollectionMetricsController as EmpresaCollectionMetricsController;
 use App\Http\Controllers\Empresa\Metrics\CustomerMetricsController as EmpresaCustomerMetricsController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\Sucursal\CustomerStatsController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
 use App\Http\Controllers\Sucursal\GastoController as SucursalGastoController;
 use App\Http\Controllers\Sucursal\MenuQrController;
+use App\Http\Controllers\Sucursal\Metrics\CancellationMetricsController as SucursalCancellationMetricsController;
 use App\Http\Controllers\Sucursal\Metrics\CashierMetricsController as SucursalCashierMetricsController;
 use App\Http\Controllers\Sucursal\Metrics\CollectionMetricsController as SucursalCollectionMetricsController;
 use App\Http\Controllers\Sucursal\Metrics\CustomerMetricsController as SucursalCustomerMetricsController;
@@ -156,6 +158,7 @@ Route::prefix('{tenant}')
                     Route::get('cajeros', EmpresaCashierMetricsController::class)->name('cajeros');
                     Route::get('turnos', EmpresaShiftMetricsController::class)->name('turnos');
                     Route::get('cobranza', EmpresaCollectionMetricsController::class)->name('cobranza');
+                    Route::get('cancelaciones', EmpresaCancellationMetricsController::class)->name('cancelaciones');
                 });
 
                 // Gastos
@@ -201,6 +204,7 @@ Route::prefix('{tenant}')
 
                 Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
                 Route::delete('api-keys/{api_key}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+                Route::delete('api-keys/{api_key}/permanent', [ApiKeyController::class, 'forceDelete'])->name('api-keys.force-delete');
 
                 // Turno (shift)
                 Route::get('turno', [CashShiftController::class, 'active'])->name('turno.active');
@@ -300,6 +304,7 @@ Route::prefix('{tenant}')
                     Route::get('cajeros', SucursalCashierMetricsController::class)->name('cajeros');
                     Route::get('turnos', SucursalShiftMetricsController::class)->name('turnos');
                     Route::get('cobranza', SucursalCollectionMetricsController::class)->name('cobranza');
+                    Route::get('cancelaciones', SucursalCancellationMetricsController::class)->name('cancelaciones');
                 });
 
                 // Gastos
