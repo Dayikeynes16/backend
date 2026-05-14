@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import DateField from '@/Components/DateField.vue';
 import AttachmentViewerModal from '@/Components/Gastos/AttachmentViewerModal.vue';
@@ -31,6 +31,7 @@ const emit = defineEmits(['close', 'success']);
 
 const MAX_ATTACHMENTS = 5;
 const MAX_BYTES = 5 * 1024 * 1024;
+const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 const form = useForm({
     concept: '',
@@ -44,7 +45,12 @@ const form = useForm({
 });
 
 const fileInput = ref(null);
+const cameraInput = ref(null);
 const newFiles = ref([]);
+// URLs locales para previsualizar imágenes recién agregadas; se revocan al
+// quitarlas y al cerrar/limpiar para no fugar memoria (URL.createObjectURL
+// retiene el blob hasta revoke).
+const newFilePreviews = ref(new Map());
 const fileError = ref('');
 
 const subcategories = computed(() => {
@@ -59,12 +65,23 @@ const remainingSlots = computed(() => {
     return Math.max(0, MAX_ATTACHMENTS - used);
 });
 
+const totalAttachments = computed(() =>
+    (existingAttachments.value?.length || 0) + newFiles.value.length
+);
+
+const revokeAllPreviews = () => {
+    newFilePreviews.value.forEach(url => URL.revokeObjectURL(url));
+    newFilePreviews.value.clear();
+};
+
 const reset = () => {
     form.reset();
     form.clearErrors();
+    revokeAllPreviews();
     newFiles.value = [];
     fileError.value = '';
     if (fileInput.value) fileInput.value.value = '';
+    if (cameraInput.value) cameraInput.value.value = '';
 };
 
 const populateFromExpense = () => {
@@ -90,14 +107,31 @@ const setupCreate = () => {
     }
 };
 
-watch(() => props.show, (val) => {
-    if (!val) return;
+const initializeForMode = () => {
     reset();
     if (props.mode === 'edit') {
         populateFromExpense();
     } else {
         setupCreate();
     }
+};
+
+// El watcher de `show` reinicia tanto al abrir como al cerrar. Antes solo
+// reiniciaba en open, lo que permitía que valores quedaran "pegados" si el
+// padre cerraba/abría sin re-renderizar o si se llegaba al modal desde una
+// transición rápida.
+watch(() => props.show, (val) => {
+    if (val) {
+        initializeForMode();
+    } else {
+        reset();
+    }
+});
+
+// Si el padre cambia el modo o el gasto objetivo SIN cerrar el modal (p. ej.
+// click directo en "editar" desde otra fila), también hay que reinicializar.
+watch(() => [props.mode, props.expense?.id], () => {
+    if (props.show) initializeForMode();
 });
 
 watch(() => form.expense_category_id, (newVal, oldVal) => {
@@ -106,34 +140,45 @@ watch(() => form.expense_category_id, (newVal, oldVal) => {
     }
 });
 
-const onFileSelect = (e) => {
-    fileError.value = '';
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
+onBeforeUnmount(() => revokeAllPreviews());
 
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const addFiles = (files) => {
+    fileError.value = '';
+    if (!files.length) return;
     for (const f of files) {
-        if (!allowed.includes(f.type)) {
+        if (!ALLOWED_MIMES.includes(f.type)) {
             fileError.value = `Tipo no permitido: ${f.name}. Solo imágenes (jpg, png, webp) o PDF.`;
-            e.target.value = '';
             return;
         }
         if (f.size > MAX_BYTES) {
             fileError.value = `Archivo demasiado grande (máx 5 MB): ${f.name}`;
-            e.target.value = '';
             return;
         }
     }
     if (files.length > remainingSlots.value) {
         fileError.value = `Solo puedes adjuntar hasta ${MAX_ATTACHMENTS} archivos por gasto.`;
-        e.target.value = '';
         return;
     }
-    newFiles.value = [...newFiles.value, ...files];
+    files.forEach(f => {
+        newFiles.value.push(f);
+        if (f.type.startsWith('image/')) {
+            newFilePreviews.value.set(f, URL.createObjectURL(f));
+        }
+    });
+};
+
+const onFileSelect = (e) => {
+    addFiles(Array.from(e.target.files || []));
     e.target.value = '';
 };
 
 const removeNewFile = (i) => {
+    const file = newFiles.value[i];
+    const url = newFilePreviews.value.get(file);
+    if (url) {
+        URL.revokeObjectURL(url);
+        newFilePreviews.value.delete(file);
+    }
     newFiles.value = newFiles.value.filter((_, idx) => idx !== i);
 };
 
@@ -194,6 +239,8 @@ const fmtSize = (b) => {
     if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
     return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 };
+
+const isImageMime = (mime) => mime?.startsWith('image/');
 </script>
 
 <template>
@@ -219,6 +266,93 @@ const fmtSize = (b) => {
                     <!-- Body (scrollable) -->
                     <form @submit.prevent="submit" class="flex flex-1 flex-col overflow-y-auto">
                         <div class="space-y-5 px-6 py-5">
+                            <!-- Monto (primero: lo único que el usuario siempre tiene a la mano) -->
+                            <div>
+                                <label class="mb-1.5 block text-xs font-semibold text-gray-600">Monto (MXN)</label>
+                                <div class="relative">
+                                    <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-gray-400">$</span>
+                                    <input v-model.number="form.amount" type="number" step="0.01" min="0.01" inputmode="decimal" required placeholder="0.00"
+                                        class="block w-full rounded-xl border-gray-200 bg-white py-3.5 pl-10 pr-3 text-2xl font-bold tabular-nums text-gray-900 shadow-sm focus:border-red-400 focus:ring-red-300" />
+                                </div>
+                                <p v-if="form.errors.amount" class="mt-1 text-xs text-red-600">{{ form.errors.amount }}</p>
+                            </div>
+
+                            <!-- Adjuntos: foto + archivo + miniaturas -->
+                            <div>
+                                <div class="mb-1.5 flex items-center justify-between">
+                                    <label class="text-xs font-semibold text-gray-600">Comprobante</label>
+                                    <span class="text-[11px] text-gray-400">jpg · png · webp · pdf · 5 MB · {{ MAX_ATTACHMENTS }} máx</span>
+                                </div>
+
+                                <!-- Triggers: cámara + archivo -->
+                                <div v-if="remainingSlots > 0" class="grid grid-cols-2 gap-2">
+                                    <label class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-red-200 bg-red-50/40 px-4 py-3 text-center transition hover:border-red-400 hover:bg-red-50">
+                                        <svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                                        </svg>
+                                        <span class="text-sm font-semibold text-red-700">Tomar foto</span>
+                                        <input ref="cameraInput" type="file" accept="image/*" capture="environment" @change="onFileSelect" class="hidden" />
+                                    </label>
+                                    <label class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 px-4 py-3 text-center transition hover:border-gray-300 hover:bg-gray-50">
+                                        <svg class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+                                        </svg>
+                                        <span class="text-sm font-semibold text-gray-700">Adjuntar archivo</span>
+                                        <input ref="fileInput" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" @change="onFileSelect" class="hidden" />
+                                    </label>
+                                </div>
+
+                                <!-- Grid de miniaturas (existentes + nuevas) -->
+                                <div v-if="totalAttachments > 0" class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                    <!-- Existentes -->
+                                    <div v-for="(att, i) in existingAttachments" :key="`ex-${att.id}`"
+                                        class="group relative aspect-square overflow-hidden rounded-xl bg-gray-50 ring-1 ring-gray-200">
+                                        <button v-if="attachmentPreviewRouteName && isImageMime(att.mime_type)"
+                                            type="button" @click="openAttachmentViewer(i)" class="block h-full w-full">
+                                            <img :src="previewUrlBuilder(att)" :alt="att.original_name" loading="lazy"
+                                                class="h-full w-full object-cover transition group-hover:scale-105" />
+                                        </button>
+                                        <button v-else-if="attachmentPreviewRouteName"
+                                            type="button" @click="openAttachmentViewer(i)"
+                                            class="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-gray-500 transition hover:bg-gray-100">
+                                            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                            </svg>
+                                            <span class="line-clamp-2 text-[10px] font-medium">{{ att.original_name }}</span>
+                                        </button>
+                                        <button type="button" @click="removeExistingAttachment(att)"
+                                            class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow ring-1 ring-gray-200 transition hover:bg-red-600 hover:text-white">
+                                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+
+                                    <!-- Nuevos (queue) -->
+                                    <div v-for="(f, i) in newFiles" :key="`new-${i}`"
+                                        class="group relative aspect-square overflow-hidden rounded-xl bg-amber-50 ring-1 ring-amber-200">
+                                        <img v-if="newFilePreviews.get(f)" :src="newFilePreviews.get(f)" :alt="f.name"
+                                            class="h-full w-full object-cover" />
+                                        <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-amber-700">
+                                            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                            </svg>
+                                            <span class="line-clamp-2 text-[10px] font-medium">{{ f.name }}</span>
+                                        </div>
+                                        <span class="absolute bottom-1 left-1 rounded-md bg-amber-600 px-1.5 py-0.5 text-[9px] font-bold text-white">{{ fmtSize(f.size) }}</span>
+                                        <button type="button" @click="removeNewFile(i)"
+                                            class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow ring-1 ring-gray-200 transition hover:bg-red-600 hover:text-white">
+                                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <p class="mt-2 text-[11px] text-gray-400">{{ totalAttachments }} / {{ MAX_ATTACHMENTS }} archivos</p>
+                                <p v-if="fileError" class="mt-1 text-xs text-red-600">{{ fileError }}</p>
+                                <p v-if="form.errors.attachments" class="mt-1 text-xs text-red-600">{{ form.errors.attachments }}</p>
+                                <p v-for="(err, key) in Object.fromEntries(Object.entries(form.errors).filter(([k]) => k.startsWith('attachments.')))"
+                                    :key="key" class="mt-1 text-xs text-red-600">{{ err }}</p>
+                            </div>
+
                             <!-- Concepto -->
                             <div>
                                 <label class="mb-1.5 block text-xs font-semibold text-gray-600">Concepto</label>
@@ -248,97 +382,30 @@ const fmtSize = (b) => {
                                 </div>
                             </div>
 
-                            <!-- Monto + Fecha -->
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label class="mb-1.5 block text-xs font-semibold text-gray-600">Monto (MXN)</label>
-                                    <div class="relative">
-                                        <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">$</span>
-                                        <input v-model.number="form.amount" type="number" step="0.01" min="0.01" required placeholder="0.00"
-                                            class="block w-full rounded-xl border-gray-200 bg-white py-2.5 pl-7 pr-3 text-sm font-medium tabular-nums text-gray-900 shadow-sm focus:border-red-400 focus:ring-red-300" />
-                                    </div>
-                                    <p v-if="form.errors.amount" class="mt-1 text-xs text-red-600">{{ form.errors.amount }}</p>
-                                </div>
+                            <!-- Fecha + Sucursal -->
+                            <div class="grid gap-3" :class="allowBranchSelect ? 'grid-cols-2' : 'grid-cols-1'">
                                 <div>
                                     <label class="mb-1.5 block text-xs font-semibold text-gray-600">Fecha del gasto</label>
                                     <DateField v-model="form.expense_date" mode="single" :max="localToday()" align="left" class="w-full" />
                                     <p v-if="form.errors.expense_date" class="mt-1 text-xs text-red-600">{{ form.errors.expense_date }}</p>
                                 </div>
+                                <div v-if="allowBranchSelect">
+                                    <label class="mb-1.5 block text-xs font-semibold text-gray-600">Sucursal</label>
+                                    <select v-model="form.branch_id" required
+                                        class="block w-full rounded-xl border-gray-200 bg-white py-2.5 text-sm text-gray-900 shadow-sm focus:border-red-400 focus:ring-red-300">
+                                        <option value="">Selecciona la sucursal...</option>
+                                        <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+                                    </select>
+                                    <p v-if="form.errors.branch_id" class="mt-1 text-xs text-red-600">{{ form.errors.branch_id }}</p>
+                                </div>
                             </div>
 
-                            <!-- Sucursal -->
-                            <div v-if="allowBranchSelect">
-                                <label class="mb-1.5 block text-xs font-semibold text-gray-600">Sucursal</label>
-                                <select v-model="form.branch_id" required
-                                    class="block w-full rounded-xl border-gray-200 bg-white py-2.5 text-sm text-gray-900 shadow-sm focus:border-red-400 focus:ring-red-300">
-                                    <option value="">Selecciona la sucursal...</option>
-                                    <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
-                                </select>
-                                <p v-if="form.errors.branch_id" class="mt-1 text-xs text-red-600">{{ form.errors.branch_id }}</p>
-                            </div>
-
-                            <!-- Descripción -->
+                            <!-- Notas -->
                             <div>
                                 <label class="mb-1.5 block text-xs font-semibold text-gray-600">Notas (opcional)</label>
                                 <textarea v-model="form.description" rows="2" maxlength="1000" placeholder="Detalle interno, número de folio, etc."
                                     class="block w-full rounded-xl border-gray-200 bg-white py-2.5 text-sm text-gray-900 shadow-sm focus:border-red-400 focus:ring-red-300" />
                                 <p v-if="form.errors.description" class="mt-1 text-xs text-red-600">{{ form.errors.description }}</p>
-                            </div>
-
-                            <!-- Adjuntos -->
-                            <div>
-                                <div class="mb-1.5 flex items-center justify-between">
-                                    <label class="text-xs font-semibold text-gray-600">Adjuntos</label>
-                                    <span class="text-[11px] text-gray-400">jpg · png · webp · pdf · 5 MB · {{ MAX_ATTACHMENTS }} máx</span>
-                                </div>
-
-                                <!-- Existentes (edit) -->
-                                <div v-if="existingAttachments.length" class="mb-2 space-y-1.5">
-                                    <div v-for="(att, i) in existingAttachments" :key="att.id"
-                                        class="flex items-center gap-3 rounded-xl bg-gray-50 px-3 py-2.5 ring-1 ring-gray-100 transition hover:ring-gray-200">
-                                        <button v-if="attachmentPreviewRouteName" type="button" @click="openAttachmentViewer(i)"
-                                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-gray-200 text-gray-500 transition hover:bg-red-50 hover:text-red-600 hover:ring-red-200" title="Previsualizar">
-                                            <svg v-if="att.mime_type?.startsWith('image/')" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159M21.75 18V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5h16.5a1.5 1.5 0 0 0 1.5-1.5Z" /></svg>
-                                            <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                                        </button>
-                                        <span class="flex-1 truncate text-sm text-gray-700">{{ att.original_name }}</span>
-                                        <span class="text-[11px] text-gray-400">{{ fmtSize(att.size_bytes) }}</span>
-                                        <button type="button" @click="removeExistingAttachment(att)"
-                                            class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600" title="Eliminar adjunto">
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Nuevos en cola -->
-                                <div v-if="newFiles.length" class="mb-2 space-y-1.5">
-                                    <div v-for="(f, i) in newFiles" :key="i"
-                                        class="flex items-center gap-3 rounded-xl bg-amber-50 px-3 py-2.5 ring-1 ring-amber-100">
-                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-amber-200 text-amber-700">
-                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
-                                        </div>
-                                        <span class="flex-1 truncate text-sm text-amber-900">{{ f.name }}</span>
-                                        <span class="text-[11px] text-amber-700">{{ fmtSize(f.size) }}</span>
-                                        <button type="button" @click="removeNewFile(i)"
-                                            class="flex h-7 w-7 items-center justify-center rounded-lg text-amber-700 transition hover:bg-amber-100" title="Quitar">
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Trigger -->
-                                <label v-if="remainingSlots > 0"
-                                    class="group flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-gray-200 px-4 py-5 text-center transition hover:border-red-300 hover:bg-red-50/40">
-                                    <svg class="h-5 w-5 text-gray-400 transition group-hover:text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" /></svg>
-                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-red-700">Agregar archivo</span>
-                                    <span class="text-[11px] text-gray-400">{{ remainingSlots }} de {{ MAX_ATTACHMENTS }} disponibles</span>
-                                    <input ref="fileInput" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" @change="onFileSelect" class="hidden" />
-                                </label>
-
-                                <p v-if="fileError" class="mt-1 text-xs text-red-600">{{ fileError }}</p>
-                                <p v-if="form.errors.attachments" class="mt-1 text-xs text-red-600">{{ form.errors.attachments }}</p>
-                                <p v-for="(err, key) in Object.fromEntries(Object.entries(form.errors).filter(([k]) => k.startsWith('attachments.')))"
-                                    :key="key" class="mt-1 text-xs text-red-600">{{ err }}</p>
                             </div>
                         </div>
 
