@@ -18,7 +18,10 @@ class PagosController extends Controller
         $branchId = $user->branch_id;
 
         $baseQuery = Payment::whereHas('sale', fn ($q) => $q->where('branch_id', $branchId))
-            ->where('user_id', $user->id) // Cajero solo ve sus propios cobros
+            // Calificamos `payments.user_id` porque el clone para `$totals`
+            // hace JOIN a `sales` (que también tiene `user_id`) y sin prefijo
+            // Postgres lanza "column reference 'user_id' is ambiguous".
+            ->where('payments.user_id', $user->id) // Cajero solo ve sus propios cobros
             ->when($request->method, fn ($q, $m) => $q->where('method', $m))
             ->when(
                 $request->date,
