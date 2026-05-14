@@ -36,10 +36,8 @@ watch(date, (v) => {
         <template #header>
             <div class="flex items-center justify-between">
                 <h1 class="text-xl font-bold text-gray-900">Dashboard</h1>
-                <div class="flex items-center gap-3">
-                    <DatePicker v-model="date" />
-                    <span class="hidden rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 sm:inline-flex">Admin Sucursal</span>
-                </div>
+                <DatePicker v-model="date" />
+                <!-- El chip "Admin Sucursal" lo pinta SucursalLayout en el header global; no se duplica aquí. -->
             </div>
         </template>
 
