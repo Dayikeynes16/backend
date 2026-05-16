@@ -72,6 +72,7 @@ class WorkbenchController extends Controller
             'canManageStatus' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canEditPayments' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'canEditPrice' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
+            'saleItemEditReasonMode' => $branch->sale_item_edit_reason_mode ?? 'optional',
             'customers' => Schema::hasTable('customers')
                 ? Customer::where('branch_id', $branchId)->where('status', 'active')->orderBy('name')->get(['id', 'name', 'phone'])
                 : [],

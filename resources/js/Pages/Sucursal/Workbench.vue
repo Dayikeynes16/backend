@@ -9,6 +9,9 @@ import EditPaymentForm from '@/Components/EditPaymentForm.vue';
 import WhatsappPhoneDialog from '@/Components/WhatsappPhoneDialog.vue';
 import WhatsappSendConfirmDialog from '@/Components/WhatsappSendConfirmDialog.vue';
 import SaleWhatsappPhoneChip from '@/Components/SaleWhatsappPhoneChip.vue';
+import SaleItemAddModal from '@/Components/Sucursal/SaleItemAddModal.vue';
+import SaleItemEditModal from '@/Components/Sucursal/SaleItemEditModal.vue';
+import SaleItemDeleteDialog from '@/Components/Sucursal/SaleItemDeleteDialog.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { useSaleActions } from '@/composables/useSaleActions';
@@ -22,6 +25,8 @@ const props = defineProps({
     tenant: Object, branchId: Number, branchInfo: Object, paymentMethods: Array,
     canCreate: Boolean, canCancel: Boolean, canManageStatus: Boolean, canEditPayments: Boolean, canEditPrice: Boolean,
     customers: Array,
+    /** disabled | optional | required — gobierna el campo "motivo" en los modales de items. */
+    saleItemEditReasonMode: { type: String, default: 'optional' },
 });
 
 const allMethodLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
@@ -136,6 +141,30 @@ const doDeletePayment = () => {
         preserveScroll: true, onSuccess: () => { confirmDeletePayment.value = null; },
     });
 };
+
+// Edición de items (admin-sucursal+) — solo para ventas Active/Pending con lock propio.
+const showAddItem = ref(false);
+const editingItem = ref(null);
+const deletingItem = ref(null);
+// Solo el dueño del lock puede tocar items. El composable useSaleLock toma
+// el lock de forma proactiva al seleccionar; aquí leemos el id del usuario
+// actual y lo comparamos con sale.locked_by.
+const currentUserId = computed(() => usePage().props.auth?.user?.id);
+const canEditItems = computed(() => {
+    if (!props.canEditPrice || !selected.value) return false;
+    if (!['active', 'pending'].includes(selected.value.status)) return false;
+    if (selected.value.locked_by && selected.value.locked_by !== currentUserId.value) return false;
+
+    return true;
+});
+const openAddItem = () => { showAddItem.value = true; };
+const openEditItem = (item) => { editingItem.value = item; };
+const openDeleteItem = (item) => { deletingItem.value = item; };
+const refreshAfterItemChange = () => {
+    router.reload({ only: ['sales'], preserveScroll: true });
+};
+const itemWasEdited = (item) =>
+    !!(item.updated_by && (item.updated_at !== item.created_at));
 
 // Cancel sale
 const showCancelDialog = ref(false);
@@ -475,6 +504,31 @@ const customerInitials = computed(() => {
 
                     <!-- Scrollable content -->
                     <div class="flex-1 overflow-y-auto p-6 space-y-5">
+                        <!-- Banner cuando la venta está Completed -->
+                        <div v-if="selected.status === 'completed'" class="rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+                            <div class="flex items-start gap-2.5">
+                                <svg class="h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" /></svg>
+                                <p class="text-xs font-medium text-amber-800">
+                                    Para modificar los items de esta venta, primero elimina el pago desde la sección de Pagos.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Toolbar: contador + botón agregar (solo admin) -->
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-bold text-gray-700">
+                                Productos
+                                <span class="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500">
+                                    {{ (selected.items || []).filter(i => !i.deleted_at).length }}
+                                </span>
+                            </h3>
+                            <button v-if="canEditItems" type="button" @click="openAddItem"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[.98]">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                Agregar producto
+                            </button>
+                        </div>
+
                         <!-- Products table -->
                         <div class="overflow-hidden rounded-lg ring-1 ring-gray-100">
                             <table class="min-w-full divide-y divide-gray-50">
@@ -483,11 +537,17 @@ const customerInitials = computed(() => {
                                     <th class="px-4 py-2 text-right text-xs font-semibold text-gray-500">Cant.</th>
                                     <th class="px-4 py-2 text-right text-xs font-semibold text-gray-500">Precio</th>
                                     <th class="px-4 py-2 text-right text-xs font-semibold text-gray-500">Subtotal</th>
+                                    <th v-if="canEditItems" class="px-2 py-2 text-right text-xs font-semibold text-gray-500"></th>
                                 </tr></thead>
                                 <tbody class="divide-y divide-gray-50">
-                                    <tr v-for="item in selected.items" :key="item.id">
+                                    <tr v-for="item in (selected.items || []).filter(i => !i.deleted_at)" :key="item.id" class="group">
                                         <td class="px-4 py-2.5 text-sm font-medium text-gray-900">
-                                            {{ itemDisplayName(item) }}
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="truncate">{{ itemDisplayName(item) }}</span>
+                                                <span v-if="itemWasEdited(item)"
+                                                    class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-orange-700 ring-1 ring-inset ring-orange-600/20"
+                                                    title="Este item fue editado">Editado</span>
+                                            </div>
                                             <p v-if="item.notes" class="mt-0.5 text-xs italic text-orange-700">💬 {{ item.notes }}</p>
                                         </td>
                                         <td class="px-4 py-2.5 text-right text-sm text-gray-600">
@@ -496,6 +556,18 @@ const customerInitials = computed(() => {
                                         </td>
                                         <td class="px-4 py-2.5 text-right text-sm text-gray-600">${{ parseFloat(item.unit_price).toFixed(2) }}</td>
                                         <td class="px-4 py-2.5 text-right text-sm font-semibold text-gray-900">${{ parseFloat(item.subtotal).toFixed(2) }}</td>
+                                        <td v-if="canEditItems" class="px-2 py-2.5 text-right">
+                                            <div class="flex items-center justify-end gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                                                <button type="button" @click="openEditItem(item)" title="Editar item"
+                                                    class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-orange-50 hover:text-orange-600">
+                                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg>
+                                                </button>
+                                                <button type="button" @click="openDeleteItem(item)" title="Eliminar item"
+                                                    class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600">
+                                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -734,6 +806,32 @@ const customerInitials = computed(() => {
             :processing="whatsappRemovingPhone"
             @confirm="confirmRemovePhone"
             @cancel="closeWhatsappDialogs" />
+
+        <!-- Modales de edición de items (admin-sucursal+) -->
+        <SaleItemAddModal v-if="selected"
+            :show="showAddItem"
+            :tenant-slug="tenant.slug"
+            :sale="selected"
+            :products="products"
+            :reason-mode="saleItemEditReasonMode"
+            @close="showAddItem = false"
+            @success="refreshAfterItemChange" />
+        <SaleItemEditModal v-if="selected"
+            :show="!!editingItem"
+            :tenant-slug="tenant.slug"
+            :sale="selected"
+            :item="editingItem"
+            :reason-mode="saleItemEditReasonMode"
+            @close="editingItem = null"
+            @success="refreshAfterItemChange" />
+        <SaleItemDeleteDialog v-if="selected"
+            :show="!!deletingItem"
+            :tenant-slug="tenant.slug"
+            :sale="selected"
+            :item="deletingItem"
+            @close="deletingItem = null"
+            @success="refreshAfterItemChange" />
+
         <FlashToast />
     </SucursalLayout>
 </template>
