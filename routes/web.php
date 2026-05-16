@@ -266,6 +266,7 @@ Route::prefix('{tenant}')
 
                 // Customers
                 Route::get('clientes', [CustomerController::class, 'index'])->name('clientes.index');
+                Route::get('clientes/{customer}', [CustomerController::class, 'show'])->whereNumber('customer')->name('clientes.show');
                 Route::post('clientes', [CustomerController::class, 'store'])->name('clientes.store');
                 Route::put('clientes/{customer}', [CustomerController::class, 'update'])->name('clientes.update');
                 Route::delete('clientes/{customer}', [CustomerController::class, 'destroy'])->name('clientes.destroy');

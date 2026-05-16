@@ -103,6 +103,77 @@ class CustomerController extends Controller
         ];
     }
 
+    /**
+     * Página dedicada de un cliente. Devuelve el cliente con precios
+     * preferenciales y un seed de KPIs para el hero. El resto (history, top
+     * products, payments) lo carga `useCustomerStats` por AJAX igual que hoy.
+     */
+    public function show(Customer $customer): Response
+    {
+        $this->authorizeBranchAccess($customer);
+
+        $customer->load(['prices.product:id,name,price,unit_type']);
+
+        $statsSeed = $this->buildStatsSeed($customer);
+
+        $branchId = Auth::user()->branch_id;
+        $products = Product::where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'price', 'unit_type', 'sale_mode']);
+
+        $branch = Branch::withoutGlobalScopes()->find($branchId);
+        $allowedMethods = $branch?->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
+
+        return Inertia::render('Sucursal/Clientes/Show', [
+            'customer' => $customer,
+            'statsSeed' => $statsSeed,
+            'products' => $products,
+            'tenant' => app('tenant'),
+            'allowedPaymentMethods' => $allowedMethods,
+        ]);
+    }
+
+    /**
+     * KPIs compactos para el hero de la página de detalle. Una sola query
+     * agregada — la fuente canónica de los stats completos sigue siendo
+     * CustomerStatsController, que el composable carga después si hace falta.
+     */
+    private function buildStatsSeed(Customer $customer): array
+    {
+        $row = DB::table('sales')
+            ->where('customer_id', $customer->id)
+            ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->whereNull('deleted_at')
+            ->selectRaw('
+                COUNT(*)                            as sale_count,
+                COALESCE(SUM(total), 0)             as total_spent,
+                COALESCE(AVG(total), 0)             as avg_ticket,
+                COALESCE(SUM(amount_pending), 0)    as total_owed,
+                COUNT(*) FILTER (WHERE amount_pending > 0) as pending_sales_count,
+                MIN(created_at)                     as first_sale_at,
+                MAX(created_at)                     as last_sale_at
+            ')
+            ->first();
+
+        return [
+            'sale_count' => (int) ($row->sale_count ?? 0),
+            'total_spent' => round((float) ($row->total_spent ?? 0), 2),
+            'avg_ticket' => round((float) ($row->avg_ticket ?? 0), 2),
+            'total_owed' => round((float) ($row->total_owed ?? 0), 2),
+            'pending_sales_count' => (int) ($row->pending_sales_count ?? 0),
+            'first_sale_at' => $row->first_sale_at,
+            'last_sale_at' => $row->last_sale_at,
+        ];
+    }
+
+    private function authorizeBranchAccess(Customer $customer): void
+    {
+        if ($customer->branch_id !== Auth::user()->branch_id) {
+            abort(403);
+        }
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
@@ -132,10 +203,7 @@ class CustomerController extends Controller
     public function update(Request $request, Customer $customer): RedirectResponse
     {
         $user = Auth::user();
-
-        if ($customer->branch_id !== $user->branch_id) {
-            abort(403);
-        }
+        $this->authorizeBranchAccess($customer);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -160,11 +228,7 @@ class CustomerController extends Controller
 
     public function destroy(Customer $customer): RedirectResponse
     {
-        $user = Auth::user();
-
-        if ($customer->branch_id !== $user->branch_id) {
-            abort(403);
-        }
+        $this->authorizeBranchAccess($customer);
 
         if ($customer->sales()->exists()) {
             $customer->update(['status' => 'inactive']);
