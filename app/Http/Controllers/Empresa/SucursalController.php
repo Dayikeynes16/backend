@@ -129,6 +129,7 @@ class SucursalController extends Controller
             'hours' => 'nullable|array',
             'hours.*.open' => 'nullable|date_format:H:i',
             'hours.*.close' => 'nullable|date_format:H:i',
+            'sale_item_edit_reason_mode' => 'sometimes|in:disabled,optional,required',
         ]);
 
         $this->validateOnlineOrderingConfig($validated);

@@ -33,6 +33,7 @@ const form = useForm({
     min_order_amount: props.sucursal.min_order_amount ?? '',
     public_phone: props.sucursal.public_phone || '',
     hours: initialHours,
+    sale_item_edit_reason_mode: props.sucursal.sale_item_edit_reason_mode || 'optional',
 });
 
 const submit = () => form.put(route('empresa.sucursales.update', [props.tenant.slug, props.sucursal.id]));
@@ -254,6 +255,41 @@ const copyMenuUrl = async () => {
                     <p class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500">
                         Los clientes <strong>no podrán hacer pedidos en línea</strong> en esta sucursal hasta que actives el toggle.
                     </p>
+                </div>
+            </section>
+
+            <!-- Operaciones en Mesa de Trabajo -->
+            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Operaciones en Mesa de Trabajo</h2>
+                    <p class="mt-1 text-sm text-gray-500">Reglas para los administradores al modificar ventas en curso.</p>
+                </div>
+                <div class="space-y-3 p-6">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700">Motivo al editar items de una venta</p>
+                        <p class="mt-0.5 text-xs text-gray-500">
+                            Aplica al agregar y editar items. Eliminar siempre pide motivo, sin importar esta configuración.
+                        </p>
+                    </div>
+                    <div class="grid gap-2 sm:grid-cols-3">
+                        <label v-for="opt in [
+                            { value: 'disabled', label: 'Sin motivo', hint: 'Solo se registra quién y cuándo.' },
+                            { value: 'optional', label: 'Opcional', hint: 'Se muestra el campo pero puede quedar vacío.' },
+                            { value: 'required', label: 'Obligatorio', hint: 'No se puede guardar sin motivo.' },
+                        ]" :key="opt.value"
+                            :class="['cursor-pointer rounded-xl border-2 p-3.5 transition',
+                                form.sale_item_edit_reason_mode === opt.value
+                                    ? 'border-red-400 bg-red-50/40 ring-1 ring-red-200'
+                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50']">
+                            <input type="radio" v-model="form.sale_item_edit_reason_mode" :value="opt.value" class="sr-only" />
+                            <p class="text-sm font-bold"
+                                :class="form.sale_item_edit_reason_mode === opt.value ? 'text-red-700' : 'text-gray-800'">
+                                {{ opt.label }}
+                            </p>
+                            <p class="mt-1 text-xs leading-snug text-gray-500">{{ opt.hint }}</p>
+                        </label>
+                    </div>
+                    <InputError :message="form.errors.sale_item_edit_reason_mode" class="mt-1" />
                 </div>
             </section>
 
