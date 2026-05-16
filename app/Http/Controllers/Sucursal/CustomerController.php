@@ -21,9 +21,13 @@ class CustomerController extends Controller
         $user = Auth::user();
         $branchId = $user->branch_id;
 
-        // Sort: 'name' (default alfabético) | 'debt' (mayor deuda primero,
-        // luego alfabético; los sin deuda quedan al final).
-        $sort = in_array($request->sort, ['name', 'debt'], true) ? $request->sort : 'name';
+        // Sort: 'name' (default alfabético) | 'debt' (mayor deuda primero)
+        // | 'last_sale' (compra más reciente primero).
+        $sort = in_array($request->sort, ['name', 'debt', 'last_sale'], true) ? $request->sort : 'name';
+
+        // Filtro especial 'with_debt' filtra a clientes con deuda actual > 0
+        // (independiente del status, que sigue su propio chip Activo/Inactivo).
+        $withDebt = $request->boolean('with_debt');
 
         $customers = Customer::where('branch_id', $branchId)
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q2) => $q2->where('name', 'ilike', "%{$s}%")
@@ -31,36 +35,36 @@ class CustomerController extends Controller
             ))
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->when(! $request->status, fn ($q) => $q->where('status', 'active'))
-            ->with(['prices.product:id,name,price'])
-            // Subquery por cliente: deuda actual = SUM(amount_pending) en ventas
-            // no canceladas. Si no tiene ventas, retorna null → UI lo trata como 0.
             ->withSum([
                 'sales as total_owed' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value),
             ], 'amount_pending')
+            ->withCount('prices as preferential_prices_count')
+            ->withMax('sales as last_sale_at', 'created_at')
+            ->withCount(['sales as sales_count' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value)])
+            ->when($withDebt, fn ($q) => $q->whereExists(fn ($sub) => $sub
+                ->select(DB::raw(1))
+                ->from('sales')
+                ->whereColumn('sales.customer_id', 'customers.id')
+                ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+                ->where('sales.amount_pending', '>', 0)
+                ->whereNull('sales.deleted_at')
+            ))
             ->when($sort === 'debt', fn ($q) => $q
                 ->orderByRaw('COALESCE((select SUM(amount_pending) from sales where sales.customer_id = customers.id and sales.status != ? and sales.deleted_at is null), 0) DESC', [SaleStatus::Cancelled->value])
                 ->orderBy('name')
             )
+            ->when($sort === 'last_sale', fn ($q) => $q->orderByDesc('last_sale_at')->orderBy('name'))
             ->when($sort === 'name', fn ($q) => $q->orderBy('name'))
-            ->get();
-
-        $products = Product::where('branch_id', $branchId)
-            ->where('status', 'active')
-            ->orderBy('name')
-            ->get(['id', 'name', 'price', 'unit_type', 'sale_mode']);
-
-        $branch = Branch::withoutGlobalScopes()->find($branchId);
-        $allowedMethods = $branch?->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
+            ->paginate(25)
+            ->withQueryString();
 
         return Inertia::render('Sucursal/Clientes/Index', [
             'customers' => $customers,
-            'products' => $products,
             'filters' => array_merge(
                 $request->only('search', 'status'),
-                ['sort' => $sort]
+                ['sort' => $sort, 'with_debt' => $withDebt],
             ),
             'tenant' => app('tenant'),
-            'allowedPaymentMethods' => $allowedMethods,
             'customersSummary' => $this->buildCustomersSummary($branchId),
         ]);
     }

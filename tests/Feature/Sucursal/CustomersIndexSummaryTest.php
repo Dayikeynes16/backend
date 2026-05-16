@@ -94,7 +94,7 @@ class CustomersIndexSummaryTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->get(route('sucursal.clientes.index', $this->tenant->slug));
-        $customers = collect($response->viewData('page')['props']['customers'])->keyBy('name');
+        $customers = collect($response->viewData('page')['props']['customers']['data'])->keyBy('name');
 
         $this->assertEquals(1000.0, (float) $customers['Debtor']['total_owed']);
         $this->assertEquals(0.0, (float) ($customers['Clean']['total_owed'] ?? 0));
@@ -112,7 +112,7 @@ class CustomersIndexSummaryTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->get(route('sucursal.clientes.index', $this->tenant->slug).'?sort=debt');
-        $names = collect($response->viewData('page')['props']['customers'])->pluck('name')->all();
+        $names = collect($response->viewData('page')['props']['customers']['data'])->pluck('name')->all();
 
         // Charlie (1000) primero, luego Bravo (500), luego Alfa y Delta sin deuda
         // alfabéticos al final.
@@ -127,7 +127,7 @@ class CustomersIndexSummaryTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->get(route('sucursal.clientes.index', $this->tenant->slug));
-        $names = collect($response->viewData('page')['props']['customers'])->pluck('name')->all();
+        $names = collect($response->viewData('page')['props']['customers']['data'])->pluck('name')->all();
 
         $this->assertSame(['Alfa', 'Mike', 'Zeta'], $names);
     }
@@ -144,7 +144,7 @@ class CustomersIndexSummaryTest extends TestCase
         $response = $this->get(route('sucursal.clientes.index', $this->tenant->slug).'?search=Activo');
         $page = $response->viewData('page')['props'];
 
-        $this->assertCount(1, $page['customers']);
+        $this->assertCount(1, $page['customers']['data']);
         $this->assertSame(3, $page['customersSummary']['total']);
         $this->assertSame(2, $page['customersSummary']['active']);
         $this->assertSame(1, $page['customersSummary']['inactive']);
