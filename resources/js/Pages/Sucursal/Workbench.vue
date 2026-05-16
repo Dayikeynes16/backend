@@ -12,6 +12,7 @@ import SaleWhatsappPhoneChip from '@/Components/SaleWhatsappPhoneChip.vue';
 import SaleItemAddModal from '@/Components/Sucursal/SaleItemAddModal.vue';
 import SaleItemEditModal from '@/Components/Sucursal/SaleItemEditModal.vue';
 import SaleItemDeleteDialog from '@/Components/Sucursal/SaleItemDeleteDialog.vue';
+import SaleItemHistoryModal from '@/Components/Sucursal/SaleItemHistoryModal.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { useSaleActions } from '@/composables/useSaleActions';
@@ -165,6 +166,17 @@ const refreshAfterItemChange = () => {
 };
 const itemWasEdited = (item) =>
     !!(item.updated_by && (item.updated_at !== item.created_at));
+
+const showHistory = ref(false);
+const hasItemHistory = computed(() => {
+    if (!selected.value) return false;
+    const items = selected.value.items || [];
+    // Si algún item fue editado o eliminado, o si la venta sólo tiene items
+    // eliminados, ofrecemos abrir el historial. La query del backend devuelve
+    // todo, incluido el alta inicial — preferimos mostrar el link siempre que
+    // sea admin con permisos.
+    return items.some(i => i.deleted_at || i.updated_by);
+});
 
 // Cancel sale
 const showCancelDialog = ref(false);
@@ -573,6 +585,15 @@ const customerInitials = computed(() => {
                             </table>
                         </div>
 
+                        <!-- Link a historial — solo admin -->
+                        <div v-if="canEditPrice && hasItemHistory" class="flex justify-end">
+                            <button type="button" @click="showHistory = true"
+                                class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-700">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                                Ver historial de cambios
+                            </button>
+                        </div>
+
                         <!-- Payments list -->
                         <div v-if="selected.payments && selected.payments.length > 0">
                             <h3 class="mb-2 text-sm font-bold text-gray-700">Pagos</h3>
@@ -831,6 +852,11 @@ const customerInitials = computed(() => {
             :item="deletingItem"
             @close="deletingItem = null"
             @success="refreshAfterItemChange" />
+        <SaleItemHistoryModal v-if="selected"
+            :show="showHistory"
+            :tenant-slug="tenant.slug"
+            :sale="selected"
+            @close="showHistory = false" />
 
         <FlashToast />
     </SucursalLayout>

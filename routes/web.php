@@ -257,6 +257,7 @@ Route::prefix('{tenant}')
                 Route::post('mesa-de-trabajo/ventas/{sale}/items', [SaleItemController::class, 'store'])->name('workbench.items.store');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/items/{item}', [SaleItemController::class, 'update'])->name('workbench.items.update');
                 Route::delete('mesa-de-trabajo/ventas/{sale}/items/{item}', [SaleItemController::class, 'destroy'])->name('workbench.items.destroy');
+                Route::get('mesa-de-trabajo/ventas/{sale}/items/historial', [SaleItemController::class, 'history'])->name('workbench.items.history');
 
                 // Cancelation requests
                 Route::get('cancelaciones', [CancelRequestController::class, 'index'])->name('cancelaciones.index');
