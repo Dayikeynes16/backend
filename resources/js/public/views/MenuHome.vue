@@ -176,8 +176,8 @@ const unitTypeLabel = (type) => ({ kg: 'kg', piece: 'pz', cut: 'pz' }[type] || '
                         <button v-for="p in cat.items" :key="p.id" @click="openProduct(p)"
                             :disabled="!branch.is_open"
                             class="group flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-gray-100 transition hover:ring-red-300 active:scale-[0.99] disabled:cursor-not-allowed">
-                            <div class="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-                                <img v-if="p.image_url" :src="p.image_url" :alt="p.name" loading="lazy" decoding="async" class="h-full w-full object-cover" />
+                            <div class="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-gray-100">
+                                <img v-if="p.image_url" :src="p.image_url" :alt="p.name" loading="lazy" decoding="async" class="h-full w-full object-contain p-1" />
                                 <div v-else class="flex h-full w-full items-center justify-center text-gray-300">
                                     <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
                                 </div>

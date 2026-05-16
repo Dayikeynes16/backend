@@ -105,14 +105,14 @@ const addToCart = () => {
 <template>
     <div class="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center bg-black/40 backdrop-blur-sm" @click.self="emit('close')">
         <div class="w-full max-w-lg overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
-            <!-- Image -->
-            <div class="relative h-52 w-full overflow-hidden bg-gray-100 sm:h-64">
-                <img v-if="product.image_url" :src="product.image_url" :alt="product.name" loading="lazy" decoding="async" class="h-full w-full object-cover" />
+            <!-- Image: object-contain sobre fondo claro para preservar la foto completa -->
+            <div class="relative flex h-56 w-full items-center justify-center overflow-hidden bg-gradient-to-b from-gray-50 to-white sm:h-72">
+                <img v-if="product.image_url" :src="product.image_url" :alt="product.name" loading="lazy" decoding="async" class="h-full w-full object-contain p-4" />
                 <div v-else class="flex h-full w-full items-center justify-center">
                     <svg class="h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Z" /></svg>
                 </div>
                 <button @click="emit('close')" aria-label="Cerrar"
-                    class="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-gray-700 shadow-md">
+                    class="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-gray-200">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                 </button>
             </div>
