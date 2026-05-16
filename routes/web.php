@@ -53,6 +53,7 @@ use App\Http\Controllers\Sucursal\PagosController;
 use App\Http\Controllers\Sucursal\PaymentController;
 use App\Http\Controllers\Sucursal\ProductoController;
 use App\Http\Controllers\Sucursal\SaleHistoryController;
+use App\Http\Controllers\Sucursal\SaleItemController;
 use App\Http\Controllers\Sucursal\SaleLockController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
 use App\Http\Controllers\Sucursal\WithdrawalController;
@@ -250,6 +251,12 @@ Route::prefix('{tenant}')
                 Route::post('mesa-de-trabajo/ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('workbench.payment');
                 Route::put('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'update'])->name('workbench.payment.update');
                 Route::delete('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'destroy'])->name('workbench.payment.destroy');
+
+                // Items de una venta — solo admin-sucursal+ (gated por el grupo).
+                // No se expone en Caja: el cajero no toca items.
+                Route::post('mesa-de-trabajo/ventas/{sale}/items', [SaleItemController::class, 'store'])->name('workbench.items.store');
+                Route::patch('mesa-de-trabajo/ventas/{sale}/items/{item}', [SaleItemController::class, 'update'])->name('workbench.items.update');
+                Route::delete('mesa-de-trabajo/ventas/{sale}/items/{item}', [SaleItemController::class, 'destroy'])->name('workbench.items.destroy');
 
                 // Cancelation requests
                 Route::get('cancelaciones', [CancelRequestController::class, 'index'])->name('cancelaciones.index');
