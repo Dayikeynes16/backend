@@ -8,7 +8,6 @@ import CustomerHero from '@/Components/Clientes/CustomerHero.vue';
 import CustomerPreferentialPrices from '@/Components/Clientes/CustomerPreferentialPrices.vue';
 import CustomerPaymentModal from '@/Components/Clientes/CustomerPaymentModal.vue';
 import CustomerPurchasesTab from '@/Components/Clientes/CustomerPurchasesTab.vue';
-import CustomerProductsTab from '@/Components/Clientes/CustomerProductsTab.vue';
 import CustomerFinancesTab from '@/Components/Clientes/CustomerFinancesTab.vue';
 import { useCustomerStats } from '@/composables/useCustomerStats';
 
@@ -18,21 +17,23 @@ const props = defineProps({
     products: { type: Array, default: () => [] },
     tenant: { type: Object, required: true },
     allowedPaymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
+    saleItemEditReasonMode: { type: String, default: 'optional' },
 });
 
 const customerRef = toRef(props, 'customer');
 
 const {
-    stats, history, topProducts, payments,
+    stats, history, payments,
     loading, errors,
-    loadStats, loadHistory, loadTopProducts, loadPayments,
+    loadStats, loadHistory, loadPayments,
 } = useCustomerStats(customerRef, props.tenant.slug);
 
-// Tabs
-const activeTab = ref('purchases'); // 'purchases' | 'products' | 'finances'
+// Tabs — Productos se removió: la info útil (ahorro acumulado + producto
+// preferido) ahora vive en el hero. Para top-products detallados está
+// Métricas → Productos a nivel sucursal.
+const activeTab = ref('purchases'); // 'purchases' | 'finances'
 const tabs = [
     { id: 'purchases', label: 'Compras' },
-    { id: 'products', label: 'Productos' },
     { id: 'finances', label: 'Finanzas' },
 ];
 
@@ -170,20 +171,23 @@ const submitEdit = () => {
                         :history="history"
                         :loading="loading.history"
                         :error="errors.history"
+                        :products="products"
+                        :allowed-payment-methods="allowedPaymentMethods"
+                        :sale-item-edit-reason-mode="saleItemEditReasonMode"
                         @load="(params) => loadHistory(params)" />
-                    <CustomerProductsTab v-else-if="activeTab === 'products'"
-                        :top-products="topProducts"
-                        :loading="loading.topProducts"
-                        :error="errors.topProducts"
-                        @load="(limit) => loadTopProducts(limit)" />
                     <CustomerFinancesTab v-else-if="activeTab === 'finances'"
                         :customer-id="customer.id"
                         :tenant-slug="tenant.slug"
                         :payments="payments"
+                        :stats="stats"
+                        :stats-seed="statsSeed"
                         :loading="loading.payments"
                         :error="errors.payments"
                         :can-register-payment="canRegisterPayment"
                         :payment-disabled-reason="paymentDisabledReason"
+                        :products="products"
+                        :allowed-payment-methods="allowedPaymentMethods"
+                        :sale-item-edit-reason-mode="saleItemEditReasonMode"
                         @load="() => loadPayments()"
                         @register-payment="onRegisterPayment" />
                 </div>

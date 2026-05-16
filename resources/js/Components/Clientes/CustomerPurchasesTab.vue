@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import DateField from '@/Components/DateField.vue';
 import SaleDetailModal from '@/Components/Clientes/SaleDetailModal.vue';
 
 const props = defineProps({
@@ -8,14 +9,18 @@ const props = defineProps({
     history: { type: Object, default: null },
     loading: { type: Boolean, default: false },
     error: { type: String, default: '' },
+    products: { type: Array, default: () => [] },
+    allowedPaymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
+    saleItemEditReasonMode: { type: String, default: 'optional' },
 });
 
 const emit = defineEmits(['load']);
 
-const filters = ref({ from: '', to: '' });
+// v-model del DateField range: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }.
+const range = ref({ from: '', to: '' });
 
 onMounted(() => emit('load', {}));
-watch(filters, (v) => emit('load', { from: v.from || undefined, to: v.to || undefined }), { deep: true });
+watch(range, (v) => emit('load', { from: v?.from || undefined, to: v?.to || undefined }), { deep: true });
 
 const money = (v) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(v ?? 0));
 const formatDate = (iso) => iso ? new Date(iso).toLocaleString('es-MX', {
@@ -32,46 +37,17 @@ const statusBadge = (s) => ({
 const sales = computed(() => props.history?.data || []);
 const meta = computed(() => props.history?.meta || {});
 
-const setPreset = (preset) => {
-    const today = new Date();
-    const to = today.toISOString().slice(0, 10);
-    let from = to;
-    if (preset === '7d') {
-        const d = new Date(today); d.setDate(d.getDate() - 7);
-        from = d.toISOString().slice(0, 10);
-    } else if (preset === '30d') {
-        const d = new Date(today); d.setDate(d.getDate() - 30);
-        from = d.toISOString().slice(0, 10);
-    } else if (preset === 'all') {
-        filters.value = { from: '', to: '' };
-        return;
-    }
-    filters.value = { from, to };
-};
-
 const selectedSaleId = ref(null);
-const openSale = (sale) => { selectedSaleId.value = sale.id; };
 </script>
 
 <template>
     <div class="space-y-4">
-        <!-- Filtros -->
+        <!-- Filtros: DateField range con presets nativos -->
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-                <button v-for="opt in [
-                    { v: 'all', l: 'Todo' },
-                    { v: '7d', l: 'Últimos 7 días' },
-                    { v: '30d', l: 'Últimos 30 días' },
-                ]" :key="opt.v" type="button" @click="setPreset(opt.v)"
-                    class="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-200">
-                    {{ opt.l }}
-                </button>
-            </div>
-            <div class="flex items-center gap-2 text-xs">
-                <input v-model="filters.from" type="date" class="rounded-lg border-gray-200 py-1.5 text-xs shadow-sm focus:border-red-400 focus:ring-red-300" />
-                <span class="text-gray-400">→</span>
-                <input v-model="filters.to" type="date" class="rounded-lg border-gray-200 py-1.5 text-xs shadow-sm focus:border-red-400 focus:ring-red-300" />
-            </div>
+            <DateField v-model="range" mode="range" align="left" />
+            <span v-if="!loading && sales.length" class="text-xs text-gray-500">
+                {{ sales.length }} {{ sales.length === 1 ? 'compra' : 'compras' }}
+            </span>
         </div>
 
         <!-- Tabla -->
@@ -86,7 +62,7 @@ const openSale = (sale) => { selectedSaleId.value = sale.id; };
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
                 </div>
                 <p class="mt-3 text-sm font-semibold text-gray-700">Sin compras en el rango</p>
-                <p class="mt-1 text-xs text-gray-400">Ajusta los filtros o selecciona "Todo" para ver el historial completo.</p>
+                <p class="mt-1 text-xs text-gray-400">Ajusta el rango o selecciona "Todo" para ver el historial completo.</p>
             </div>
             <table v-else class="min-w-full divide-y divide-gray-100">
                 <thead class="bg-gray-50/50">
@@ -101,7 +77,7 @@ const openSale = (sale) => { selectedSaleId.value = sale.id; };
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                    <tr v-for="sale in sales" :key="sale.id" @click="openSale(sale)" class="cursor-pointer transition hover:bg-gray-50/60">
+                    <tr v-for="sale in sales" :key="sale.id" @click="selectedSaleId = sale.id" class="cursor-pointer transition hover:bg-gray-50/60">
                         <td class="whitespace-nowrap px-5 py-3 text-sm font-bold text-gray-900">{{ sale.folio }}</td>
                         <td class="whitespace-nowrap px-5 py-3 text-sm text-gray-600">{{ formatDate(sale.created_at) }}</td>
                         <td class="whitespace-nowrap px-5 py-3 text-right text-sm tabular-nums text-gray-600">{{ sale.items?.length ?? 0 }}</td>
@@ -129,6 +105,10 @@ const openSale = (sale) => { selectedSaleId.value = sale.id; };
             :tenant-slug="tenantSlug"
             :customer-id="customerId"
             :sale-id="selectedSaleId"
-            @close="selectedSaleId = null" />
+            :products="products"
+            :allowed-payment-methods="allowedPaymentMethods"
+            :sale-item-edit-reason-mode="saleItemEditReasonMode"
+            @close="selectedSaleId = null"
+            @sale-changed="emit('load', { from: range.from || undefined, to: range.to || undefined })" />
     </div>
 </template>

@@ -135,6 +135,7 @@ class CustomerController extends Controller
             'products' => $products,
             'tenant' => app('tenant'),
             'allowedPaymentMethods' => $allowedMethods,
+            'saleItemEditReasonMode' => $branch?->sale_item_edit_reason_mode ?? 'optional',
         ]);
     }
 
@@ -154,9 +155,39 @@ class CustomerController extends Controller
                 COALESCE(SUM(total), 0)             as total_spent,
                 COALESCE(AVG(total), 0)             as avg_ticket,
                 COALESCE(SUM(amount_pending), 0)    as total_owed,
+                COALESCE(SUM(amount_paid), 0)       as total_paid,
                 COUNT(*) FILTER (WHERE amount_pending > 0) as pending_sales_count,
                 MIN(created_at)                     as first_sale_at,
                 MAX(created_at)                     as last_sale_at
+            ')
+            ->first();
+
+        // Ahorro acumulado y producto preferido (mismas reglas que stats):
+        // ambos requieren join a sale_items y sale_items joineado.
+        $savings = DB::table('sale_items')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->where('sales.customer_id', $customer->id)
+            ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->whereNull('sales.deleted_at')
+            ->selectRaw('
+                COALESCE(SUM(GREATEST(sale_items.original_unit_price - sale_items.unit_price, 0) * sale_items.quantity), 0) as total_saved
+            ')
+            ->first();
+
+        $topProduct = DB::table('sale_items')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->where('sales.customer_id', $customer->id)
+            ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->whereNull('sales.deleted_at')
+            ->whereNotNull('sale_items.product_id')
+            ->groupBy('sale_items.product_id', 'sale_items.product_name')
+            ->orderByRaw('SUM(sale_items.subtotal) DESC')
+            ->limit(1)
+            ->selectRaw('
+                sale_items.product_id,
+                sale_items.product_name,
+                COUNT(*) as times_bought,
+                COALESCE(SUM(sale_items.subtotal), 0) as total_spent
             ')
             ->first();
 
@@ -165,9 +196,16 @@ class CustomerController extends Controller
             'total_spent' => round((float) ($row->total_spent ?? 0), 2),
             'avg_ticket' => round((float) ($row->avg_ticket ?? 0), 2),
             'total_owed' => round((float) ($row->total_owed ?? 0), 2),
+            'total_paid' => round((float) ($row->total_paid ?? 0), 2),
+            'total_saved' => round((float) ($savings->total_saved ?? 0), 2),
             'pending_sales_count' => (int) ($row->pending_sales_count ?? 0),
             'first_sale_at' => $row->first_sale_at,
             'last_sale_at' => $row->last_sale_at,
+            'top_product' => $topProduct ? [
+                'product_name' => $topProduct->product_name,
+                'times_bought' => (int) $topProduct->times_bought,
+                'total_spent' => round((float) $topProduct->total_spent, 2),
+            ] : null,
         ];
     }
 

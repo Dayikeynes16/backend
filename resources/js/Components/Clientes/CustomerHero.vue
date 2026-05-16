@@ -45,8 +45,10 @@ const totalSpent = computed(() => Number(data.value.total_spent || 0));
 const saleCount = computed(() => Number(data.value.sale_count || 0));
 const pendingCount = computed(() => Number(data.value.pending_sales_count || 0));
 const avgTicket = computed(() => Number(data.value.avg_ticket || 0));
+const totalSaved = computed(() => Number(data.value.total_saved || 0));
 const lastSaleAt = computed(() => data.value.last_sale_at || data.value.last_sale?.created_at);
 const firstSaleAt = computed(() => data.value.first_sale_at);
+const topProduct = computed(() => data.value.top_product || null);
 
 const initial = computed(() => (props.customer.name || '?').trim().charAt(0).toUpperCase());
 
@@ -106,6 +108,10 @@ const showMenu = ref(false);
                         <span v-else>Sin compras registradas</span>
                         <span v-if="lastSaleAt"> · Última compra {{ formatRelative(lastSaleAt) }}</span>
                     </div>
+                    <p v-if="topProduct" class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                        <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5a.75.75 0 0 1 .68.434l1.83 3.93 4.32.514a.75.75 0 0 1 .416 1.281l-3.18 2.974.86 4.272a.75.75 0 0 1-1.103.79L10 14.347l-3.823 2.348a.75.75 0 0 1-1.104-.79l.86-4.272-3.18-2.974a.75.75 0 0 1 .416-1.281l4.32-.514L9.32 2.934A.75.75 0 0 1 10 2.5Z" /></svg>
+                        Compra más: <span class="ml-1 font-bold">{{ topProduct.product_name }}</span>
+                    </p>
                     <p v-if="customer.notes" class="mt-2 max-w-prose rounded-lg bg-gray-50 px-3 py-2 text-sm italic text-gray-600 ring-1 ring-gray-100">
                         {{ customer.notes }}
                     </p>
@@ -161,7 +167,7 @@ const showMenu = ref(false);
         </div>
 
         <!-- KPIs -->
-        <div class="grid grid-cols-2 gap-3 border-t border-gray-100 bg-gray-50/40 px-6 py-4 lg:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 border-t border-gray-100 bg-gray-50/40 px-6 py-4 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard label="Deuda actual" :value="formatMoney(totalOwed)" :tone="totalOwed > 0 ? 'negative' : 'neutral'"
                 :hint="totalOwed > 0 ? `${pendingCount} ${pendingCount === 1 ? 'venta pendiente' : 'ventas pendientes'}` : 'Al corriente'" />
             <StatCard label="Total gastado" :value="formatMoney(totalSpent)" tone="positive"
@@ -170,6 +176,8 @@ const showMenu = ref(false);
                 :hint="pendingCount > 0 ? `${pendingCount} con saldo` : ''" />
             <StatCard label="Ticket promedio" :value="formatMoney(avgTicket)" tone="neutral"
                 :hint="saleCount > 0 ? `entre ${saleCount} ${saleCount === 1 ? 'compra' : 'compras'}` : ''" />
+            <StatCard label="Ahorro acumulado" :value="formatMoney(totalSaved)" :tone="totalSaved > 0 ? 'positive' : 'neutral'"
+                :hint="totalSaved > 0 ? 'Vs. precio de catálogo' : 'Sin descuentos aún'" />
         </div>
     </section>
 </template>
