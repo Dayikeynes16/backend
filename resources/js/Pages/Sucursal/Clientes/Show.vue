@@ -7,6 +7,9 @@ import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import CustomerHero from '@/Components/Clientes/CustomerHero.vue';
 import CustomerPreferentialPrices from '@/Components/Clientes/CustomerPreferentialPrices.vue';
 import CustomerPaymentModal from '@/Components/Clientes/CustomerPaymentModal.vue';
+import CustomerPurchasesTab from '@/Components/Clientes/CustomerPurchasesTab.vue';
+import CustomerProductsTab from '@/Components/Clientes/CustomerProductsTab.vue';
+import CustomerFinancesTab from '@/Components/Clientes/CustomerFinancesTab.vue';
 import { useCustomerStats } from '@/composables/useCustomerStats';
 
 const props = defineProps({
@@ -20,9 +23,18 @@ const props = defineProps({
 const customerRef = toRef(props, 'customer');
 
 const {
-    stats, payments,
-    loadStats, loadPayments,
+    stats, history, topProducts, payments,
+    loading, errors,
+    loadStats, loadHistory, loadTopProducts, loadPayments,
 } = useCustomerStats(customerRef, props.tenant.slug);
+
+// Tabs
+const activeTab = ref('purchases'); // 'purchases' | 'products' | 'finances'
+const tabs = [
+    { id: 'purchases', label: 'Compras' },
+    { id: 'products', label: 'Productos' },
+    { id: 'finances', label: 'Finanzas' },
+];
 
 onMounted(() => {
     // Carga stats reales en background; el seed mantiene la pantalla útil mientras.
@@ -139,10 +151,42 @@ const submitEdit = () => {
                 :customer="customer"
                 :products="products" />
 
-            <!-- Placeholder de tabs (se construyen en el siguiente commit) -->
-            <section class="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-gray-100">
-                <p class="text-sm font-semibold text-gray-700">Compras · Productos · Finanzas</p>
-                <p class="mt-1 text-xs text-gray-400">Las pestañas de detalle llegan en el siguiente commit.</p>
+            <!-- Tabs -->
+            <section class="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-2">
+                    <nav class="flex gap-1 overflow-x-auto" role="tablist">
+                        <button v-for="tab in tabs" :key="tab.id" type="button" @click="activeTab = tab.id"
+                            :class="['relative whitespace-nowrap px-4 py-3 text-sm font-semibold transition',
+                                activeTab === tab.id ? 'text-red-600' : 'text-gray-500 hover:text-gray-700']">
+                            {{ tab.label }}
+                            <span v-if="activeTab === tab.id" class="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-red-600"></span>
+                        </button>
+                    </nav>
+                </div>
+                <div class="p-5">
+                    <CustomerPurchasesTab v-if="activeTab === 'purchases'"
+                        :customer-id="customer.id"
+                        :tenant-slug="tenant.slug"
+                        :history="history"
+                        :loading="loading.history"
+                        :error="errors.history"
+                        @load="(params) => loadHistory(params)" />
+                    <CustomerProductsTab v-else-if="activeTab === 'products'"
+                        :top-products="topProducts"
+                        :loading="loading.topProducts"
+                        :error="errors.topProducts"
+                        @load="(limit) => loadTopProducts(limit)" />
+                    <CustomerFinancesTab v-else-if="activeTab === 'finances'"
+                        :customer-id="customer.id"
+                        :tenant-slug="tenant.slug"
+                        :payments="payments"
+                        :loading="loading.payments"
+                        :error="errors.payments"
+                        :can-register-payment="canRegisterPayment"
+                        :payment-disabled-reason="paymentDisabledReason"
+                        @load="() => loadPayments()"
+                        @register-payment="onRegisterPayment" />
+                </div>
             </section>
         </div>
 
