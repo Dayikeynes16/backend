@@ -121,10 +121,14 @@ class CustomerController extends Controller
         $statsSeed = $this->buildStatsSeed($customer);
 
         $branchId = Auth::user()->branch_id;
+        // `status` y `presentations.status='active'` son necesarios para el
+        // picker de SaleItemAddModal (filtra por status y muestra
+        // presentaciones cuando el sale_mode lo requiere).
         $products = Product::where('branch_id', $branchId)
             ->where('status', 'active')
+            ->with(['presentations' => fn ($q) => $q->where('status', 'active')])
             ->orderBy('name')
-            ->get(['id', 'name', 'price', 'unit_type', 'sale_mode']);
+            ->get(['id', 'name', 'price', 'unit_type', 'sale_mode', 'status', 'branch_id']);
 
         $branch = Branch::withoutGlobalScopes()->find($branchId);
         $allowedMethods = $branch?->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
