@@ -9,12 +9,12 @@ use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
-use App\Models\ProductPresentation;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
 use App\Services\PhoneNormalizer;
 use App\Services\RecalculateClosedShifts;
 use App\Services\WhatsappMessageService;
+use App\Support\SaleItemSnapshot;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -136,7 +136,7 @@ class WorkbenchController extends Controller
                     $unitTypeToPersist = 'unit';
                     $quantityUnit = 'unit';
                     $saleModeAtSale = 'presentation';
-                    $presentationSnapshot = $this->snapshotPresentation($presentation);
+                    $presentationSnapshot = SaleItemSnapshot::presentation($presentation);
                     $presentationIdToPersist = $presentation->id;
                 } else {
                     // Weight / piece line: unit_type follows product semantics.
@@ -177,6 +177,7 @@ class WorkbenchController extends Controller
                     'presentation_snapshot' => $presentationSnapshot,
                     'sale_mode_at_sale' => $saleModeAtSale,
                     'quantity_unit' => $quantityUnit,
+                    'created_by' => $user->id,
                 ];
             }
 
@@ -205,17 +206,6 @@ class WorkbenchController extends Controller
      * sale_items.presentation_snapshot so the line stays interpretable
      * even if the catalog presentation is later edited or deleted.
      */
-    private function snapshotPresentation(ProductPresentation $p): array
-    {
-        return [
-            'id' => $p->id,
-            'name' => $p->name,
-            'content' => (float) $p->content,
-            'unit' => $p->unit,
-            'price' => (float) $p->price,
-        ];
-    }
-
     public function reopen(Sale $sale): RedirectResponse
     {
         $user = Auth::user();
