@@ -26,8 +26,12 @@ class CustomerStatsController extends Controller
     {
         $this->authorizeAccess($customer);
 
+        // Excluye canceladas + pedidos web no materializados (pending/fulfilled):
+        // los pedidos web fulfilled viven como referencia, su dinero real está
+        // en la venta de báscula vinculada — contarlos infla la deuda del cliente.
         $baseSales = Sale::where('customer_id', $customer->id)
-            ->where('status', '!=', SaleStatus::Cancelled->value);
+            ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->accountable();
 
         $totals = (clone $baseSales)
             ->selectRaw('
@@ -50,6 +54,8 @@ class CustomerStatsController extends Controller
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->where('sales.customer_id', $customer->id)
             ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->where(fn ($q) => $q->where('sales.origin', '!=', 'web')
+                ->orWhereNotIn('sales.status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
             ->selectRaw('
                 COALESCE(SUM(GREATEST(sale_items.original_unit_price - sale_items.unit_price, 0) * sale_items.quantity), 0) as total_saved,
                 COALESCE(SUM(sale_items.original_unit_price * sale_items.quantity), 0) as total_at_catalog
@@ -129,6 +135,7 @@ class CustomerStatsController extends Controller
 
         $sales = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->accountable()
             ->when($validated['from'] ?? null, fn ($q, $from) => $q->where('created_at', '>=', $from))
             ->when($validated['to'] ?? null, fn ($q, $to) => $q->where('created_at', '<=', $to.' 23:59:59'))
             ->with([
@@ -155,6 +162,8 @@ class CustomerStatsController extends Controller
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->where('sales.customer_id', $customer->id)
             ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->where(fn ($q) => $q->where('sales.origin', '!=', 'web')
+                ->orWhereNotIn('sales.status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
             ->selectRaw('
                 sale_items.product_id,
                 MAX(sale_items.product_name) as product_name,
@@ -255,6 +264,7 @@ class CustomerStatsController extends Controller
 
         $pendingSales = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->accountable()
             ->where('amount_pending', '>', 0)
             ->orderByDesc('created_at')
             ->get(['id', 'folio', 'total', 'amount_paid', 'amount_pending', 'status', 'created_at']);

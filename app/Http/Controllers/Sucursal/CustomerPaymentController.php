@@ -63,6 +63,7 @@ class CustomerPaymentController extends Controller
                 $sales = Sale::where('customer_id', $customer->id)
                     ->where('branch_id', $customer->branch_id)
                     ->where('status', '!=', SaleStatus::Cancelled->value)
+                    ->accountable()
                     ->where('amount_pending', '>', 0)
                     ->when(! empty($excludedSaleIds), fn ($q) => $q->whereNotIn('id', $excludedSaleIds))
                     ->orderBy('created_at', 'asc')

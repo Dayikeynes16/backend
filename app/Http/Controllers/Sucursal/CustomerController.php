@@ -36,21 +36,31 @@ class CustomerController extends Controller
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->when(! $request->status, fn ($q) => $q->where('status', 'active'))
             ->withSum([
-                'sales as total_owed' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value),
+                'sales as total_owed' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value)->accountable(),
             ], 'amount_pending')
             ->withCount('prices as preferential_prices_count')
             ->withMax('sales as last_sale_at', 'created_at')
-            ->withCount(['sales as sales_count' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value)])
+            ->withCount(['sales as sales_count' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value)->accountable()])
             ->when($withDebt, fn ($q) => $q->whereExists(fn ($sub) => $sub
                 ->select(DB::raw(1))
                 ->from('sales')
                 ->whereColumn('sales.customer_id', 'customers.id')
                 ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+                ->where(fn ($w) => $w->where('sales.origin', '!=', 'web')
+                    ->orWhereNotIn('sales.status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
                 ->where('sales.amount_pending', '>', 0)
                 ->whereNull('sales.deleted_at')
             ))
             ->when($sort === 'debt', fn ($q) => $q
-                ->orderByRaw('COALESCE((select SUM(amount_pending) from sales where sales.customer_id = customers.id and sales.status != ? and sales.deleted_at is null), 0) DESC', [SaleStatus::Cancelled->value])
+                ->orderByRaw(
+                    'COALESCE((select SUM(amount_pending) from sales where sales.customer_id = customers.id and sales.status != ? and (sales.origin != ? or sales.status not in (?, ?)) and sales.deleted_at is null), 0) DESC',
+                    [
+                        SaleStatus::Cancelled->value,
+                        'web',
+                        SaleStatus::Pending->value,
+                        SaleStatus::Fulfilled->value,
+                    ]
+                )
                 ->orderBy('name')
             )
             ->when($sort === 'last_sale', fn ($q) => $q->orderByDesc('last_sale_at')->orderBy('name'))
@@ -90,6 +100,8 @@ class CustomerController extends Controller
             ->join('customers', 'customers.id', '=', 'sales.customer_id')
             ->where('customers.branch_id', $branchId)
             ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->where(fn ($q) => $q->where('sales.origin', '!=', 'web')
+                ->orWhereNotIn('sales.status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
             ->where('sales.amount_pending', '>', 0)
             ->whereNull('sales.deleted_at')
             ->selectRaw('
@@ -153,6 +165,8 @@ class CustomerController extends Controller
         $row = DB::table('sales')
             ->where('customer_id', $customer->id)
             ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->where(fn ($q) => $q->where('origin', '!=', 'web')
+                ->orWhereNotIn('status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
             ->whereNull('deleted_at')
             ->selectRaw('
                 COUNT(*)                            as sale_count,
@@ -172,6 +186,8 @@ class CustomerController extends Controller
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->where('sales.customer_id', $customer->id)
             ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->where(fn ($q) => $q->where('sales.origin', '!=', 'web')
+                ->orWhereNotIn('sales.status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
             ->whereNull('sales.deleted_at')
             ->selectRaw('
                 COALESCE(SUM(GREATEST(sale_items.original_unit_price - sale_items.unit_price, 0) * sale_items.quantity), 0) as total_saved
@@ -182,6 +198,8 @@ class CustomerController extends Controller
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->where('sales.customer_id', $customer->id)
             ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->where(fn ($q) => $q->where('sales.origin', '!=', 'web')
+                ->orWhereNotIn('sales.status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
             ->whereNull('sales.deleted_at')
             ->whereNotNull('sale_items.product_id')
             ->groupBy('sale_items.product_id', 'sale_items.product_name')
