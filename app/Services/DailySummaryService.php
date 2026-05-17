@@ -40,10 +40,19 @@ final class DailySummaryService
      *
      * @param  int|null  $branchId  null = agrega todas las sucursales del tenant
      * @param  list<string>  $paymentMethods  métodos habilitados (define el orden de presentación)
+     * @param  int|null  $userId  null = todos los cajeros; si se pasa, filtra
+     *                            la cobranza (collections) por ese usuario. NO
+     *                            afecta los agregados de venta — ventas no se
+     *                            atribuyen a un solo cajero.
      * @return DaySummary
      */
-    public function forDate(?int $branchId, int $tenantId, string $date, array $paymentMethods = ['cash', 'card', 'transfer']): array
-    {
+    public function forDate(
+        ?int $branchId,
+        int $tenantId,
+        string $date,
+        array $paymentMethods = ['cash', 'card', 'transfer'],
+        ?int $userId = null,
+    ): array {
         $range = DateRange::custom($date, $date);
         $summary = $this->sales->summary($range, $branchId, $tenantId);
 
@@ -54,7 +63,7 @@ final class DailySummaryService
             'sales' => $current,
             'sales_yesterday' => $previous,
             'delta_pct' => $this->deltaPct($current['net_sales'], $previous['net_sales']),
-            'collections' => $this->collections($range, $branchId, $tenantId, $paymentMethods),
+            'collections' => $this->collections($range, $branchId, $tenantId, $paymentMethods, $userId),
         ];
     }
 
@@ -109,15 +118,18 @@ final class DailySummaryService
      * métodos habilitados — incluso con $0 — para que el UI los muestre.
      * Excluye pagos soft-deleted (los que arrastran ventas canceladas).
      *
+     * Si se pasa $userId, filtra la cobranza al cajero indicado (p.user_id).
+     *
      * @param  list<string>  $paymentMethods
      * @return CollectionsSummary
      */
-    private function collections(DateRange $range, ?int $branchId, int $tenantId, array $paymentMethods): array
+    private function collections(DateRange $range, ?int $branchId, int $tenantId, array $paymentMethods, ?int $userId = null): array
     {
         $rows = DB::table('payments as p')
             ->join('sales as s', 's.id', '=', 'p.sale_id')
             ->where('s.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
+            ->when($userId, fn ($q) => $q->where('p.user_id', $userId))
             ->whereNull('p.deleted_at')
             ->whereNull('s.deleted_at')
             ->whereBetween('p.created_at', [$range->start, $range->end])

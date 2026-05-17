@@ -23,10 +23,16 @@ const props = defineProps({
     byMethod: { type: Array, default: () => [] },
     paymentMethods: { type: Array, default: () => [] },
     storageKey: { type: String, default: 'day-summary-bar' },
+    /**
+     * Estado inicial cuando el usuario aún no ha tocado el desplegable.
+     * Si el usuario lo ha colapsado/expandido antes (persistido en
+     * localStorage), esa preferencia gana sobre este default.
+     */
+    defaultCollapsed: { type: Boolean, default: false },
 });
 
 const STORAGE_PREFIX = 'cn:dsb:';
-const collapsed = ref(false);
+const collapsed = ref(props.defaultCollapsed);
 
 onMounted(() => {
     try {

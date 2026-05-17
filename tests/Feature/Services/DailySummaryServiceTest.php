@@ -171,6 +171,41 @@ class DailySummaryServiceTest extends TestCase
         $this->assertEqualsWithDelta(0.0, $byMethod['transfer']['from_today'], 0.01);
     }
 
+    public function test_collections_filters_by_user_id_when_provided(): void
+    {
+        $d = self::DATE;
+
+        // Sale con 2 pagos: $400 efectivo del cajero, $200 tarjeta del adminSucursal.
+        $sale = $this->makeSale(['total' => 600, 'amount_paid' => 600, 'completed_at' => Carbon::parse("$d 10:00")]);
+
+        // Pago del cajero
+        Payment::create(['sale_id' => $sale->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 400])
+            ->forceFill(['created_at' => Carbon::parse("$d 10:05")])->save();
+        // Pago del adminSucursal
+        Payment::create(['sale_id' => $sale->id, 'user_id' => $this->adminSucursal->id, 'method' => 'card', 'amount' => 200])
+            ->forceFill(['created_at' => Carbon::parse("$d 11:00")])->save();
+
+        $svc = app(DailySummaryService::class);
+
+        // Sin filtro: total = 600, 2 pagos.
+        $all = $svc->forDate($this->branch->id, $this->tenant->id, $d);
+        $this->assertEqualsWithDelta(600.0, $all['collections']['total'], 0.01);
+        $this->assertSame(2, $all['collections']['payment_count']);
+
+        // Filtrado por cajero: solo el pago de $400 efectivo.
+        $filtered = $svc->forDate($this->branch->id, $this->tenant->id, $d, ['cash', 'card', 'transfer'], $this->cajero->id);
+        $this->assertEqualsWithDelta(400.0, $filtered['collections']['total'], 0.01);
+        $this->assertSame(1, $filtered['collections']['payment_count']);
+        $byMethod = collect($filtered['collections']['by_method'])->keyBy('method');
+        $this->assertEqualsWithDelta(400.0, $byMethod['cash']['total'], 0.01);
+        $this->assertEqualsWithDelta(0.0, $byMethod['card']['total'], 0.01);
+
+        // Filtrado por adminSucursal: solo $200 tarjeta.
+        $filtered2 = $svc->forDate($this->branch->id, $this->tenant->id, $d, ['cash', 'card', 'transfer'], $this->adminSucursal->id);
+        $this->assertEqualsWithDelta(200.0, $filtered2['collections']['total'], 0.01);
+        $this->assertSame(1, $filtered2['collections']['payment_count']);
+    }
+
     public function test_hourly_series_uses_canonical_date_and_excludes_cancelled(): void
     {
         $this->seedScenario();

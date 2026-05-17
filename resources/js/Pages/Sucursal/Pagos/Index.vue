@@ -228,6 +228,7 @@ const doDeletePayment = () => {
             v-if="dailySummary"
             class="mb-4"
             storage-key="pagos"
+            :default-collapsed="true"
             :title="summaryTitle"
             legend="Incluye pagos recibidos en este día, aunque correspondan a ventas de días anteriores."
             :kpis="summaryKpis"

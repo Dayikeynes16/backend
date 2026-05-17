@@ -22,8 +22,9 @@ class PagosController extends Controller
         $date = $request->date ?: now()->toDateString();
 
         // baseQuery aplica los filtros del usuario (method, user_id, customer)
-        // sobre el listado. El resumen del día NO se filtra — siempre muestra el
-        // panorama completo del día independiente de los filtros del listado.
+        // sobre el listado. El resumen del día se filtra SÓLO por cajero
+        // (user_id) cuando aplica — el resto de filtros no afectan los KPIs
+        // del header para preservar el panorama por método de pago.
         // customer: 'with' = pagos de ventas con cliente, 'without' = de mostrador.
         $baseQuery = Payment::whereHas('sale', function ($q) use ($branchId, $request) {
             $q->where('branch_id', $branchId);
@@ -59,8 +60,10 @@ class PagosController extends Controller
         $paymentMethods = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
         $canEditPayments = $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin');
 
-        // Resumen del día vía servicio centralizado (fuente única de verdad).
-        $day = $summary->forDate($branchId, $tenantId, $date, $paymentMethods);
+        // Resumen del día vía servicio centralizado. Pasamos user_id sólo si
+        // viene en filtros, para que el resumen refleje "Total cobrado por X".
+        $filterUserId = $request->user_id ? (int) $request->user_id : null;
+        $day = $summary->forDate($branchId, $tenantId, $date, $paymentMethods, $filterUserId);
         $c = $day['collections'];
 
         $dailySummary = [
