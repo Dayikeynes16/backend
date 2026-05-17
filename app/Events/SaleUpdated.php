@@ -24,7 +24,7 @@ class SaleUpdated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        $this->sale->load('items', 'payments');
+        $this->sale->load('items', 'payments', 'linkedOrder', 'fulfilledBy');
 
         return [
             'sale' => SaleResource::make($this->sale)->toArray(request()),

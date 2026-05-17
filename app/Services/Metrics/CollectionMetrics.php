@@ -17,12 +17,13 @@ class CollectionMetrics extends AbstractMetrics
             ->selectRaw('COUNT(*) as c, COALESCE(SUM(amount_applied), 0) as t')
             ->first();
 
-        $totalPending = DB::table('sales')
+        $totalPendingQuery = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereNotNull('customer_id')
-            ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value])
-            ->sum('amount_pending');
+            ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value]);
+        $this->excludeUnaccountableWebOrders($totalPendingQuery);
+        $totalPending = $totalPendingQuery->sum('amount_pending');
 
         $avgDays = $this->averageDaysToCollect($range, $branchId, $tenantId);
 
@@ -51,7 +52,7 @@ class CollectionMetrics extends AbstractMetrics
 
     public function aging(?int $branchId, int $tenantId): array
     {
-        $row = DB::table('sales')
+        $query = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereNotNull('customer_id')
@@ -61,8 +62,9 @@ class CollectionMetrics extends AbstractMetrics
                 SaleStatus::Completed->value,
                 SaleStatus::Pending->value,
                 SaleStatus::Active->value,
-            ])
-            ->selectRaw("
+            ]);
+        $this->excludeUnaccountableWebOrders($query);
+        $row = $query->selectRaw('
                 COALESCE(SUM(CASE
                     WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) <= 30 THEN amount_pending
                     ELSE 0
@@ -75,7 +77,7 @@ class CollectionMetrics extends AbstractMetrics
                     WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) > 60 THEN amount_pending
                     ELSE 0
                 END), 0) AS bucket_61_plus
-            ")
+            ')
             ->first();
 
         return [
@@ -87,12 +89,15 @@ class CollectionMetrics extends AbstractMetrics
 
     public function receivablesTable(?int $branchId, int $tenantId, int $limit = 200): array
     {
-        return DB::table('customers as c')
+        $query = DB::table('customers as c')
             ->join('sales as s', 's.customer_id', '=', 'c.id')
             ->where('c.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('c.branch_id', $branchId))
             ->where('s.amount_pending', '>', 0)
-            ->whereIn('s.status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value])
+            ->whereIn('s.status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value]);
+        $this->excludeUnaccountableWebOrders($query, 's');
+
+        return $query
             ->leftJoin(DB::raw('(SELECT customer_id, MAX(created_at) as last_pay FROM customer_payments WHERE cancelled_at IS NULL GROUP BY customer_id) cp'), 'cp.customer_id', '=', 'c.id')
             ->selectRaw('
                 c.id, c.name, c.phone,

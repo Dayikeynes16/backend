@@ -4,6 +4,10 @@ namespace App\Http\Controllers\Sucursal;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
+use App\Exceptions\OrderLink\CrossBranchLinkException;
+use App\Exceptions\OrderLink\IneligibleScaleSaleException;
+use App\Exceptions\OrderLink\IneligibleWebOrderException;
+use App\Exceptions\OrderLink\LockedScaleSaleException;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Category;
@@ -11,6 +15,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
+use App\Services\OrderLinkService;
 use App\Services\PhoneNormalizer;
 use App\Services\RecalculateClosedShifts;
 use App\Services\WhatsappMessageService;
@@ -35,7 +40,11 @@ class WorkbenchController extends Controller
 
         $sales = Sale::where('branch_id', $branchId)
             ->whereIn('status', [SaleStatus::Active, SaleStatus::Pending])
-            ->with(['items', 'payments', 'lockedByUser:id,name', 'customer:id,name,phone'])
+            ->with([
+                'items', 'payments', 'lockedByUser:id,name', 'customer:id,name,phone',
+                'linkedOrder:id,folio,status',
+                'fulfilledBy:id,folio,status,linked_order_id',
+            ])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
@@ -550,5 +559,101 @@ class WorkbenchController extends Controller
         }
 
         return back()->with('success', $msg);
+    }
+
+    /**
+     * Vincula una venta de báscula (la "real") con un pedido web pendiente.
+     * El service copia datos de delivery y customer, recalcula el total con el
+     * delivery_fee del pedido y marca el pedido como Fulfilled. Las excepciones
+     * de OrderLink se traducen a un toast de error sin romper el Workbench.
+     */
+    public function linkOrder(Request $request, Sale $sale, OrderLinkService $service): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
+        }
+
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:sales,id'],
+        ]);
+
+        $webOrder = Sale::findOrFail($validated['order_id']);
+
+        try {
+            $service->link($sale, $webOrder);
+        } catch (IneligibleScaleSaleException|IneligibleWebOrderException|CrossBranchLinkException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "Venta vinculada al pedido {$webOrder->folio}.");
+    }
+
+    /**
+     * Desvincula la venta de báscula del pedido web. Solo permitido mientras la
+     * venta siga Active y sin pagos: el service lanza LockedScaleSaleException
+     * en otros casos.
+     */
+    public function unlinkOrder(Sale $sale, OrderLinkService $service): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
+        }
+
+        try {
+            $service->unlink($sale);
+        } catch (LockedScaleSaleException|IneligibleScaleSaleException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Pedido desvinculado.');
+    }
+
+    /**
+     * Pedidos web pendientes de la sucursal del usuario, ordenados más recientes
+     * primero. Se usa para poblar el modal "Vincular pedido web" en el Workbench.
+     * Devuelve un preview compacto (3 items) para que el cajero identifique el
+     * pedido sin abrir el detalle completo.
+     */
+    public function pendingWebOrders(): JsonResponse
+    {
+        $user = Auth::user();
+        $branchId = $user->branch_id;
+
+        $orders = Sale::where('branch_id', $branchId)
+            ->where('origin', 'web')
+            ->where('status', SaleStatus::Pending)
+            ->with(['items:id,sale_id,product_name,quantity,unit_type'])
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (Sale $s) => [
+                'id' => $s->id,
+                'folio' => $s->folio,
+                'created_at' => $s->created_at->toIso8601String(),
+                'contact_name' => $s->contact_name,
+                'contact_phone' => $s->contact_phone,
+                'delivery_type' => $s->delivery_type,
+                'delivery_address' => $s->delivery_address,
+                'delivery_fee' => $s->delivery_fee !== null ? (float) $s->delivery_fee : null,
+                'total' => (float) $s->total,
+                'items_count' => $s->items->count(),
+                'items_preview' => $s->items->take(3)->map(fn ($i) => [
+                    'product_name' => $i->product_name,
+                    'quantity' => (float) $i->quantity,
+                    'unit_type' => $i->unit_type,
+                ])->values(),
+            ]);
+
+        return response()->json(['orders' => $orders]);
     }
 }

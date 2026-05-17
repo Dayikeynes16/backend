@@ -21,6 +21,7 @@ class CustomerMetrics extends AbstractMetrics
             ->whereNotNull('customer_id')
             ->whereNull('deleted_at')
             ->whereBetween(DB::raw('COALESCE(completed_at, created_at)'), [$range->start, $range->end]);
+        $this->excludeUnaccountableWebOrders($buyingQuery);
 
         if (empty($values)) {
             $buyingQuery->whereRaw('1=0');
@@ -42,13 +43,28 @@ class CustomerMetrics extends AbstractMetrics
             ->count();
 
         // Saldos por cobrar — independiente del chip (es estado actual, no del rango).
-        $withBalance = DB::table('sales')
+        $withBalanceQuery = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereNotNull('customer_id')
             ->where('amount_pending', '>', 0)
-            ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value])
+            ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value]);
+        $this->excludeUnaccountableWebOrders($withBalanceQuery);
+        $withBalance = $withBalanceQuery
             ->selectRaw('COUNT(DISTINCT customer_id) as cnt, COALESCE(SUM(amount_pending), 0) as total_pending')
+            ->first();
+
+        // Fiados — ventas con saldo pendiente (estado actual, no del rango).
+        $fiadosQuery = DB::table('sales')
+            ->where('tenant_id', $tenantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereNotNull('customer_id')
+            ->whereNull('deleted_at')
+            ->where('amount_pending', '>', 0)
+            ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value]);
+        $this->excludeUnaccountableWebOrders($fiadosQuery);
+        $fiados = $fiadosQuery
+            ->selectRaw('COUNT(*) as cnt, COALESCE(SUM(amount_pending), 0) as total, COUNT(DISTINCT customer_id) as customers')
             ->first();
 
         return [
@@ -57,6 +73,9 @@ class CustomerMetrics extends AbstractMetrics
             'customers_with_balance' => (int) $withBalance->cnt,
             'total_pending_balance' => (float) $withBalance->total_pending,
             'avg_ticket_per_customer' => round((float) ($avgTicket ?? 0), 2),
+            'fiados_count' => (int) $fiados->cnt,
+            'fiados_total' => (float) $fiados->total,
+            'fiados_customers' => (int) $fiados->customers,
         ];
     }
 
@@ -71,6 +90,7 @@ class CustomerMetrics extends AbstractMetrics
             ->when($branchId, fn ($q) => $q->where('s.branch_id', $branchId))
             ->whereNull('s.deleted_at')
             ->whereBetween(DB::raw('COALESCE(s.completed_at, s.created_at)'), [$range->start, $range->end]);
+        $this->excludeUnaccountableWebOrders($query, 's');
 
         if (empty($values)) {
             return [];
@@ -82,7 +102,7 @@ class CustomerMetrics extends AbstractMetrics
         }
 
         return $query
-            ->selectRaw('c.id, c.name, COUNT(s.id) as tickets, SUM(s.total) as total')
+            ->selectRaw('c.id, c.name, COUNT(s.id) as tickets, SUM(s.total) as total, AVG(s.total) as avg_ticket, MAX(COALESCE(s.completed_at, s.created_at)) as last_sale')
             ->groupBy('c.id', 'c.name')
             ->orderByDesc('total')
             ->limit($limit)
@@ -92,6 +112,8 @@ class CustomerMetrics extends AbstractMetrics
                 'name' => $r->name,
                 'tickets' => (int) $r->tickets,
                 'total' => (float) $r->total,
+                'avg_ticket' => round((float) ($r->avg_ticket ?? 0), 2),
+                'last_sale' => $r->last_sale,
             ])
             ->all();
     }
@@ -116,18 +138,22 @@ class CustomerMetrics extends AbstractMetrics
 
     public function withBalance(?int $branchId, int $tenantId, int $limit = 200): array
     {
-        return DB::table('customers as c')
+        $query = DB::table('customers as c')
             ->join('sales as s', 's.customer_id', '=', 'c.id')
             ->where('c.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('c.branch_id', $branchId))
             ->where('s.amount_pending', '>', 0)
-            ->whereIn('s.status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value])
+            ->whereIn('s.status', [SaleStatus::Completed->value, SaleStatus::Pending->value, SaleStatus::Active->value]);
+        $this->excludeUnaccountableWebOrders($query, 's');
+
+        return $query
             ->selectRaw('
                 c.id, c.name, c.phone,
                 SUM(s.amount_pending) as balance,
                 COUNT(s.id) as pending_sales,
                 MAX(s.completed_at) as last_sale,
-                MIN(s.completed_at) as oldest_sale
+                MIN(COALESCE(s.completed_at, s.created_at)) as oldest_sale,
+                (CURRENT_DATE - MIN(COALESCE(s.completed_at, s.created_at))::date) as days_oldest
             ')
             ->groupBy('c.id', 'c.name', 'c.phone')
             ->orderByDesc('balance')
@@ -141,6 +167,7 @@ class CustomerMetrics extends AbstractMetrics
                 'pending_sales' => (int) $r->pending_sales,
                 'last_sale' => $r->last_sale,
                 'oldest_sale' => $r->oldest_sale,
+                'days_oldest' => (int) ($r->days_oldest ?? 0),
             ])
             ->all();
     }
@@ -173,7 +200,7 @@ class CustomerMetrics extends AbstractMetrics
 
     public function aging(?int $branchId, int $tenantId): array
     {
-        $row = DB::table('sales')
+        $query = DB::table('sales')
             ->where('tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereNotNull('customer_id')
@@ -183,7 +210,9 @@ class CustomerMetrics extends AbstractMetrics
                 SaleStatus::Completed->value,
                 SaleStatus::Pending->value,
                 SaleStatus::Active->value,
-            ])
+            ]);
+        $this->excludeUnaccountableWebOrders($query);
+        $row = $query
             ->selectRaw('
                 COALESCE(SUM(CASE
                     WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) <= 30 THEN amount_pending
@@ -200,10 +229,15 @@ class CustomerMetrics extends AbstractMetrics
             ')
             ->first();
 
+        $total = (float) $row->bucket_0_30 + (float) $row->bucket_31_60 + (float) $row->bucket_61_plus;
+        $atRisk = (float) $row->bucket_31_60 + (float) $row->bucket_61_plus;
+
         return [
             '0-30' => (float) $row->bucket_0_30,
             '31-60' => (float) $row->bucket_31_60,
             '61-plus' => (float) $row->bucket_61_plus,
+            'total' => $total,
+            'risk_pct' => $total > 0 ? round(($atRisk / $total) * 100, 1) : 0,
         ];
     }
 

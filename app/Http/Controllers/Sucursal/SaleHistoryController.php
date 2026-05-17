@@ -25,6 +25,7 @@ class SaleHistoryController extends Controller
         // Buscar por folio ignora la fecha y el estado: busca en todo el historial
         // de la sucursal, así una venta de otro día aparece sin tener que cambiar la fecha.
         $sales = Sale::where('branch_id', $branchId)
+            ->accountable()
             ->with(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer:id,name,phone'])
             ->when(
                 $request->search,

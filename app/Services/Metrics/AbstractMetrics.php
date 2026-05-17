@@ -33,6 +33,29 @@ abstract class AbstractMetrics
         return $q;
     }
 
+    /**
+     * Exclude web orders that haven't materialized into a real scale sale yet
+     * (status Pending or Fulfilled). Mirror at the DB-builder level of the
+     * `Sale::accountable()` scope, used by metric services that bypass Eloquent.
+     *
+     * A web order pending the cashier's manual link, or already fulfilled by a
+     * linked scale sale, is not real revenue or receivable — counting it would
+     * double-book against the scale sale that actually carries the transaction.
+     */
+    protected function excludeUnaccountableWebOrders(Builder $q, string $table = ''): Builder
+    {
+        $prefix = $table ? "{$table}." : '';
+        $q->where(function (Builder $sub) use ($prefix) {
+            $sub->where("{$prefix}origin", '!=', 'web')
+                ->orWhereNotIn("{$prefix}status", [
+                    SaleStatus::Pending->value,
+                    SaleStatus::Fulfilled->value,
+                ]);
+        });
+
+        return $q;
+    }
+
     protected function pct(float|int $current, float|int $previous): ?float
     {
         if ((float) $previous === 0.0) {

@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Enums\SaleStatus;
 use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -20,6 +22,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'delivery_type', 'delivery_address', 'delivery_lat', 'delivery_lng',
     'delivery_distance_km', 'delivery_fee',
     'contact_name', 'contact_phone', 'cart_note',
+    'linked_order_id',
 ])]
 class Sale extends Model
 {
@@ -65,12 +68,44 @@ class Sale extends Model
         return $this->belongsTo(User::class, 'locked_by');
     }
 
+    public function linkedOrder(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'linked_order_id');
+    }
+
+    public function fulfilledBy(): HasOne
+    {
+        return $this->hasOne(self::class, 'linked_order_id');
+    }
+
+    /**
+     * Excludes web orders that haven't been turned into a real scale sale yet
+     * (pending or fulfilled) so reports and shift totals don't double-count.
+     */
+    public function scopeAccountable(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->where('origin', '!=', 'web')
+                ->orWhereNotIn('status', [
+                    SaleStatus::Pending->value,
+                    SaleStatus::Fulfilled->value,
+                ]);
+        });
+    }
+
     public function isLockedBy(?int $userId): bool
     {
-        if (! $this->locked_by) return false;
-        if ($this->locked_by === $userId) return true;
+        if (! $this->locked_by) {
+            return false;
+        }
+        if ($this->locked_by === $userId) {
+            return true;
+        }
         // Lock expires after 5 minutes
-        if ($this->locked_at && $this->locked_at->diffInMinutes(now()) >= 5) return false;
+        if ($this->locked_at && $this->locked_at->diffInMinutes(now()) >= 5) {
+            return false;
+        }
+
         return true;
     }
 

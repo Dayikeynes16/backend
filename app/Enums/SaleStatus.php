@@ -8,6 +8,7 @@ enum SaleStatus: string
     case Pending = 'pending';
     case Completed = 'completed';
     case Cancelled = 'cancelled';
+    case Fulfilled = 'fulfilled';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum SaleStatus: string
             self::Pending => 'Pendiente',
             self::Completed => 'Cobrada',
             self::Cancelled => 'Cancelada',
+            self::Fulfilled => 'Cumplida',
         };
     }
 
@@ -26,6 +28,7 @@ enum SaleStatus: string
             self::Pending => 'amber',
             self::Completed => 'green',
             self::Cancelled => 'red',
+            self::Fulfilled => 'emerald',
         };
     }
 
@@ -36,9 +39,10 @@ enum SaleStatus: string
     {
         return match ($this) {
             self::Active => [self::Pending, self::Completed, self::Cancelled],
-            self::Pending => [self::Active, self::Cancelled],
+            self::Pending => [self::Active, self::Cancelled, self::Fulfilled],
             self::Completed => [self::Active, self::Cancelled],
             self::Cancelled => [],
+            self::Fulfilled => [self::Pending],
         };
     }
 

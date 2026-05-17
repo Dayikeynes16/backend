@@ -4,12 +4,17 @@ namespace App\Http\Controllers\Caja;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
+use App\Exceptions\OrderLink\CrossBranchLinkException;
+use App\Exceptions\OrderLink\IneligibleScaleSaleException;
+use App\Exceptions\OrderLink\IneligibleWebOrderException;
+use App\Exceptions\OrderLink\LockedScaleSaleException;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
+use App\Services\OrderLinkService;
 use App\Services\PhoneNormalizer;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\JsonResponse;
@@ -37,7 +42,11 @@ class WorkbenchController extends Controller
 
         $sales = Sale::where('branch_id', $user->branch_id)
             ->whereIn('status', [SaleStatus::Active, SaleStatus::Pending])
-            ->with(['items', 'payments', 'lockedByUser:id,name', 'customer:id,name,phone'])
+            ->with([
+                'items', 'payments', 'lockedByUser:id,name', 'customer:id,name,phone',
+                'linkedOrder:id,folio,status',
+                'fulfilledBy:id,folio,status,linked_order_id',
+            ])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
@@ -245,5 +254,98 @@ class WorkbenchController extends Controller
         $sale->update(['contact_phone' => null]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Vincula la venta de báscula con un pedido web pendiente. Espejo del
+     * endpoint en Sucursal/WorkbenchController para que el cajero pueda
+     * emparejar desde su pantalla.
+     */
+    public function linkOrder(Request $request, Sale $sale, OrderLinkService $service): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
+        }
+
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:sales,id'],
+        ]);
+
+        $webOrder = Sale::findOrFail($validated['order_id']);
+
+        try {
+            $service->link($sale, $webOrder);
+        } catch (IneligibleScaleSaleException|IneligibleWebOrderException|CrossBranchLinkException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "Venta vinculada al pedido {$webOrder->folio}.");
+    }
+
+    /**
+     * Desvincula la venta de báscula del pedido web. Espejo del endpoint de
+     * Sucursal/WorkbenchController.
+     */
+    public function unlinkOrder(Sale $sale, OrderLinkService $service): RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Esta venta no pertenece a tu sucursal.');
+        }
+        if ($sale->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta venta no pertenece a tu empresa.');
+        }
+
+        try {
+            $service->unlink($sale);
+        } catch (LockedScaleSaleException|IneligibleScaleSaleException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Pedido desvinculado.');
+    }
+
+    /**
+     * Pedidos web pendientes de la sucursal del cajero. Espejo del endpoint del
+     * Sucursal/WorkbenchController; se usa para poblar el modal "Vincular pedido
+     * web" desde la pantalla de Caja.
+     */
+    public function pendingWebOrders(): JsonResponse
+    {
+        $user = Auth::user();
+        $branchId = $user->branch_id;
+
+        $orders = Sale::where('branch_id', $branchId)
+            ->where('origin', 'web')
+            ->where('status', SaleStatus::Pending)
+            ->with(['items:id,sale_id,product_name,quantity,unit_type'])
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (Sale $s) => [
+                'id' => $s->id,
+                'folio' => $s->folio,
+                'created_at' => $s->created_at->toIso8601String(),
+                'contact_name' => $s->contact_name,
+                'contact_phone' => $s->contact_phone,
+                'delivery_type' => $s->delivery_type,
+                'delivery_address' => $s->delivery_address,
+                'delivery_fee' => $s->delivery_fee !== null ? (float) $s->delivery_fee : null,
+                'total' => (float) $s->total,
+                'items_count' => $s->items->count(),
+                'items_preview' => $s->items->take(3)->map(fn ($i) => [
+                    'product_name' => $i->product_name,
+                    'quantity' => (float) $i->quantity,
+                    'unit_type' => $i->unit_type,
+                ])->values(),
+            ]);
+
+        return response()->json(['orders' => $orders]);
     }
 }

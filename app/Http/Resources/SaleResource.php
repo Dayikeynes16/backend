@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\SaleStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -14,7 +15,7 @@ class SaleResource extends JsonResource
             'folio' => $this->folio,
             'branch_id' => $this->branch_id,
             'customer_id' => $this->customer_id,
-            'status' => $this->status instanceof \App\Enums\SaleStatus ? $this->status->value : $this->status,
+            'status' => $this->status instanceof SaleStatus ? $this->status->value : $this->status,
             'payment_method' => $this->payment_method,
             'total' => (float) $this->total,
             'amount_paid' => (float) $this->amount_paid,
@@ -34,6 +35,21 @@ class SaleResource extends JsonResource
             'delivery_distance_km' => $this->delivery_distance_km !== null ? (float) $this->delivery_distance_km : null,
             'delivery_fee' => $this->delivery_fee !== null ? (float) $this->delivery_fee : null,
             'cart_note' => $this->cart_note,
+            'linked_order_id' => $this->linked_order_id,
+            'linked_order' => $this->whenLoaded('linkedOrder', fn () => $this->linkedOrder ? [
+                'id' => $this->linkedOrder->id,
+                'folio' => $this->linkedOrder->folio,
+                'status' => $this->linkedOrder->status instanceof SaleStatus
+                    ? $this->linkedOrder->status->value
+                    : $this->linkedOrder->status,
+            ] : null),
+            'fulfilled_by' => $this->whenLoaded('fulfilledBy', fn () => $this->fulfilledBy ? [
+                'id' => $this->fulfilledBy->id,
+                'folio' => $this->fulfilledBy->folio,
+                'status' => $this->fulfilledBy->status instanceof SaleStatus
+                    ? $this->fulfilledBy->status->value
+                    : $this->fulfilledBy->status,
+            ] : null),
             'items' => SaleItemResource::collection($this->whenLoaded('items')),
             'payments' => $this->whenLoaded('payments', fn () => $this->payments->map(fn ($p) => [
                 'id' => $p->id,
