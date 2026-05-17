@@ -237,6 +237,7 @@ Route::prefix('{tenant}')
                 // Workbench
                 Route::get('mesa-de-trabajo', [WorkbenchController::class, 'index'])->name('workbench');
                 Route::get('mesa-de-trabajo/pedidos-pendientes', [WorkbenchController::class, 'pendingWebOrders'])->name('workbench.pending-web-orders');
+                Route::get('mesa-de-trabajo/ventas-vinculables', [WorkbenchController::class, 'linkableSales'])->name('workbench.linkable-sales');
                 Route::post('mesa-de-trabajo/ventas', [WorkbenchController::class, 'store'])->name('workbench.store');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/cancelar', [WorkbenchController::class, 'cancel'])->name('workbench.cancel');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/reabrir', [WorkbenchController::class, 'reopen'])->name('workbench.reopen');
@@ -339,6 +340,7 @@ Route::prefix('{tenant}')
             ->group(function () {
                 Route::get('/', [CajaWorkbenchController::class, 'index'])->name('workbench');
                 Route::get('pedidos-pendientes', [CajaWorkbenchController::class, 'pendingWebOrders'])->name('pending-web-orders');
+                Route::get('ventas-vinculables', [CajaWorkbenchController::class, 'linkableSales'])->name('linkable-sales');
                 Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
                 Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
                 Route::post('ventas/{sale}/unlock', [SaleLockController::class, 'unlock'])->name('sale.unlock');

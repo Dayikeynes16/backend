@@ -619,6 +619,43 @@ class WorkbenchController extends Controller
     }
 
     /**
+     * Ventas de báscula elegibles para emparejar (origin != 'web', status Active,
+     * sin linked_order_id). Espejo inverso de pendingWebOrders: se usa cuando el
+     * cajero/admin selecciona un pedido web y quiere elegir la venta real que lo
+     * cumple, en vez de partir desde la venta de báscula.
+     */
+    public function linkableSales(): JsonResponse
+    {
+        $user = Auth::user();
+        $branchId = $user->branch_id;
+
+        $sales = Sale::where('branch_id', $branchId)
+            ->where('origin', '!=', 'web')
+            ->where('status', SaleStatus::Active)
+            ->whereNull('linked_order_id')
+            ->with(['items:id,sale_id,product_name,quantity,unit_type'])
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (Sale $s) => [
+                'id' => $s->id,
+                'folio' => $s->folio,
+                'created_at' => $s->created_at->toIso8601String(),
+                'origin' => $s->origin,
+                'origin_name' => $s->origin_name,
+                'total' => (float) $s->total,
+                'items_count' => $s->items->count(),
+                'items_preview' => $s->items->take(3)->map(fn ($i) => [
+                    'product_name' => $i->product_name,
+                    'quantity' => (float) $i->quantity,
+                    'unit_type' => $i->unit_type,
+                ])->values(),
+            ]);
+
+        return response()->json(['sales' => $sales]);
+    }
+
+    /**
      * Pedidos web pendientes de la sucursal del usuario, ordenados más recientes
      * primero. Se usa para poblar el modal "Vincular pedido web" en el Workbench.
      * Devuelve un preview compacto (3 items) para que el cajero identifique el

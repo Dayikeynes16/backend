@@ -312,6 +312,42 @@ class WorkbenchController extends Controller
     }
 
     /**
+     * Ventas de báscula elegibles para emparejar — espejo del endpoint
+     * Sucursal/WorkbenchController::linkableSales para que el cajero pueda
+     * vincular desde el banner del pedido web.
+     */
+    public function linkableSales(): JsonResponse
+    {
+        $user = Auth::user();
+        $branchId = $user->branch_id;
+
+        $sales = Sale::where('branch_id', $branchId)
+            ->where('origin', '!=', 'web')
+            ->where('status', SaleStatus::Active)
+            ->whereNull('linked_order_id')
+            ->with(['items:id,sale_id,product_name,quantity,unit_type'])
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (Sale $s) => [
+                'id' => $s->id,
+                'folio' => $s->folio,
+                'created_at' => $s->created_at->toIso8601String(),
+                'origin' => $s->origin,
+                'origin_name' => $s->origin_name,
+                'total' => (float) $s->total,
+                'items_count' => $s->items->count(),
+                'items_preview' => $s->items->take(3)->map(fn ($i) => [
+                    'product_name' => $i->product_name,
+                    'quantity' => (float) $i->quantity,
+                    'unit_type' => $i->unit_type,
+                ])->values(),
+            ]);
+
+        return response()->json(['sales' => $sales]);
+    }
+
+    /**
      * Pedidos web pendientes de la sucursal del cajero. Espejo del endpoint del
      * Sucursal/WorkbenchController; se usa para poblar el modal "Vincular pedido
      * web" desde la pantalla de Caja.

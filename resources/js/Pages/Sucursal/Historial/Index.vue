@@ -151,6 +151,7 @@ const statusBadge = (s) => ({
     pending: { label: 'Pendiente', cls: 'bg-amber-50 text-amber-700 ring-amber-600/20' },
     completed: { label: 'Cobrada', cls: 'bg-green-50 text-green-700 ring-green-600/20' },
     cancelled: { label: 'Cancelada', cls: 'bg-red-50 text-red-700 ring-red-600/20' },
+    fulfilled: { label: 'Cumplida', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' },
 }[s] || { label: s, cls: 'bg-gray-100 text-gray-600' });
 
 const originBadge = (o) => o === 'admin' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700';
@@ -284,9 +285,20 @@ const {
                     <div v-for="sale in allSales" :key="sale.id" @click="selectSale(sale)"
                         :class="['cursor-pointer rounded-xl p-4 transition-all', selectedId === sale.id ? 'ring-2 ring-red-500 bg-red-50/40' : 'ring-1 ring-gray-100 hover:ring-gray-200 hover:bg-gray-50/50']">
                         <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
                                 <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
                                 <span :class="[statusBadge(sale.status).cls, 'rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset']">{{ statusBadge(sale.status).label }}</span>
+                                <span v-if="sale.origin === 'web'" class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800 ring-1 ring-inset ring-orange-600/30">🛒 Pedido web</span>
+                                <span v-if="sale.linked_order_id && sale.linked_order"
+                                    class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/30"
+                                    :title="`Cumple pedido web ${sale.linked_order.folio}`">
+                                    🔗 {{ sale.linked_order.folio }}
+                                </span>
+                                <span v-else-if="sale.origin === 'web' && sale.status === 'fulfilled' && sale.fulfilled_by"
+                                    class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/30"
+                                    :title="`Cumplido por venta ${sale.fulfilled_by.folio}`">
+                                    Cumple {{ sale.fulfilled_by.folio }}
+                                </span>
                             </div>
                             <SaleContextMenu
                                 :sale="sale"

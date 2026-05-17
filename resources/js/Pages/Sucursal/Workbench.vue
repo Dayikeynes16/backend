@@ -14,6 +14,7 @@ import SaleItemEditModal from '@/Components/Sucursal/SaleItemEditModal.vue';
 import SaleItemDeleteDialog from '@/Components/Sucursal/SaleItemDeleteDialog.vue';
 import SaleItemHistoryModal from '@/Components/Sucursal/SaleItemHistoryModal.vue';
 import LinkOrderModal from '@/Components/Workbench/LinkOrderModal.vue';
+import LinkSaleToOrderModal from '@/Components/Workbench/LinkSaleToOrderModal.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { useSaleActions } from '@/composables/useSaleActions';
@@ -187,7 +188,10 @@ const canUnlinkOrder = (sale) =>
     && (sale.payments?.length ?? 0) === 0;
 
 const openLinkOrderModal = () => { showLinkOrderModal.value = true; };
+const showLinkSaleModal = ref(false);
+const openLinkSaleModal = () => { showLinkSaleModal.value = true; };
 const onOrderLinked = () => {
+    selectedId.value = null; // El pedido web pasa a Fulfilled y ya no estará en la lista
     router.reload({ only: ['sales'], preserveScroll: true });
 };
 const confirmUnlink = () => { showUnlinkConfirm.value = true; };
@@ -542,7 +546,7 @@ const customerInitials = computed(() => {
                     <div v-if="selected.origin === 'web' && selected.status === 'pending'" class="border-b border-orange-200 bg-orange-50 px-6 py-4">
                         <div class="flex items-start justify-between gap-4">
                             <div class="flex-1 min-w-0">
-                                <p class="text-xs font-bold uppercase tracking-wider text-orange-700">Pedido web — pendiente de aceptar</p>
+                                <p class="text-xs font-bold uppercase tracking-wider text-orange-700">Pedido web — pendiente de vincular</p>
                                 <div class="mt-2 space-y-1 text-sm">
                                     <p class="text-gray-800">
                                         <span class="font-semibold">Cliente:</span> {{ selected.contact_name || '—' }}
@@ -560,10 +564,9 @@ const customerInitials = computed(() => {
                                 </div>
                             </div>
                             <div v-if="canManageStatus" class="flex shrink-0 flex-col gap-2">
-                                <button @click="handleReactivate(selected.id)" :disabled="statusProcessing"
-                                    class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-50">
-                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                                    Aceptar
+                                <button @click="openLinkSaleModal" :disabled="statusProcessing"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 disabled:opacity-50">
+                                    🔗 Vincular con venta
                                 </button>
                                 <button @click="handleCancelFromMenu(selected.id)" :disabled="statusProcessing"
                                     class="inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-red-600 shadow-sm ring-1 ring-red-200 transition hover:bg-red-50 disabled:opacity-50">
@@ -925,6 +928,13 @@ const customerInitials = computed(() => {
             :scale-sale="selected"
             route-prefix="sucursal"
             @close="showLinkOrderModal = false"
+            @linked="onOrderLinked" />
+        <LinkSaleToOrderModal v-if="selected && selected.origin === 'web'"
+            :show="showLinkSaleModal"
+            :tenant-slug="tenant.slug"
+            :web-order="selected"
+            route-prefix="sucursal"
+            @close="showLinkSaleModal = false"
             @linked="onOrderLinked" />
         <ConfirmDialog v-if="showUnlinkConfirm"
             title="Desvincular pedido"

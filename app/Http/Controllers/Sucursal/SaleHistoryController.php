@@ -21,17 +21,31 @@ class SaleHistoryController extends Controller
         $date = $request->date ?: now()->toDateString();
 
         // Sin búsqueda: ventas del día (fecha canónica COALESCE(completed_at,
-        // created_at), igual que Métricas/Dashboard), solo cobradas o pendientes.
+        // created_at), igual que Métricas/Dashboard). Incluye:
+        //   - Completed/Pending normales (ventas reales)
+        //   - Fulfilled (pedidos web cumplidos, para auditoría)
+        // Excluye web+pending (todavía operacional, vive en Workbench).
         // Buscar por folio ignora la fecha y el estado: busca en todo el historial
         // de la sucursal, así una venta de otro día aparece sin tener que cambiar la fecha.
         $sales = Sale::where('branch_id', $branchId)
-            ->accountable()
-            ->with(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer:id,name,phone'])
+            ->where(function ($q) {
+                $q->where('origin', '!=', 'web')
+                    ->orWhere('status', '!=', SaleStatus::Pending->value);
+            })
+            ->with([
+                'items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer:id,name,phone',
+                'linkedOrder:id,folio,status',
+                'fulfilledBy:id,folio,status,linked_order_id',
+            ])
             ->when(
                 $request->search,
                 fn ($q, $term) => $q->where('folio', 'ilike', "%{$term}%"),
-                fn ($q) => $q->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
-                    ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value]),
+                fn ($q) => $q->whereRaw('DATE(COALESCE(completed_at, updated_at, created_at)) = ?', [$date])
+                    ->whereIn('status', [
+                        SaleStatus::Completed->value,
+                        SaleStatus::Pending->value,
+                        SaleStatus::Fulfilled->value,
+                    ]),
             )
             ->orderByDesc('created_at')
             ->orderByDesc('id')
