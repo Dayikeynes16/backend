@@ -12,9 +12,17 @@ const props = defineProps({
     downloadRouteName: { type: String, required: true },
     canEdit: { type: Boolean, default: false },
     canDelete: { type: Boolean, default: false },
+    /** Opciones {value,label} para resolver el método de pago a label legible. */
+    paymentMethods: { type: Array, default: () => [] },
 });
 
 defineEmits(['close', 'edit', 'delete']);
+
+const paymentLabel = (slug) => {
+    if (!slug) return null;
+    const match = props.paymentMethods.find(pm => pm.value === slug);
+    return match?.label || slug;
+};
 
 const money = (v) => '$' + Number(v ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -84,6 +92,10 @@ const isPdf = (att) => att?.mime_type === 'application/pdf';
                             <div class="rounded-xl bg-gray-50 p-3.5 ring-1 ring-gray-100">
                                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Registrado por</p>
                                 <p class="mt-1 truncate text-sm font-semibold text-gray-800">{{ expense.user?.name || '—' }}</p>
+                            </div>
+                            <div v-if="paymentLabel(expense.payment_method)" class="rounded-xl bg-gray-50 p-3.5 ring-1 ring-gray-100">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Método de pago</p>
+                                <p class="mt-1 truncate text-sm font-semibold text-gray-800">{{ paymentLabel(expense.payment_method) }}</p>
                             </div>
                         </div>
 

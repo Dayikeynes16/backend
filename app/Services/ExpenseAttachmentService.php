@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\AiExpenseDraft;
 use App\Models\Expense;
 use App\Models\ExpenseAttachment;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ExpenseAttachmentService
@@ -69,6 +71,49 @@ class ExpenseAttachmentService
                 'path' => $stored,
                 'mime_type' => $file->getMimeType() ?: 'application/octet-stream',
                 'size_bytes' => $file->getSize() ?: 0,
+            ]);
+        }
+
+        return $created;
+    }
+
+    /**
+     * Mueve los archivos de un draft de IA al directorio del gasto recién creado
+     * y crea los ExpenseAttachment correspondientes. Se usa cuando el usuario
+     * confirma un gasto que vino prerellenado por la IA — los archivos ya viven
+     * en disco privado, no hay que re-subirlos.
+     *
+     * @return array<int, ExpenseAttachment>
+     */
+    public function attachFromDraft(Expense $expense, AiExpenseDraft $draft, ?int $uploadedBy): array
+    {
+        $disk = self::disk();
+        $storage = Storage::disk($disk);
+        $created = [];
+
+        foreach ($draft->attachment_paths ?? [] as $entry) {
+            $srcPath = $entry['path'] ?? null;
+            if (! is_string($srcPath) || ! $storage->exists($srcPath)) {
+                continue;
+            }
+
+            $ext = pathinfo($srcPath, PATHINFO_EXTENSION) ?: 'bin';
+            $filename = Str::uuid()->toString().'.'.$ext;
+            $destPath = "tenants/{$expense->tenant_id}/expenses/{$expense->id}/{$filename}";
+
+            // move() preserva visibility=private heredada del directorio padre.
+            if (! $storage->move($srcPath, $destPath)) {
+                continue;
+            }
+
+            $created[] = ExpenseAttachment::create([
+                'expense_id' => $expense->id,
+                'tenant_id' => $expense->tenant_id,
+                'uploaded_by' => $uploadedBy,
+                'original_name' => mb_substr((string) ($entry['original_name'] ?? $filename), 0, 255),
+                'path' => $destPath,
+                'mime_type' => (string) ($entry['mime_type'] ?? 'application/octet-stream'),
+                'size_bytes' => (int) ($entry['size_bytes'] ?? 0),
             ]);
         }
 

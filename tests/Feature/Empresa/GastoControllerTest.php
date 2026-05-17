@@ -283,4 +283,68 @@ class GastoControllerTest extends TestCase
         $response = $this->get(route('empresa.gastos.index', $this->tenant->slug));
         $response->assertForbidden();
     }
+
+    public function test_store_accepts_payment_method(): void
+    {
+        $this->actingAs($this->adminEmpresa);
+        $sub = $this->makeSubcategory();
+
+        $this->post(route('empresa.gastos.store', $this->tenant->slug), [
+            'concept' => 'Con método de pago',
+            'amount' => 250,
+            'expense_subcategory_id' => $sub->id,
+            'branch_id' => $this->branch->id,
+            'expense_date' => now()->toDateString(),
+            'payment_method' => 'cash',
+        ])->assertSessionHasNoErrors();
+
+        $exp = Expense::firstOrFail();
+        $this->assertSame('cash', $exp->payment_method->value);
+    }
+
+    public function test_store_rejects_invalid_payment_method(): void
+    {
+        $this->actingAs($this->adminEmpresa);
+        $sub = $this->makeSubcategory();
+
+        $this->from(route('empresa.gastos.index', $this->tenant->slug))
+            ->post(route('empresa.gastos.store', $this->tenant->slug), [
+                'concept' => 'Inválido',
+                'amount' => 100,
+                'expense_subcategory_id' => $sub->id,
+                'branch_id' => $this->branch->id,
+                'expense_date' => now()->toDateString(),
+                'payment_method' => 'bitcoin',
+            ])->assertSessionHasErrors('payment_method');
+
+        $this->assertSame(0, Expense::count());
+    }
+
+    public function test_payment_method_filter_narrows_list(): void
+    {
+        $this->actingAs($this->adminEmpresa);
+        $sub = $this->makeSubcategory();
+
+        Expense::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'expense_subcategory_id' => $sub->id,
+            'user_id' => $this->adminEmpresa->id,
+            'concept' => 'Cash', 'amount' => 1, 'payment_method' => 'cash', 'expense_at' => now(),
+        ]);
+        Expense::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'expense_subcategory_id' => $sub->id,
+            'user_id' => $this->adminEmpresa->id,
+            'concept' => 'Card', 'amount' => 1, 'payment_method' => 'card', 'expense_at' => now(),
+        ]);
+
+        $response = $this->get(route('empresa.gastos.index', [
+            $this->tenant->slug, 'payment_method' => 'cash',
+        ]));
+        $rows = $response->viewData('page')['props']['expenses']['data'];
+        $this->assertCount(1, $rows);
+        $this->assertSame('Cash', $rows[0]['concept']);
+    }
 }

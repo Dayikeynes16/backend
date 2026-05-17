@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
+use App\Http\Controllers\Ai\CategoryDraftController as AiCategoryDraftController;
+use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
@@ -174,11 +176,18 @@ Route::prefix('{tenant}')
                     Route::put('subcategorias/{subcategory}', [EmpresaExpenseSubcategoryController::class, 'update'])->name('subcategorias.update');
                     Route::delete('subcategorias/{subcategory}', [EmpresaExpenseSubcategoryController::class, 'destroy'])->name('subcategorias.destroy');
 
+                    // Crear categoría con IA (Fase 3): draft + bulk apply transaccional.
+                    Route::post('categorias/ia/borrador', [AiCategoryDraftController::class, 'store'])->name('categorias.ia.store');
+                    Route::post('categorias/ia/aplicar', [EmpresaExpenseCategoryController::class, 'storeFromAiDraft'])->name('categorias.ia.apply');
+
                     // Gastos
                     Route::get('/', [EmpresaGastoController::class, 'index'])->name('index');
                     Route::post('/', [EmpresaGastoController::class, 'store'])->name('store');
                     Route::put('{gasto}', [EmpresaGastoController::class, 'update'])->name('update');
                     Route::delete('{gasto}', [EmpresaGastoController::class, 'destroy'])->name('destroy');
+
+                    // Draft IA (Fase 1: texto + imagen → propuesta prellenada)
+                    Route::post('ia/borrador', [AiExpenseDraftController::class, 'store'])->name('ia.store');
 
                     // Adjuntos
                     Route::get('{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'download'])->name('adjuntos.download');
@@ -326,6 +335,9 @@ Route::prefix('{tenant}')
                     Route::post('/', [SucursalGastoController::class, 'store'])->name('store');
                     Route::put('{gasto}', [SucursalGastoController::class, 'update'])->name('update');
                     Route::delete('{gasto}', [SucursalGastoController::class, 'destroy'])->name('destroy');
+
+                    // Draft IA (mismo controller que empresa — la lógica es idéntica)
+                    Route::post('ia/borrador', [AiExpenseDraftController::class, 'store'])->name('ia.store');
 
                     Route::get('{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'download'])->name('adjuntos.download');
                     Route::get('{gasto}/adjuntos/{attachment}/preview', [ExpenseAttachmentController::class, 'preview'])->name('adjuntos.preview');

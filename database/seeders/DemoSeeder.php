@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\ApiKey;
 use App\Models\Branch;
+use App\Models\ExpenseCategory;
+use App\Models\ExpenseSubcategory;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
@@ -104,7 +106,64 @@ class DemoSeeder extends Seeder
             ]);
         }
 
-        // Nota: el módulo de Gastos arranca vacío. Cada empresa crea sus
-        // propias categorías y subcategorías al estrenar el módulo.
+        // Demo de categorías/subcategorías de gastos con descripción y aliases
+        // para alimentar el flujo "Registrar gasto con IA" en local/testing.
+        // En producción cada empresa configura las suyas desde el módulo.
+        $expenseCatalog = [
+            [
+                'name' => 'Transporte',
+                'description' => 'Gastos relacionados con vehículos, reparto, gasolina, mantenimiento y traslados.',
+                'aliases' => ['Vehículos', 'Combustible', 'Logística'],
+                'subcategories' => [
+                    ['name' => 'Gasolina', 'description' => 'Carga de combustible para vehículos de la empresa.', 'aliases' => ['Diésel', 'Nafta', 'Petróleo']],
+                    ['name' => 'Mantenimiento', 'description' => 'Cambios de aceite, llantas, refacciones, servicios mecánicos.', 'aliases' => ['Mecánico', 'Refacciones', 'Taller']],
+                    ['name' => 'Casetas y peajes', 'description' => 'Pago de casetas, peajes y estacionamientos en traslados.', 'aliases' => ['Peaje', 'Estacionamiento']],
+                ],
+            ],
+            [
+                'name' => 'Insumos',
+                'description' => 'Materiales, empaques, productos de limpieza y consumibles para operación.',
+                'aliases' => ['Material', 'Consumibles'],
+                'subcategories' => [
+                    ['name' => 'Desechables', 'description' => 'Bolsas, platos, servilletas, vasos y empaques.', 'aliases' => ['Empaques', 'Bolsas']],
+                    ['name' => 'Limpieza', 'description' => 'Detergente, cloro, jabón, escobas y trapeadores.', 'aliases' => ['Aseo', 'Higiene']],
+                    ['name' => 'Papelería', 'description' => 'Hojas, plumas, recibos, libretas para administración.', 'aliases' => ['Oficina']],
+                ],
+            ],
+            [
+                'name' => 'Servicios',
+                'description' => 'Servicios externos contratados: luz, agua, internet, renta.',
+                'aliases' => ['Utilities', 'Recibos'],
+                'subcategories' => [
+                    ['name' => 'Luz', 'description' => 'Recibo de energía eléctrica (CFE u otro proveedor).', 'aliases' => ['CFE', 'Electricidad', 'Energía']],
+                    ['name' => 'Agua', 'description' => 'Recibo del servicio de agua potable de la sucursal.', 'aliases' => []],
+                    ['name' => 'Internet y teléfono', 'description' => 'Servicio de internet y telefonía de la sucursal.', 'aliases' => ['WiFi', 'Telmex', 'Telefonía']],
+                    ['name' => 'Renta', 'description' => 'Pago mensual de renta del local.', 'aliases' => ['Alquiler', 'Arrendamiento']],
+                ],
+            ],
+        ];
+
+        foreach ($expenseCatalog as $catData) {
+            $category = ExpenseCategory::create([
+                'tenant_id' => $tenant->id,
+                'name' => $catData['name'],
+                'description' => $catData['description'],
+                'aliases' => $catData['aliases'] ?: null,
+                'status' => 'active',
+                'created_by' => $adminEmpresa->id,
+            ]);
+
+            foreach ($catData['subcategories'] as $subData) {
+                ExpenseSubcategory::create([
+                    'tenant_id' => $tenant->id,
+                    'expense_category_id' => $category->id,
+                    'name' => $subData['name'],
+                    'description' => $subData['description'],
+                    'aliases' => $subData['aliases'] ?: null,
+                    'status' => 'active',
+                    'created_by' => $adminEmpresa->id,
+                ]);
+            }
+        }
     }
 }

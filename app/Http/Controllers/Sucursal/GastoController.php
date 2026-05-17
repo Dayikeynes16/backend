@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Enums\AiDraftStatus;
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
+use App\Models\AiExpenseDraft;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Services\Ai\AiExpenseDraftService;
 use App\Services\ExpenseAttachmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,6 +23,7 @@ class GastoController extends Controller
 {
     public function __construct(
         private readonly ExpenseAttachmentService $attachments,
+        private readonly AiExpenseDraftService $aiDrafts,
     ) {}
 
     public function index(Request $request): Response
@@ -44,6 +50,7 @@ class GastoController extends Controller
                 $q->whereHas('subcategory', fn ($sq) => $sq->where('expense_category_id', $cat));
             })
             ->when($request->expense_subcategory_id, fn ($q, $sub) => $q->where('expense_subcategory_id', $sub))
+            ->when($request->payment_method, fn ($q, $pm) => $q->where('payment_method', $pm))
             ->when($from, fn ($q, $d) => $q->whereDate('expense_at', '>=', $d))
             ->when($to, fn ($q, $d) => $q->whereDate('expense_at', '<=', $d))
             ->when($request->search, function ($q, $s) {
@@ -65,18 +72,32 @@ class GastoController extends Controller
 
         $categories = ExpenseCategory::with([
             'subcategories' => fn ($q) => $q->where('status', 'active')->orderBy('name'),
-        ])->where('status', 'active')->orderBy('name')->get(['id', 'name', 'status']);
+        ])->where('status', 'active')->orderBy('name')->get(['id', 'name', 'description', 'aliases', 'status']);
 
         return Inertia::render('Sucursal/Gastos/Index', [
             'expenses' => $expenses,
             'totals' => $totals,
             'categories' => $categories,
+            'paymentMethods' => $this->paymentMethodOptions(),
             'filters' => array_merge(
-                $request->only('expense_category_id', 'expense_subcategory_id', 'search'),
+                $request->only('expense_category_id', 'expense_subcategory_id', 'payment_method', 'search'),
                 ['from' => $from, 'to' => $to],
             ),
             'tenant' => $tenant,
         ]);
+    }
+
+    /**
+     * Métodos de pago disponibles para gastos. Sólo cash/card/transfer
+     * (los gastos a crédito no aplican al flujo de captura de comprobantes).
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function paymentMethodOptions(): array
+    {
+        return collect([PaymentMethod::Cash, PaymentMethod::Card, PaymentMethod::Transfer])
+            ->map(fn (PaymentMethod $m) => ['value' => $m->value, 'label' => $m->label()])
+            ->all();
     }
 
     public function store(Request $request): RedirectResponse
@@ -84,24 +105,51 @@ class GastoController extends Controller
         $tenant = app('tenant');
         $user = Auth::user();
 
-        $validated = $request->validate($this->validationRules($tenant->id), $this->messages());
+        $validated = $request->validate($this->validationRules($tenant->id, includeAiDraft: true), $this->messages());
 
-        $expense = Expense::create([
-            'tenant_id' => $tenant->id,
-            'branch_id' => $user->branch_id,
-            'expense_subcategory_id' => $validated['expense_subcategory_id'],
-            'user_id' => $user->id,
-            'concept' => $validated['concept'],
-            'amount' => $validated['amount'],
-            'expense_at' => $this->buildExpenseAt($validated['expense_date']),
-            'description' => $validated['description'] ?? null,
-        ]);
+        $draft = $this->resolveAiDraft($validated['ai_draft_id'] ?? null, $tenant->id);
 
-        if ($request->hasFile('attachments')) {
-            $this->attachments->attach($expense, $request->file('attachments'), $user->id);
-        }
+        DB::transaction(function () use ($tenant, $user, $validated, $request, $draft) {
+            $expense = Expense::create([
+                'tenant_id' => $tenant->id,
+                'branch_id' => $user->branch_id,
+                'expense_subcategory_id' => $validated['expense_subcategory_id'],
+                'user_id' => $user->id,
+                'concept' => $validated['concept'],
+                'amount' => $validated['amount'],
+                'payment_method' => $validated['payment_method'] ?? null,
+                'expense_at' => $this->buildExpenseAt($validated['expense_date']),
+                'description' => $validated['description'] ?? null,
+            ]);
+
+            if ($request->hasFile('attachments')) {
+                $this->attachments->attach($expense, $request->file('attachments'), $user->id);
+            }
+
+            if ($draft) {
+                $this->attachments->attachFromDraft($expense, $draft, $user->id);
+                $draft->update([
+                    'status' => AiDraftStatus::Consumed->value,
+                    'expense_id' => $expense->id,
+                    'consumed_at' => now(),
+                ]);
+            }
+        });
 
         return back()->with('success', 'Gasto registrado.');
+    }
+
+    private function resolveAiDraft(?int $draftId, int $tenantId): ?AiExpenseDraft
+    {
+        if (! $draftId) {
+            return null;
+        }
+
+        return AiExpenseDraft::where('id', $draftId)
+            ->where('tenant_id', $tenantId)
+            ->where('status', AiDraftStatus::Ready->value)
+            ->lockForUpdate()
+            ->first();
     }
 
     public function update(Request $request, Expense $gasto): RedirectResponse
@@ -119,6 +167,7 @@ class GastoController extends Controller
             'expense_subcategory_id' => $validated['expense_subcategory_id'],
             'concept' => $validated['concept'],
             'amount' => $validated['amount'],
+            'payment_method' => $validated['payment_method'] ?? null,
             'expense_at' => $this->buildExpenseAt($validated['expense_date']),
             'description' => $validated['description'] ?? null,
             'updated_by' => $user->id,
@@ -160,9 +209,9 @@ class GastoController extends Controller
         return back()->with('success', 'Gasto eliminado.');
     }
 
-    private function validationRules(int $tenantId): array
+    private function validationRules(int $tenantId, bool $includeAiDraft = false): array
     {
-        return [
+        $rules = [
             'concept' => 'required|string|max:160',
             'amount' => 'required|numeric|min:0.01|max:99999999.99',
             'expense_subcategory_id' => [
@@ -171,6 +220,7 @@ class GastoController extends Controller
                     ->where(fn ($q) => $q->where('tenant_id', $tenantId)->where('status', 'active')),
             ],
             'expense_date' => 'required|date_format:Y-m-d|before_or_equal:'.now()->addDay()->toDateString(),
+            'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)],
             'description' => 'nullable|string|max:1000',
             'attachments' => 'nullable|array|max:'.ExpenseAttachmentService::MAX_PER_EXPENSE,
             'attachments.*' => [
@@ -180,6 +230,12 @@ class GastoController extends Controller
                 'max:'.(ExpenseAttachmentService::MAX_BYTES / 1024),
             ],
         ];
+
+        if ($includeAiDraft) {
+            $rules['ai_draft_id'] = ['nullable', 'integer', 'min:1'];
+        }
+
+        return $rules;
     }
 
     private function messages(): array
@@ -195,6 +251,7 @@ class GastoController extends Controller
             'expense_date.required' => 'Selecciona la fecha del gasto.',
             'expense_date.date_format' => 'Fecha inválida.',
             'expense_date.before_or_equal' => 'La fecha del gasto no puede ser futura.',
+            'payment_method' => 'Método de pago inválido.',
         ];
     }
 

@@ -4,6 +4,9 @@ import FlashToast from '@/Components/FlashToast.vue';
 import DateField from '@/Components/DateField.vue';
 import GastoFormModal from '@/Components/Gastos/GastoFormModal.vue';
 import GastoDetailModal from '@/Components/Gastos/GastoDetailModal.vue';
+import GastoCapturaIAModal from '@/Components/Gastos/GastoCapturaIAModal.vue';
+import CategoryAICaptureModal from '@/Components/Gastos/CategoryAICaptureModal.vue';
+import CategoryAIReviewModal from '@/Components/Gastos/CategoryAIReviewModal.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import { localToday } from '@/utils/date';
@@ -13,6 +16,7 @@ const props = defineProps({
     totals: Object,
     categories: Array,
     branches: Array,
+    paymentMethods: { type: Array, default: () => [] },
     filters: Object,
     tab: { type: String, default: 'gastos' },
     tenant: Object,
@@ -32,6 +36,7 @@ const search = ref(props.filters?.search || '');
 const branchFilter = ref(props.filters?.branch_id || '');
 const categoryFilter = ref(props.filters?.expense_category_id || '');
 const subcategoryFilter = ref(props.filters?.expense_subcategory_id || '');
+const paymentMethodFilter = ref(props.filters?.payment_method || '');
 const dateRange = ref({
     from: props.filters?.from || localToday(),
     to: props.filters?.to || localToday(),
@@ -50,6 +55,7 @@ const currentFilters = () => ({
     branch_id: branchFilter.value || undefined,
     expense_category_id: categoryFilter.value || undefined,
     expense_subcategory_id: subcategoryFilter.value || undefined,
+    payment_method: paymentMethodFilter.value || undefined,
     from: dateRange.value?.from || undefined,
     to: dateRange.value?.to || undefined,
 });
@@ -63,23 +69,69 @@ const applyFilters = () => {
         }, { preserveState: true, replace: true });
     }, 300);
 };
-watch([search, branchFilter, categoryFilter, subcategoryFilter, dateRange], applyFilters, { deep: true });
+watch([search, branchFilter, categoryFilter, subcategoryFilter, paymentMethodFilter, dateRange], applyFilters, { deep: true });
 
 const clearFilters = () => {
     search.value = '';
     branchFilter.value = '';
     categoryFilter.value = '';
     subcategoryFilter.value = '';
+    paymentMethodFilter.value = '';
     dateRange.value = { from: localToday(), to: localToday() };
 };
+
+const paymentLabel = (slug) => {
+    if (!slug) return null;
+    const match = props.paymentMethods.find(pm => pm.value === slug);
+    return match?.label || slug;
+};
+
+const parseAliases = (text) => (text || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
 
 // --- Form modal ---
 const formOpen = ref(false);
 const formMode = ref('create');
 const editingExpense = ref(null);
-const openCreate = () => { formMode.value = 'create'; editingExpense.value = null; formOpen.value = true; };
-const openEdit = (e) => { formMode.value = 'edit'; editingExpense.value = e; formOpen.value = true; detailOpen.value = false; };
+const aiProposal = ref(null);
+const aiDraftId = ref(null);
+const aiAttachments = ref([]);
+const aiTranscription = ref(null);
+const openCreate = () => {
+    formMode.value = 'create';
+    editingExpense.value = null;
+    aiProposal.value = null;
+    aiDraftId.value = null;
+    aiAttachments.value = [];
+    aiTranscription.value = null;
+    formOpen.value = true;
+};
+const openEdit = (e) => {
+    formMode.value = 'edit';
+    editingExpense.value = e;
+    aiProposal.value = null;
+    aiDraftId.value = null;
+    aiAttachments.value = [];
+    aiTranscription.value = null;
+    formOpen.value = true;
+    detailOpen.value = false;
+};
 const submitRouteName = computed(() => formMode.value === 'edit' ? 'empresa.gastos.update' : 'empresa.gastos.store');
+
+// --- IA capture ---
+const iaOpen = ref(false);
+const openIA = () => { iaOpen.value = true; };
+const onAiProposal = ({ draftId, proposal, attachments, audioTranscription }) => {
+    aiProposal.value = proposal;
+    aiDraftId.value = draftId;
+    aiAttachments.value = attachments;
+    aiTranscription.value = audioTranscription;
+    formMode.value = 'create';
+    editingExpense.value = null;
+    formOpen.value = true;
+};
 
 // --- Detail modal ---
 const detailOpen = ref(false);
@@ -118,19 +170,28 @@ const submitNewCategory = () => {
 };
 
 const editingCatId = ref(null);
-const editCatForm = useForm({ name: '', status: 'active' });
+const editCatForm = useForm({ name: '', description: '', aliases_text: '', status: 'active' });
 const startEditCat = (c) => {
     editingCatId.value = c.id;
     editCatForm.name = c.name;
+    editCatForm.description = c.description || '';
+    editCatForm.aliases_text = (c.aliases || []).join(', ');
     editCatForm.status = c.status;
     editCatForm.clearErrors();
 };
 const submitEditCat = (c) => {
-    editCatForm.put(route('empresa.gastos.categorias.update', [props.tenant.slug, c.id]), {
-        preserveScroll: true,
-        preserveState: true,
-        onSuccess: () => { editingCatId.value = null; },
-    });
+    editCatForm
+        .transform(d => ({
+            name: d.name,
+            description: d.description || null,
+            aliases: parseAliases(d.aliases_text),
+            status: d.status,
+        }))
+        .put(route('empresa.gastos.categorias.update', [props.tenant.slug, c.id]), {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => { editingCatId.value = null; },
+        });
 };
 const deleteCat = (c) => {
     if (!confirm(`¿Eliminar categoría "${c.name}"?`)) return;
@@ -138,6 +199,18 @@ const deleteCat = (c) => {
         preserveScroll: true,
         preserveState: true,
     });
+};
+
+// --- Crear categoría con IA (Fase 3) ---
+const catIAStep = ref('idle'); // 'idle' | 'capture' | 'review'
+const catIADraft = ref(null); // { draftId, proposal, audioTranscription }
+const openCategoryIA = () => { catIADraft.value = null; catIAStep.value = 'capture'; };
+const onCategoryIAProposal = (result) => { catIADraft.value = result; catIAStep.value = 'review'; };
+const onCategoryIASaved = () => {
+    catIAStep.value = 'idle';
+    catIADraft.value = null;
+    // Recargar la tab categorías para que aparezca la nueva.
+    router.reload({ only: ['categories'], preserveScroll: true });
 };
 
 const newSubByCat = ref({});
@@ -155,19 +228,28 @@ const submitNewSubcategory = (catId) => {
 };
 
 const editingSubId = ref(null);
-const editSubForm = useForm({ name: '', status: 'active' });
+const editSubForm = useForm({ name: '', description: '', aliases_text: '', status: 'active' });
 const startEditSub = (s) => {
     editingSubId.value = s.id;
     editSubForm.name = s.name;
+    editSubForm.description = s.description || '';
+    editSubForm.aliases_text = (s.aliases || []).join(', ');
     editSubForm.status = s.status;
     editSubForm.clearErrors();
 };
 const submitEditSub = (s) => {
-    editSubForm.put(route('empresa.gastos.subcategorias.update', [props.tenant.slug, s.id]), {
-        preserveScroll: true,
-        preserveState: true,
-        onSuccess: () => { editingSubId.value = null; },
-    });
+    editSubForm
+        .transform(d => ({
+            name: d.name,
+            description: d.description || null,
+            aliases: parseAliases(d.aliases_text),
+            status: d.status,
+        }))
+        .put(route('empresa.gastos.subcategorias.update', [props.tenant.slug, s.id]), {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => { editingSubId.value = null; },
+        });
 };
 const deleteSub = (s) => {
     if (!confirm(`¿Eliminar subcategoría "${s.name}"?`)) return;
@@ -253,6 +335,12 @@ const goToPage = (url) => {
                         <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
                     </select>
 
+                    <select v-if="paymentMethods.length" v-model="paymentMethodFilter"
+                        class="h-10 rounded-xl border-gray-200 bg-white text-sm font-medium shadow-sm focus:border-red-400 focus:ring-red-300">
+                        <option value="">Todos los métodos</option>
+                        <option v-for="pm in paymentMethods" :key="pm.value" :value="pm.value">{{ pm.label }}</option>
+                    </select>
+
                     <div class="relative flex-1 min-w-[200px]">
                         <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
                         <input v-model="search" type="text" placeholder="Buscar concepto o notas..."
@@ -260,6 +348,13 @@ const goToPage = (url) => {
                     </div>
 
                     <button @click="clearFilters" class="h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 hover:bg-gray-50">Limpiar</button>
+
+                    <button @click="openIA" :disabled="!hasUsableCategories"
+                        :title="!hasUsableCategories ? 'Crea primero una categoría con subcategoría' : 'Subir foto del ticket o describir el gasto'"
+                        class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 text-sm font-bold text-white shadow-sm transition hover:from-violet-700 hover:to-fuchsia-700 disabled:cursor-not-allowed disabled:from-gray-300 disabled:to-gray-300 disabled:shadow-none">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
+                        Registrar con IA
+                    </button>
 
                     <button @click="openCreate" :disabled="!hasUsableCategories"
                         :title="!hasUsableCategories ? 'Crea primero una categoría con subcategoría' : ''"
@@ -309,7 +404,12 @@ const goToPage = (url) => {
                             </td>
                             <td class="px-5 py-3 text-sm text-gray-600">{{ e.branch?.name || '—' }}</td>
                             <td class="px-5 py-3 text-sm text-gray-600">{{ e.user?.name || '—' }}</td>
-                            <td class="px-5 py-3 text-right text-sm font-bold tabular-nums text-gray-900">{{ money(e.amount) }}</td>
+                            <td class="px-5 py-3 text-right text-sm font-bold tabular-nums text-gray-900">
+                                {{ money(e.amount) }}
+                                <div v-if="paymentLabel(e.payment_method)" class="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                                    {{ paymentLabel(e.payment_method) }}
+                                </div>
+                            </td>
                             <td class="px-5 py-3 text-center">
                                 <span v-if="e.attachments?.length" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
                                     <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg>
@@ -341,8 +441,23 @@ const goToPage = (url) => {
 
         <!-- TAB: CATEGORIAS -->
         <div v-else-if="activeTab === 'categorias'" class="space-y-5">
+            <!-- Crear con IA -->
+            <button @click="openCategoryIA"
+                class="group flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-dashed border-violet-200 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-5 py-4 text-left transition hover:border-violet-300 hover:from-violet-100 hover:to-fuchsia-100">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-sm">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09Z" /></svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-gray-900">Crear categoría con IA</p>
+                        <p class="mt-0.5 text-xs text-gray-600">Describe qué gastos quieres agrupar — la IA propone nombre, descripción y subcategorías.</p>
+                    </div>
+                </div>
+                <svg class="h-5 w-5 text-violet-500 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+            </button>
+
             <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-                <h3 class="mb-3 text-sm font-bold text-gray-700">Nueva categoría</h3>
+                <h3 class="mb-3 text-sm font-bold text-gray-700">O crea manualmente</h3>
                 <form @submit.prevent="submitNewCategory" class="flex gap-2">
                     <input v-model="newCatName" type="text" required maxlength="120" placeholder="Ej. Servicios"
                         class="flex-1 rounded-xl border-gray-200 bg-white py-2.5 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
@@ -364,46 +479,101 @@ const goToPage = (url) => {
 
             <!-- Categorías -->
             <div v-for="c in categories" :key="c.id" class="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
-                <div class="flex items-center gap-3 border-b border-gray-100 px-5 py-3.5">
+                <div class="border-b border-gray-100 px-5 py-3.5">
                     <template v-if="editingCatId === c.id">
-                        <input v-model="editCatForm.name" type="text" maxlength="120"
-                            class="flex-1 rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
-                        <select v-model="editCatForm.status" class="rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300">
-                            <option value="active">Activa</option>
-                            <option value="inactive">Inactiva</option>
-                        </select>
-                        <button @click="submitEditCat(c)" :disabled="editCatForm.processing" class="rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Guardar</button>
-                        <button @click="editingCatId = null" class="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                        <div class="space-y-2.5">
+                            <div class="flex items-center gap-2">
+                                <input v-model="editCatForm.name" type="text" maxlength="120"
+                                    class="flex-1 rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
+                                <select v-model="editCatForm.status" class="rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300">
+                                    <option value="active">Activa</option>
+                                    <option value="inactive">Inactiva</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-500">Descripción interna</label>
+                                <textarea v-model="editCatForm.description" rows="2" maxlength="500"
+                                    placeholder="Para qué se usa esta categoría. Ayuda a la IA a clasificar correctamente."
+                                    class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-500">Sinónimos / alias (separados por coma)</label>
+                                <input v-model="editCatForm.aliases_text" type="text" maxlength="600"
+                                    placeholder="Vehículos, Combustible, Logística"
+                                    class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
+                                <p class="mt-1 text-[10px] text-gray-400">La IA usará estos sinónimos para evitar crear categorías duplicadas.</p>
+                            </div>
+                            <div class="flex justify-end gap-2">
+                                <button @click="editingCatId = null" type="button" class="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                                <button @click="submitEditCat(c)" :disabled="editCatForm.processing" class="rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Guardar</button>
+                            </div>
+                        </div>
                     </template>
                     <template v-else>
-                        <h3 class="flex-1 text-sm font-bold text-gray-900">{{ c.name }}</h3>
-                        <span v-if="c.status === 'inactive'" class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">Inactiva</span>
-                        <button @click="startEditCat(c)" class="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200">Editar</button>
-                        <button @click="deleteCat(c)" class="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100">Eliminar</button>
+                        <div class="flex items-start gap-3">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="truncate text-sm font-bold text-gray-900">{{ c.name }}</h3>
+                                    <span v-if="c.status === 'inactive'" class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">Inactiva</span>
+                                </div>
+                                <p v-if="c.description" class="mt-1 line-clamp-2 text-xs text-gray-500">{{ c.description }}</p>
+                                <div v-if="c.aliases?.length" class="mt-1.5 flex flex-wrap gap-1">
+                                    <span v-for="a in c.aliases" :key="a" class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">{{ a }}</span>
+                                </div>
+                            </div>
+                            <div class="flex shrink-0 gap-2">
+                                <button @click="startEditCat(c)" class="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200">Editar</button>
+                                <button @click="deleteCat(c)" class="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100">Eliminar</button>
+                            </div>
+                        </div>
                     </template>
                 </div>
 
                 <div class="space-y-2 px-5 py-3">
                     <div v-if="!c.subcategories?.length" class="text-xs text-gray-400">Sin subcategorías.</div>
-                    <div v-for="s in c.subcategories" :key="s.id" class="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
+                    <div v-for="s in c.subcategories" :key="s.id" class="rounded-xl bg-gray-50 px-3 py-2">
                         <template v-if="editingSubId === s.id">
-                            <input v-model="editSubForm.name" type="text" maxlength="120" class="flex-1 rounded-lg border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
-                            <select v-model="editSubForm.status" class="rounded-lg border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300">
-                                <option value="active">Activa</option>
-                                <option value="inactive">Inactiva</option>
-                            </select>
-                            <button @click="submitEditSub(s)" :disabled="editSubForm.processing" class="rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Guardar</button>
-                            <button @click="editingSubId = null" class="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                            <div class="space-y-2">
+                                <div class="flex items-center gap-2">
+                                    <input v-model="editSubForm.name" type="text" maxlength="120" class="flex-1 rounded-lg border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
+                                    <select v-model="editSubForm.status" class="rounded-lg border-gray-200 text-sm shadow-sm focus:border-red-400 focus:ring-red-300">
+                                        <option value="active">Activa</option>
+                                        <option value="inactive">Inactiva</option>
+                                    </select>
+                                </div>
+                                <textarea v-model="editSubForm.description" rows="2" maxlength="500"
+                                    placeholder="Descripción interna (qué tipo de gasto entra aquí). Ayuda a la IA."
+                                    class="block w-full rounded-lg border-gray-200 text-xs shadow-sm focus:border-red-400 focus:ring-red-300" />
+                                <input v-model="editSubForm.aliases_text" type="text" maxlength="600"
+                                    placeholder="Sinónimos separados por coma: Diésel, Nafta..."
+                                    class="block w-full rounded-lg border-gray-200 text-xs shadow-sm focus:border-red-400 focus:ring-red-300" />
+                                <div class="flex justify-end gap-2">
+                                    <button @click="editingSubId = null" type="button" class="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                                    <button @click="submitEditSub(s)" :disabled="editSubForm.processing" class="rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Guardar</button>
+                                </div>
+                            </div>
                         </template>
                         <template v-else>
-                            <span class="flex-1 text-sm text-gray-700">{{ s.name }}</span>
-                            <span v-if="s.status === 'inactive'" class="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">Inactiva</span>
-                            <button @click="startEditSub(s)" class="rounded-lg p-1.5 text-gray-500 hover:bg-gray-200" title="Editar">
-                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
-                            </button>
-                            <button @click="deleteSub(s)" class="rounded-lg p-1.5 text-red-500 hover:bg-red-100" title="Eliminar">
-                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                            </button>
+                            <div class="flex items-start gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="truncate text-sm font-medium text-gray-700">{{ s.name }}</span>
+                                        <span v-if="s.status === 'inactive'" class="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">Inactiva</span>
+                                    </div>
+                                    <p v-if="s.description" class="mt-0.5 line-clamp-2 text-[11px] text-gray-500">{{ s.description }}</p>
+                                    <div v-if="s.aliases?.length" class="mt-1 flex flex-wrap gap-1">
+                                        <span v-for="a in s.aliases" :key="a" class="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-500 ring-1 ring-gray-200">{{ a }}</span>
+                                    </div>
+                                </div>
+                                <div class="flex shrink-0 gap-1">
+                                    <button @click="startEditSub(s)" class="rounded-lg p-1.5 text-gray-500 hover:bg-gray-200" title="Editar">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                                    </button>
+                                    <button @click="deleteSub(s)" class="rounded-lg p-1.5 text-red-500 hover:bg-red-100" title="Eliminar">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                            </div>
                         </template>
                     </div>
                     <form @submit.prevent="submitNewSubcategory(c.id)" class="flex gap-2 pt-1">
@@ -415,6 +585,14 @@ const goToPage = (url) => {
             </div>
         </div>
 
+        <!-- IA capture modal -->
+        <GastoCapturaIAModal
+            :show="iaOpen"
+            :tenant-slug="tenant.slug"
+            submit-route-name="empresa.gastos.ia.store"
+            @close="iaOpen = false"
+            @proposal="onAiProposal" />
+
         <!-- Form modal -->
         <GastoFormModal
             :show="formOpen"
@@ -422,8 +600,13 @@ const goToPage = (url) => {
             :tenant-slug="tenant.slug"
             :categories="categories"
             :branches="branches"
+            :payment-methods="paymentMethods"
             :allow-branch-select="true"
             :expense="editingExpense"
+            :ai-proposal="aiProposal"
+            :ai-draft-id="aiDraftId"
+            :ai-attachments="aiAttachments"
+            :ai-transcription="aiTranscription"
             :submit-route-name="submitRouteName"
             attachment-destroy-route-name="empresa.gastos.adjuntos.destroy"
             attachment-preview-route-name="empresa.gastos.adjuntos.preview"
@@ -436,6 +619,7 @@ const goToPage = (url) => {
             :show="detailOpen"
             :expense="detailExpense"
             :tenant-slug="tenant.slug"
+            :payment-methods="paymentMethods"
             preview-route-name="empresa.gastos.adjuntos.preview"
             download-route-name="empresa.gastos.adjuntos.download"
             :can-edit="true"
@@ -464,6 +648,20 @@ const goToPage = (url) => {
                 </div>
             </Transition>
         </Teleport>
+
+        <!-- Crear categoría con IA -->
+        <CategoryAICaptureModal
+            :show="catIAStep === 'capture'"
+            :tenant-slug="tenant.slug"
+            @close="catIAStep = 'idle'"
+            @proposal="onCategoryIAProposal" />
+
+        <CategoryAIReviewModal
+            :show="catIAStep === 'review'"
+            :tenant-slug="tenant.slug"
+            :draft-result="catIADraft"
+            @close="catIAStep = 'idle'"
+            @saved="onCategoryIASaved" />
 
         <FlashToast />
     </EmpresaLayout>

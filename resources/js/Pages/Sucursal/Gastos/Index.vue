@@ -4,6 +4,7 @@ import FlashToast from '@/Components/FlashToast.vue';
 import DateField from '@/Components/DateField.vue';
 import GastoFormModal from '@/Components/Gastos/GastoFormModal.vue';
 import GastoDetailModal from '@/Components/Gastos/GastoDetailModal.vue';
+import GastoCapturaIAModal from '@/Components/Gastos/GastoCapturaIAModal.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import { localToday } from '@/utils/date';
@@ -12,6 +13,7 @@ const props = defineProps({
     expenses: Object,
     totals: Object,
     categories: Array,
+    paymentMethods: { type: Array, default: () => [] },
     filters: Object,
     tenant: Object,
 });
@@ -23,10 +25,17 @@ const userBranchId = computed(() => page.props.auth?.user?.branch_id ?? null);
 const search = ref(props.filters?.search || '');
 const categoryFilter = ref(props.filters?.expense_category_id || '');
 const subcategoryFilter = ref(props.filters?.expense_subcategory_id || '');
+const paymentMethodFilter = ref(props.filters?.payment_method || '');
 const dateRange = ref({
     from: props.filters?.from || localToday(),
     to: props.filters?.to || localToday(),
 });
+
+const paymentLabel = (slug) => {
+    if (!slug) return null;
+    const match = props.paymentMethods.find(pm => pm.value === slug);
+    return match?.label || slug;
+};
 
 const subcategoriesForFilter = computed(() => {
     if (!categoryFilter.value) return [];
@@ -44,15 +53,17 @@ const applyFilters = () => {
             search: search.value || undefined,
             expense_category_id: categoryFilter.value || undefined,
             expense_subcategory_id: subcategoryFilter.value || undefined,
+            payment_method: paymentMethodFilter.value || undefined,
             from: dateRange.value?.from || undefined,
             to: dateRange.value?.to || undefined,
         }, { preserveState: true, replace: true });
     }, 300);
 };
-watch([search, categoryFilter, subcategoryFilter, dateRange], applyFilters, { deep: true });
+watch([search, categoryFilter, subcategoryFilter, paymentMethodFilter, dateRange], applyFilters, { deep: true });
 
 const clearFilters = () => {
     search.value = ''; categoryFilter.value = ''; subcategoryFilter.value = '';
+    paymentMethodFilter.value = '';
     dateRange.value = { from: localToday(), to: localToday() };
 };
 
@@ -60,9 +71,43 @@ const clearFilters = () => {
 const formOpen = ref(false);
 const formMode = ref('create');
 const editingExpense = ref(null);
-const openCreate = () => { formMode.value = 'create'; editingExpense.value = null; formOpen.value = true; };
-const openEdit = (e) => { formMode.value = 'edit'; editingExpense.value = e; formOpen.value = true; detailOpen.value = false; };
+const aiProposal = ref(null);
+const aiDraftId = ref(null);
+const aiAttachments = ref([]);
+const aiTranscription = ref(null);
+const openCreate = () => {
+    formMode.value = 'create';
+    editingExpense.value = null;
+    aiProposal.value = null;
+    aiDraftId.value = null;
+    aiAttachments.value = [];
+    aiTranscription.value = null;
+    formOpen.value = true;
+};
+const openEdit = (e) => {
+    formMode.value = 'edit';
+    editingExpense.value = e;
+    aiProposal.value = null;
+    aiDraftId.value = null;
+    aiAttachments.value = [];
+    aiTranscription.value = null;
+    formOpen.value = true;
+    detailOpen.value = false;
+};
 const submitRouteName = computed(() => formMode.value === 'edit' ? 'sucursal.gastos.update' : 'sucursal.gastos.store');
+
+// --- IA capture ---
+const iaOpen = ref(false);
+const openIA = () => { iaOpen.value = true; };
+const onAiProposal = ({ draftId, proposal, attachments, audioTranscription }) => {
+    aiProposal.value = proposal;
+    aiDraftId.value = draftId;
+    aiAttachments.value = attachments;
+    aiTranscription.value = audioTranscription;
+    formMode.value = 'create';
+    editingExpense.value = null;
+    formOpen.value = true;
+};
 
 // --- Detail modal ---
 const detailOpen = ref(false);
@@ -136,6 +181,12 @@ const goToPage = (url) => {
                         <option v-for="s in subcategoriesForFilter" :key="s.id" :value="s.id">{{ s.name }}</option>
                     </select>
 
+                    <select v-if="paymentMethods.length" v-model="paymentMethodFilter"
+                        class="h-10 rounded-xl border-gray-200 bg-white text-sm font-medium shadow-sm focus:border-red-400 focus:ring-red-300">
+                        <option value="">Todos los métodos</option>
+                        <option v-for="pm in paymentMethods" :key="pm.value" :value="pm.value">{{ pm.label }}</option>
+                    </select>
+
                     <div class="relative flex-1 min-w-[180px]">
                         <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
                         <input v-model="search" type="text" placeholder="Buscar concepto o notas..."
@@ -143,6 +194,13 @@ const goToPage = (url) => {
                     </div>
 
                     <button @click="clearFilters" class="h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 hover:bg-gray-50">Limpiar</button>
+
+                    <button @click="openIA" :disabled="!hasUsableCategories"
+                        :title="!hasUsableCategories ? 'El admin de empresa debe crear categorías primero' : 'Subir foto del ticket o describir el gasto'"
+                        class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 text-sm font-bold text-white shadow-sm transition hover:from-violet-700 hover:to-fuchsia-700 disabled:cursor-not-allowed disabled:from-gray-300 disabled:to-gray-300 disabled:shadow-none">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
+                        Registrar con IA
+                    </button>
 
                     <button @click="openCreate" :disabled="!hasUsableCategories"
                         :title="!hasUsableCategories ? 'El admin de empresa debe crear categorías primero' : ''"
@@ -190,7 +248,12 @@ const goToPage = (url) => {
                                 <div class="text-xs text-gray-400">{{ e.subcategory?.category?.name }}</div>
                             </td>
                             <td class="px-5 py-3 text-sm text-gray-600">{{ e.user?.name || '—' }}</td>
-                            <td class="px-5 py-3 text-right text-sm font-bold tabular-nums text-gray-900">{{ money(e.amount) }}</td>
+                            <td class="px-5 py-3 text-right text-sm font-bold tabular-nums text-gray-900">
+                                {{ money(e.amount) }}
+                                <div v-if="paymentLabel(e.payment_method)" class="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                                    {{ paymentLabel(e.payment_method) }}
+                                </div>
+                            </td>
                             <td class="px-5 py-3 text-center">
                                 <span v-if="e.attachments?.length" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
                                     <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg>
@@ -220,15 +283,28 @@ const goToPage = (url) => {
             </div>
         </div>
 
+        <!-- IA capture modal -->
+        <GastoCapturaIAModal
+            :show="iaOpen"
+            :tenant-slug="tenant.slug"
+            submit-route-name="sucursal.gastos.ia.store"
+            @close="iaOpen = false"
+            @proposal="onAiProposal" />
+
         <!-- Form modal -->
         <GastoFormModal
             :show="formOpen"
             :mode="formMode"
             :tenant-slug="tenant.slug"
             :categories="categories"
+            :payment-methods="paymentMethods"
             :allow-branch-select="false"
             :fixed-branch-id="userBranchId"
             :expense="editingExpense"
+            :ai-proposal="aiProposal"
+            :ai-draft-id="aiDraftId"
+            :ai-attachments="aiAttachments"
+            :ai-transcription="aiTranscription"
             :submit-route-name="submitRouteName"
             attachment-destroy-route-name="sucursal.gastos.adjuntos.destroy"
             attachment-preview-route-name="sucursal.gastos.adjuntos.preview"
@@ -241,6 +317,7 @@ const goToPage = (url) => {
             :show="detailOpen"
             :expense="detailExpense"
             :tenant-slug="tenant.slug"
+            :payment-methods="paymentMethods"
             preview-route-name="sucursal.gastos.adjuntos.preview"
             download-route-name="sucursal.gastos.adjuntos.download"
             :can-edit="true"

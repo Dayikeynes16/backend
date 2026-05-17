@@ -23,6 +23,13 @@ class ExpenseSubcategoryController extends Controller
                     ->where(fn ($q) => $q->where('tenant_id', $tenant->id)),
             ],
             'name' => ['required', 'string', 'max:120'],
+            'description' => 'nullable|string|max:500',
+            'aliases' => 'nullable|array|max:10',
+            'aliases.*' => 'nullable|string|max:60',
+            'includes' => 'nullable|array|max:15',
+            'includes.*' => 'nullable|string|max:80',
+            'excludes' => 'nullable|array|max:15',
+            'excludes.*' => 'nullable|string|max:80',
         ], [
             'expense_category_id.exists' => 'Categoría inválida.',
         ]);
@@ -34,13 +41,16 @@ class ExpenseSubcategoryController extends Controller
             return back()->withErrors(['name' => 'Ya existe esa subcategoría dentro de la categoría.']);
         }
 
-        // category_id ya validado por tenant_id en la regla exists.
         $category = ExpenseCategory::findOrFail($validated['expense_category_id']);
 
         ExpenseSubcategory::create([
             'tenant_id' => $tenant->id,
             'expense_category_id' => $category->id,
             'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'aliases' => $this->normalizeAliases($validated['aliases'] ?? null),
+            'includes' => $this->normalizeAliases($validated['includes'] ?? null),
+            'excludes' => $this->normalizeAliases($validated['excludes'] ?? null),
             'status' => 'active',
             'created_by' => Auth::id(),
         ]);
@@ -58,6 +68,13 @@ class ExpenseSubcategoryController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'description' => 'nullable|string|max:500',
+            'aliases' => 'nullable|array|max:10',
+            'aliases.*' => 'nullable|string|max:60',
+            'includes' => 'nullable|array|max:15',
+            'includes.*' => 'nullable|string|max:80',
+            'excludes' => 'nullable|array|max:15',
+            'excludes.*' => 'nullable|string|max:80',
             'status' => 'required|in:active,inactive',
         ]);
 
@@ -69,7 +86,14 @@ class ExpenseSubcategoryController extends Controller
             return back()->withErrors(['name' => 'Ya existe otra subcategoría con ese nombre en la categoría.']);
         }
 
-        $subcategory->update($validated);
+        $subcategory->update([
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'aliases' => $this->normalizeAliases($validated['aliases'] ?? null),
+            'includes' => $this->normalizeAliases($validated['includes'] ?? null),
+            'excludes' => $this->normalizeAliases($validated['excludes'] ?? null),
+            'status' => $validated['status'],
+        ]);
 
         return back()->with('success', 'Subcategoría actualizada.');
     }
@@ -90,5 +114,25 @@ class ExpenseSubcategoryController extends Controller
         $subcategory->delete();
 
         return back()->with('success', 'Subcategoría eliminada.');
+    }
+
+    /**
+     * @param  array<int, string>|null  $aliases
+     * @return array<int, string>|null
+     */
+    private function normalizeAliases(?array $aliases): ?array
+    {
+        if (! $aliases) {
+            return null;
+        }
+
+        $cleaned = collect($aliases)
+            ->map(fn ($a) => trim((string) $a))
+            ->filter()
+            ->unique(fn ($a) => mb_strtolower($a))
+            ->values()
+            ->all();
+
+        return $cleaned === [] ? null : $cleaned;
     }
 }

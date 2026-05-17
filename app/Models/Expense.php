@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMethod;
 use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'tenant_id', 'branch_id', 'expense_subcategory_id', 'user_id', 'updated_by',
-    'cancelled_by', 'concept', 'amount', 'expense_at', 'description',
+    'cancelled_by', 'concept', 'amount', 'payment_method', 'expense_at', 'description',
     'cancellation_reason',
 ])]
 class Expense extends Model
@@ -53,6 +54,7 @@ class Expense extends Model
         return [
             'amount' => 'decimal:2',
             'expense_at' => 'datetime',
+            'payment_method' => PaymentMethod::class,
         ];
     }
 }

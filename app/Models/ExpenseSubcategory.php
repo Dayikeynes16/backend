@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['tenant_id', 'expense_category_id', 'name', 'status', 'created_by'])]
+#[Fillable(['tenant_id', 'expense_category_id', 'name', 'description', 'aliases', 'includes', 'excludes', 'status', 'created_by'])]
 class ExpenseSubcategory extends Model
 {
     use BelongsToTenant;
@@ -26,5 +26,14 @@ class ExpenseSubcategory extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'aliases' => 'array',
+            'includes' => 'array',
+            'excludes' => 'array',
+        ];
     }
 }
