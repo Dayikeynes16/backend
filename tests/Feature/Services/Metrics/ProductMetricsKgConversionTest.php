@@ -90,7 +90,7 @@ class ProductMetricsKgConversionTest extends TestCase
 
     private function rangeForApril(): DateRange
     {
-        return DateRange::preset('this_month');
+        return DateRange::custom('2026-04-01', '2026-04-17');
     }
 
     public function test_pure_weight_variable_sums_kg_directly(): void

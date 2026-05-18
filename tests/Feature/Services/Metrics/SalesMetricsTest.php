@@ -37,7 +37,7 @@ class SalesMetricsTest extends TestCase
 
     private function current(?DateRange $range = null, ?int $branchId = null): array
     {
-        $range ??= DateRange::preset('this_month');
+        $range ??= DateRange::custom('2026-04-01', '2026-04-17');
         $branchId ??= $this->branch->id;
 
         return $this->svc->summary($range, $branchId, $this->tenant->id)['current'];
@@ -99,7 +99,7 @@ class SalesMetricsTest extends TestCase
         $this->assertSame(1, $r['ticket_count']);
 
         // Con el chip de "Pendientes" activo, sí se suman.
-        $withPending = $this->svc->summary(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id, ['completed', 'pending'])['current'];
+        $withPending = $this->svc->summary(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id, ['completed', 'pending'])['current'];
         $this->assertSame(220.0, $withPending['gross_sales']);
         $this->assertSame(2, $withPending['ticket_count']);
     }
@@ -140,7 +140,7 @@ class SalesMetricsTest extends TestCase
 
         $r1 = $this->current(null, $this->branch->id);
         $r2 = $this->current(null, $this->secondBranch->id);
-        $rAll = $this->svc->summary(DateRange::preset('this_month'), null, $this->tenant->id)['current'];
+        $rAll = $this->svc->summary(DateRange::custom('2026-04-01', '2026-04-17'), null, $this->tenant->id)['current'];
 
         $this->assertSame(100.0, $r1['net_sales']);
         $this->assertSame(500.0, $r2['net_sales']);
@@ -161,7 +161,7 @@ class SalesMetricsTest extends TestCase
             'completed_at' => '2026-04-15 10:00:00',
         ]);
 
-        $r = $this->svc->summary(DateRange::preset('this_month'), null, $this->tenant->id)['current'];
+        $r = $this->svc->summary(DateRange::custom('2026-04-01', '2026-04-17'), null, $this->tenant->id)['current'];
         $this->assertSame(100.0, $r['net_sales']);
     }
 
@@ -195,7 +195,7 @@ class SalesMetricsTest extends TestCase
         $this->makeCompletedSale(['total' => 200, 'completed_at' => '2026-04-15 18:00:00']);
         $this->makeCompletedSale(['total' => 50, 'completed_at' => '2026-04-16 10:00:00']);
 
-        $series = $this->svc->dailySeries(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $series = $this->svc->dailySeries(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         $byDay = collect($series)->pluck('total', 'day')->toArray();
         $this->assertSame(300.0, (float) $byDay['2026-04-15']);
         $this->assertSame(50.0, (float) $byDay['2026-04-16']);
@@ -278,7 +278,7 @@ class SalesMetricsTest extends TestCase
         // Solo 1 venta en abril 15. Rango this_month = abril 1..17 (17 dias).
         $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);
 
-        $series = $this->svc->dailySeries(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $series = $this->svc->dailySeries(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
 
         $this->assertCount(17, $series, 'Debe haber un punto por cada dia del rango (abril 1..17).');
         $this->assertSame('2026-04-01', $series[0]['day']);
@@ -305,7 +305,7 @@ class SalesMetricsTest extends TestCase
     public function test_daily_series_zero_fills_when_no_sales_in_range(): void
     {
         // Sin ventas. this_month = abril 1..17.
-        $series = $this->svc->dailySeries(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $series = $this->svc->dailySeries(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
 
         $this->assertCount(17, $series);
         $this->assertSame(0.0, collect($series)->sum('total'));
@@ -323,7 +323,7 @@ class SalesMetricsTest extends TestCase
             'cancelled_at' => '2026-04-17 09:00:00',
         ]);
 
-        $range = DateRange::preset('this_month');
+        $range = DateRange::custom('2026-04-01', '2026-04-17');
         $summary = $this->svc->summary($range, $this->branch->id, $this->tenant->id)['current'];
         $series = $this->svc->dailySeries($range, $this->branch->id, $this->tenant->id);
         $seriesTotal = collect($series)->sum('total');
@@ -345,7 +345,7 @@ class SalesMetricsTest extends TestCase
         ]);
         Carbon::setTestNow('2026-04-17 10:00:00');
 
-        $range = DateRange::preset('this_month');
+        $range = DateRange::custom('2026-04-01', '2026-04-17');
         $onlyCompleted = $this->svc->summary($range, $this->branch->id, $this->tenant->id, ['completed'])['current'];
         $bothStates = $this->svc->summary($range, $this->branch->id, $this->tenant->id, ['completed', 'pending'])['current'];
 
@@ -368,7 +368,7 @@ class SalesMetricsTest extends TestCase
         ]);
         Carbon::setTestNow('2026-04-17 10:00:00');
 
-        $r = $this->svc->summary(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id)['current'];
+        $r = $this->svc->summary(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id)['current'];
 
         $this->assertSame(100.0, $r['gross_sales']);
         $this->assertSame(1, $r['ticket_count']);
@@ -385,7 +385,7 @@ class SalesMetricsTest extends TestCase
         ]);
         Carbon::setTestNow('2026-04-17 10:00:00');
 
-        $range = DateRange::preset('this_month');
+        $range = DateRange::custom('2026-04-01', '2026-04-17');
         $onlyCompleted = $this->svc->dailySeries($range, $this->branch->id, $this->tenant->id, ['completed']);
         $bothStates = $this->svc->dailySeries($range, $this->branch->id, $this->tenant->id, ['completed', 'pending']);
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Sucursal\Metrics;
 
+use App\Models\Category;
 use App\Models\SaleItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -36,7 +37,7 @@ class MarginCalculationTest extends TestCase
 
     private function marginUrl(array $query = []): string
     {
-        $query = array_merge(['preset' => 'this_month', 'refresh' => 1], $query);
+        $query = array_merge(['from' => '2026-04-01', 'to' => '2026-04-30'], $query);
 
         return route('sucursal.metricas.margen', $this->tenant->slug).'?'.http_build_query($query);
     }
@@ -139,7 +140,7 @@ class MarginCalculationTest extends TestCase
 
     public function test_by_category_excluye_items_sin_costo(): void
     {
-        $category = \App\Models\Category::create([
+        $category = Category::create([
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Res',

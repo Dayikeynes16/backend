@@ -37,7 +37,7 @@ class MarginMetricsTest extends TestCase
             'quantity' => 2, 'unit_price' => 100,
         ]]);
 
-        $r = $this->svc->aggregateFor(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $r = $this->svc->aggregateFor(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         // revenue = 200, cost = 120, profit = 80
         $this->assertSame(200.0, $r['revenue']);
         $this->assertSame(120.0, $r['cost']);
@@ -55,7 +55,7 @@ class MarginMetricsTest extends TestCase
             ['product_id' => $pNoCost->id, 'product_name' => $pNoCost->name, 'quantity' => 1, 'unit_price' => 80],
         ]);
 
-        $r = $this->svc->aggregateFor(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $r = $this->svc->aggregateFor(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         // revenue = 100 (solo pOk, items con costo), cost = 50, profit = 50.
         // pNoCost contribuye a items_without_cost pero no al margen.
         $this->assertSame(100.0, $r['revenue']);
@@ -67,7 +67,7 @@ class MarginMetricsTest extends TestCase
 
     public function test_handles_zero_revenue(): void
     {
-        $r = $this->svc->aggregateFor(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $r = $this->svc->aggregateFor(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         $this->assertSame(0.0, $r['revenue']);
         $this->assertSame(0.0, $r['margin_pct']);
     }
@@ -81,7 +81,7 @@ class MarginMetricsTest extends TestCase
             ['product_id' => $p2->id, 'product_name' => 'B', 'quantity' => 2, 'unit_price' => 50],
         ]);
 
-        $rows = $this->svc->byProduct(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $rows = $this->svc->byProduct(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         $byName = collect($rows)->pluck('gross_profit', 'product_name')->toArray();
         $this->assertEqualsWithDelta(70.0, $byName['A'], 0.01);
         $this->assertEqualsWithDelta(60.0, $byName['B'], 0.01); // (100-40)
@@ -95,7 +95,7 @@ class MarginMetricsTest extends TestCase
             [['product_id' => $p->id, 'quantity' => 1, 'unit_price' => 100]]
         );
 
-        $series = $this->svc->dailyGrossProfit(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $series = $this->svc->dailyGrossProfit(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
 
         $this->assertCount(17, $series, 'Debe haber un punto por dia (abril 1..17).');
         $this->assertSame('2026-04-01', $series[0]['day']);

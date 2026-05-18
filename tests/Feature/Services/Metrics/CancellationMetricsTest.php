@@ -62,9 +62,10 @@ class CancellationMetricsTest extends TestCase
         return $sale;
     }
 
-    private function range(string $preset = 'this_month'): DateRange
+    private function range(): DateRange
     {
-        return DateRange::preset($preset);
+        // Cubre abril 2026 — donde caen todas las fixtures (setTestNow 2026-04-17).
+        return DateRange::custom('2026-04-01', '2026-04-17');
     }
 
     public function test_summary_counts_cancelled_in_range_and_excludes_outside(): void
@@ -138,11 +139,12 @@ class CancellationMetricsTest extends TestCase
 
     public function test_summary_previous_period_compares_to_previous_comparable(): void
     {
-        // Mes actual (this_month → abril 1-17 dado el setTestNow).
+        // Rango actual: abril 1-17 (17 días). previousComparable() retrocede
+        // 17 días → marzo 15-31.
         $this->makeCancelledSale(['total' => 100, 'cancelled_at' => '2026-04-10 10:00:00']);
-        // Mes previo equivalente (marzo, primeros 17 días).
-        $this->makeCancelledSale(['total' => 200, 'cancelled_at' => '2026-03-05 10:00:00']);
-        $this->makeCancelledSale(['total' => 50, 'cancelled_at' => '2026-03-10 10:00:00']);
+        // En el rango previo (15-31 marzo):
+        $this->makeCancelledSale(['total' => 200, 'cancelled_at' => '2026-03-20 10:00:00']);
+        $this->makeCancelledSale(['total' => 50, 'cancelled_at' => '2026-03-25 10:00:00']);
 
         $summary = $this->svc->summary($this->range(), $this->branch->id, $this->tenant->id);
 

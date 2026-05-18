@@ -24,11 +24,6 @@ class CustomerMetricsController extends Controller
         $statuses = $this->resolveStatuses($request);
         $statusKey = implode('-', $statuses) ?: 'none';
         $key = $meta->cacheKey("clientes:{$inactiveDays}:{$statusKey}", $range, $branchId, $tenantId);
-
-        if ($this->wantsRefresh($request)) {
-            Cache::forget($key);
-        }
-
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId, $statuses),
             'top_customers' => $service->topCustomers($range, $branchId, $tenantId, 10, $statuses),

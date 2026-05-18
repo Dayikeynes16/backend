@@ -24,14 +24,9 @@ class SalesMetricsController extends Controller
         $statusKey = implode('-', $statuses) ?: 'none';
         $key = $meta->cacheKey("ventas:{$statusKey}", $range, $branchId, $tenantId);
 
-        if ($this->wantsRefresh($request)) {
-            Cache::forget($key);
-        }
-
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId, $statuses),
             'daily_series' => $service->dailySeries($range, $branchId, $tenantId, $statuses),
-            'previous_daily_series' => $service->dailySeries($range->previousComparable(), $branchId, $tenantId, $statuses),
             'heatmap' => $service->hourDayHeatmap($range, $branchId, $tenantId, $statuses),
             'daily_table' => $service->dailyTable($range, $branchId, $tenantId, $statuses),
             'by_payment_method' => $service->byPaymentMethod($range, $branchId, $tenantId),

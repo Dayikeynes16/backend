@@ -23,11 +23,6 @@ class CancellationMetricsController extends Controller
         $branchId = $this->resolveEmpresaBranchId($request, $tenantId);
         $range = $this->resolveDateRange($request);
         $key = $meta->cacheKey('cancelaciones', $range, $branchId, $tenantId);
-
-        if ($this->wantsRefresh($request)) {
-            Cache::forget($key);
-        }
-
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId),
             'daily' => $service->daily($range, $branchId, $tenantId),

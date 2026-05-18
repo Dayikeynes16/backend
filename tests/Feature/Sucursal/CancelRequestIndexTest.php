@@ -67,7 +67,7 @@ class CancelRequestIndexTest extends TestCase
 
         // preset=this_month → ambas
         $this->actingAs($this->adminSucursal)
-            ->get(route('sucursal.cancelaciones.index', $this->tenant->slug).'?preset=this_month')
+            ->get(route('sucursal.cancelaciones.index', $this->tenant->slug).'?from=2026-04-01&to=2026-04-30')
             ->assertInertia(fn ($page) => $page
                 ->where('stats.cancelled_count', 2)
                 ->where('stats.cancelled_total', 350)

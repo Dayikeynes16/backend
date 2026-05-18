@@ -53,7 +53,7 @@ class SalesMetricsPaymentBreakdownTest extends TestCase
         $this->insertPayment($s2->id, 'card', 250);
         $this->insertPayment($s3->id, 'transfer', 50);
 
-        $breakdown = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $breakdown = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
 
         $this->assertCount(3, $breakdown);
         $byMethod = collect($breakdown)->keyBy('method');
@@ -68,7 +68,7 @@ class SalesMetricsPaymentBreakdownTest extends TestCase
         $this->insertPayment($s1->id, 'cash', 100);
         $this->insertPayment($s1->id, 'cash', 200);
 
-        $breakdown = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $breakdown = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         $cash = collect($breakdown)->firstWhere('method', 'cash');
 
         $this->assertSame(300.0, $cash['total']);
@@ -83,7 +83,7 @@ class SalesMetricsPaymentBreakdownTest extends TestCase
         $this->insertPayment($s1->id, 'card', 300);
         $this->insertPayment($s1->id, 'transfer', 150);
 
-        $breakdown = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $breakdown = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         $methods = array_map(fn ($r) => $r['method'], $breakdown);
 
         $this->assertSame(['card', 'transfer', 'cash'], $methods);
@@ -94,7 +94,7 @@ class SalesMetricsPaymentBreakdownTest extends TestCase
         $s = $this->makeCompletedSale(['total' => 100]);
         $this->insertPayment($s->id, 'vale_despensa', 100);
 
-        $breakdown = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $breakdown = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         $row = collect($breakdown)->firstWhere('method', 'vale_despensa');
 
         $this->assertNotNull($row);
@@ -109,7 +109,7 @@ class SalesMetricsPaymentBreakdownTest extends TestCase
         $this->insertPayment($s->id, 'cash', 500);
         $this->insertPayment($s->id, 'card', 500);
 
-        $breakdown = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $breakdown = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         $byMethod = collect($breakdown)->keyBy('method');
 
         $this->assertSame(500.0, $byMethod['cash']['total']);
@@ -121,7 +121,7 @@ class SalesMetricsPaymentBreakdownTest extends TestCase
         $s = $this->makeCompletedSale(['total' => 100]);
         $this->insertPayment($s->id, 'cash', 100, '2026-04-15 10:00:00', '2026-04-15 11:00:00');
 
-        $breakdown = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $breakdown = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
 
         $this->assertEmpty($breakdown);
     }
@@ -133,8 +133,8 @@ class SalesMetricsPaymentBreakdownTest extends TestCase
         $this->insertPayment($s1->id, 'cash', 100);
         $this->insertPayment($s2->id, 'card', 500);
 
-        $b1 = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
-        $b2 = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->secondBranch->id, $this->tenant->id);
+        $b1 = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
+        $b2 = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->secondBranch->id, $this->tenant->id);
 
         $this->assertCount(1, $b1);
         $this->assertSame('cash', $b1[0]['method']);
@@ -147,7 +147,7 @@ class SalesMetricsPaymentBreakdownTest extends TestCase
         $this->makeCompletedSale(['total' => 100]);
         // No payments created.
 
-        $breakdown = $this->svc->byPaymentMethod(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id);
+        $breakdown = $this->svc->byPaymentMethod(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id);
         $this->assertSame([], $breakdown);
     }
 }

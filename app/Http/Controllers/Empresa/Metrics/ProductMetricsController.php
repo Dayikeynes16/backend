@@ -25,11 +25,6 @@ class ProductMetricsController extends Controller
 
         $statusKey = implode('-', $statuses);
         $key = $meta->cacheKey("productos:{$noMovementDays}:{$statusKey}", $range, $branchId, $tenantId);
-
-        if ($this->wantsRefresh($request)) {
-            Cache::forget($key);
-        }
-
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId, $statuses),
             'all_products' => $service->byProductFull($range, $branchId, $tenantId, $statuses),

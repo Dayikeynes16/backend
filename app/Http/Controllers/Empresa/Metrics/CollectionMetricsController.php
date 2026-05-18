@@ -21,11 +21,6 @@ class CollectionMetricsController extends Controller
         $branchId = $this->resolveEmpresaBranchId($request, $tenantId);
         $range = $this->resolveDateRange($request);
         $key = $meta->cacheKey('cobranza', $range, $branchId, $tenantId);
-
-        if ($this->wantsRefresh($request)) {
-            Cache::forget($key);
-        }
-
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId),
             'daily_collection' => $service->dailyCollection($range, $branchId, $tenantId),

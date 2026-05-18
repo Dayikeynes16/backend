@@ -52,11 +52,6 @@ trait ResolvesMetricsRequest
         return (int) $raw;
     }
 
-    protected function wantsRefresh(Request $request): bool
-    {
-        return $request->boolean('refresh');
-    }
-
     /**
      * Resuelve qué estados de venta incluir en las métricas de "venta generada"
      * (Resumen, Ventas, Productos, Clientes). Default: ['completed'] — solo
@@ -84,11 +79,6 @@ trait ResolvesMetricsRequest
         return ! empty($clean) ? $clean : $default;
     }
 
-    protected function compareEnabled(Request $request): bool
-    {
-        return $request->boolean('compare', true);
-    }
-
     protected function tenantId(): int
     {
         return app('tenant')->id;
@@ -99,8 +89,6 @@ trait ResolvesMetricsRequest
         return [
             'range' => $range->toArray(),
             'presets' => DateRange::PRESETS,
-            'compare' => $this->compareEnabled($request),
-            'refresh' => $this->wantsRefresh($request),
             'selected_branch_id' => $branchId,
             'statuses' => $this->resolveStatuses($request),
             'tenant' => app('tenant'),

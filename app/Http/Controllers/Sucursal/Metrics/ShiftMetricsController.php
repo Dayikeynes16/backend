@@ -21,11 +21,6 @@ class ShiftMetricsController extends Controller
         $branchId = $this->resolveSucursalBranchId($request);
         $range = $this->resolveDateRange($request);
         $key = $meta->cacheKey('turnos', $range, $branchId, $tenantId);
-
-        if ($this->wantsRefresh($request)) {
-            Cache::forget($key);
-        }
-
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId),
             'daily_differences' => $service->dailyDifferences($range, $branchId, $tenantId),

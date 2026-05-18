@@ -21,11 +21,6 @@ class CashierMetricsController extends Controller
         $branchId = $this->resolveSucursalBranchId($request);
         $range = $this->resolveDateRange($request);
         $key = $meta->cacheKey('cajeros', $range, $branchId, $tenantId);
-
-        if ($this->wantsRefresh($request)) {
-            Cache::forget($key);
-        }
-
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId),
             'by_cashier' => $service->byCashier($range, $branchId, $tenantId),

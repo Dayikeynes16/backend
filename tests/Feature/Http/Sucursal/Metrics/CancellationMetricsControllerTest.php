@@ -57,7 +57,7 @@ class CancellationMetricsControllerTest extends TestCase
         $this->makeCancelledSale(['total' => 200, 'cancelled_at' => '2026-04-15 12:00:00', 'cancel_reason' => 'Cliente ya no quiso']);
 
         $response = $this->actingAs($this->adminSucursal)
-            ->get(route('sucursal.metricas.cancelaciones', $this->tenant->slug).'?preset=this_month');
+            ->get(route('sucursal.metricas.cancelaciones', $this->tenant->slug).'?from=2026-04-01&to=2026-04-30');
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page

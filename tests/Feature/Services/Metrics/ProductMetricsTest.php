@@ -40,7 +40,7 @@ class ProductMetricsTest extends TestCase
         $deleted->delete();
 
         $results = $this->svc
-            ->withoutMovement(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id, 30)
+            ->withoutMovement(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id, 30)
             ->get();
 
         $names = $results->pluck('name')->all();
@@ -54,7 +54,7 @@ class ProductMetricsTest extends TestCase
         $product = $this->makeProduct(['name' => 'Sin ventas recientes']);
 
         $results = $this->svc
-            ->withoutMovement(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id, 30)
+            ->withoutMovement(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id, 30)
             ->get();
 
         $this->assertContains('Sin ventas recientes', $results->pluck('name')->all());
@@ -65,7 +65,7 @@ class ProductMetricsTest extends TestCase
         $this->makeProduct(['name' => 'Inactivo', 'status' => 'inactive']);
 
         $results = $this->svc
-            ->withoutMovement(DateRange::preset('this_month'), $this->branch->id, $this->tenant->id, 30)
+            ->withoutMovement(DateRange::custom('2026-04-01', '2026-04-17'), $this->branch->id, $this->tenant->id, 30)
             ->get();
 
         $this->assertNotContains('Inactivo', $results->pluck('name')->all());

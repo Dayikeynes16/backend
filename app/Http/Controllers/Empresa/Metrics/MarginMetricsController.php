@@ -21,11 +21,6 @@ class MarginMetricsController extends Controller
         $branchId = $this->resolveEmpresaBranchId($request, $tenantId);
         $range = $this->resolveDateRange($request);
         $key = $meta->cacheKey('margen', $range, $branchId, $tenantId);
-
-        if ($this->wantsRefresh($request)) {
-            Cache::forget($key);
-        }
-
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId),
             'daily_gross_profit' => $service->dailyGrossProfit($range, $branchId, $tenantId),

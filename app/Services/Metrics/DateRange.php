@@ -7,7 +7,7 @@ use InvalidArgumentException;
 
 final class DateRange
 {
-    public const PRESETS = ['today', 'yesterday', 'last_7_days', 'this_month', 'last_month', 'this_year'];
+    public const PRESETS = ['today', 'yesterday', 'last_7_days'];
 
     public const MAX_DAYS = 365;
 
@@ -30,9 +30,6 @@ final class DateRange
             'today' => new self($now->startOfDay(), $now->endOfDay(), 'today'),
             'yesterday' => new self($now->subDay()->startOfDay(), $now->subDay()->endOfDay(), 'yesterday'),
             'last_7_days' => new self($now->subDays(6)->startOfDay(), $now->endOfDay(), 'last_7_days'),
-            'this_month' => new self($now->startOfMonth(), $now->endOfDay(), 'this_month'),
-            'last_month' => new self($now->subMonthNoOverflow()->startOfMonth(), $now->subMonthNoOverflow()->endOfMonth(), 'last_month'),
-            'this_year' => new self($now->startOfYear(), $now->endOfDay(), 'this_year'),
             default => throw new InvalidArgumentException("Unknown preset: {$name}"),
         };
     }
@@ -68,28 +65,6 @@ final class DateRange
 
     public function previousComparable(): self
     {
-        if ($this->preset === 'this_month') {
-            $tz = $this->start->timezone;
-            $now = CarbonImmutable::now($tz);
-            $daysElapsed = $this->start->diffInDays($this->end);
-            $prevStart = $now->subMonthNoOverflow()->startOfMonth();
-            $prevEnd = $prevStart->addDays((int) $daysElapsed)->endOfDay();
-            if ($prevEnd->greaterThan($prevStart->endOfMonth())) {
-                $prevEnd = $prevStart->endOfMonth();
-            }
-
-            return new self($prevStart, $prevEnd);
-        }
-        if ($this->preset === 'this_year') {
-            $tz = $this->start->timezone;
-            $now = CarbonImmutable::now($tz);
-            $daysElapsed = $this->start->diffInDays($this->end);
-            $prevStart = $now->subYearNoOverflow()->startOfYear();
-            $prevEnd = $prevStart->addDays((int) $daysElapsed)->endOfDay();
-
-            return new self($prevStart, $prevEnd);
-        }
-
         $lengthSeconds = $this->end->diffInSeconds($this->start, true);
         $prevEnd = $this->start->subSecond();
         $prevStart = $prevEnd->subSeconds((int) $lengthSeconds);
@@ -113,17 +88,12 @@ final class DateRange
             'today' => 'Hoy',
             'yesterday' => 'Ayer',
             'last_7_days' => 'Últimos 7 días',
-            'this_month' => 'Este mes',
-            'last_month' => 'Mes pasado',
-            'this_year' => 'Este año',
             default => $this->start->format('Y-m-d').' → '.$this->end->format('Y-m-d'),
         };
     }
 
     public function toArray(): array
     {
-        $prev = $this->previousComparable();
-
         return [
             'preset' => $this->preset,
             'from' => $this->start->toDateString(),
@@ -132,14 +102,6 @@ final class DateRange
             'to_iso' => $this->end->toIso8601String(),
             'label' => $this->label(),
             'days' => $this->days(),
-            // Rango previo expuesto para que el frontend pueda mostrar la
-            // comparación con fechas absolutas en lugar de "Actual / Previo".
-            'previous' => [
-                'from' => $prev->start->toDateString(),
-                'to' => $prev->end->toDateString(),
-                'label' => $prev->label(),
-                'days' => $prev->days(),
-            ],
         ];
     }
 }

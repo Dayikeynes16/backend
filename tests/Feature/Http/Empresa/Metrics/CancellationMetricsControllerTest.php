@@ -56,7 +56,7 @@ class CancellationMetricsControllerTest extends TestCase
         $this->makeCancelledSale($this->secondBranch->id, ['total' => 250]);
 
         $this->actingAs($this->adminEmpresa)
-            ->get(route('empresa.metricas.cancelaciones', $this->tenant->slug).'?preset=this_month')
+            ->get(route('empresa.metricas.cancelaciones', $this->tenant->slug).'?from=2026-04-01&to=2026-04-30')
             ->assertInertia(fn ($page) => $page
                 ->component('Empresa/Metricas/Cancelaciones')
                 ->where('data.summary.current.cancelled_count', 2)
@@ -72,7 +72,7 @@ class CancellationMetricsControllerTest extends TestCase
         $this->makeCancelledSale($this->secondBranch->id, ['total' => 999]);
 
         $this->actingAs($this->adminEmpresa)
-            ->get(route('empresa.metricas.cancelaciones', $this->tenant->slug).'?preset=this_month&branch_id='.$this->branch->id)
+            ->get(route('empresa.metricas.cancelaciones', $this->tenant->slug).'?from=2026-04-01&to=2026-04-30&branch_id='.$this->branch->id)
             ->assertInertia(fn ($page) => $page
                 ->where('data.summary.current.cancelled_count', 1)
                 ->where('data.summary.current.cancelled_amount', 100)

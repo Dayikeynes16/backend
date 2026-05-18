@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Services\Metrics;
 
+use App\Enums\SaleStatus;
 use App\Models\Customer;
 use App\Models\CustomerProductPrice;
 use App\Services\Metrics\DateRange;
@@ -37,7 +38,7 @@ class ProductPriceBreakdownTest extends TestCase
             $productId,
             $this->tenant->id,
             $this->branch->id,
-            DateRange::preset('this_month'),
+            DateRange::custom('2026-04-01', '2026-04-17'),
             $statuses ?? ['completed', 'pending'],
         );
     }
@@ -225,7 +226,7 @@ class ProductPriceBreakdownTest extends TestCase
             'quantity' => 1, 'unit_price' => 100, 'cost_price_at_sale' => 60,
         ]]);
         $this->makeCompletedSale([
-            'status' => \App\Enums\SaleStatus::Cancelled->value,
+            'status' => SaleStatus::Cancelled->value,
             'cancelled_at' => '2026-04-15 10:00:00',
         ], [[
             'product_id' => $p->id, 'product_name' => 'Carne',
