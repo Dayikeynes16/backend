@@ -44,6 +44,12 @@ final class DailySummaryService
      *                            la cobranza (collections) por ese usuario. NO
      *                            afecta los agregados de venta — ventas no se
      *                            atribuyen a un solo cajero.
+     * @param  list<string>  $statuses  estados de venta a incluir en los agregados
+     *                                  (net_sales, ticket_count, delta, etc.).
+     *                                  Default `['completed']`. Pasar `['completed','pending']`
+     *                                  para incluir pendientes desde el dashboard.
+     *                                  NO afecta `collections` (los pagos cuentan
+     *                                  independientemente del estado de la venta).
      * @return DaySummary
      */
     public function forDate(
@@ -52,9 +58,10 @@ final class DailySummaryService
         string $date,
         array $paymentMethods = ['cash', 'card', 'transfer'],
         ?int $userId = null,
+        array $statuses = ['completed'],
     ): array {
         $range = DateRange::custom($date, $date);
-        $summary = $this->sales->summary($range, $branchId, $tenantId);
+        $summary = $this->sales->summary($range, $branchId, $tenantId, $statuses);
 
         $current = $this->normalizeSales($summary['current']);
         $previous = $this->normalizeSales($summary['previous']);
@@ -72,11 +79,12 @@ final class DailySummaryService
      * dashboard. Pass-through tipado sobre {@see SalesMetrics::hourlySeries()}.
      *
      * @param  int|null  $branchId  null = todas las sucursales del tenant
+     * @param  list<string>  $statuses  estados a incluir (default solo completadas)
      * @return array<int, array{trx: int, total: float}>
      */
-    public function hourlySeries(?int $branchId, int $tenantId, string $date): array
+    public function hourlySeries(?int $branchId, int $tenantId, string $date, array $statuses = ['completed']): array
     {
-        return $this->sales->hourlySeries(DateRange::custom($date, $date), $branchId, $tenantId);
+        return $this->sales->hourlySeries(DateRange::custom($date, $date), $branchId, $tenantId, $statuses);
     }
 
     /**

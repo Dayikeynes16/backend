@@ -2,6 +2,7 @@
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import DashboardOverview from '@/Components/Dashboard/DashboardOverview.vue';
 import DatePicker from '@/Components/DatePicker.vue';
+import StatusFilterChips from '@/Components/Metrics/StatusFilterChips.vue';
 import { localToday } from '@/utils/date';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
@@ -20,6 +21,7 @@ const props = defineProps({
     activeCashierCount: Number,
     expenses: Object,
     selectedDate: String,
+    selectedStatuses: { type: Array, default: () => ['completed'] },
     selectedBranch: { type: Number, default: null },
     branches: Array,
     branchCount: Number,
@@ -29,15 +31,30 @@ const props = defineProps({
 const date = ref(props.selectedDate || localToday());
 const branchId = ref(props.selectedBranch || '');
 
+// Adapter para reusar StatusFilterChips (espera filters.statuses.value y
+// filters.toggleStatus). Sólo permitimos completed/pending en el dashboard.
+const statuses = ref([...(props.selectedStatuses || ['completed'])]);
+const statusFilters = {
+    statuses,
+    toggleStatus(key) {
+        const has = statuses.value.includes(key);
+        statuses.value = has
+            ? statuses.value.filter(s => s !== key)
+            : [...statuses.value, key];
+    },
+};
+
 const navigate = () => {
     router.get(route('empresa.dashboard', props.tenant.slug), {
         date: date.value || undefined,
         branch_id: branchId.value || undefined,
+        statuses: statuses.value.length ? statuses.value : undefined,
     }, { preserveState: true, replace: true });
 };
 
 watch(date, navigate);
 watch(branchId, navigate);
+watch(statuses, navigate, { deep: true });
 </script>
 
 <template>
@@ -56,6 +73,7 @@ watch(branchId, navigate);
                             <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
                         </select>
                     </div>
+                    <StatusFilterChips :filters="statusFilters" compact />
                     <DatePicker v-model="date" />
                 </div>
             </div>

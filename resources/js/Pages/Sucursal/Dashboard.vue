@@ -2,6 +2,7 @@
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import DashboardOverview from '@/Components/Dashboard/DashboardOverview.vue';
 import DatePicker from '@/Components/DatePicker.vue';
+import StatusFilterChips from '@/Components/Metrics/StatusFilterChips.vue';
 import { localToday } from '@/utils/date';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
@@ -20,23 +21,50 @@ const props = defineProps({
     activeCashierCount: Number,
     expenses: Object,
     selectedDate: String,
+    selectedStatuses: { type: Array, default: () => ['completed'] },
     tenant: Object,
 });
 
 const date = ref(props.selectedDate || localToday());
 
-watch(date, (v) => {
-    router.get(route('sucursal.dashboard', props.tenant.slug), { date: v || undefined }, { preserveState: true, replace: true });
-});
+// Adapter para reusar StatusFilterChips (espera filters.statuses.value y
+// filters.toggleStatus). Sólo permitimos completed/pending en el dashboard.
+const statuses = ref([...(props.selectedStatuses || ['completed'])]);
+const statusFilters = {
+    statuses,
+    toggleStatus(key) {
+        const has = statuses.value.includes(key);
+        statuses.value = has
+            ? statuses.value.filter(s => s !== key)
+            : [...statuses.value, key];
+    },
+};
+
+const reload = () => {
+    router.get(
+        route('sucursal.dashboard', props.tenant.slug),
+        {
+            date: date.value || undefined,
+            statuses: statuses.value.length ? statuses.value : undefined,
+        },
+        { preserveState: true, replace: true },
+    );
+};
+
+watch(date, reload);
+watch(statuses, reload, { deep: true });
 </script>
 
 <template>
     <Head title="Dashboard" />
     <SucursalLayout>
         <template #header>
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-3">
                 <h1 class="text-xl font-bold text-gray-900">Dashboard</h1>
-                <DatePicker v-model="date" />
+                <div class="flex flex-wrap items-center gap-3">
+                    <StatusFilterChips :filters="statusFilters" compact />
+                    <DatePicker v-model="date" />
+                </div>
                 <!-- El chip "Admin Sucursal" lo pinta SucursalLayout en el header global; no se duplica aquí. -->
             </div>
         </template>

@@ -171,6 +171,39 @@ class DailySummaryServiceTest extends TestCase
         $this->assertEqualsWithDelta(0.0, $byMethod['transfer']['from_today'], 0.01);
     }
 
+    public function test_statuses_filter_includes_pending_sales_when_requested(): void
+    {
+        $d = self::DATE;
+
+        // Completed: $1000
+        $this->makeSale(['total' => 1000, 'amount_paid' => 1000, 'completed_at' => Carbon::parse("$d 10:00")]);
+        // Pending: $400, creada hoy
+        $this->makeSale([
+            'total' => 400, 'amount_paid' => 0, 'amount_pending' => 400,
+            'status' => SaleStatus::Pending, 'completed_at' => null,
+            'created_at' => Carbon::parse("$d 12:00"),
+        ]);
+
+        $svc = app(DailySummaryService::class);
+
+        // Default: solo completadas → $1000, 1 ticket.
+        $defaultDay = $svc->forDate($this->branch->id, $this->tenant->id, $d);
+        $this->assertEqualsWithDelta(1000.0, $defaultDay['sales']['net_sales'], 0.01);
+        $this->assertSame(1, $defaultDay['sales']['ticket_count']);
+
+        // Con pendientes incluidas → $1400, 2 tickets.
+        $withPending = $svc->forDate(
+            $this->branch->id,
+            $this->tenant->id,
+            $d,
+            ['cash', 'card', 'transfer'],
+            null,
+            ['completed', 'pending'],
+        );
+        $this->assertEqualsWithDelta(1400.0, $withPending['sales']['net_sales'], 0.01);
+        $this->assertSame(2, $withPending['sales']['ticket_count']);
+    }
+
     public function test_collections_filters_by_user_id_when_provided(): void
     {
         $d = self::DATE;

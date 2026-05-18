@@ -41,9 +41,12 @@ class DashboardController extends Controller
             ? ['branch_id' => $branchFilter]
             : ['tenant_id' => $tenant->id];
 
+        // Chip "Incluir Completadas/Pendientes" — default solo completed.
+        $statuses = $this->sanitizeStatuses($request->input('statuses'));
+
         // --- Fuente única de verdad: DailySummaryService (delega en SalesMetrics) ---
         // Fecha canónica: COALESCE(completed_at, created_at) — la misma que Métricas.
-        $day = $summary->forDate($branchFilter, $tenant->id, $date);
+        $day = $summary->forDate($branchFilter, $tenant->id, $date, ['cash', 'card', 'transfer'], null, $statuses);
         $s = $day['sales'];
         $sy = $day['sales_yesterday'];
         $c = $day['collections'];
@@ -64,15 +67,15 @@ class DashboardController extends Controller
 
         // Ventas por hora — hoy vs ayer. La ventana se adapta a las ventas reales
         // (de la primera a la última hora con ventas, hoy o ayer); si no hubo, 7h–19h.
-        $hourlyToday = $summary->hourlySeries($branchFilter, $tenant->id, $date);
-        $hourlyYesterday = $summary->hourlySeries($branchFilter, $tenant->id, $yesterday);
+        $hourlyToday = $summary->hourlySeries($branchFilter, $tenant->id, $date, $statuses);
+        $hourlyYesterday = $summary->hourlySeries($branchFilter, $tenant->id, $yesterday, $statuses);
         [$startHour, $endHour] = $this->hourlyWindow($hourlyToday, $hourlyYesterday);
         $hoursData = $this->shapeHourly($hourlyToday, $startHour, $endHour);
         $yesterdayHoursData = $this->shapeHourly($hourlyYesterday, $startHour, $endHour);
 
         $topProducts = SaleItem::select('product_name', DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(subtotal) as total_revenue'))
             ->whereHas('sale', fn ($q) => $this->applyFilter($q, $scopeFilter)
-                ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value])
+                ->whereIn('status', $statuses)
                 ->whereNull('cancelled_at')
                 ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
             )
@@ -138,10 +141,25 @@ class DashboardController extends Controller
             'expenses' => $expenses,
             'selectedDate' => $date,
             'selectedBranch' => $branchFilter,
+            'selectedStatuses' => $statuses,
             'branches' => $branches,
             'branchCount' => $branches->where('status', 'active')->count(),
             'tenant' => $tenant,
         ]);
+    }
+
+    /**
+     * Sanitiza el chip "Incluir" del dashboard. Acepta sólo completed/pending.
+     *
+     * @return list<string>
+     */
+    private function sanitizeStatuses(mixed $raw): array
+    {
+        $allowed = ['completed', 'pending'];
+        $values = is_array($raw) ? $raw : (is_string($raw) ? [$raw] : []);
+        $clean = array_values(array_intersect($allowed, $values));
+
+        return $clean === [] ? ['completed'] : $clean;
     }
 
     private function applyFilter($query, array $filter)

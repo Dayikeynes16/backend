@@ -32,9 +32,12 @@ class DashboardController extends Controller
         $branch = Branch::withoutGlobalScopes()->findOrFail($branchId);
         $enabledMethods = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
 
+        // Chip "Incluir Completadas/Pendientes" — default solo completed.
+        $statuses = $this->sanitizeStatuses($request->input('statuses'));
+
         // --- Fuente única de verdad: DailySummaryService (delega en SalesMetrics) ---
         // Fecha canónica: COALESCE(completed_at, created_at) — la misma que Métricas.
-        $day = $summary->forDate($branchId, $tenantId, $date, $enabledMethods);
+        $day = $summary->forDate($branchId, $tenantId, $date, $enabledMethods, null, $statuses);
         $s = $day['sales'];
         $sy = $day['sales_yesterday'];
         $c = $day['collections'];
@@ -57,17 +60,18 @@ class DashboardController extends Controller
 
         // Ventas por hora — hoy vs ayer. La ventana se adapta a las ventas reales
         // (de la primera a la última hora con ventas, hoy o ayer); si no hubo, 7h–19h.
-        $hourlyToday = $summary->hourlySeries($branchId, $tenantId, $date);
-        $hourlyYesterday = $summary->hourlySeries($branchId, $tenantId, $yesterday);
+        $hourlyToday = $summary->hourlySeries($branchId, $tenantId, $date, $statuses);
+        $hourlyYesterday = $summary->hourlySeries($branchId, $tenantId, $yesterday, $statuses);
         [$startHour, $endHour] = $this->hourlyWindow($hourlyToday, $hourlyYesterday);
         $hoursData = $this->shapeHourly($hourlyToday, $startHour, $endHour);
         $yesterdayHoursData = $this->shapeHourly($hourlyYesterday, $startHour, $endHour);
 
-        // Top productos del día (ventas no canceladas, por fecha canónica).
+        // Top productos del día — respeta el chip de estados del usuario para
+        // consistencia con el KPI principal.
         $topProducts = SaleItem::select('product_name', DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(subtotal) as total_revenue'))
             ->whereHas('sale', fn ($q) => $q
                 ->where('branch_id', $branchId)
-                ->whereIn('status', [SaleStatus::Completed->value, SaleStatus::Pending->value])
+                ->whereIn('status', $statuses)
                 ->whereNull('cancelled_at')
                 ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
             )
@@ -122,9 +126,26 @@ class DashboardController extends Controller
             'cajeroCount' => $cajeroCount,
             'activeCashierCount' => $activeCashierCount,
             'selectedDate' => $date,
+            'selectedStatuses' => $statuses,
             'expenses' => $expenses,
             'tenant' => app('tenant'),
         ]);
+    }
+
+    /**
+     * Sanitiza la entrada del chip "Incluir": acepta sólo `completed` y
+     * `pending`. Si no llega nada o el input es inválido, default `[completed]`
+     * — coherente con `SalesMetrics::DEFAULT_STATUSES`.
+     *
+     * @return list<string>
+     */
+    private function sanitizeStatuses(mixed $raw): array
+    {
+        $allowed = ['completed', 'pending'];
+        $values = is_array($raw) ? $raw : (is_string($raw) ? [$raw] : []);
+        $clean = array_values(array_intersect($allowed, $values));
+
+        return $clean === [] ? ['completed'] : $clean;
     }
 
     /**
