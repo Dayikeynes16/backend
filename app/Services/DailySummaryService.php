@@ -121,10 +121,17 @@ final class DailySummaryService
     /**
      * Cobranza del día: pagos cuyo `created_at` cae en la fecha, agrupados por
      * método. Cada método incluye el split por antigüedad de la venta a la que
-     * se aplica: `from_today` (ventas cuyo día canónico es la fecha) vs
-     * `from_previous` (abonos a ventas de días anteriores). Se listan todos los
+     * se aplica: `from_today` (pagos a ventas CREADAS hoy) vs `from_previous`
+     * (abonos a ventas creadas en días anteriores). Se listan todos los
      * métodos habilitados — incluso con $0 — para que el UI los muestre.
      * Excluye pagos soft-deleted (los que arrastran ventas canceladas).
+     *
+     * IMPORTANTE: usamos `s.created_at` (no `COALESCE(completed_at, created_at)`)
+     * porque para "antigüedad" lo que importa es CUÁNDO SE GENERÓ LA VENTA, no
+     * cuándo se cerró. Una venta a crédito creada hace 3 días, cobrada hoy con
+     * un pago que la completa, se vuelve `completed_at = hoy`, pero el cobro
+     * sigue siendo un abono a una venta anterior — eso es lo que ve el usuario
+     * en la lista de Pagos ("Venta del 15-may").
      *
      * Si se pasa $userId, filtra la cobranza al cajero indicado (p.user_id).
      *
@@ -144,8 +151,8 @@ final class DailySummaryService
             ->selectRaw('
                 p.method as method,
                 COALESCE(SUM(p.amount), 0) as total,
-                COALESCE(SUM(CASE WHEN DATE(COALESCE(s.completed_at, s.created_at)) >= DATE(p.created_at) THEN p.amount END), 0) as from_today,
-                COALESCE(SUM(CASE WHEN DATE(COALESCE(s.completed_at, s.created_at)) <  DATE(p.created_at) THEN p.amount END), 0) as from_previous,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) >= DATE(p.created_at) THEN p.amount END), 0) as from_today,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) <  DATE(p.created_at) THEN p.amount END), 0) as from_previous,
                 COUNT(*) as count
             ')
             ->groupBy('p.method')

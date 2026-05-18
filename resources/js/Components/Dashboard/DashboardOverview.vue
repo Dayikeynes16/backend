@@ -204,55 +204,28 @@ const scopeLabel = computed(() => {
             <span class="cn-scope-chip__value">{{ scopeLabel }}</span>
         </div>
 
-        <!-- KPI ROW -->
-        <div class="cn-kpi-row">
+        <!-- KPI ROW (simplificada): Ventas + Gastos -->
+        <!-- Removidos a petición del usuario: Cobranza, Transacciones, Utilidad
+             operativa (sólo restaba gastos del netas, no consideraba costo de
+             producto vendido = engañoso) y Cajeros en turno. # de transacciones
+             y abonos a cuentas anteriores se ven inline en la card de Ventas. -->
+        <div class="cn-kpi-row cn-kpi-row--two">
             <div class="cn-kpi cn-kpi--wine">
                 <div class="cn-kpi__label">Ventas netas hoy</div>
                 <div class="cn-kpi__value">
                     <span class="cn-currency">$</span>{{ splitAmount(totals.net_sales)[0] }}<span class="cn-currency">.{{ splitAmount(totals.net_sales)[1] }}</span>
                 </div>
-                <!-- Antes mostrábamos "X canceladas · −$N" cuando cancelled_count>0,
-                     pero el signo menos junto al netas daba la ilusión de que ese monto
-                     se restaba del total — y en realidad netas YA excluye canceladas
-                     (no hay doble conteo). Las cancelaciones se ven en su propia
-                     sección del menú. -->
                 <div v-if="totals.delta_pct !== null && totals.delta_pct !== undefined" :class="['cn-kpi__delta', { neg: totals.delta_pct < 0 }]">
                     <svg width="10" height="10" viewBox="0 0 10 10" :style="{ transform: totals.delta_pct < 0 ? 'rotate(180deg)' : 'none' }"><path d="M5 1 L9 7 L1 7 Z" fill="currentColor"/></svg>
                     {{ totals.delta_pct >= 0 ? '+' : '' }}{{ totals.delta_pct }}% vs ayer
                 </div>
                 <div v-else class="cn-kpi__delta" style="color: var(--cn-ink-3)">Sin datos de ayer</div>
+                <div class="cn-kpi__sub">
+                    {{ totals.sale_count }} {{ totals.sale_count === 1 ? 'venta' : 'ventas' }} · ticket promedio ${{ fmt(avgTicket) }}
+                </div>
                 <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
                     <path :d="salesSpark.area" fill="#F8DDE0" opacity="0.5"/>
                     <path :d="salesSpark.line" fill="none" stroke="#C9374A" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
-            </div>
-
-            <!-- KPI: Cobranza hoy (separado de Ventas — incluye abonos a cuentas viejas) -->
-            <div v-if="totals.total_collected !== undefined" class="cn-kpi cn-kpi--green">
-                <div class="cn-kpi__label">Cobranza hoy</div>
-                <div class="cn-kpi__value">
-                    <span class="cn-currency">$</span>{{ splitAmount(totals.total_collected)[0] }}<span class="cn-currency">.{{ splitAmount(totals.total_collected)[1] }}</span>
-                </div>
-                <div class="cn-kpi__delta" style="color: var(--cn-ink-3)">
-                    <span v-if="totals.collected_from_previous > 0">
-                        ${{ splitAmount(totals.collected_from_previous)[0] }} son abonos a ventas anteriores
-                    </span>
-                    <span v-else>Dinero ingresado en caja</span>
-                </div>
-                <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-                    <rect x="0" y="13" width="120" height="2" fill="#E6F4EE"/>
-                </svg>
-            </div>
-
-            <div class="cn-kpi cn-kpi--amber">
-                <div class="cn-kpi__label">Transacciones</div>
-                <div class="cn-kpi__value">{{ totals.sale_count }}</div>
-                <div class="cn-kpi__delta">
-                    {{ totals.sale_count - (totals.sale_count_yesterday ?? 0) >= 0 ? '+' : '' }}{{ totals.sale_count - (totals.sale_count_yesterday ?? 0) }} vs ayer · ${{ fmt(avgTicket) }}/ticket
-                </div>
-                <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-                    <path :d="trxSpark.area" fill="#FEF3E6" opacity="0.5"/>
-                    <path :d="trxSpark.line" fill="none" stroke="#D97706" stroke-width="1.8" stroke-linecap="round"/>
                 </svg>
             </div>
 
@@ -269,41 +242,13 @@ const scopeLabel = computed(() => {
                     {{ expenses.delta_pct >= 0 ? '+' : '' }}{{ expenses.delta_pct }}% vs ayer
                 </div>
                 <div v-else class="cn-kpi__delta" style="color: var(--cn-ink-3)">{{ expenses.count }} {{ expenses.count === 1 ? 'gasto' : 'gastos' }}</div>
+                <div class="cn-kpi__sub">
+                    <span v-if="expenses.count > 0">{{ expenses.count }} {{ expenses.count === 1 ? 'movimiento' : 'movimientos' }} de caja</span>
+                    <span v-else>Sin gastos registrados</span>
+                </div>
                 <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
                     <path :d="expensesSpark.area" fill="#FCE9DD" opacity="0.5"/>
                     <path :d="expensesSpark.line" fill="none" stroke="#D97706" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
-            </div>
-
-            <!-- KPI: Utilidad operativa -->
-            <div v-if="expenses" :class="['cn-kpi', netProfit >= 0 ? 'cn-kpi--green' : 'cn-kpi--wine']">
-                <div class="cn-kpi__label">Utilidad operativa</div>
-                <div class="cn-kpi__value" :style="{ color: netProfit >= 0 ? 'var(--cn-green)' : 'var(--cn-wine-500)' }">
-                    <span class="cn-currency">$</span>{{ splitAmount(netProfit)[0] }}<span class="cn-currency">.{{ splitAmount(netProfit)[1] }}</span>
-                </div>
-                <div v-if="netProfitDelta !== null"
-                    :class="['cn-kpi__delta', { neg: netProfitDelta < 0 }]">
-                    <svg width="10" height="10" viewBox="0 0 10 10" :style="{ transform: netProfitDelta < 0 ? 'rotate(180deg)' : 'none' }"><path d="M5 1 L9 7 L1 7 Z" fill="currentColor"/></svg>
-                    {{ netProfitDelta >= 0 ? '+' : '' }}{{ netProfitDelta }}% vs ayer
-                </div>
-                <div v-else class="cn-kpi__delta" style="color: var(--cn-ink-3)">Ventas netas − gastos del día</div>
-                <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-                    <rect x="0" y="13" width="120" height="2" :fill="netProfit >= 0 ? '#E6F4EE' : '#F8DDE0'"/>
-                </svg>
-            </div>
-
-            <!-- KPI: Cajeros en turno -->
-            <div class="cn-kpi cn-kpi--blue">
-                <div class="cn-kpi__label">Cajeros en turno</div>
-                <div class="cn-kpi__value">
-                    {{ activeCashierCount }}<span style="font-size: 14px; color: var(--cn-ink-3); font-weight: 500">&nbsp;/ {{ cajeroCount }}</span>
-                </div>
-                <div class="cn-kpi__delta" style="color: var(--cn-blue)">
-                    <span class="cn-status-dot cn-status--on"/>{{ activeCashierCount }} {{ activeCashierCount === 1 ? 'activo' : 'activos' }}
-                </div>
-                <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-                    <path :d="cumulativeCashiers.area" fill="#E8F0F9" opacity="0.5"/>
-                    <path :d="cumulativeCashiers.line" fill="none" stroke="#2563AE" stroke-width="1.8" stroke-linecap="round"/>
                 </svg>
             </div>
         </div>
@@ -738,6 +683,10 @@ const scopeLabel = computed(() => {
     grid-template-columns: repeat(5, 1fr);
     gap: 14px;
 }
+/* Variante: 2 cards (Ventas + Gastos) — más ancho, números más respirados. */
+.cn-kpi-row--two {
+    grid-template-columns: 1fr 1fr;
+}
 .cn-kpi {
     background: var(--cn-surface);
     border: 1px solid var(--cn-border);
@@ -789,6 +738,13 @@ const scopeLabel = computed(() => {
     font-weight: 500;
 }
 .cn-kpi__delta.neg { color: var(--cn-wine-500); }
+/* Sub-línea dentro de la card de KPI: contexto secundario en gris suave. */
+.cn-kpi__sub {
+    font-size: 12px;
+    color: var(--cn-ink-3);
+    margin-top: 4px;
+    font-weight: 500;
+}
 .cn-kpi__spark { margin-top: 8px; height: 28px; width: 100%; }
 
 .cn-status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
