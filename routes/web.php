@@ -10,6 +10,7 @@ use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
 use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
+use App\Http\Controllers\Empresa\AsistenteController as EmpresaAsistenteController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
 use App\Http\Controllers\Empresa\ExpenseCategoryController as EmpresaExpenseCategoryController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ExpenseAttachmentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
+use App\Http\Controllers\Sucursal\AsistenteController as SucursalAsistenteController;
 use App\Http\Controllers\Sucursal\CancelRequestController;
 use App\Http\Controllers\Sucursal\CashShiftController;
 use App\Http\Controllers\Sucursal\CategoryController;
@@ -147,6 +149,11 @@ Route::prefix('{tenant}')
 
                 Route::get('configuracion', [ConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [ConfiguracionController::class, 'update'])->name('configuracion.update');
+
+                // Asistente conversacional (F0 + F1).
+                Route::get('asistente', [EmpresaAsistenteController::class, 'index'])->name('asistente');
+                Route::post('asistente/sesiones', [EmpresaAsistenteController::class, 'createSession'])->name('asistente.sesiones.store');
+                Route::post('asistente/sesiones/{session}/mensajes', [EmpresaAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
 
                 Route::get('tickets', [TicketConfigController::class, 'index'])->name('tickets');
                 Route::put('tickets/{branch}', [TicketConfigController::class, 'update'])->name('tickets.update');
@@ -312,6 +319,11 @@ Route::prefix('{tenant}')
                 // Config
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [SucursalConfiguracionController::class, 'update'])->name('configuracion.update');
+
+                // Asistente conversacional (F2).
+                Route::get('asistente', [SucursalAsistenteController::class, 'index'])->name('asistente');
+                Route::post('asistente/sesiones', [SucursalAsistenteController::class, 'createSession'])->name('asistente.sesiones.store');
+                Route::post('asistente/sesiones/{session}/mensajes', [SucursalAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
 
                 // Menú online (QR + link público)
                 Route::get('menu-online', [MenuQrController::class, 'show'])->name('menu-online');

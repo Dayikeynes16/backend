@@ -6,6 +6,12 @@ use App\Models\Branch;
 use App\Models\User;
 use App\Observers\BranchObserver;
 use App\Policies\UserPolicy;
+use App\Services\Ai\Assistant\ToolRegistry;
+use App\Services\Ai\Assistant\Tools\CustomerStatsTool;
+use App\Services\Ai\Assistant\Tools\ExpenseSummaryTool;
+use App\Services\Ai\Assistant\Tools\SalesSummaryTool;
+use App\Services\Ai\Assistant\Tools\ShiftStatusTool;
+use App\Services\Ai\Assistant\Tools\TopProductsTool;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -17,7 +23,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(ToolRegistry::class, fn ($app) => new ToolRegistry([
+            $app->make(SalesSummaryTool::class),
+            $app->make(ExpenseSummaryTool::class),
+            $app->make(TopProductsTool::class),
+            $app->make(ShiftStatusTool::class),
+            $app->make(CustomerStatsTool::class),
+        ]));
     }
 
     /**

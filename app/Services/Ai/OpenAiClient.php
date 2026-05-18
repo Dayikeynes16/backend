@@ -72,6 +72,31 @@ class OpenAiClient
     }
 
     /**
+     * Hace una llamada de function-calling: devuelve el `message` crudo del
+     * `choices[0]` (que puede contener `tool_calls`) junto con el `usage` y
+     * el modelo efectivo. El orquestador se encarga de iterar si la IA pide
+     * más herramientas.
+     *
+     * @param  array<string, mixed>  $payload  ya debe traer model + messages + tools (+ tool_choice)
+     * @return array{message: array<string, mixed>, usage: array<string, mixed>, model: string|null}
+     */
+    public function chatWithTools(array $payload): array
+    {
+        $response = $this->chatCompletions($payload);
+
+        $message = $response['choices'][0]['message'] ?? null;
+        if (! is_array($message)) {
+            throw new RuntimeException('OpenAI no devolvió choices[0].message en chatWithTools.');
+        }
+
+        return [
+            'message' => $message,
+            'usage' => is_array($response['usage'] ?? null) ? $response['usage'] : [],
+            'model' => is_string($response['model'] ?? null) ? $response['model'] : null,
+        ];
+    }
+
+    /**
      * Transcribe un audio con Whisper. Devuelve el texto transcrito.
      * El endpoint /audio/transcriptions usa multipart (no JSON), por eso no
      * reutiliza el helper http().
