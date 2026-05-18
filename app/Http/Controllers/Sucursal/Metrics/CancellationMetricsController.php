@@ -26,7 +26,6 @@ class CancellationMetricsController extends Controller
         $data = Cache::remember($key, 300, fn () => [
             'summary' => $service->summary($range, $branchId, $tenantId),
             'daily' => $service->daily($range, $branchId, $tenantId),
-            'previous_daily' => $service->daily($range->previousComparable(), $branchId, $tenantId),
             'by_reason' => $service->byReason($range, $branchId, $tenantId),
             'by_cashier' => $service->byCashier($range, $branchId, $tenantId),
         ]);

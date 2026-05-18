@@ -137,23 +137,6 @@ class CancellationMetricsTest extends TestCase
         $this->assertNull($current['avg_response_minutes']);
     }
 
-    public function test_summary_previous_period_compares_to_previous_comparable(): void
-    {
-        // Rango actual: abril 1-17 (17 días). previousComparable() retrocede
-        // 17 días → marzo 15-31.
-        $this->makeCancelledSale(['total' => 100, 'cancelled_at' => '2026-04-10 10:00:00']);
-        // En el rango previo (15-31 marzo):
-        $this->makeCancelledSale(['total' => 200, 'cancelled_at' => '2026-03-20 10:00:00']);
-        $this->makeCancelledSale(['total' => 50, 'cancelled_at' => '2026-03-25 10:00:00']);
-
-        $summary = $this->svc->summary($this->range(), $this->branch->id, $this->tenant->id);
-
-        $this->assertSame(1, $summary['current']['cancelled_count']);
-        $this->assertSame(100.0, $summary['current']['cancelled_amount']);
-        $this->assertSame(2, $summary['previous']['cancelled_count']);
-        $this->assertSame(250.0, $summary['previous']['cancelled_amount']);
-    }
-
     public function test_daily_zero_fills_empty_days(): void
     {
         $this->makeCancelledSale(['total' => 100, 'cancelled_at' => '2026-04-10 10:00:00']);

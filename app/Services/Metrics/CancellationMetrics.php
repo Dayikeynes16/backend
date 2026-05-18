@@ -19,7 +19,6 @@ class CancellationMetrics extends AbstractMetrics
     {
         return [
             'current' => $this->aggregate($range, $branchId, $tenantId),
-            'previous' => $this->aggregate($range->previousComparable(), $branchId, $tenantId),
         ];
     }
 

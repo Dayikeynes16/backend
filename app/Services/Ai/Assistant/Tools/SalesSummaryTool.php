@@ -82,9 +82,9 @@ class SalesSummaryTool extends AbstractAssistantTool
         $tenant = app('tenant');
         $range = DateRange::custom($params['date_from'], $params['date_to']);
 
-        $summary = $this->sales->summary($range, $params['branch_id'], $tenant->id, ['completed']);
-        $current = $summary['current'];
-        $previous = $summary['previous'];
+        $current = $this->sales->summary($range, $params['branch_id'], $tenant->id, ['completed'])['current'];
+        $previous = $this->sales
+            ->summary($range->previousComparable(), $params['branch_id'], $tenant->id, ['completed'])['current'];
 
         $net = (float) ($current['net_sales'] ?? 0);
         $prevNet = (float) ($previous['net_sales'] ?? 0);

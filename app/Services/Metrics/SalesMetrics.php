@@ -22,7 +22,6 @@ class SalesMetrics extends AbstractMetrics
     {
         return [
             'current' => $this->aggregate($range, $branchId, $tenantId, $statuses),
-            'previous' => $this->aggregate($range->previousComparable(), $branchId, $tenantId, $statuses),
         ];
     }
 

@@ -25,7 +25,6 @@ class MarginMetrics extends AbstractMetrics
     {
         return [
             'current' => $this->aggregateFor($range, $branchId, $tenantId),
-            'previous' => $this->aggregateFor($range->previousComparable(), $branchId, $tenantId),
         ];
     }
 

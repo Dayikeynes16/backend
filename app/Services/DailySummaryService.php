@@ -61,10 +61,14 @@ final class DailySummaryService
         array $statuses = ['completed'],
     ): array {
         $range = DateRange::custom($date, $date);
-        $summary = $this->sales->summary($range, $branchId, $tenantId, $statuses);
+        $current = $this->normalizeSales(
+            $this->sales->summary($range, $branchId, $tenantId, $statuses)['current']
+        );
 
-        $current = $this->normalizeSales($summary['current']);
-        $previous = $this->normalizeSales($summary['previous']);
+        $previousRange = $range->previousComparable();
+        $previous = $this->normalizeSales(
+            $this->sales->summary($previousRange, $branchId, $tenantId, $statuses)['current']
+        );
 
         return [
             'sales' => $current,

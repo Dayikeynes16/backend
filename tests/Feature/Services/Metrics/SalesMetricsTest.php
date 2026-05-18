@@ -179,16 +179,6 @@ class SalesMetricsTest extends TestCase
         $this->assertSame(300.0, $r['cancelled_amount']);
     }
 
-    public function test_summary_includes_previous_period(): void
-    {
-        $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-16 10:00:00']);
-        $this->makeCompletedSale(['total' => 50, 'completed_at' => '2026-04-15 10:00:00']);
-        $s = $this->svc->summary(DateRange::preset('today'), $this->branch->id, $this->tenant->id);
-        // "today" = 2026-04-17 (no sales); previous = 2026-04-16 (100)
-        $this->assertSame(0.0, $s['current']['net_sales']);
-        $this->assertSame(100.0, $s['previous']['net_sales']);
-    }
-
     public function test_daily_series_groups_by_day(): void
     {
         $this->makeCompletedSale(['total' => 100, 'completed_at' => '2026-04-15 10:00:00']);

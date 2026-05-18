@@ -56,24 +56,6 @@ abstract class AbstractMetrics
         return $q;
     }
 
-    protected function pct(float|int $current, float|int $previous): ?float
-    {
-        if ((float) $previous === 0.0) {
-            return null;
-        }
-
-        return round((($current - $previous) / $previous) * 100, 2);
-    }
-
-    protected function deltaPair(float|int $current, float|int $previous): array
-    {
-        return [
-            'current' => (float) $current,
-            'previous' => (float) $previous,
-            'delta_pct' => $this->pct((float) $current, (float) $previous),
-        ];
-    }
-
     /**
      * Devuelve un punto por cada día del rango. Días sin fila reciben los
      * valores de $default. Garantiza que las series temporales para charts
