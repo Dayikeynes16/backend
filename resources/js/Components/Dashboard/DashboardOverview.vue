@@ -235,7 +235,7 @@ const scopeLabel = computed(() => {
                 </div>
                 <div class="cn-kpi__delta" style="color: var(--cn-ink-3)">
                     <span v-if="totals.collected_from_previous > 0">
-                        ↳ ${{ splitAmount(totals.collected_from_previous)[0] }} de cuentas anteriores
+                        ${{ splitAmount(totals.collected_from_previous)[0] }} son abonos a ventas anteriores
                     </span>
                     <span v-else>Dinero ingresado en caja</span>
                 </div>
@@ -337,6 +337,18 @@ const scopeLabel = computed(() => {
                     <div class="cn-mini-card__label">Sucursales</div>
                 </div>
             </div>
+        </div>
+
+        <!-- Info: abonos a ventas anteriores. Le da contexto al usuario para
+             que entienda que parte de la cobranza de hoy NO viene de ventas
+             generadas hoy, sino de cuentas a crédito de días previos. -->
+        <div v-if="totals.collected_from_previous > 0" class="cn-info-pill">
+            <svg class="cn-info-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-1.5m6-6h.008v.008H9v-.008Zm0 2.25h.008v.008H9V12.75Zm0 2.25h.008v.008H9V15Zm-3-4.5h.008v.008H6v-.008Zm0 2.25h.008v.008H6V12.75Zm0 2.25h.008v.008H6V15Z" />
+            </svg>
+            <span class="cn-info-pill__msg">
+                <strong>${{ fmt(totals.collected_from_previous) }}</strong> son abonos a ventas de días anteriores
+            </span>
         </div>
 
         <!-- Cancel requests alert -->
@@ -821,6 +833,24 @@ const scopeLabel = computed(() => {
 .cn-alert__msg { flex: 1; font-size: 13.5px; font-weight: 600; color: #8A4A0B; }
 .cn-alert__cta { font-size: 13px; font-weight: 600; color: var(--cn-amber); text-decoration: none; }
 .cn-alert__cta:hover { text-decoration: underline; }
+
+/* Píldora informativa (no es alerta) — contexto suave en tono verde.
+   Mismo lenguaje visual que los chips redondos del header. */
+.cn-info-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 9999px;
+    border: 1px solid #BFE0C8;
+    background: var(--cn-green-bg);
+    color: #1f6f3f;
+    font-size: 13px;
+    font-weight: 500;
+    width: fit-content;
+}
+.cn-info-pill__icon { width: 16px; height: 16px; color: var(--cn-green); flex-shrink: 0; }
+.cn-info-pill__msg strong { font-weight: 700; color: #0E5A2F; }
 
 /* ========== CHART ROW ========== */
 .cn-chart-row {
