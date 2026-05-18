@@ -4,6 +4,7 @@ import ExpenseSummaryCard from './ExpenseSummaryCard.vue';
 import TopProductsCard from './TopProductsCard.vue';
 import ShiftStatusCard from './ShiftStatusCard.vue';
 import CustomerStatsCard from './CustomerStatsCard.vue';
+import ProductDetailsCard from './ProductDetailsCard.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import axios from 'axios';
@@ -32,6 +33,7 @@ const cardComponents = {
     shift_status: ShiftStatusCard,
     customer_debt: CustomerStatsCard,
     customer_top_buyers: CustomerStatsCard,
+    product_details: ProductDetailsCard,
 };
 
 const messages = ref([...props.messages]);
@@ -207,8 +209,25 @@ watch(messages, (arr) => {
 }, { deep: true });
 
 // Cambiar de sesión / desmontar: corta el audio activo.
-watch(() => props.activeSessionId, () => stopAudio());
 onBeforeUnmount(() => stopAudio());
+
+// Cuando Inertia navega a otra sesión (crear nueva, switch desde sidebar),
+// las props cambian pero el componente NO se desmonta. Hay que resincronizar
+// el estado local desde las props nuevas o el thread queda con mensajes viejos.
+watch(() => props.activeSessionId, () => {
+    stopAudio();
+    messages.value = [...props.messages];
+    errorBanner.value = null;
+    sending.value = false;
+    lastSeenAssistantId = Math.max(
+        0,
+        ...props.messages.filter((m) => m.role === 'assistant').map((m) => m.id),
+    );
+    nextTick(() => {
+        if (threadRef.value) threadRef.value.scrollTop = threadRef.value.scrollHeight;
+        wasAtBottom = true;
+    });
+});
 
 function guessKindFromToolName(name) {
     return ({
@@ -217,6 +236,7 @@ function guessKindFromToolName(name) {
         consultar_productos_top: 'top_products',
         consultar_turnos: 'shift_status',
         consultar_clientes: 'customer_debt',
+        consultar_productos: 'product_details',
     })[name] || 'unknown';
 }
 

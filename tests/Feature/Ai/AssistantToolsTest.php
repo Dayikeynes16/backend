@@ -8,6 +8,7 @@ use App\Models\ExpenseCategory;
 use App\Models\ExpenseSubcategory;
 use App\Services\Ai\Assistant\Tools\CustomerStatsTool;
 use App\Services\Ai\Assistant\Tools\ExpenseSummaryTool;
+use App\Services\Ai\Assistant\Tools\ProductDetailsTool;
 use App\Services\Ai\Assistant\Tools\SalesSummaryTool;
 use App\Services\Ai\Assistant\Tools\ShiftStatusTool;
 use App\Services\Ai\Assistant\Tools\TopProductsTool;
@@ -149,10 +150,74 @@ class AssistantToolsTest extends TestCase
             TopProductsTool::class,
             ShiftStatusTool::class,
             CustomerStatsTool::class,
+            ProductDetailsTool::class,
         ] as $cls) {
             $tool = app($cls);
             $this->assertContains('admin-empresa', $tool->rolesAllowed(), $cls);
             $this->assertContains('admin-sucursal', $tool->rolesAllowed(), $cls);
         }
+    }
+
+    public function test_product_details_tool_searches_by_name(): void
+    {
+        $this->makeProduct(['name' => 'Pulpa de res', 'price' => 220, 'cost_price' => 150, 'unit_type' => 'kg']);
+        $this->makeProduct(['name' => 'Bistec de res', 'price' => 180]);
+        $this->makeProduct(['name' => 'Pollo entero', 'price' => 90]);
+
+        /** @var ProductDetailsTool $tool */
+        $tool = app(ProductDetailsTool::class);
+        $params = $tool->validate($this->adminEmpresa, [
+            'name_query' => 'res',
+            'category_name' => null,
+            'branch_name' => null,
+            'limit' => 10,
+        ]);
+        $result = $tool->execute($this->adminEmpresa, $params);
+
+        $this->assertSame('product_details', $result->kind);
+        $names = collect($result->data['products'])->pluck('name')->all();
+        $this->assertContains('Pulpa de res', $names);
+        $this->assertContains('Bistec de res', $names);
+        $this->assertNotContains('Pollo entero', $names);
+    }
+
+    public function test_product_details_tool_admin_sucursal_scoped_to_own_branch(): void
+    {
+        $this->makeProduct(['branch_id' => $this->branch->id, 'name' => 'Producto A']);
+        $this->makeProduct(['branch_id' => $this->secondBranch->id, 'name' => 'Producto B']);
+
+        /** @var ProductDetailsTool $tool */
+        $tool = app(ProductDetailsTool::class);
+        // admin-sucursal pidiendo explícitamente la otra sucursal — debe ignorarse.
+        $params = $tool->validate($this->adminSucursal, [
+            'name_query' => null,
+            'category_name' => null,
+            'branch_name' => $this->secondBranch->name,
+            'limit' => 10,
+        ]);
+        $this->assertSame($this->branch->id, $params['branch_id']);
+
+        $result = $tool->execute($this->adminSucursal, $params);
+        $names = collect($result->data['products'])->pluck('name')->all();
+        $this->assertContains('Producto A', $names);
+        $this->assertNotContains('Producto B', $names);
+    }
+
+    public function test_product_details_tool_returns_empty_when_category_not_found(): void
+    {
+        $this->makeProduct(['name' => 'X']);
+
+        /** @var ProductDetailsTool $tool */
+        $tool = app(ProductDetailsTool::class);
+        $params = $tool->validate($this->adminEmpresa, [
+            'name_query' => null,
+            'category_name' => 'CategoriaInexistente',
+            'branch_name' => null,
+            'limit' => 10,
+        ]);
+        $result = $tool->execute($this->adminEmpresa, $params);
+
+        $this->assertFalse($result->data['category_found']);
+        $this->assertSame([], $result->data['products']);
     }
 }
