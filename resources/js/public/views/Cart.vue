@@ -68,7 +68,7 @@ const goToCheckout = () => router.push({ name: 'checkout', params: { tenantSlug:
             <div v-if="cart.count.value === 0" class="rounded-3xl border-2 border-dashed border-gray-200 px-6 py-16 text-center">
                 <svg class="mx-auto h-14 w-14 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
                 <p class="mt-3 text-base text-gray-500">Tu carrito está vacío.</p>
-                <button @click="goToMenu" class="mt-5 rounded-full bg-red-600 px-6 py-3 text-base font-semibold text-white shadow-sm active:scale-[0.98]">Ver menú</button>
+                <button @click="goToMenu" class="mt-5 rounded-full px-6 py-3 text-base font-semibold shadow-sm active:scale-[0.98]" style="background-color: var(--brand-primary); color: var(--brand-on-primary);">Ver menú</button>
             </div>
 
             <div v-else class="space-y-3">
@@ -80,7 +80,7 @@ const goToCheckout = () => router.push({ name: 'checkout', params: { tenantSlug:
                             <p v-if="item.notes" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm italic text-amber-900 ring-1 ring-amber-100">💬 {{ item.notes }}</p>
                         </div>
                         <button @click="removeWithUndo(item)" aria-label="Quitar producto"
-                            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-red-50 hover:text-red-500">
+                            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-[color:var(--brand-primary-soft)] hover:text-[color:var(--brand-primary)]">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
@@ -110,7 +110,8 @@ const goToCheckout = () => router.push({ name: 'checkout', params: { tenantSlug:
                 </div>
 
                 <button @click="goToCheckout"
-                    class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 py-4 text-base font-bold text-white shadow-lg transition hover:bg-red-700 active:scale-[0.98]">
+                    class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-bold shadow-lg transition hover:brightness-95 active:scale-[0.98]"
+                    style="background-color: var(--brand-primary); color: var(--brand-on-primary);">
                     Continuar al pago
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                 </button>

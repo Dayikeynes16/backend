@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\BrandingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MenuController extends Controller
 {
+    public function __construct(private readonly BrandingService $branding) {}
+
     public function show(Request $request, int $branch): JsonResponse
     {
         $tenant = app('tenant');
@@ -38,14 +41,27 @@ class MenuController extends Controller
             ->orderBy('name')
             ->get();
 
+        $branding = $this->branding->forTenant($tenant);
+
         return response()->json([
+            'branding' => [
+                'primary_color' => $branding['primary_color'],
+                'accent_color' => $branding['accent_color'],
+                'background_color' => $branding['background_color'],
+                'text_color' => $branding['text_color'],
+                'logo_url' => $branding['logo_url'],
+                'default_product_image_url' => $branding['default_product_image_url'],
+            ],
             'branch' => [
                 'id' => $branchModel->id,
                 'name' => $branchModel->name,
                 'address' => $branchModel->address,
+                'latitude' => $branchModel->latitude !== null ? (float) $branchModel->latitude : null,
+                'longitude' => $branchModel->longitude !== null ? (float) $branchModel->longitude : null,
                 'schedule' => $branchModel->schedule,
                 'pickup_enabled' => (bool) $branchModel->pickup_enabled,
                 'delivery_enabled' => (bool) $branchModel->delivery_enabled,
+                'max_delivery_km' => $branchModel->max_delivery_km !== null ? (float) $branchModel->max_delivery_km : null,
                 'min_order_amount' => $branchModel->min_order_amount !== null ? (float) $branchModel->min_order_amount : null,
                 'payment_methods' => $branchModel->payment_methods_enabled ?? ['cash', 'card', 'transfer'],
                 'is_open' => $this->isOpenNow($branchModel->hours),

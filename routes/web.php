@@ -26,6 +26,7 @@ use App\Http\Controllers\Empresa\Metrics\ProductMetricsController as EmpresaProd
 use App\Http\Controllers\Empresa\Metrics\SalesMetricsController as EmpresaSalesMetricsController;
 use App\Http\Controllers\Empresa\Metrics\ShiftMetricsController as EmpresaShiftMetricsController;
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
+use App\Http\Controllers\Empresa\PersonalizacionController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\TicketConfigController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
@@ -149,6 +150,10 @@ Route::prefix('{tenant}')
 
                 Route::get('configuracion', [ConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [ConfiguracionController::class, 'update'])->name('configuracion.update');
+
+                Route::get('personalizacion', [PersonalizacionController::class, 'edit'])->name('personalizacion');
+                Route::post('personalizacion', [PersonalizacionController::class, 'update'])->name('personalizacion.update');
+                Route::post('personalizacion/reset', [PersonalizacionController::class, 'reset'])->name('personalizacion.reset');
 
                 // Asistente conversacional (F0 + F1 + F4 voz).
                 Route::get('asistente', [EmpresaAsistenteController::class, 'index'])->name('asistente');

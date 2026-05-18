@@ -3,6 +3,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useMenu } from '../composables/useMenu.js';
 import { useCart } from '../composables/useCart.js';
+import { useBranding } from '../composables/useBranding.js';
 import ProductModal from '../components/ProductModal.vue';
 import CartBar from '../components/CartBar.vue';
 
@@ -13,6 +14,7 @@ const branchId = computed(() => Number(route.params.branchId));
 
 const { branch, categories, products, loading, error, fetch } = useMenu(tenantSlug.value, branchId.value);
 const cart = useCart(branchId.value);
+const { logoUrl, productImageUrl } = useBranding();
 const search = ref('');
 const activeCategoryId = ref(null);
 const selectedProduct = ref(null);
@@ -87,7 +89,7 @@ const unitTypeLabel = (type) => ({ kg: 'kg', piece: 'pz', cut: 'pz' }[type] || '
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-50 pb-24">
+    <div class="min-h-screen pb-24" style="background-color: var(--brand-background); color: var(--brand-text);">
         <!-- Loading: skeleton cards -->
         <div v-if="loading" class="animate-pulse">
             <div class="bg-white px-4 py-3 shadow-sm">
@@ -116,21 +118,25 @@ const unitTypeLabel = (type) => ({ kg: 'kg', piece: 'pz', cut: 'pz' }[type] || '
         <div v-else-if="error === 'not_found'" class="flex min-h-screen items-center justify-center p-6 text-center">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Sucursal no disponible</h1>
-                <button @click="goToBranches" class="mt-4 rounded-full bg-red-600 px-6 py-3 text-base font-semibold text-white">Ver otras sucursales</button>
+                <button @click="goToBranches" class="mt-4 rounded-full px-6 py-3 text-base font-semibold" style="background-color: var(--brand-primary); color: var(--brand-on-primary);">Ver otras sucursales</button>
             </div>
         </div>
 
         <div v-else-if="branch" :class="!branch.is_open ? 'opacity-60 grayscale' : ''">
             <!-- Header -->
-            <header class="sticky top-0 z-30 bg-white/95 backdrop-blur shadow-sm">
+            <header class="sticky top-0 z-30 backdrop-blur shadow-sm" style="background-color: color-mix(in srgb, var(--brand-background) 92%, transparent);">
                 <div class="flex items-center gap-3 px-4 py-3">
                     <button @click="goToBranches" aria-label="Volver a sucursales"
-                        class="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-800">
+                        class="flex h-11 w-11 items-center justify-center rounded-full transition hover:bg-[color:var(--brand-card)]"
+                        style="color: var(--brand-text-subtle);">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
                     </button>
+                    <img v-if="logoUrl" :src="logoUrl" :alt="branch.name"
+                        class="h-11 w-11 shrink-0 rounded-full object-cover ring-1"
+                        style="ring-color: var(--brand-border);" />
                     <div class="min-w-0 flex-1">
-                        <h1 class="truncate text-lg font-bold text-gray-900">{{ branch.name }}</h1>
-                        <p v-if="branch.address" class="truncate text-sm text-gray-500">{{ branch.address }}</p>
+                        <h1 class="truncate text-lg font-bold" style="color: var(--brand-text);">{{ branch.name }}</h1>
+                        <p v-if="branch.address" class="truncate text-sm" style="color: var(--brand-text-subtle);">{{ branch.address }}</p>
                     </div>
                 </div>
 
@@ -139,7 +145,8 @@ const unitTypeLabel = (type) => ({ kg: 'kg', piece: 'pz', cut: 'pz' }[type] || '
                     <div class="relative">
                         <svg class="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
                         <input v-model="search" type="text" placeholder="Buscar producto..."
-                            class="w-full rounded-full border-0 bg-gray-100 py-3 pl-11 pr-11 text-base text-gray-800 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-red-400" />
+                            class="w-full rounded-full border-0 py-3 pl-11 pr-11 text-base placeholder-gray-400 focus:ring-2 focus:ring-[color:var(--brand-primary-ring)]"
+                            style="background-color: var(--brand-card); color: var(--brand-text);" />
                         <button v-if="search" @click="search = ''" type="button" aria-label="Limpiar búsqueda"
                             class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -148,14 +155,14 @@ const unitTypeLabel = (type) => ({ kg: 'kg', piece: 'pz', cut: 'pz' }[type] || '
                 </div>
 
                 <!-- Category nav -->
-                <div v-if="productsByCategory.length > 1" class="no-scrollbar overflow-x-auto border-t border-gray-100">
+                <div v-if="productsByCategory.length > 1" class="no-scrollbar overflow-x-auto border-t" style="border-color: var(--brand-border);">
                     <div class="flex gap-2 px-4 py-2.5">
                         <button v-for="cat in productsByCategory" :key="cat.id || 'null'"
                             @click="scrollToCategory(cat.id)"
-                            :class="['whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition',
-                                String(activeCategoryId) === String(cat.id || '')
-                                    ? 'bg-red-600 text-white shadow-sm'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">
+                            class="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition"
+                            :style="String(activeCategoryId) === String(cat.id || '')
+                                ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-on-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }
+                                : { backgroundColor: 'var(--brand-card)', color: 'var(--brand-text)' }">
                             {{ cat.name }}
                         </button>
                     </div>
@@ -171,30 +178,32 @@ const unitTypeLabel = (type) => ({ kg: 'kg', piece: 'pz', cut: 'pz' }[type] || '
             <!-- Content -->
             <main class="px-4 pt-5">
                 <section v-for="cat in productsByCategory" :key="cat.id || 'null'" :data-category-id="cat.id || ''" class="mb-8">
-                    <h2 class="mb-3 text-lg font-bold text-gray-900">{{ cat.name }}</h2>
+                    <h2 class="mb-3 text-lg font-bold" style="color: var(--brand-text);">{{ cat.name }}</h2>
                     <div class="space-y-3">
                         <button v-for="p in cat.items" :key="p.id" @click="openProduct(p)"
                             :disabled="!branch.is_open"
-                            class="group flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-gray-100 transition hover:ring-red-300 active:scale-[0.99] disabled:cursor-not-allowed">
-                            <div class="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-gray-100">
-                                <img v-if="p.image_url" :src="p.image_url" :alt="p.name" loading="lazy" decoding="async" class="h-full w-full object-contain p-1" />
-                                <div v-else class="flex h-full w-full items-center justify-center text-gray-300">
+                            class="group flex w-full items-center gap-3 rounded-2xl p-3 text-left shadow-sm ring-1 transition hover:ring-[color:var(--brand-primary-ring)] active:scale-[0.99] disabled:cursor-not-allowed"
+                            style="background-color: var(--brand-card); --tw-ring-color: var(--brand-border);">
+                            <div class="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl" style="background-color: var(--brand-background); border: 1px solid var(--brand-border);">
+                                <img v-if="productImageUrl(p)" :src="productImageUrl(p)" :alt="p.name" loading="lazy" decoding="async" class="h-full w-full object-contain p-1" />
+                                <div v-else class="flex h-full w-full items-center justify-center" style="color: var(--brand-text-subtle); opacity: 0.4;">
                                     <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
                                 </div>
                             </div>
                             <div class="min-w-0 flex-1">
-                                <h3 class="truncate text-base font-bold text-gray-900">{{ p.name }}</h3>
-                                <p v-if="p.description" class="line-clamp-2 mt-1 text-sm text-gray-500">{{ p.description }}</p>
-                                <p class="mt-2 text-lg font-extrabold text-red-600">${{ p.price.toFixed(2) }} <span class="text-sm font-medium text-gray-400">/ {{ unitTypeLabel(p.unit_type) }}</span></p>
+                                <h3 class="truncate text-base font-bold" style="color: var(--brand-text);">{{ p.name }}</h3>
+                                <p v-if="p.description" class="line-clamp-2 mt-1 text-sm" style="color: var(--brand-text-subtle);">{{ p.description }}</p>
+                                <p class="mt-2 text-lg font-extrabold" style="color: var(--brand-primary);">${{ p.price.toFixed(2) }} <span class="text-sm font-medium" style="color: var(--brand-text-subtle);">/ {{ unitTypeLabel(p.unit_type) }}</span></p>
                             </div>
-                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 transition group-hover:bg-red-600 group-hover:text-white">
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition group-hover:scale-105"
+                                style="background-color: var(--brand-primary-soft); color: var(--brand-primary);">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                             </div>
                         </button>
                     </div>
                 </section>
 
-                <div v-if="productsByCategory.length === 0" class="py-20 text-center text-base text-gray-500">
+                <div v-if="productsByCategory.length === 0" class="py-20 text-center text-base" style="color: var(--brand-text-subtle);">
                     {{ search ? 'Sin resultados para tu búsqueda.' : 'Aún no hay productos disponibles.' }}
                 </div>
             </main>

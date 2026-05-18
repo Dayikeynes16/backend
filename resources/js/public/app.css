@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Defaults de branding por si se renderiza algo antes de que useBranding inyecte.
+   Los valores reales se sobreescriben en runtime con setProperty desde JS. */
+:root {
+    --brand-primary: #DC2626;
+    --brand-primary-strong: #B91C1C;
+    --brand-primary-soft: #FEE2E2;
+    --brand-primary-ring: #F87171;
+    --brand-on-primary: #FFFFFF;
+    --brand-accent: #F59E0B;
+    --brand-background: #FFFFFF;
+    --brand-text: #111111;
+    --brand-text-subtle: rgba(0, 0, 0, 0.55);
+    --brand-card: rgba(0, 0, 0, 0.04);
+    --brand-border: rgba(0, 0, 0, 0.08);
+}
+
 html, body, #public-app {
     height: 100%;
 }

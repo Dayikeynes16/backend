@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useCart } from '../composables/useCart.js';
+import { useBranding } from '../composables/useBranding.js';
 
 const props = defineProps({
     product: { type: Object, required: true },
@@ -10,6 +11,8 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const cart = useCart(props.branchId);
+const { productImageUrl } = useBranding();
+const resolvedImage = computed(() => productImageUrl(props.product));
 const selectedPresentation = ref(
     props.product.sale_mode === 'presentation' && props.product.presentations.length > 0
         ? props.product.presentations[0]
@@ -107,7 +110,7 @@ const addToCart = () => {
         <div class="w-full max-w-lg overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
             <!-- Image: object-contain sobre fondo claro para preservar la foto completa -->
             <div class="relative flex h-56 w-full items-center justify-center overflow-hidden bg-gradient-to-b from-gray-50 to-white sm:h-72">
-                <img v-if="product.image_url" :src="product.image_url" :alt="product.name" loading="lazy" decoding="async" class="h-full w-full object-contain p-4" />
+                <img v-if="resolvedImage" :src="resolvedImage" :alt="product.name" loading="lazy" decoding="async" class="h-full w-full object-contain p-4" />
                 <div v-else class="flex h-full w-full items-center justify-center">
                     <svg class="h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Z" /></svg>
                 </div>
@@ -121,7 +124,7 @@ const addToCart = () => {
             <div class="p-5">
                 <h2 class="text-2xl font-bold text-gray-900">{{ product.name }}</h2>
                 <p v-if="product.description" class="mt-1.5 text-base text-gray-600">{{ product.description }}</p>
-                <p class="mt-3 text-2xl font-extrabold text-red-600">${{ effectivePrice.toFixed(2) }} <span class="text-base font-medium text-gray-400">/ {{ unitLabel }}</span></p>
+                <p class="mt-3 text-2xl font-extrabold" style="color: var(--brand-primary);">${{ effectivePrice.toFixed(2) }} <span class="text-base font-medium text-gray-400">/ {{ unitLabel }}</span></p>
 
                 <!-- Presentations -->
                 <div v-if="product.presentations.length > 0 && ['presentation', 'both'].includes(product.sale_mode)" class="mt-5">
@@ -129,10 +132,10 @@ const addToCart = () => {
                     <div class="mt-2 grid gap-2 sm:grid-cols-2">
                         <button v-for="pr in product.presentations" :key="pr.id"
                             @click="selectedPresentation = pr"
-                            :class="['rounded-xl p-3.5 text-left text-base font-semibold transition ring-1',
-                                selectedPresentation?.id === pr.id
-                                    ? 'bg-red-50 text-red-700 ring-red-300'
-                                    : 'bg-white text-gray-800 ring-gray-200 hover:bg-gray-50']">
+                            class="rounded-xl p-3.5 text-left text-base font-semibold transition ring-1"
+                            :style="selectedPresentation?.id === pr.id
+                                ? { backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)', '--tw-ring-color': 'var(--brand-primary-ring)' }
+                                : { backgroundColor: 'white', color: '#1f2937', '--tw-ring-color': '#e5e7eb' }">
                             <span>{{ pr.name }}</span>
                             <span class="ml-2 text-sm font-normal text-gray-500">${{ pr.price.toFixed(2) }}</span>
                         </button>
@@ -165,7 +168,7 @@ const addToCart = () => {
                         </button>
                         <div class="flex-1 text-center">
                             <input type="number" inputmode="decimal" v-model.number="quantity" :step="unitStep" :min="unitMin"
-                                class="w-28 rounded-xl border-gray-200 text-center text-2xl font-bold tabular-nums focus:border-red-400 focus:ring-red-300" />
+                                class="w-28 rounded-xl border-gray-200 text-center text-2xl font-bold tabular-nums focus:border-[color:var(--brand-primary-ring)] focus:ring-[color:var(--brand-primary-ring)]" />
                             <p class="mt-1 text-sm text-gray-500">{{ unitLabel }}</p>
                         </div>
                         <button @click="increment" type="button" aria-label="Aumentar cantidad"
@@ -202,8 +205,10 @@ const addToCart = () => {
                     <!-- Quick amount chips -->
                     <div class="mt-4 flex flex-wrap gap-2">
                         <button v-for="a in quickAmounts" :key="a" type="button" @click="amount = a"
-                            :class="['flex-1 rounded-xl px-3 py-3 text-base font-bold transition ring-1 min-w-[80px]',
-                                Number(amount) === a ? 'bg-red-50 text-red-700 ring-red-300' : 'bg-white text-gray-800 ring-gray-200 hover:bg-gray-50']">
+                            class="flex-1 rounded-xl px-3 py-3 text-base font-bold transition ring-1 min-w-[80px]"
+                            :style="Number(amount) === a
+                                ? { backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)', '--tw-ring-color': 'var(--brand-primary-ring)' }
+                                : { backgroundColor: 'white', color: '#1f2937', '--tw-ring-color': '#e5e7eb' }">
                             ${{ a }}
                         </button>
                     </div>
@@ -218,14 +223,15 @@ const addToCart = () => {
                 <div class="mt-5">
                     <label for="notes" class="text-sm font-bold text-gray-900">Nota para la carnicería <span class="font-normal text-gray-500">(opcional)</span></label>
                     <textarea id="notes" v-model="notes" rows="2" maxlength="500" placeholder="Ej: cortar delgado, limpia de grasa, por favor…"
-                        class="mt-1.5 block w-full rounded-xl border-gray-200 text-base focus:border-red-400 focus:ring-red-300"></textarea>
+                        class="mt-1.5 block w-full rounded-xl border-gray-200 text-base focus:border-[color:var(--brand-primary-ring)] focus:ring-[color:var(--brand-primary-ring)]"></textarea>
                 </div>
             </div>
 
             <!-- Footer -->
             <div class="border-t border-gray-100 bg-gray-50 p-4">
                 <button @click="addToCart" :disabled="!canAdd"
-                    class="flex w-full items-center justify-center gap-3 rounded-2xl bg-red-600 py-4 text-base font-bold text-white shadow-lg transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-50">
+                    class="flex w-full items-center justify-center gap-3 rounded-2xl py-4 text-base font-bold shadow-lg transition hover:brightness-95 active:scale-[0.98] disabled:opacity-50"
+                    style="background-color: var(--brand-primary); color: var(--brand-on-primary);">
                     <span>Agregar al carrito</span>
                     <span class="rounded-full bg-white/20 px-3 py-1 tabular-nums">${{ subtotal.toFixed(2) }}</span>
                 </button>

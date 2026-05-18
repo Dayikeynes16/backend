@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Public;
 
 use App\Http\Controllers\Controller;
+use App\Services\BrandingService;
 use Illuminate\Http\JsonResponse;
 
 class TenantController extends Controller
 {
+    public function __construct(private readonly BrandingService $branding) {}
+
     public function show(): JsonResponse
     {
         $tenant = app('tenant');
@@ -29,12 +32,22 @@ class TenantController extends Controller
             ])
             ->values();
 
+        $branding = $this->branding->forTenant($tenant);
+
         return response()->json([
             'tenant' => [
                 'id' => $tenant->id,
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
                 'logo_path' => $tenant->logo_path,
+            ],
+            'branding' => [
+                'primary_color' => $branding['primary_color'],
+                'accent_color' => $branding['accent_color'],
+                'background_color' => $branding['background_color'],
+                'text_color' => $branding['text_color'],
+                'logo_url' => $branding['logo_url'],
+                'default_product_image_url' => $branding['default_product_image_url'],
             ],
             'branches' => $branches,
         ]);
