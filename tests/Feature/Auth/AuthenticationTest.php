@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -19,7 +20,11 @@ class AuthenticationTest extends TestCase
 
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
+        // Superadmin: no requiere tenant. Para roles de tenant, AuthenticatedSessionController
+        // redirige a /login si el usuario no tiene tenant + rol configurados.
+        Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
         $user = User::factory()->create();
+        $user->assignRole('superadmin');
 
         $response = $this->post('/login', [
             'email' => $user->email,
@@ -27,7 +32,7 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertRedirect(route('admin.dashboard', absolute: false));
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void

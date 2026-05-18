@@ -64,20 +64,22 @@ class CollectionMetrics extends AbstractMetrics
                 SaleStatus::Active->value,
             ]);
         $this->excludeUnaccountableWebOrders($query);
+        // Bind "today" from PHP so Carbon::setTestNow() works in tests.
+        $today = now()->toDateString();
         $row = $query->selectRaw('
                 COALESCE(SUM(CASE
-                    WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) <= 30 THEN amount_pending
+                    WHEN (?::date - COALESCE(completed_at, created_at)::date) <= 30 THEN amount_pending
                     ELSE 0
                 END), 0) AS bucket_0_30,
                 COALESCE(SUM(CASE
-                    WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) BETWEEN 31 AND 60 THEN amount_pending
+                    WHEN (?::date - COALESCE(completed_at, created_at)::date) BETWEEN 31 AND 60 THEN amount_pending
                     ELSE 0
                 END), 0) AS bucket_31_60,
                 COALESCE(SUM(CASE
-                    WHEN (CURRENT_DATE - COALESCE(completed_at, created_at)::date) > 60 THEN amount_pending
+                    WHEN (?::date - COALESCE(completed_at, created_at)::date) > 60 THEN amount_pending
                     ELSE 0
                 END), 0) AS bucket_61_plus
-            ')
+            ', [$today, $today, $today])
             ->first();
 
         return [

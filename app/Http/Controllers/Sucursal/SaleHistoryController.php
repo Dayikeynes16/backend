@@ -40,7 +40,7 @@ class SaleHistoryController extends Controller
             ->when(
                 $request->search,
                 fn ($q, $term) => $q->where('folio', 'ilike', "%{$term}%"),
-                fn ($q) => $q->whereRaw('DATE(COALESCE(completed_at, updated_at, created_at)) = ?', [$date])
+                fn ($q) => $q->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
                     ->whereIn('status', [
                         SaleStatus::Completed->value,
                         SaleStatus::Pending->value,
