@@ -211,10 +211,12 @@ const scopeLabel = computed(() => {
                 <div class="cn-kpi__value">
                     <span class="cn-currency">$</span>{{ splitAmount(totals.net_sales)[0] }}<span class="cn-currency">.{{ splitAmount(totals.net_sales)[1] }}</span>
                 </div>
-                <div v-if="totals.cancelled_count > 0" class="cn-kpi__delta" style="color: var(--cn-amber)">
-                    {{ totals.cancelled_count }} cancelada{{ totals.cancelled_count > 1 ? 's' : '' }} · −${{ splitAmount(totals.cancelled_amount)[0] }}
-                </div>
-                <div v-else-if="totals.delta_pct !== null && totals.delta_pct !== undefined" :class="['cn-kpi__delta', { neg: totals.delta_pct < 0 }]">
+                <!-- Antes mostrábamos "X canceladas · −$N" cuando cancelled_count>0,
+                     pero el signo menos junto al netas daba la ilusión de que ese monto
+                     se restaba del total — y en realidad netas YA excluye canceladas
+                     (no hay doble conteo). Las cancelaciones se ven en su propia
+                     sección del menú. -->
+                <div v-if="totals.delta_pct !== null && totals.delta_pct !== undefined" :class="['cn-kpi__delta', { neg: totals.delta_pct < 0 }]">
                     <svg width="10" height="10" viewBox="0 0 10 10" :style="{ transform: totals.delta_pct < 0 ? 'rotate(180deg)' : 'none' }"><path d="M5 1 L9 7 L1 7 Z" fill="currentColor"/></svg>
                     {{ totals.delta_pct >= 0 ? '+' : '' }}{{ totals.delta_pct }}% vs ayer
                 </div>
