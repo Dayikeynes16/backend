@@ -150,10 +150,12 @@ Route::prefix('{tenant}')
                 Route::get('configuracion', [ConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [ConfiguracionController::class, 'update'])->name('configuracion.update');
 
-                // Asistente conversacional (F0 + F1).
+                // Asistente conversacional (F0 + F1 + F4 voz).
                 Route::get('asistente', [EmpresaAsistenteController::class, 'index'])->name('asistente');
                 Route::post('asistente/sesiones', [EmpresaAsistenteController::class, 'createSession'])->name('asistente.sesiones.store');
                 Route::post('asistente/sesiones/{session}/mensajes', [EmpresaAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
+                Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [EmpresaAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
+                Route::post('asistente/transcribir', [EmpresaAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
 
                 Route::get('tickets', [TicketConfigController::class, 'index'])->name('tickets');
                 Route::put('tickets/{branch}', [TicketConfigController::class, 'update'])->name('tickets.update');
@@ -320,10 +322,12 @@ Route::prefix('{tenant}')
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [SucursalConfiguracionController::class, 'update'])->name('configuracion.update');
 
-                // Asistente conversacional (F2).
+                // Asistente conversacional (F2 + F4 voz).
                 Route::get('asistente', [SucursalAsistenteController::class, 'index'])->name('asistente');
                 Route::post('asistente/sesiones', [SucursalAsistenteController::class, 'createSession'])->name('asistente.sesiones.store');
                 Route::post('asistente/sesiones/{session}/mensajes', [SucursalAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
+                Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [SucursalAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
+                Route::post('asistente/transcribir', [SucursalAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
 
                 // Menú online (QR + link público)
                 Route::get('menu-online', [MenuQrController::class, 'show'])->name('menu-online');

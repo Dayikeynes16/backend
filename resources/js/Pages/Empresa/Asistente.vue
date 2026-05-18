@@ -14,6 +14,9 @@ const routes = {
     index: 'empresa.asistente',
     createSession: 'empresa.asistente.sesiones.store',
     sendMessage: 'empresa.asistente.mensajes.store',
+    transcribe: 'empresa.asistente.transcribir',
+    // TTS (ElevenLabs) deshabilitado 2026-05-18 — voz no satisfactoria.
+    // Re-habilitar agregando: speak: 'empresa.asistente.mensajes.voz',
 };
 </script>
 

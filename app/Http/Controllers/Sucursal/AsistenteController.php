@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Sucursal;
 
+use App\Http\Controllers\Concerns\SynthesizesAssistantSpeech;
+use App\Http\Controllers\Concerns\TranscribesAssistantAudio;
 use App\Http\Controllers\Controller;
 use App\Models\AiAssistantMessage;
 use App\Models\AiAssistantSession;
@@ -24,6 +26,9 @@ use Throwable;
  */
 class AsistenteController extends Controller
 {
+    use SynthesizesAssistantSpeech;
+    use TranscribesAssistantAudio;
+
     public function __construct(private readonly AssistantOrchestrator $orchestrator) {}
 
     public function index(Request $request): Response

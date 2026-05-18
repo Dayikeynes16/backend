@@ -24,6 +24,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | ElevenLabs (TTS para asistente)
+    |--------------------------------------------------------------------------
+    |
+    | Provee voz al asistente conversacional. Se llama desde el frontend con
+    | el ID de un mensaje del asistente; el backend valida ownership, sintetiza
+    | con ElevenLabs y devuelve audio MP3 binary que el navegador reproduce.
+    */
+    'elevenlabs' => [
+        'api_key' => env('ELEVENLABS_API_KEY'),
+        'base_url' => env('ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1'),
+        'timeout' => (int) env('ELEVENLABS_TIMEOUT', 30),
+
+        // Voice ID por defecto. Lo puedes cambiar por tenant a futuro.
+        'voice_id' => env('ELEVENLABS_VOICE_ID', 'nTkjq09AuYgsNR8E4sDe'),
+        'model' => env('ELEVENLABS_MODEL', 'eleven_turbo_v2_5'),
+
+        // Formato del audio devuelto. mp3_44100_128 es universal en navegadores.
+        'output_format' => env('ELEVENLABS_OUTPUT_FORMAT', 'mp3_44100_128'),
+
+        // Límite duro de caracteres por síntesis para acotar costos. Si una
+        // respuesta del asistente supera esto, se trunca antes de mandar.
+        'max_chars' => (int) env('ELEVENLABS_MAX_CHARS', 1200),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Flujo: registrar gasto con IA
     |--------------------------------------------------------------------------
     */
