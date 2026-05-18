@@ -24,8 +24,15 @@ const isActive = (link) => route().current(link.route + '*') || route().current(
 
         <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'" class="fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col bg-gradient-to-b from-red-800 to-red-900 transition-transform duration-300 lg:translate-x-0">
             <div class="flex h-[68px] items-center gap-3 px-5">
-                <img src="/logo.png" alt="El Puebla" class="h-9 w-9 rounded-xl" />
-                <span class="text-sm font-bold text-white">Caja</span>
+                <img v-if="page.props.auth.tenant?.logo_url" :src="page.props.auth.tenant.logo_url" :alt="page.props.auth.tenant.name"
+                    class="h-9 w-9 rounded-xl object-cover ring-1 ring-white/20" />
+                <div v-else class="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-sm font-bold text-white ring-1 ring-white/20">
+                    {{ (page.props.auth.tenant?.name || '?').charAt(0).toUpperCase() }}
+                </div>
+                <div class="flex min-w-0 flex-col">
+                    <span class="truncate text-sm font-bold leading-tight text-white">{{ page.props.auth.tenant?.name || 'Caja' }}</span>
+                    <span v-if="page.props.auth.branch?.name" class="truncate text-[11px] font-semibold leading-tight text-red-200">{{ page.props.auth.branch.name }}</span>
+                </div>
             </div>
 
             <nav class="flex-1 px-3 pt-4">

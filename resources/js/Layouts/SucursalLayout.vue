@@ -63,10 +63,14 @@ const iconPaths = {
 
         <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'" class="fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col bg-gradient-to-b from-red-800 via-red-850 to-red-900 transition-transform duration-300 lg:translate-x-0">
             <div class="flex h-[72px] items-center gap-3.5 px-6">
-                <img src="/logo.png" alt="El Puebla" class="h-10 w-10 rounded-xl" />
-                <div class="flex flex-col">
-                    <span class="text-sm font-bold leading-tight tracking-wide text-white">El Puebla</span>
-                    <span class="text-xs font-semibold leading-tight text-orange-300">Sucursal</span>
+                <img v-if="page.props.auth.tenant?.logo_url" :src="page.props.auth.tenant.logo_url" :alt="page.props.auth.tenant.name"
+                    class="h-10 w-10 rounded-xl object-cover ring-1 ring-white/20" />
+                <div v-else class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-base font-bold text-white ring-1 ring-white/20">
+                    {{ (page.props.auth.tenant?.name || '?').charAt(0).toUpperCase() }}
+                </div>
+                <div class="flex min-w-0 flex-col">
+                    <span class="truncate text-sm font-bold leading-tight tracking-wide text-white">{{ page.props.auth.tenant?.name || 'Empresa' }}</span>
+                    <span class="truncate text-xs font-semibold leading-tight text-orange-300">{{ page.props.auth.branch?.name || 'Sucursal' }}</span>
                 </div>
             </div>
 
