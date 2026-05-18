@@ -43,6 +43,7 @@ Sin cambios. Tanto `sucursal.metricas.index` como `empresa.metricas.index` sigue
 
 - Eliminar el método `dashboardSummary()` por completo. Es el único consumidor de la rama `previous_daily_series` y vivía solo para alimentar el Resumen viejo. Los demás métodos del servicio (si existen) se conservan.
 - Verificar consumidores: hoy `dashboardSummary` se invoca únicamente desde `Sucursal\Metrics\MetricsIndexController:23` y `Empresa\Metrics\MetricsIndexController:23`. Ambos cambian (ver abajo).
+- Auditar el constructor de `MetricsService`: si alguna dependencia inyectada (p.ej. `CollectionMetrics`, `MarginMetrics`) deja de usarse tras la eliminación de `dashboardSummary`, retirarla para evitar inyecciones muertas.
 
 **`MetricsIndexController` (Sucursal y Empresa)**
 
@@ -55,6 +56,7 @@ Sin cambios. Tanto `sucursal.metricas.index` como `empresa.metricas.index` sigue
   ]);
   ```
 - El prop `backfill_run_at` puede directamente dejar de enviarse desde Index si la vista ya no usa `BackfillBanner`.
+- **Empresa**: conservar también la clave `'branches' => $this->branchOptions($tenantId)` (alimenta el selector de sucursal en el header). Solo Sucursal puede omitirla.
 
 **`SalesMetricsController` (Sucursal y Empresa)**
 
@@ -194,7 +196,7 @@ En ambos:
 
 ### Archivos a tocar
 
-**Backend (12):**
+**Backend (15):**
 - `app/Services/Metrics/MetricsService.php` (eliminar `dashboardSummary`).
 - `app/Services/Metrics/DateRange.php` (recortar `PRESETS`).
 - `app/Http/Controllers/Concerns/ResolvesMetricsRequest.php` (eliminar `compareEnabled`, `wantsRefresh`, recortar `commonProps`).
