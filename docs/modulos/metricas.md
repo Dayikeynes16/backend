@@ -1,6 +1,8 @@
 # Módulo de Métricas
 
-Panel de reportes y análisis para **admin-sucursal** (una sucursal) y **admin-empresa** (multi-sucursal con selector o consolidado). Cubre siete ejes: ventas, margen, productos, clientes, cajeros, turnos y cobranza.
+Panel de reportes y análisis para **admin-sucursal** (una sucursal) y **admin-empresa** (multi-sucursal con selector o consolidado). Cubre **ocho ejes**: ventas, margen, productos, clientes, cajeros, turnos, cobranza y cancelaciones.
+
+> **Nota (mayo 2026):** El módulo se simplificó. El "Resumen" dejó de mostrar KPIs y se convirtió en un **hub de navegación** (grid 4×2 de ejes). El header se redujo a 3 presets de fecha + calendario; se eliminaron el toggle "Comparar" y el botón "Actualizar". Los ejes individuales mantienen sus KPIs/gráficos pero ya no exhiben deltas ±% ni líneas de periodo previo. Spec: [`docs/superpowers/specs/2026-05-17-metricas-simplificacion-design.md`](../superpowers/specs/2026-05-17-metricas-simplificacion-design.md). Plan: [`docs/superpowers/plans/2026-05-18-metricas-simplificacion-plan.md`](../superpowers/plans/2026-05-18-metricas-simplificacion-plan.md).
 
 ## Glosario canónico
 
@@ -43,7 +45,7 @@ Este glosario es la fuente de verdad del módulo. Todo cálculo nuevo o refactor
 
 | URL | Nombre | Propósito |
 |-----|--------|-----------|
-| `/{tenant}/sucursal/metricas` | `sucursal.metricas.index` | Dashboard resumen |
+| `/{tenant}/sucursal/metricas` | `sucursal.metricas.index` | **Hub de navegación** (grid 4×2 de ejes) |
 | `/{tenant}/sucursal/metricas/ventas` | `sucursal.metricas.ventas` | Volumen y tendencia |
 | `/{tenant}/sucursal/metricas/margen` | `sucursal.metricas.margen` | Ganancia bruta |
 | `/{tenant}/sucursal/metricas/productos` | `sucursal.metricas.productos` | Top / sin movimiento / alertas |
@@ -51,6 +53,9 @@ Este glosario es la fuente de verdad del módulo. Todo cálculo nuevo o refactor
 | `/{tenant}/sucursal/metricas/cajeros` | `sucursal.metricas.cajeros` | Desempeño por cajero |
 | `/{tenant}/sucursal/metricas/turnos` | `sucursal.metricas.turnos` | Diferencias de corte |
 | `/{tenant}/sucursal/metricas/cobranza` | `sucursal.metricas.cobranza` | Cuentas por cobrar |
+| `/{tenant}/sucursal/metricas/cancelaciones` | `sucursal.metricas.cancelaciones` | Motivos y tiempo de respuesta |
+
+**Resumen (`index`)**: No transporta `data` ni `backfill_run_at`. El payload Inertia solo incluye `range`, `presets`, `statuses`, `tenant`, `selected_branch_id` (Empresa añade `branches`). Ver `MetricsHubGrid.vue` para el grid de ejes; los filtros del header se propagan al eje destino vía URL.
 
 ### Admin empresa (`role:admin-empresa|superadmin`)
 
@@ -62,13 +67,14 @@ Mismas 8 rutas con prefijo `empresa` y nombres `empresa.metricas.*`. Aceptan `?b
 
 Todas las páginas aceptan:
 
-- `?preset=today|yesterday|last_7_days|this_month|last_month|this_year` — preset rápido
-- `?from=YYYY-MM-DD&to=YYYY-MM-DD` — rango personalizado (tope de 365 días)
-- `?compare=1|0` — overlay/delta vs. periodo previo comparable
-- `?refresh=1` — invalida el caché de la página actual
+- `?preset=today|yesterday|last_7_days` — preset rápido (3 valores)
+- `?from=YYYY-MM-DD&to=YYYY-MM-DD` — rango personalizado vía Calendario (tope 365 días); internamente preset = `__custom__`
+- `?statuses=completed,pending,cancelled` — filtro de estados para "venta generada" (default solo `completed`). Solo aplica en Resumen/Ventas/Productos/Clientes
 - `?branch_id=<id>` — solo rutas `empresa.*`
 
-Las URLs son compartibles: copiar/pegar el link preserva filtros.
+URLs antiguas con `?preset=this_month|last_month|this_year`, `?compare=1`, `?refresh=1` se aceptan en silencio: los presets retirados caen al default (`today`), y `compare`/`refresh` ya no se leen ni se emiten en `commonProps()`.
+
+Las URLs son compartibles: copiar/pegar el link preserva filtros, y entrar a un eje desde el hub conserva los filtros que estaban activos.
 
 ## Arquitectura
 
@@ -76,7 +82,7 @@ Las URLs son compartibles: copiar/pegar el link preserva filtros.
 app/
 ├── Models/Setting.php                      ← clave-valor tenant-scoped
 ├── Services/Metrics/
-│   ├── DateRange.php                       ← value object + previousComparable()
+│   ├── DateRange.php                       ← value object; PRESETS=[today,yesterday,last_7_days]
 │   ├── AbstractMetrics.php
 │   ├── SalesMetrics.php
 │   ├── MarginMetrics.php
@@ -84,13 +90,20 @@ app/
 │   ├── CustomerMetrics.php
 │   ├── CashierMetrics.php
 │   ├── ShiftMetrics.php
+│   ├── CancellationMetrics.php
 │   ├── CollectionMetrics.php
-│   └── MetricsService.php                  ← fachada del índice (caché incluido)
+│   └── MetricsService.php                  ← helpers de caché (cacheKey/forget) + backfillDate
 ├── Http/Controllers/Concerns/ResolvesMetricsRequest.php
-├── Http/Controllers/Sucursal/Metrics/*     ← 8 controllers finos
-├── Http/Controllers/Empresa/Metrics/*      ← 8 controllers finos
+├── Http/Controllers/Sucursal/Metrics/*     ← 9 controllers finos (Index + 8 ejes)
+├── Http/Controllers/Empresa/Metrics/*      ← 9 controllers finos
 └── Console/Commands/BackfillCostPricesCommand.php
 ```
+
+**Después de la simplificación (mayo 2026):**
+
+- `MetricsService::dashboardSummary()` fue **eliminado**: el Index ya no calcula KPIs, solo enruta. El servicio quedó como helper de caché y `backfillDate()`. Su constructor ya no inyecta los 7 `*Metrics`.
+- `ResolvesMetricsRequest` ya no expone `compareEnabled()` ni `wantsRefresh()`; `commonProps()` no emite `compare` ni `refresh`.
+- `SalesMetrics::summary()`, `MarginMetrics::summary()` y `CancellationMetrics::summary()` ya no retornan la rama `'previous'` (queda solo `['current' => …]`). El `previousComparable()` de `DateRange` se mantiene **solo** porque lo usan dos consumidores externos ajenos a Métricas: `DailySummaryService` (Dashboard, "vs ayer") y `SalesSummaryTool` (asistente IA, `delta_pct`). Esos consumidores hacen dos llamadas a `SalesMetrics::summary()` con rangos distintos en lugar de leer una rama anidada.
 
 **Principios:**
 
@@ -115,7 +128,7 @@ Equivalencia verificada en `tests/Feature/Services/DailySummaryServiceTest.php` 
 
 - Key: `metrics:{tenantId}:{branchIdOrAll}:{axis}:{rangeHash}`
 - TTL: **5 minutos**
-- Botón "Actualizar" → `?refresh=1` → invalida solo la key actual (no cross-axis)
+- Invalidación: solo TTL. El botón "Actualizar" y el query param `?refresh=1` fueron retirados; si necesitas forzar refresco manualmente, espera al TTL o usa `MetricsService::forget()` desde tinker.
 - **No se usa `Cache::tags()`** — incompatible con el driver `database` default
 - Invalidación pasiva vía TTL corto (no se toca en writes)
 
@@ -159,23 +172,36 @@ resources/js/
 ├── Layouts/
 │   └── MetricsLayout.vue                   ← envuelve SucursalLayout, añade sub-sidebar + breadcrumb
 ├── Components/Metrics/
-│   ├── MetricsHeader.vue                   ← filtros globales (presets + custom + compare + refresh)
+│   ├── MetricsHeader.vue                   ← título + selector sucursal + DateRangeFilter + StatusFilterChips + "Mostrando: …"
+│   ├── DateRangeFilter.vue                 ← segmented [Hoy / Ayer / 7 días] + Calendario
+│   ├── MetricsHubGrid.vue                  ← grid 4×2 de ejes (Resumen); propaga filtros en URL
 │   ├── MetricsSubSidebar.vue               ← navegación entre ejes, preserva filtros
 │   ├── MetricsBreadcrumb.vue               ← Sucursal › Métricas › <Eje> + botón "Volver al resumen"
 │   ├── MarginCoverageBanner.vue            ← banner de items sin costo en Margen
-│   ├── KpiCard.vue                         ← KPI con delta %, hint/footnote
+│   ├── KpiCard.vue                         ← KPI con hint/footnote (sin chip de delta)
 │   ├── ChartCard.vue                       ← título + subtítulo inline + slot
+│   ├── TimeSeriesCard.vue                  ← tendencia adaptativa (single/bars/line); una sola serie
 │   ├── DataTable.vue                       ← tabla con sort + paginación client-side
 │   ├── EmptyState.vue
-│   ├── BackfillBanner.vue                  ← aviso de margen aproximado
+│   ├── BackfillBanner.vue                  ← aviso de margen aproximado (solo en ejes, no en Resumen)
 │   └── Content/                            ← 8 componentes (1 por eje) reutilizados por Sucursal y Empresa
 ├── composables/
-│   ├── useMetricsFilters.js                ← sincroniza filtros con query params
+│   ├── useMetricsFilters.js                ← sincroniza preset/from/to/branchId/statuses con query params
+│   ├── useDateRange.js                     ← labels y format helpers de rangos
 │   └── useCurrency.js                      ← format helpers
 └── Pages/
-    ├── Sucursal/Metricas/*                 ← 8 páginas wrapper (MetricsLayout + Content)
-    └── Empresa/Metricas/*                  ← 8 páginas wrapper (EmpresaLayout + selector + Content)
+    ├── Sucursal/Metricas/Index.vue         ← MetricsLayout + MetricsHeader + MetricsHubGrid
+    ├── Sucursal/Metricas/{Ventas,Margen,…}.vue ← 8 páginas wrapper de ejes
+    └── Empresa/Metricas/*                  ← idem con EmpresaLayout + selector de sucursal
 ```
+
+**Cambios tras la simplificación:**
+
+- `MetricsHubGrid.vue` reemplaza a `Content/IndexContent.vue` (eliminado). Solo renderiza navegación; no KPIs ni gráficos.
+- `MetricsHeader.vue` perdió el toggle "Comparar" y el botón "Actualizar". Subheader solo lista "Mostrando: …" sin "vs. periodo previo".
+- `TimeSeriesCard.vue` ya no acepta props `previous` ni `compare`; render de una sola serie con headline + mejor/peor punto.
+- `KpiCard.vue` ya no muestra el chip de delta. Su prop `delta` queda declarada por compat hacia atrás (no rompe callsites existentes que la pasen) pero no se usa.
+- `useMetricsFilters.js` ya no expone `compare`, `setCompare`, `refresh`, `setRefresh`. Lista de presets válidos: `['today','yesterday','last_7_days','__custom__']`.
 
 **Charts:** ApexCharts (vue3-apexcharts), registrado globalmente en `app.js` como `<apexchart>`.
 
@@ -199,12 +225,13 @@ resources/js/
 ./vendor/bin/sail artisan test tests/Feature/Http/Empresa/Metrics
 ```
 
-46 tests cubren:
-- `DateRange` (presets, custom, cap a 365 días, comparativo, hash)
-- Cada servicio agregado (tenant isolation, branch filter, status filter)
-- `MarginMetrics` excluye items sin costo
-- `BackfillCostPrices` idempotente + fecha en settings
-- Auth: admin-sucursal/admin-empresa pueden, cajero 403, guest redirect, branch_id foráneo 403
+Cobertura clave:
+- `DateRange` (presets, custom, cap a 365 días, hash). `PRESETS` está restringido a `[today, yesterday, last_7_days]`; presets retirados lanzan en `preset()` directo y caen al default en `fromRequest()`.
+- `MetricsIndexResponseTest` (Sucursal y Empresa): la respuesta Inertia del Resumen incluye `range`, `presets`, `statuses`, `tenant`, `selected_branch_id` (+ `branches` en Empresa) y **no** incluye `compare`, `refresh`, `data` ni `backfill_run_at`. `range` no expone la rama `previous`.
+- Cada servicio agregado (tenant isolation, branch filter, status filter).
+- `MarginMetrics` excluye items sin costo.
+- `BackfillCostPrices` idempotente + fecha en settings.
+- Auth: admin-sucursal/admin-empresa pueden, cajero 403, guest redirect, branch_id foráneo 403.
 
 ## Deploy
 
@@ -218,3 +245,5 @@ resources/js/
 
 - Diseño inicial: [`docs/superpowers/specs/2026-04-17-metricas-sucursal-empresa-design.md`](../superpowers/specs/2026-04-17-metricas-sucursal-empresa-design.md).
 - Rediseño de navegación + transparencia de margen: [`docs/superpowers/specs/2026-04-19-metricas-rediseno-design.md`](../superpowers/specs/2026-04-19-metricas-rediseno-design.md).
+- Glosario canónico y reglas transversales: [`docs/superpowers/specs/2026-04-20-metricas-fase-1-design.md`](../superpowers/specs/2026-04-20-metricas-fase-1-design.md).
+- **Simplificación (mayo 2026)**: [`docs/superpowers/specs/2026-05-17-metricas-simplificacion-design.md`](../superpowers/specs/2026-05-17-metricas-simplificacion-design.md) + [`docs/superpowers/plans/2026-05-18-metricas-simplificacion-plan.md`](../superpowers/plans/2026-05-18-metricas-simplificacion-plan.md).
