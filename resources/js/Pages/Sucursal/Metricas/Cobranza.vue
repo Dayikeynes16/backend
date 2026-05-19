@@ -5,7 +5,7 @@ import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import CobranzaContent from '@/Components/Metrics/Content/CobranzaContent.vue';
 import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
-const props = defineProps({ data: Object, range: Object, compare: Boolean, tenant: Object });
+const props = defineProps({ data: Object, range: Object, tenant: Object });
 const filters = useMetricsFilters('sucursal.metricas.cobranza');
 </script>
 

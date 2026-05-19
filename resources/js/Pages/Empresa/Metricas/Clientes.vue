@@ -6,7 +6,7 @@ import ClientesContent from '@/Components/Metrics/Content/ClientesContent.vue';
 import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
 const props = defineProps({
-    data: Object, range: Object, compare: Boolean, tenant: Object, inactive_days: Number,
+    data: Object, range: Object, tenant: Object, inactive_days: Number,
     branches: Array, selected_branch_id: [Number, null],
 });
 const filters = useMetricsFilters('empresa.metricas.clientes');

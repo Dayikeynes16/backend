@@ -8,12 +8,9 @@ import MarginCoverageBanner from '@/Components/Metrics/MarginCoverageBanner.vue'
 import TimeSeriesCard from '@/Components/Metrics/TimeSeriesCard.vue';
 import { formatCurrency, formatNumber } from '@/composables/useCurrency';
 
-const props = defineProps({ data: Object, compare: Boolean });
+const props = defineProps({ data: Object });
 
 const current = computed(() => props.data?.summary?.current ?? {});
-const previous = computed(() => props.data?.summary?.previous ?? {});
-const pct = (a, b) => (!b ? null : ((a - b) / b) * 100);
-const d = (a, b) => (props.compare ? pct(a, b) : null);
 
 const itemsWithCost = computed(() => current.value.items_with_cost ?? 0);
 const itemsWithoutCost = computed(() => current.value.items_without_cost ?? 0);
@@ -27,7 +24,6 @@ const profitHint = computed(() => {
 });
 
 const profitCurrent = computed(() => (props.data?.daily_gross_profit ?? []).map(r => ({ day: r.day, value: Number(r.gross_profit ?? 0) })));
-const profitPrevious = computed(() => (props.data?.previous_daily_gross_profit ?? []).map(r => ({ day: r.day, value: Number(r.gross_profit ?? 0) })));
 
 const categorySeries = computed(() => [{
     name: 'Margen %',
@@ -73,18 +69,14 @@ const focusUncostedTable = async () => {
         <MarginCoverageBanner :items-without-cost="itemsWithoutCost" @filter-uncosted="focusUncostedTable" />
 
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <KpiCard label="Ganancia bruta" tone="green"
-                :delta="d(current.gross_profit, previous.gross_profit)"
-                :hint="profitHint">
+            <KpiCard label="Ganancia bruta" tone="green" :hint="profitHint">
                 {{ formatCurrency(current.gross_profit) }}
             </KpiCard>
             <KpiCard label="% Margen global" tone="green"
-                :delta="d(current.margin_pct, previous.margin_pct)"
                 hint="Ganancia ÷ ingreso (items con costo)">
                 {{ current.margin_pct ?? 0 }}%
             </KpiCard>
             <KpiCard label="Margen por ticket"
-                :delta="d(current.avg_margin_per_ticket, previous.avg_margin_per_ticket)"
                 hint="Ganancia bruta entre tickets del rango">
                 {{ formatCurrency(current.avg_margin_per_ticket) }}
             </KpiCard>
@@ -97,11 +89,9 @@ const focusUncostedTable = async () => {
             title="Ganancia bruta diaria"
             subtitle="Ingresos − costo al momento de venta. Solo items con costo registrado."
             :current="profitCurrent"
-            :previous="profitPrevious"
             value-label="Ganancia"
             :format-value="formatCurrency"
             color="#059669"
-            :compare="props.compare"
         />
 
         <ChartCard title="Margen % por categoría"

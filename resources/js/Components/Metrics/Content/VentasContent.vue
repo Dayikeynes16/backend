@@ -11,30 +11,19 @@ import { formatAbsoluteRange } from '@/composables/useDateRange';
 
 const props = defineProps({
     data: Object,
-    compare: Boolean,
 });
 
 const page = usePage();
 const range = computed(() => page.props.range || null);
 const currentRangeText = computed(() => range.value ? formatAbsoluteRange(range.value.from, range.value.to) : '');
-const previousRangeText = computed(() => range.value?.previous ? formatAbsoluteRange(range.value.previous.from, range.value.previous.to) : '');
 
-const trendSubtitle = computed(() => {
-    const base = 'Cuenta cada venta el día que se creó/completó. Excluye canceladas.';
-    if (props.compare && previousRangeText.value) {
-        return `${base} · ${currentRangeText.value} vs. ${previousRangeText.value}`;
-    }
-    return `${base} · ${currentRangeText.value}`;
-});
+const trendSubtitle = computed(() =>
+    `Cuenta cada venta el día que se creó/completó. Excluye canceladas. · ${currentRangeText.value}`
+);
 
 const current = computed(() => props.data?.summary?.current ?? {});
-const previous = computed(() => props.data?.summary?.previous ?? {});
-
-const pct = (a, b) => (!b ? null : ((a - b) / b) * 100);
-const d = (a, b) => (props.compare ? pct(a, b) : null);
 
 const trendCurrent = computed(() => (props.data?.daily_series ?? []).map(r => ({ day: r.day, value: Number(r.total ?? 0) })));
-const trendPrevious = computed(() => (props.data?.previous_daily_series ?? []).map(r => ({ day: r.day, value: Number(r.total ?? 0) })));
 
 const paymentMethods = computed(() => props.data?.by_payment_method ?? []);
 const methodPieSeries = computed(() => paymentMethods.value.map(m => m.total));
@@ -89,25 +78,21 @@ const tableColumns = [
     <div v-else class="space-y-6">
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <KpiCard label="Ventas netas" tone="red"
-                :delta="d(current.net_sales, previous.net_sales)"
                 hint="Ventas generadas (excluye canceladas)"
                 tooltip="Suma de ventas creadas o completadas en el período. Incluye pendientes y a crédito. Excluye canceladas. La fecha que cuenta es cuándo se generó la venta, no cuándo se cobró.">
                 {{ formatCurrency(current.net_sales) }}
             </KpiCard>
             <KpiCard label="# Tickets"
-                :delta="d(current.ticket_count, previous.ticket_count)"
                 hint="Ventas no canceladas"
                 tooltip="Cantidad de ventas creadas o completadas en el período (excluye canceladas).">
                 {{ formatNumber(current.ticket_count) }}
             </KpiCard>
             <KpiCard label="Ticket promedio"
-                :delta="d(current.avg_ticket, previous.avg_ticket)"
                 hint="Ventas netas ÷ # Tickets"
                 tooltip="Promedio de las ventas no canceladas del período. Incluye pendientes y a crédito.">
                 {{ formatCurrency(current.avg_ticket) }}
             </KpiCard>
             <KpiCard label="# Canceladas" tone="amber"
-                :delta="d(current.cancelled_count, previous.cancelled_count)"
                 hint="Por fecha de cancelación"
                 tooltip="Cantidad de ventas canceladas dentro del período (por fecha de cancelación, no de creación).">
                 {{ formatNumber(current.cancelled_count) }}
@@ -123,11 +108,9 @@ const tableColumns = [
             title="Ventas generadas por día"
             :subtitle="trendSubtitle"
             :current="trendCurrent"
-            :previous="trendPrevious"
             value-label="Ventas"
             :format-value="formatCurrency"
             color="#dc2626"
-            :compare="props.compare"
         />
 
         <div class="grid gap-6 lg:grid-cols-3">

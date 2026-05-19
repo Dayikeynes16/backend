@@ -15,32 +15,24 @@ const props = defineProps({
     scope: { type: String, default: 'sucursal' },
 });
 
-// --- KPIs (con deltas vs periodo previo) ---
+// --- KPIs ---
 const current = computed(() => props.data?.summary?.current ?? {});
-const previous = computed(() => props.data?.summary?.previous ?? {});
 
-const delta = (a, b) => {
-    if (!b || b === 0) return null;
-    return Number((((a ?? 0) - b) / b * 100).toFixed(1));
-};
-
-// --- Chart: cancelaciones por día (actual vs previo) ---
+// --- Chart: cancelaciones por día ---
 const daily = computed(() => props.data?.daily ?? []);
-const previousDaily = computed(() => props.data?.previous_daily ?? []);
 
 const chartMetric = ref('amount'); // 'amount' | 'count'
 
 const chartSeries = computed(() => [
-    { name: 'Periodo actual', data: daily.value.map(d => d[chartMetric.value]) },
-    { name: 'Periodo previo', data: previousDaily.value.map(d => d[chartMetric.value]) },
+    { name: 'Cancelaciones', data: daily.value.map(d => d[chartMetric.value]) },
 ]);
 
 const chartOptions = computed(() => ({
     chart: { type: 'bar', toolbar: { show: false }, fontFamily: 'inherit', stacked: false },
-    colors: ['#dc2626', '#fca5a5'],
+    colors: ['#dc2626'],
     plotOptions: { bar: { borderRadius: 4, columnWidth: '60%' } },
     dataLabels: { enabled: false },
-    stroke: { width: [0, 0] },
+    stroke: { width: [0] },
     xaxis: {
         categories: daily.value.map(d => d.day.slice(5)),
         labels: { style: { fontSize: '10px' } },
@@ -53,7 +45,7 @@ const chartOptions = computed(() => ({
     tooltip: {
         y: { formatter: v => chartMetric.value === 'amount' ? formatCurrency(v) : formatNumber(v) },
     },
-    legend: { position: 'top', horizontalAlign: 'right' },
+    legend: { show: false },
     grid: { borderColor: '#f3f4f6' },
 }));
 
@@ -126,12 +118,10 @@ const formatDateTime = (d) => d ? new Date(d).toLocaleString('es-MX', {
 
         <!-- KPIs -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <KpiCard label="# Canceladas" tone="red"
-                :delta="delta(current.cancelled_count, previous.cancelled_count)">
+            <KpiCard label="# Canceladas" tone="red">
                 {{ formatNumber(current.cancelled_count ?? 0) }}
             </KpiCard>
-            <KpiCard label="Monto cancelado" tone="red"
-                :delta="delta(current.cancelled_amount, previous.cancelled_amount)">
+            <KpiCard label="Monto cancelado" tone="red">
                 {{ formatCurrency(current.cancelled_amount ?? 0) }}
             </KpiCard>
             <KpiCard label="% sobre ventas" tone="amber"

@@ -4,26 +4,23 @@ import ChartCard from '@/Components/Metrics/ChartCard.vue';
 
 /**
  * Card de tendencia inteligente — el layout se adapta al volumen de datos
- * para que el usuario nunca quede sin informacion util:
+ * para que el usuario nunca quede sin información útil:
  *
- *   mode 'empty'  | actual y previo en cero  | mensaje amigable
- *   mode 'single' | rango es 1-2 buckets    | bloques comparativos con barras
- *   mode 'bars'   | 3-3 buckets sparse      | bar chart vertical comparativo
- *   mode 'line'   | 4+ datos / rango largo  | linea + anotaciones permanentes
+ *   mode 'empty'  | total en cero            | mensaje amigable
+ *   mode 'single' | rango es 1-2 buckets    | bloques verticales con barra
+ *   mode 'bars'   | 3-3 buckets sparse      | bar chart vertical
+ *   mode 'line'   | 4+ datos / rango largo  | línea + anotaciones permanentes
  *
- * En todos los modos: headline gigante con total y delta visible (sin
- * depender de hover) y veredicto en lenguaje plano arriba del chart.
+ * En todos los modos: headline gigante con total y veredicto en lenguaje plano
+ * arriba del chart.
  */
 const props = defineProps({
     title: { type: String, required: true },
     subtitle: { type: String, default: '' },
     current: { type: Array, required: true },
-    previous: { type: Array, default: () => [] },
     valueLabel: { type: String, default: 'Valor' },
     formatValue: { type: Function, required: true },
     color: { type: String, default: '#dc2626' },
-    previousColor: { type: String, default: '#9ca3af' },
-    compare: { type: Boolean, default: false },
 });
 
 const granularity = ref('day');
@@ -84,21 +81,8 @@ const aggregate = (series) => {
 
 // === Series y métricas =================================================
 const currentAgg = computed(() => aggregate(props.current));
-const previousAgg = computed(() => props.compare ? aggregate(props.previous) : []);
-
 const nonZeroCurrent = computed(() => currentAgg.value.filter(p => p.value > 0));
-const nonZeroPrevious = computed(() => previousAgg.value.filter(p => p.value > 0));
-
 const totalCurrent = computed(() => currentAgg.value.reduce((s, p) => s + p.value, 0));
-const totalPrevious = computed(() => previousAgg.value.reduce((s, p) => s + p.value, 0));
-
-const hasComparison = computed(() => props.compare && previousAgg.value.length > 0);
-
-const deltaAbsolute = computed(() => totalCurrent.value - totalPrevious.value);
-const deltaPct = computed(() => {
-    if (!hasComparison.value || totalPrevious.value === 0) return null;
-    return ((totalCurrent.value - totalPrevious.value) / totalPrevious.value) * 100;
-});
 
 const bestPoint = computed(() => {
     if (!nonZeroCurrent.value.length) return null;
@@ -112,38 +96,18 @@ const worstPoint = computed(() => {
 
 // === Modo adaptativo ===================================================
 const mode = computed(() => {
-    if (totalCurrent.value === 0 && totalPrevious.value === 0) return 'empty';
+    if (totalCurrent.value === 0) return 'empty';
     const buckets = currentAgg.value.length;
     const nonZero = nonZeroCurrent.value.length;
-    // Rango muy corto (today, yesterday): bloques comparativos.
     if (buckets <= 2) return 'single';
-    // Rango decente con datos abundantes o muchos buckets: linea.
     if (nonZero >= 4 || buckets > 14) return 'line';
-    // Pocos datos en rango medio: bar chart comparativo.
     return 'bars';
 });
 
 // === Veredicto en lenguaje plano =======================================
 const verdict = computed(() => {
-    if (!hasComparison.value) {
-        if (totalCurrent.value === 0) return { tone: 'neutral', icon: '·', text: 'No hubo ventas en este periodo' };
-        return { tone: 'neutral', icon: '', text: '' };
-    }
-    if (totalCurrent.value === 0 && totalPrevious.value === 0) {
-        return { tone: 'neutral', icon: '·', text: 'Sin ventas en este periodo ni en el anterior' };
-    }
-    if (totalPrevious.value === 0 && totalCurrent.value > 0) {
-        return { tone: 'positive', icon: '↑', text: 'Comenzaron las ventas en este periodo' };
-    }
-    if (totalCurrent.value === 0 && totalPrevious.value > 0) {
-        return { tone: 'negative', icon: '↓', text: `Sin ventas. Antes se vendió ${props.formatValue(totalPrevious.value)}` };
-    }
-    const pct = deltaPct.value ?? 0;
-    if (Math.abs(pct) < 1) return { tone: 'neutral', icon: '·', text: 'Casi igual que el periodo anterior' };
-    if (pct >= 10) return { tone: 'positive', icon: '↑', text: 'Vas bastante mejor que el periodo anterior' };
-    if (pct > 0) return { tone: 'positive', icon: '↑', text: 'Vas un poco mejor que el periodo anterior' };
-    if (pct >= -10) return { tone: 'negative', icon: '↓', text: 'Vas un poco peor que el periodo anterior' };
-    return { tone: 'negative', icon: '↓', text: 'Vas bastante peor que el periodo anterior' };
+    if (totalCurrent.value === 0) return { tone: 'neutral', icon: '·', text: 'No hubo ventas en este periodo' };
+    return { tone: 'neutral', icon: '', text: '' };
 });
 
 const verdictColorClass = computed(() => ({
@@ -153,30 +117,21 @@ const verdictColorClass = computed(() => ({
 }[verdict.value.tone]));
 
 // === Bloques (single mode) =============================================
-const comparisonScale = computed(() => Math.max(totalCurrent.value, totalPrevious.value, 1));
-const currentBarWidth = computed(() => `${Math.max(2, (totalCurrent.value / comparisonScale.value) * 100)}%`);
-const previousBarWidth = computed(() => `${Math.max(2, (totalPrevious.value / comparisonScale.value) * 100)}%`);
+const currentBarWidth = computed(() => `${totalCurrent.value > 0 ? 100 : 2}%`);
 
 // === Bar chart (bars mode) =============================================
 const barCategories = computed(() => currentAgg.value.map(p => p.label));
 
-const barSeries = computed(() => {
-    const series = [{ name: props.valueLabel, data: currentAgg.value.map(p => p.value) }];
-    if (hasComparison.value) {
-        const prev = previousAgg.value.slice(0, currentAgg.value.length).map(p => p.value);
-        while (prev.length < currentAgg.value.length) prev.push(0);
-        series.push({ name: 'Periodo previo', data: prev });
-    }
-    return series;
-});
+const barSeries = computed(() => [
+    { name: props.valueLabel, data: currentAgg.value.map(p => p.value) },
+]);
 
 const barOptions = computed(() => ({
     chart: { type: 'bar', toolbar: { show: false }, fontFamily: 'inherit', stacked: false },
-    colors: [props.color, props.previousColor],
-    plotOptions: { bar: { columnWidth: hasComparison.value ? '60%' : '45%', borderRadius: 4, dataLabels: { position: 'top' } } },
+    colors: [props.color],
+    plotOptions: { bar: { columnWidth: '45%', borderRadius: 4, dataLabels: { position: 'top' } } },
     dataLabels: {
         enabled: true,
-        enabledOnSeries: [0],
         formatter: (v) => v > 0 ? props.formatValue(v) : '',
         style: { fontSize: '11px', fontWeight: 700, colors: ['#111827'] },
         offsetY: -22,
@@ -190,19 +145,13 @@ const barOptions = computed(() => ({
     yaxis: { labels: { formatter: abbreviated, style: { fontSize: '11px', colors: '#9ca3af' } } },
     tooltip: { y: { formatter: v => props.formatValue(v) } },
     grid: { borderColor: '#f3f4f6', strokeDashArray: 4, padding: { top: 30 } },
-    legend: { show: hasComparison.value, fontSize: '12px', position: 'top', horizontalAlign: 'right', markers: { radius: 3 } },
+    legend: { show: false },
 }));
 
 // === Line chart (line mode) ============================================
-const lineSeries = computed(() => {
-    const series = [{ name: props.valueLabel, data: currentAgg.value.map(p => p.value) }];
-    if (hasComparison.value) {
-        const prev = previousAgg.value.slice(0, currentAgg.value.length).map(p => p.value);
-        while (prev.length < currentAgg.value.length) prev.push(null);
-        series.push({ name: 'Periodo previo', data: prev });
-    }
-    return series;
-});
+const lineSeries = computed(() => [
+    { name: props.valueLabel, data: currentAgg.value.map(p => p.value) },
+]);
 
 const lineOptions = computed(() => {
     const points = [];
@@ -235,8 +184,8 @@ const lineOptions = computed(() => {
 
     return {
         chart: { type: 'area', toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit' },
-        colors: [props.color, props.previousColor],
-        stroke: { curve: 'smooth', width: hasComparison.value ? [3, 2] : [3], dashArray: hasComparison.value ? [0, 4] : [0] },
+        colors: [props.color],
+        stroke: { curve: 'smooth', width: 3 },
         fill: { type: 'gradient', gradient: { shadeIntensity: 0.2, opacityFrom: 0.3, opacityTo: 0.02, stops: [0, 90, 100] } },
         markers: { size: 4, strokeWidth: 0, hover: { size: 6 } },
         dataLabels: { enabled: false },
@@ -250,7 +199,7 @@ const lineOptions = computed(() => {
         yaxis: { labels: { formatter: abbreviated, style: { fontSize: '11px', colors: '#9ca3af' } } },
         tooltip: { theme: 'light', y: { formatter: (v) => v == null ? '—' : props.formatValue(v) } },
         grid: { borderColor: '#f3f4f6', strokeDashArray: 4, padding: { top: 28, bottom: 16 } },
-        legend: { show: hasComparison.value, fontSize: '12px', position: 'top', horizontalAlign: 'right', markers: { radius: 3 } },
+        legend: { show: false },
         annotations: { points },
     };
 });
@@ -274,11 +223,6 @@ const bucketWordPlural = computed(() => ({ day: 'días', week: 'semanas', month:
 
 const currentLabelTitle = computed(() => {
     const n = nonZeroCurrent.value.length;
-    return n === 1 ? '1 día con ventas' : `${n} ${bucketWordPlural.value} con ventas`;
-});
-const previousLabelTitle = computed(() => {
-    if (!hasComparison.value) return 'Sin comparación';
-    const n = nonZeroPrevious.value.length;
     return n === 1 ? '1 día con ventas' : `${n} ${bucketWordPlural.value} con ventas`;
 });
 </script>
@@ -308,22 +252,11 @@ const previousLabelTitle = computed(() => {
 
         <!-- ============== HEADLINE + BODY ============== -->
         <div v-else class="space-y-5">
-            <!-- HEADLINE: total + delta + verdicto, gigante y obvio -->
+            <!-- HEADLINE: total gigante -->
             <header class="flex flex-wrap items-end justify-between gap-3 border-b border-gray-100 pb-4">
                 <div>
                     <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Total del periodo</p>
                     <p class="mt-0.5 text-3xl font-bold tracking-tight text-gray-900">{{ formatValue(totalCurrent) }}</p>
-                </div>
-                <div v-if="hasComparison" class="text-right">
-                    <p v-if="deltaPct !== null"
-                        class="inline-flex items-baseline gap-1 text-2xl font-bold"
-                        :class="verdict.tone === 'positive' ? 'text-emerald-600' : verdict.tone === 'negative' ? 'text-red-600' : 'text-gray-500'">
-                        <span class="text-xl" aria-hidden="true">{{ verdict.icon }}</span>
-                        {{ Math.abs(deltaPct).toFixed(1) }}%
-                    </p>
-                    <p class="text-xs text-gray-500">
-                        {{ deltaAbsolute >= 0 ? '+' : '−' }}{{ formatValue(Math.abs(deltaAbsolute)) }} vs antes
-                    </p>
                 </div>
             </header>
 
@@ -331,31 +264,20 @@ const previousLabelTitle = computed(() => {
                 {{ verdict.text }}
             </p>
 
-            <!-- ============ SINGLE MODE: bloques comparativos ============ -->
+            <!-- ============ SINGLE MODE: bloque vertical ============ -->
             <div v-if="mode === 'single'" class="space-y-4">
-                <div class="grid gap-3 sm:grid-cols-2">
-                    <div class="rounded-xl border-2 p-4"
-                        :style="{ borderColor: color + '33', backgroundColor: color + '0d' }">
-                        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-600">Periodo actual</p>
-                        <p class="mt-1 text-2xl font-bold text-gray-900">{{ formatValue(totalCurrent) }}</p>
-                        <p class="text-xs text-gray-500">{{ currentLabelTitle }}</p>
-                        <div class="mt-3 h-3 overflow-hidden rounded-full bg-gray-100">
-                            <div class="h-full rounded-full transition-all"
-                                :style="{ width: currentBarWidth, backgroundColor: color }"></div>
-                        </div>
-                    </div>
-                    <div class="rounded-xl border border-gray-200 bg-white p-4">
-                        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Periodo anterior</p>
-                        <p class="mt-1 text-2xl font-bold text-gray-700">{{ hasComparison ? formatValue(totalPrevious) : '—' }}</p>
-                        <p class="text-xs text-gray-500">{{ previousLabelTitle }}</p>
-                        <div class="mt-3 h-3 overflow-hidden rounded-full bg-gray-100">
-                            <div class="h-full rounded-full bg-gray-400 transition-all"
-                                :style="{ width: hasComparison ? previousBarWidth : '0%' }"></div>
-                        </div>
+                <div class="rounded-xl border-2 p-4"
+                    :style="{ borderColor: color + '33', backgroundColor: color + '0d' }">
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-600">Periodo actual</p>
+                    <p class="mt-1 text-2xl font-bold text-gray-900">{{ formatValue(totalCurrent) }}</p>
+                    <p class="text-xs text-gray-500">{{ currentLabelTitle }}</p>
+                    <div class="mt-3 h-3 overflow-hidden rounded-full bg-gray-100">
+                        <div class="h-full rounded-full transition-all"
+                            :style="{ width: currentBarWidth, backgroundColor: color }"></div>
                     </div>
                 </div>
 
-                <!-- Lista de dias con ventas, opcional pero util -->
+                <!-- Lista de días con ventas -->
                 <div v-if="nonZeroCurrent.length" class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
                     <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                         {{ currentLabelTitle.charAt(0).toUpperCase() + currentLabelTitle.slice(1) }}
@@ -386,7 +308,7 @@ const previousLabelTitle = computed(() => {
                 </div>
             </div>
 
-            <!-- ============ LINE MODE: linea con annotations ============ -->
+            <!-- ============ LINE MODE: línea con annotations ============ -->
             <div v-else>
                 <apexchart type="area" height="320" :options="lineOptions" :series="lineSeries" />
                 <div v-if="bestPoint || worstPoint" class="mt-3 grid gap-3 sm:grid-cols-2">

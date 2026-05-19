@@ -7,7 +7,7 @@ import BackfillBanner from '@/Components/Metrics/BackfillBanner.vue';
 import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
 const props = defineProps({
-    data: Object, range: Object, compare: Boolean, tenant: Object,
+    data: Object, range: Object, tenant: Object,
     backfill_run_at: { type: [String, null], default: null },
 });
 const filters = useMetricsFilters('sucursal.metricas.margen');
@@ -20,6 +20,6 @@ const filters = useMetricsFilters('sucursal.metricas.margen');
             subtitle="Rentabilidad calculada con costo registrado al momento de cada venta."
             :filters="filters" />
         <BackfillBanner :date="backfill_run_at" :range="range" />
-        <MargenContent :data="data" :compare="compare" />
+        <MargenContent :data="data" />
     </MetricsLayout>
 </template>

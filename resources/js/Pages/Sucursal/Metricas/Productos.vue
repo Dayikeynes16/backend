@@ -5,7 +5,7 @@ import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import ProductosContent from '@/Components/Metrics/Content/ProductosContent.vue';
 import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
-defineProps({ data: Object, range: Object, compare: Boolean, tenant: Object, no_movement_days: Number, statuses: Array });
+defineProps({ data: Object, range: Object, tenant: Object, no_movement_days: Number, statuses: Array });
 const filters = useMetricsFilters('sucursal.metricas.productos');
 </script>
 

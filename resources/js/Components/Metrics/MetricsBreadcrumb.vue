@@ -17,7 +17,6 @@ const preservedQuery = computed(() => {
         q.from = r.from;
         q.to = r.to;
     }
-    if (page.props.compare !== undefined) q.compare = page.props.compare ? 1 : 0;
     return q;
 });
 

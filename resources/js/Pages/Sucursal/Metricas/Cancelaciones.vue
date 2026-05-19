@@ -5,11 +5,10 @@ import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
 import CancelacionesContent from '@/Components/Metrics/Content/CancelacionesContent.vue';
 import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
-const props = defineProps({
+defineProps({
     data: Object,
     history: Object,
     range: Object,
-    compare: Boolean,
     tenant: Object,
 });
 const filters = useMetricsFilters('sucursal.metricas.cancelaciones');

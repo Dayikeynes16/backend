@@ -6,7 +6,7 @@ import CajerosContent from '@/Components/Metrics/Content/CajerosContent.vue';
 import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
 const props = defineProps({
-    data: Object, range: Object, compare: Boolean, tenant: Object,
+    data: Object, range: Object, tenant: Object,
     branches: Array, selected_branch_id: [Number, null],
 });
 const filters = useMetricsFilters('empresa.metricas.cajeros');

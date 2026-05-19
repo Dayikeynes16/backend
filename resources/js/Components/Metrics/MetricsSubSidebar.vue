@@ -21,7 +21,7 @@ const axes = [
     { key: 'cancelaciones', label: 'Cancelaciones', route: 'sucursal.metricas.cancelaciones', iconPath: 'M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' },
 ];
 
-// Preserva preset/from/to/compare/branch_id al saltar entre ejes.
+// Preserva preset/from/to/branch_id al saltar entre ejes.
 const preservedQuery = computed(() => {
     const r = page.props.range ?? {};
     const q = {};
@@ -30,7 +30,6 @@ const preservedQuery = computed(() => {
         q.from = r.from;
         q.to = r.to;
     }
-    if (page.props.compare !== undefined) q.compare = page.props.compare ? 1 : 0;
     if (page.props.selected_branch_id) q.branch_id = page.props.selected_branch_id;
     return q;
 });

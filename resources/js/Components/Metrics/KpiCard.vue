@@ -1,11 +1,12 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { formatDelta } from '@/composables/useCurrency';
 
 const props = defineProps({
     label: String,
     value: [String, Number],
     format: { type: String, default: 'text' }, // text|currency|number|percent
+    // `delta` se mantiene declarado por compat hacia atrás con callsites que
+    // todavía la pasan; el chip ya no se renderiza (Métricas sin comparativas).
     delta: { type: [Number, null], default: null },
     hint: { type: String, default: '' },
     icon: { type: String, default: '' },
@@ -14,15 +15,6 @@ const props = defineProps({
 });
 
 const showTooltip = ref(false);
-
-const deltaLabel = computed(() => formatDelta(props.delta));
-
-const deltaClasses = computed(() => {
-    if (props.delta === null || props.delta === undefined || isNaN(props.delta)) return 'bg-gray-100 text-gray-500';
-    if (props.delta > 0) return 'bg-emerald-50 text-emerald-700';
-    if (props.delta < 0) return 'bg-rose-50 text-rose-700';
-    return 'bg-gray-100 text-gray-600';
-});
 
 const toneRing = computed(() => ({
     neutral: 'border-gray-200',
@@ -54,7 +46,6 @@ const toneAccent = computed(() => ({
                     ?
                 </button>
             </div>
-            <span v-if="deltaLabel" :class="['shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums sm:text-[11px]', deltaClasses]">{{ deltaLabel }}</span>
         </div>
         <!-- Valor: sin `truncate` para no cortar números grandes; usa font fluida
              y `tabular-nums` para alineación consistente. break-words evita
