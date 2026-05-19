@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-05-19
 **Estado:** aprobado para implementar
-**Alcance:** Una sola card dentro de `resources/js/Components/Metrics/Content/VentasContent.vue` (el heatmap "Ventas por hora y día de la semana" en líneas ~54-76 del componente actual). Cero cambios a backend, servicios, controladores o tests automatizados existentes.
+**Alcance:** Una sola card dentro de `resources/js/Components/Metrics/Content/VentasContent.vue` — bloque de `heatmapSeries` y `heatmapOptions` (líneas ~54-65 del `<script setup>`) más el render del `<ChartCard>` heatmap (líneas ~116-121 del `<template>`). Cero cambios a backend, servicios, controladores o tests automatizados existentes.
 
 ## Motivación
 
