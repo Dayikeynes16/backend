@@ -14,7 +14,7 @@ const props = defineProps({
     filters: { type: Object, required: true },
     presets: {
         type: Array,
-        default: () => ['today', 'yesterday', 'last_7_days', 'this_month', 'last_month', 'this_year'],
+        default: () => ['today', 'yesterday', 'last_7_days'],
     },
 });
 

@@ -1,18 +1,11 @@
 <script setup>
 import MetricsLayout from '@/Layouts/MetricsLayout.vue';
-import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
-import IndexContent from '@/Components/Metrics/Content/IndexContent.vue';
-import BackfillBanner from '@/Components/Metrics/BackfillBanner.vue';
+import MetricsHubGrid from '@/Components/Metrics/MetricsHubGrid.vue';
+import { Head } from '@inertiajs/vue3';
 import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
-const props = defineProps({
-    data: Object,
-    range: Object,
-    compare: Boolean,
-    tenant: Object,
-    backfill_run_at: { type: [String, null], default: null },
-});
+defineProps({ tenant: Object });
 
 const filters = useMetricsFilters('sucursal.metricas.index');
 </script>
@@ -20,8 +13,12 @@ const filters = useMetricsFilters('sucursal.metricas.index');
 <template>
     <Head title="Métricas" />
     <MetricsLayout>
-        <MetricsHeader title="Resumen" subtitle="Panorama general de la sucursal en el rango seleccionado." :filters="filters" show-status-chip />
-        <BackfillBanner :date="backfill_run_at" :range="range" />
-        <IndexContent :data="data" :compare="compare" scope="sucursal" />
+        <MetricsHeader
+            title="Métricas"
+            subtitle="Elegí un eje para explorar."
+            :filters="filters"
+            show-status-chip
+        />
+        <MetricsHubGrid scope="sucursal" />
     </MetricsLayout>
 </template>

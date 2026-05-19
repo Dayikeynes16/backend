@@ -1,16 +1,15 @@
 <script setup>
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
-import { Head } from '@inertiajs/vue3';
 import MetricsHeader from '@/Components/Metrics/MetricsHeader.vue';
-import IndexContent from '@/Components/Metrics/Content/IndexContent.vue';
-import BackfillBanner from '@/Components/Metrics/BackfillBanner.vue';
+import MetricsHubGrid from '@/Components/Metrics/MetricsHubGrid.vue';
+import { Head } from '@inertiajs/vue3';
 import { useMetricsFilters } from '@/composables/useMetricsFilters';
 
-const props = defineProps({
-    data: Object, range: Object, compare: Boolean, tenant: Object,
-    branches: Array, selected_branch_id: [Number, null],
-    backfill_run_at: { type: [String, null], default: null },
+defineProps({
+    tenant: Object,
+    branches: Array,
 });
+
 const filters = useMetricsFilters('empresa.metricas.index');
 </script>
 
@@ -18,8 +17,14 @@ const filters = useMetricsFilters('empresa.metricas.index');
     <Head title="Métricas" />
     <EmpresaLayout>
         <template #header><h2 class="text-lg font-bold text-gray-900">Métricas</h2></template>
-        <MetricsHeader title="Resumen" :subtitle="range?.label" :filters="filters" :branches="branches" :show-branch-selector="true" show-status-chip />
-        <BackfillBanner :date="backfill_run_at" :range="range" />
-        <IndexContent :data="data" :compare="compare" scope="empresa" />
+        <MetricsHeader
+            title="Métricas"
+            subtitle="Elegí un eje para explorar."
+            :filters="filters"
+            :branches="branches"
+            :show-branch-selector="true"
+            show-status-chip
+        />
+        <MetricsHubGrid scope="empresa" />
     </EmpresaLayout>
 </template>

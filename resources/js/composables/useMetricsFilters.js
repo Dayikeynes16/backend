@@ -1,8 +1,8 @@
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 
 /**
- * Sincroniza rango (preset/from/to), comparativo y branch con query params.
+ * Sincroniza rango (preset/from/to), branch y statuses con query params.
  * Mantiene una sola fuente de verdad para los filtros globales de Métricas.
  */
 export function useMetricsFilters(routeName) {
@@ -13,7 +13,6 @@ export function useMetricsFilters(routeName) {
     const preset = ref(initial.preset ?? 'today');
     const from = ref(initial.from ?? '');
     const to = ref(initial.to ?? '');
-    const compare = ref(page.props.compare ?? true);
     const branchId = ref(page.props.selected_branch_id ?? null);
     // Estados de venta a considerar para métricas de "venta generada"
     // (Resumen, Ventas, Productos, Clientes). Default: solo Completed —
@@ -31,10 +30,10 @@ export function useMetricsFilters(routeName) {
     const isCustom = computed(() => preset.value === '__custom__' || (!preset.value && from.value && to.value));
 
     let navTimer = null;
-    const navigate = (opts = {}) => {
+    const navigate = () => {
         if (navTimer) clearTimeout(navTimer);
         navTimer = setTimeout(() => {
-            const query = { compare: compare.value ? 1 : 0 };
+            const query = {};
             if (branchId.value !== null && branchId.value !== '') query.branch_id = branchId.value;
             if (isCustom.value && from.value && to.value) {
                 query.from = from.value;
@@ -51,7 +50,6 @@ export function useMetricsFilters(routeName) {
             if (!isDefault && statusesValue.length > 0) {
                 query.statuses = statusesValue.join(',');
             }
-            if (opts.refresh) query.refresh = 1;
             router.get(route(routeName, slug.value), query, {
                 preserveState: true,
                 preserveScroll: true,
@@ -74,17 +72,10 @@ export function useMetricsFilters(routeName) {
         if (fromVal && toVal) navigate();
     };
 
-    const setCompare = (val) => {
-        compare.value = val;
-        navigate();
-    };
-
     const setBranchId = (val) => {
         branchId.value = val === '' ? null : val;
         navigate();
     };
-
-    const refresh = () => navigate({ refresh: true });
 
     const toggleStatus = (s) => {
         const current = new Set(statuses.value || []);
@@ -103,9 +94,9 @@ export function useMetricsFilters(routeName) {
     };
 
     return {
-        preset, from, to, compare, branchId, statuses, isCustom,
-        setPreset, setCustom, setCompare, setBranchId,
+        preset, from, to, branchId, statuses, isCustom,
+        setPreset, setCustom, setBranchId,
         toggleStatus, setStatuses,
-        refresh, slug,
+        slug,
     };
 }

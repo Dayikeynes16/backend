@@ -5,18 +5,12 @@ const PRESET_LABELS = {
     today: 'Hoy',
     yesterday: 'Ayer',
     last_7_days: 'Últimos 7 días',
-    this_month: 'Este mes',
-    last_month: 'Mes pasado',
-    this_year: 'Este año',
 };
 
 const PRESET_LABELS_SHORT = {
     today: 'Hoy',
     yesterday: 'Ayer',
     last_7_days: '7 días',
-    this_month: 'Este mes',
-    last_month: 'Mes pasado',
-    this_year: 'Este año',
 };
 
 const formatShortDate = (d) =>
