@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'purchase_id', 'product_id', 'concept', 'quantity', 'unit',
+    'purchase_id', 'purchase_product_id', 'concept', 'quantity', 'unit',
     'unit_price', 'subtotal', 'notes',
 ])]
 class PurchaseItem extends Model
@@ -20,9 +20,9 @@ class PurchaseItem extends Model
         return $this->belongsTo(Purchase::class);
     }
 
-    public function product(): BelongsTo
+    public function purchaseProduct(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(PurchaseProduct::class);
     }
 
     protected function casts(): array
