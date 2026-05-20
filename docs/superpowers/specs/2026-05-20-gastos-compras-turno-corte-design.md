@@ -113,6 +113,8 @@ cámara/IA ya existente, pasándole la ruta `iaStore` de caja). Al guardar, en
 una transacción:
 
 1. Crea la `Purchase` (sellada con `cash_register_shift_id` del turno).
+   `purchased_at` toma `now()` por defecto (el cajero captura al momento); la
+   atribución al turno es por la FK, no por esta fecha.
 2. Crea un `ProviderPayment` con `payment_method` (default `cash`), `amount` =
    lo pagado ahora (default = total, permite parcial), `branch_id`,
    `cash_register_shift_id` del turno, `user_id`.
@@ -170,9 +172,10 @@ Reusa el patrón existente:
 - **Compra pagada en varios turnos:** cada `ProviderPayment` cuelga de su
   propio turno vía su FK; por eso la fuente de verdad del efectivo es el pago,
   no la compra.
-- **Cambio de método de pago al editar (cash → card):** deja de contar para
-  el esperado; dispara recálculo (turno abierto en vivo, cerrado vía
-  `RecalculateClosedShifts`).
+- **Editar un cash-out ligado a turno cerrado:** cualquier cambio que altere
+  el monto o el método (p. ej. cash → card, o ajustar el importe) dispara
+  recálculo del turno cerrado vía `RecalculateClosedShifts`; en turno abierto
+  se refleja en la siguiente lectura.
 - **Sin turno abierto:** las acciones de caja se bloquean.
 
 ## Rutas (nuevas, bajo `/{tenant}/caja`)
@@ -220,7 +223,9 @@ admin. Los flujos de admin quedan intactos.
 - Reusa la validación de `HandlesPurchases::validatedPurchasePayload`
   (proveedor del tenant, artículos, etc.), con `branch_id` forzado al del
   turno.
-- `paid_amount`: required, numeric, min 0, max = total de la compra.
+- `paid_amount`: required, numeric, min 0. La cota superior es el `total` de la
+  compra **calculado en el servidor** a partir de los artículos validados, no
+  un total enviado por el cliente.
 - `payment_method` del pago: default `cash`; si es `cash` afecta el corte.
 - Turno abierto requerido.
 
