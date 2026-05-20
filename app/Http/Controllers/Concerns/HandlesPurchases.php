@@ -8,6 +8,7 @@ use App\Models\AiPurchaseDraft;
 use App\Models\Branch;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
+use App\Models\PurchaseProduct;
 use App\Services\PurchaseAttachmentService;
 use App\Services\PurchaseFolioGenerator;
 use App\Services\PurchasePaymentService;
@@ -70,9 +71,9 @@ trait HandlesPurchases
             'purchased_at' => 'required|date',
             'notes' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => [
+            'items.*.purchase_product_id' => [
                 'nullable', 'integer',
-                Rule::exists('products', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id)),
+                Rule::exists('purchase_products', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id)->whereNull('deleted_at')),
             ],
             'items.*.concept' => 'required|string|max:160',
             'items.*.quantity' => 'required|numeric|min:0.001',
@@ -82,6 +83,37 @@ trait HandlesPurchases
         ];
 
         return $request->validate($rules);
+    }
+
+    /**
+     * Resuelve la línea a un producto de catálogo: usa el id si vino, si no
+     * busca por nombre (case-insensitive) dentro del tenant y, si no existe,
+     * lo crea. Devuelve el PurchaseProduct (su name se usa como snapshot).
+     */
+    private function resolvePurchaseProduct(int $tenantId, ?int $id, string $name, string $unit): PurchaseProduct
+    {
+        if ($id) {
+            $found = PurchaseProduct::where('tenant_id', $tenantId)->whereKey($id)->first();
+            if ($found) {
+                return $found;
+            }
+        }
+
+        $name = trim($name);
+        $byName = PurchaseProduct::where('tenant_id', $tenantId)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+        if ($byName) {
+            return $byName;
+        }
+
+        return PurchaseProduct::create([
+            'tenant_id' => $tenantId,
+            'name' => $name,
+            'unit' => $unit ?: 'kg',
+            'status' => 'active',
+            'created_by' => Auth::id(),
+        ]);
     }
 
     // ─── Store ───────────────────────────────────────────────────────────
@@ -120,10 +152,11 @@ trait HandlesPurchases
 
             foreach ($validated['items'] as $line) {
                 $lineSubtotal = round((float) $line['quantity'] * (float) $line['unit_price'], 2);
+                $product = $this->resolvePurchaseProduct($tenant->id, $line['purchase_product_id'] ?? null, $line['concept'], $line['unit']);
                 PurchaseItem::create([
                     'purchase_id' => $purchase->id,
-                    'product_id' => $line['product_id'] ?? null,
-                    'concept' => $line['concept'],
+                    'purchase_product_id' => $product->id,
+                    'concept' => $product->name,
                     'quantity' => $line['quantity'],
                     'unit' => $line['unit'],
                     'unit_price' => $line['unit_price'],
@@ -223,10 +256,11 @@ trait HandlesPurchases
             // ganancia para F2.
             $purchase->items()->delete();
             foreach ($validated['items'] as $line) {
+                $product = $this->resolvePurchaseProduct($purchase->tenant_id, $line['purchase_product_id'] ?? null, $line['concept'], $line['unit']);
                 PurchaseItem::create([
                     'purchase_id' => $purchase->id,
-                    'product_id' => $line['product_id'] ?? null,
-                    'concept' => $line['concept'],
+                    'purchase_product_id' => $product->id,
+                    'concept' => $product->name,
                     'quantity' => $line['quantity'],
                     'unit' => $line['unit'],
                     'unit_price' => $line['unit_price'],
@@ -317,7 +351,7 @@ trait HandlesPurchases
             'notes' => $p->notes,
             'items' => $p->items->map(fn (PurchaseItem $i) => [
                 'id' => $i->id,
-                'product_id' => $i->product_id,
+                'purchase_product_id' => $i->purchase_product_id,
                 'concept' => $i->concept,
                 'quantity' => (float) $i->quantity,
                 'unit' => $i->unit,
