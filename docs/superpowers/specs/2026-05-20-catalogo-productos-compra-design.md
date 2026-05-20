@@ -101,7 +101,9 @@ migraciones **nuevas** posteriores para respetar el FK en `migrate:fresh`:
   crear, editar, activar/inactivar. Bloqueo de borrado/inactivación dura si
   el producto ya tiene compras (se permite inactivar, no borrar).
 - Al guardar la compra, el servidor toma el `name` actual del producto como
-  `concept` (snapshot) y `unit` del producto como default de la línea.
+  `concept` (snapshot) y `unit` del producto como default de la línea. Esto
+  aplica igual en `store` y en `update` (el `update` de `HandlesPurchases`
+  borra y recrea las líneas, así que cada línea se re-valida y re-sella).
 
 ## Captura con IA (modal cámara/IA)
 
@@ -188,7 +190,18 @@ POST   /{tenant}/sucursal/productos-compra             crear al vuelo (admin-suc
 - Emparejado de IA: línea con nombre existente reusa; nombre nuevo crea.
 - Inactivar producto con compras: permitido; borrar (hard) bloqueado.
 - Permisos: cajero sin acceso (pre-Fase 2); admin-sucursal no administra.
-- Actualizar factory/seeder de `PurchaseItem` para usar `purchase_product_id`.
+
+### Notas de tests existentes (cableado a ajustar, no romper)
+
+- **No existe `PurchaseItemFactory`**: los tests crean líneas con
+  `PurchaseItem::create()`. El plan crea uno nuevo o sigue usando `::create()`
+  con `purchase_product_id` (no hay factory que "actualizar").
+- **Test existente a reescribir (no borrar):**
+  `tests/Feature/Compras/PurchaseModelTest.php::test_purchase_item_preserves_concept_when_product_is_deleted`
+  hoy usa `product_id` (producto de venta) y verifica que se anula al borrar.
+  Al quitar `product_id` se rompe; debe **reescribirse** apuntando a
+  `purchase_product_id` (el test de snapshot lo reemplaza conceptualmente).
+  No se elimina sin aprobación.
 
 ## Roadmap posterior
 
