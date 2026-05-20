@@ -55,6 +55,7 @@ final class PurchasePaymentService
      *     reference?: string|null,
      *     notes?: string|null,
      *     user_id?: int|null,
+     *     cash_register_shift_id?: int|null,
      * }  $payload
      *
      * @throws ValidationException si sobre-pago
@@ -91,6 +92,7 @@ final class PurchasePaymentService
             $payment = ProviderPayment::create([
                 'tenant_id' => $locked->tenant_id,
                 'branch_id' => $locked->branch_id,
+                'cash_register_shift_id' => $payload['cash_register_shift_id'] ?? null,
                 'provider_id' => $locked->provider_id,
                 'purchase_id' => $locked->id,
                 'paid_at' => $this->parseDate($payload['paid_at'] ?? null),

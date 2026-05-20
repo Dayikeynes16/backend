@@ -116,25 +116,24 @@ trait HandlesPurchases
         ]);
     }
 
-    // ─── Store ───────────────────────────────────────────────────────────
-
-    public function store(Request $request, PurchaseFolioGenerator $folios, PurchasePaymentService $payments): RedirectResponse
+    /**
+     * Crea la Purchase + sus PurchaseItem (resolviendo el catálogo) en una
+     * transacción. `$extra` permite sellar atributos adicionales (p. ej.
+     * cash_register_shift_id desde la caja).
+     *
+     * @param  array<string, mixed>  $validated
+     * @param  array<string, mixed>  $extra
+     */
+    protected function createPurchaseWithItems(array $validated, int $branchId, \App\Models\Tenant $tenant, PurchaseFolioGenerator $folios, array $extra = []): Purchase
     {
-        $tenant = app('tenant');
-        $validated = $this->validatedPurchasePayload($request);
-
-        // Sobreescribimos branch_id según rol (defensa).
-        $branchId = $this->resolveBranchIdForWrite($request);
-        $this->assertBranchBelongsToTenant($branchId, $tenant->id);
-
-        $purchase = DB::transaction(function () use ($validated, $branchId, $tenant, $folios) {
+        return DB::transaction(function () use ($validated, $branchId, $tenant, $folios, $extra) {
             $subtotal = 0.0;
             foreach ($validated['items'] as $line) {
                 $subtotal += (float) $line['quantity'] * (float) $line['unit_price'];
             }
             $subtotal = round($subtotal, 2);
 
-            $purchase = Purchase::create([
+            $purchase = Purchase::create(array_merge([
                 'tenant_id' => $tenant->id,
                 'branch_id' => $branchId,
                 'provider_id' => $validated['provider_id'],
@@ -148,7 +147,7 @@ trait HandlesPurchases
                 'amount_pending' => $subtotal,
                 'notes' => $validated['notes'] ?? null,
                 'created_by' => Auth::id(),
-            ]);
+            ], $extra));
 
             foreach ($validated['items'] as $line) {
                 $lineSubtotal = round((float) $line['quantity'] * (float) $line['unit_price'], 2);
@@ -167,6 +166,20 @@ trait HandlesPurchases
 
             return $purchase;
         });
+    }
+
+    // ─── Store ───────────────────────────────────────────────────────────
+
+    public function store(Request $request, PurchaseFolioGenerator $folios, PurchasePaymentService $payments): RedirectResponse
+    {
+        $tenant = app('tenant');
+        $validated = $this->validatedPurchasePayload($request);
+
+        // Sobreescribimos branch_id según rol (defensa).
+        $branchId = $this->resolveBranchIdForWrite($request);
+        $this->assertBranchBelongsToTenant($branchId, $tenant->id);
+
+        $purchase = $this->createPurchaseWithItems($validated, $branchId, $tenant, $folios);
 
         // Adjuntos opcionales en el mismo POST.
         if ($request->hasFile('attachments')) {
