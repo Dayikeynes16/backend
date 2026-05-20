@@ -63,7 +63,8 @@ const totalDiff = computed(() => conciliation.value.reduce((sum, m) => sum + m.d
 const hasDifference = computed(() => Math.abs(totalDiff.value) > 0.001);
 const withdrawalsTotal = computed(() => (props.shift.withdrawals || []).reduce((s, w) => s + Number(w.amount), 0));
 const cashExpensesTotal = computed(() => (props.shift.cash_expenses || []).reduce((s, e) => s + Number(e.amount), 0));
-const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.value);
+const providerPaymentsTotal = computed(() => (props.shift.cash_provider_payments || []).reduce((s, p) => s + Number(p.amount), 0));
+const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.value + providerPaymentsTotal.value);
 </script>
 
 <template>
@@ -211,6 +212,14 @@ const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.v
                     <div v-for="e in (shift.cash_expenses || [])" :key="e.id" class="flex items-center justify-between px-6 py-2 pl-10">
                         <p class="text-xs text-gray-400">{{ e.concept }}</p>
                         <p class="font-mono text-xs tabular-nums text-gray-500">{{ money(e.amount) }}</p>
+                    </div>
+                    <div class="flex items-center justify-between px-6 py-3">
+                        <p class="text-sm text-gray-600">Pagos a proveedor en efectivo</p>
+                        <p class="font-mono text-sm font-semibold tabular-nums text-gray-900">{{ money(providerPaymentsTotal) }}</p>
+                    </div>
+                    <div v-for="p in (shift.cash_provider_payments || [])" :key="'pp-' + p.id" class="flex items-center justify-between px-6 py-2 pl-10">
+                        <p class="text-xs text-gray-400">{{ p.provider?.name || 'Proveedor' }}</p>
+                        <p class="font-mono text-xs tabular-nums text-gray-500">{{ money(p.amount) }}</p>
                     </div>
                 </div>
             </div>

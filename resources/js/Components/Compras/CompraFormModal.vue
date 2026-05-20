@@ -12,6 +12,8 @@ const props = defineProps({
     fixedBranchId: { type: Number, default: null }, // si admin-sucursal
     // Propuesta IA opcional (sólo en modo crear). { draftId, proposal, audioTranscription }
     aiResult: { type: Object, default: null },
+    // Modo caja: muestra el campo "pagado en efectivo" y postea a la ruta de caja.
+    cashMode: { type: Boolean, default: false },
     routes: {
         type: Object,
         required: true,
@@ -62,6 +64,7 @@ const form = useForm({
     items: [emptyLine()],
     attachments: [],
     ai_draft_id: null,
+    paid_amount: 0,
 });
 
 watch(() => props.open, (open) => {
@@ -91,6 +94,7 @@ watch(() => props.open, (open) => {
         form.items = [emptyLine()];
         form.attachments = [];
         form.ai_draft_id = props.aiResult?.draftId || null;
+        form.paid_amount = 0;
         form.clearErrors();
 
         // Aplica la propuesta IA si vino.
@@ -277,6 +281,17 @@ const onConceptInput = (line) => {
                                 </table>
                             </div>
                             <p v-if="form.errors.items" class="mt-1 text-xs text-red-600">{{ form.errors.items }}</p>
+                        </div>
+
+                        <!-- Pagado en efectivo (modo caja) -->
+                        <div v-if="cashMode" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                            <label class="mb-1 block text-sm font-medium text-emerald-900">Pagado en efectivo ahora</label>
+                            <input v-model.number="form.paid_amount" type="number" step="0.01" min="0" :max="total"
+                                class="w-40 rounded-lg border-gray-300 text-right text-sm focus:border-emerald-500 focus:ring-emerald-500" />
+                            <button type="button" @click="form.paid_amount = Number(total.toFixed(2))"
+                                class="ml-2 text-xs font-semibold text-emerald-700 hover:underline">Pagar total ({{ fmt(total) }})</button>
+                            <p class="mt-1 text-xs text-emerald-700">Sale del cajón y descuenta del corte. Lo no pagado queda como saldo del proveedor.</p>
+                            <p v-if="form.errors.amount" class="mt-1 text-xs text-red-600">{{ form.errors.amount }}</p>
                         </div>
 
                         <!-- Notas -->
