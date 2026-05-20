@@ -16,12 +16,10 @@ const isEdit = computed(() => !!props.provider?.id);
 const form = useForm({
     name: '',
     type: 'mayorista_carne',
-    contact_name: '',
     phone: '',
     email: '',
     rfc: '',
     address: '',
-    payment_terms_days: null,
     notes: '',
     status: 'active',
 });
@@ -31,12 +29,10 @@ watch(() => props.open, (open) => {
     if (props.provider) {
         form.name = props.provider.name ?? '';
         form.type = props.provider.type ?? 'mayorista_carne';
-        form.contact_name = props.provider.contact_name ?? '';
         form.phone = props.provider.phone ?? '';
         form.email = props.provider.email ?? '';
         form.rfc = props.provider.rfc ?? '';
         form.address = props.provider.address ?? '';
-        form.payment_terms_days = props.provider.payment_terms_days ?? null;
         form.notes = props.provider.notes ?? '';
         form.status = props.provider.status ?? 'active';
     } else {
@@ -89,21 +85,6 @@ const submit = () => {
                                     <option v-for="t in types" :key="t.value" :value="t.value">{{ t.label }}</option>
                                 </select>
                                 <p v-if="form.errors.type" class="mt-1 text-xs text-red-600">{{ form.errors.type }}</p>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-sm font-medium text-gray-700">Días de crédito</label>
-                                <input v-model.number="form.payment_terms_days" type="number" min="0" max="365"
-                                    class="w-full rounded-xl border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500"
-                                    placeholder="0 = pago inmediato" />
-                                <p v-if="form.errors.payment_terms_days" class="mt-1 text-xs text-red-600">{{ form.errors.payment_terms_days }}</p>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label class="mb-1 block text-sm font-medium text-gray-700">Contacto</label>
-                                <input v-model="form.contact_name" type="text"
-                                    class="w-full rounded-xl border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500" />
                             </div>
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-gray-700">Teléfono</label>

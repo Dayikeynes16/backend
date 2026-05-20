@@ -91,7 +91,7 @@ const flash = computed(() => page.props.flash || {});
                     <input
                         v-model="search"
                         type="text"
-                        placeholder="Buscar nombre, contacto o RFC…"
+                        placeholder="Buscar nombre o RFC…"
                         class="w-full rounded-xl border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500 sm:max-w-sm"
                     />
                     <div class="flex gap-1">
@@ -140,7 +140,7 @@ const flash = computed(() => page.props.flash || {});
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Proveedor</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Tipo</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Contacto</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Teléfono</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Compras</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Saldo</th>
                             <th class="px-4 py-3"></th>
@@ -160,10 +160,7 @@ const flash = computed(() => page.props.flash || {});
                             <td class="px-4 py-3 text-sm">
                                 <span :class="['rounded-full px-2 py-0.5 text-xs font-semibold', typeBadgeColor(p.type)]">{{ p.type_label }}</span>
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-700">
-                                <div>{{ p.contact_name || '—' }}</div>
-                                <div v-if="p.phone" class="text-xs text-gray-500">{{ p.phone }}</div>
-                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ p.phone || '—' }}</td>
                             <td class="px-4 py-3 text-right text-sm font-medium text-gray-900">{{ p.purchases_count }}</td>
                             <td class="px-4 py-3 text-right text-sm font-medium" :class="p.pending_total > 0 ? 'text-amber-700' : 'text-gray-400'">
                                 {{ p.pending_total > 0 ? fmt(p.pending_total) : '—' }}

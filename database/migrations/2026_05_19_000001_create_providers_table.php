@@ -13,7 +13,6 @@ return new class extends Migration
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
 
             $table->string('name', 160);
-            $table->string('contact_name', 160)->nullable();
             $table->string('phone', 40)->nullable();
             $table->string('email', 160)->nullable();
             $table->string('rfc', 20)->nullable();
@@ -21,9 +20,6 @@ return new class extends Migration
 
             // type: ganadero | mayorista_carne | insumos | servicios | otro
             $table->string('type', 30);
-
-            // Crédito default que da el proveedor (informativo).
-            $table->unsignedSmallInteger('payment_terms_days')->nullable();
 
             $table->text('notes')->nullable();
             $table->string('status', 12)->default('active'); // active|inactive

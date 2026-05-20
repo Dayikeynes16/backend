@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'tenant_id', 'name', 'contact_name', 'phone', 'email', 'rfc', 'address',
-    'type', 'payment_terms_days', 'notes', 'status', 'created_by',
+    'tenant_id', 'name', 'phone', 'email', 'rfc', 'address',
+    'type', 'notes', 'status', 'created_by',
 ])]
 class Provider extends Model
 {

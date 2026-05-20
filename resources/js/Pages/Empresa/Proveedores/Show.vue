@@ -45,7 +45,6 @@ const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractio
                 <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                     <h3 class="mb-3 text-sm font-bold uppercase tracking-wide text-gray-600">Contacto</h3>
                     <dl class="space-y-2 text-sm">
-                        <div class="flex justify-between gap-3"><dt class="text-gray-500">Persona</dt><dd class="text-gray-900">{{ provider.contact_name || '—' }}</dd></div>
                         <div class="flex justify-between gap-3"><dt class="text-gray-500">Teléfono</dt><dd class="text-gray-900">{{ provider.phone || '—' }}</dd></div>
                         <div class="flex justify-between gap-3"><dt class="text-gray-500">Email</dt><dd class="text-gray-900">{{ provider.email || '—' }}</dd></div>
                         <div class="flex justify-between gap-3"><dt class="text-gray-500">RFC</dt><dd class="text-gray-900">{{ provider.rfc || '—' }}</dd></div>
@@ -55,10 +54,6 @@ const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractio
                 <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                     <h3 class="mb-3 text-sm font-bold uppercase tracking-wide text-gray-600">Términos</h3>
                     <dl class="space-y-2 text-sm">
-                        <div class="flex justify-between gap-3">
-                            <dt class="text-gray-500">Días de crédito</dt>
-                            <dd class="text-gray-900">{{ provider.payment_terms_days ?? '—' }}{{ provider.payment_terms_days != null ? ' días' : '' }}</dd>
-                        </div>
                         <div class="flex justify-between gap-3"><dt class="text-gray-500">Estado</dt><dd class="text-gray-900">{{ provider.status === 'active' ? 'Activo' : 'Inactivo' }}</dd></div>
                     </dl>
                     <p v-if="provider.notes" class="mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{{ provider.notes }}</p>

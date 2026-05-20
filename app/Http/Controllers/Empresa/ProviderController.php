@@ -39,7 +39,6 @@ class ProviderController extends Controller
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($qq) use ($search) {
                     $qq->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%'])
-                        ->orWhereRaw('LOWER(contact_name) LIKE ?', ['%'.mb_strtolower($search).'%'])
                         ->orWhere('rfc', 'ilike', '%'.$search.'%');
                 });
             })
@@ -149,13 +148,11 @@ class ProviderController extends Controller
 
         $rules = [
             'name' => ['required', 'string', 'max:160', $nameRule],
-            'contact_name' => 'nullable|string|max:160',
             'phone' => 'nullable|string|max:40',
             'email' => 'nullable|email|max:160',
             'rfc' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'type' => ['required', Rule::enum(ProviderType::class)],
-            'payment_terms_days' => 'nullable|integer|min:0|max:365',
             'notes' => 'nullable|string|max:1000',
         ];
         if ($withStatus) {
@@ -175,14 +172,12 @@ class ProviderController extends Controller
         return [
             'id' => $p->id,
             'name' => $p->name,
-            'contact_name' => $p->contact_name,
             'phone' => $p->phone,
             'email' => $p->email,
             'rfc' => $p->rfc,
             'address' => $p->address,
             'type' => $p->type instanceof ProviderType ? $p->type->value : $p->type,
             'type_label' => $p->type instanceof ProviderType ? $this->typeLabel($p->type) : (string) $p->type,
-            'payment_terms_days' => $p->payment_terms_days,
             'notes' => $p->notes,
             'status' => $p->status,
             'purchases_count' => (int) ($p->purchases_count ?? 0),

@@ -24,10 +24,7 @@ class ProviderController extends Controller
         $providers = Provider::query()
             ->where('status', 'active')
             ->when($search !== '', function ($q) use ($search) {
-                $q->where(function ($qq) use ($search) {
-                    $qq->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%'])
-                        ->orWhereRaw('LOWER(contact_name) LIKE ?', ['%'.mb_strtolower($search).'%']);
-                });
+                $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%']);
             })
             ->when($typeFilter, fn ($q) => $q->where('type', $typeFilter))
             ->orderBy('name')
@@ -35,7 +32,6 @@ class ProviderController extends Controller
             ->map(fn (Provider $p) => [
                 'id' => $p->id,
                 'name' => $p->name,
-                'contact_name' => $p->contact_name,
                 'phone' => $p->phone,
                 'type' => $p->type instanceof ProviderType ? $p->type->value : $p->type,
                 'type_label' => $p->type instanceof ProviderType ? $this->typeLabel($p->type) : (string) $p->type,

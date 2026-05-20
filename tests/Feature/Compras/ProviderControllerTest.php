@@ -45,14 +45,13 @@ class ProviderControllerTest extends TestCase
             'type' => 'mayorista_carne',
             'phone' => '5551234567',
             'rfc' => 'XAXX010101000',
-            'payment_terms_days' => 15,
         ])->assertRedirect();
 
         $this->assertDatabaseHas('providers', [
             'tenant_id' => $this->tenant->id,
             'name' => 'Carnes Don Pedro',
             'type' => 'mayorista_carne',
-            'payment_terms_days' => 15,
+            'phone' => '5551234567',
             'created_by' => $this->adminEmpresa->id,
         ]);
     }

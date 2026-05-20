@@ -75,7 +75,7 @@ const typeBadgeColor = (type) => ({
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Proveedor</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Tipo</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Contacto</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Teléfono</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 bg-white">
@@ -84,10 +84,7 @@ const typeBadgeColor = (type) => ({
                             <td class="px-4 py-3 text-sm">
                                 <span :class="['rounded-full px-2 py-0.5 text-xs font-semibold', typeBadgeColor(p.type)]">{{ p.type_label }}</span>
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-700">
-                                <div>{{ p.contact_name || '—' }}</div>
-                                <div v-if="p.phone" class="text-xs text-gray-500">{{ p.phone }}</div>
-                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ p.phone || '—' }}</td>
                         </tr>
                         <tr v-if="!providers.length">
                             <td colspan="3" class="px-4 py-10 text-center text-sm italic text-gray-500">
