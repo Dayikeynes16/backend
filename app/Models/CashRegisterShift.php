@@ -42,6 +42,13 @@ class CashRegisterShift extends Model
         return $this->hasMany(Expense::class)->where('payment_method', 'cash');
     }
 
+    public function cashProviderPayments(): HasMany
+    {
+        return $this->hasMany(ProviderPayment::class)
+            ->where('payment_method', 'cash')
+            ->whereNull('cancelled_at');
+    }
+
     protected function casts(): array
     {
         return [

@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'tenant_id', 'branch_id', 'provider_id', 'purchase_id',
+    'tenant_id', 'branch_id', 'cash_register_shift_id', 'provider_id', 'purchase_id',
     'paid_at', 'amount', 'payment_method', 'reference', 'notes',
     'user_id', 'cancelled_by', 'cancelled_at', 'cancel_reason',
 ])]
@@ -31,6 +31,11 @@ class ProviderPayment extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function cashRegisterShift(): BelongsTo
+    {
+        return $this->belongsTo(CashRegisterShift::class);
     }
 
     public function user(): BelongsTo
