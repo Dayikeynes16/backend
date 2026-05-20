@@ -30,6 +30,7 @@ use App\Http\Controllers\Empresa\Metrics\ShiftMetricsController as EmpresaShiftM
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\PersonalizacionController;
 use App\Http\Controllers\Empresa\ProviderController as EmpresaProviderController;
+use App\Http\Controllers\Empresa\PurchaseProductController as EmpresaPurchaseProductController;
 use App\Http\Controllers\Empresa\ProviderPaymentController as EmpresaProviderPaymentController;
 use App\Http\Controllers\Empresa\PurchaseController as EmpresaPurchaseController;
 use App\Http\Controllers\Empresa\SucursalController;
@@ -178,6 +179,12 @@ Route::prefix('{tenant}')
                 // Pago a cuenta del proveedor (F3) — FIFO sobre sus compras pendientes.
                 Route::post('proveedores/{provider}/pagos', [EmpresaProviderPaymentController::class, 'storeForProvider'])
                     ->whereNumber('provider')->name('proveedores.pagos.store');
+
+                // Catálogo de productos de compra (tenant-wide).
+                Route::get('productos-compra', [EmpresaPurchaseProductController::class, 'index'])->name('productos-compra.index');
+                Route::post('productos-compra', [EmpresaPurchaseProductController::class, 'store'])->name('productos-compra.store');
+                Route::put('productos-compra/{producto_compra}', [EmpresaPurchaseProductController::class, 'update'])->name('productos-compra.update');
+                Route::delete('productos-compra/{producto_compra}', [EmpresaPurchaseProductController::class, 'destroy'])->name('productos-compra.destroy');
 
                 // Compras (F2).
                 Route::prefix('compras')->name('compras.')->group(function () {
