@@ -12,6 +12,7 @@ use App\Models\ProviderPayment;
 use App\Models\Purchase;
 use App\Models\PurchaseAttachment;
 use App\Models\PurchaseItem;
+use App\Models\PurchaseProduct;
 use App\Models\Tenant;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -206,7 +207,12 @@ class PurchaseModelTest extends TestCase
     public function test_purchase_item_preserves_concept_when_product_is_deleted(): void
     {
         $provider = Provider::create(['name' => 'P', 'type' => 'otro']);
-        $product = $this->makeProduct(['name' => 'Carbón original']);
+        $product = PurchaseProduct::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Carbón original',
+            'unit' => 'pieza',
+            'status' => 'active',
+        ]);
         $purchase = Purchase::create([
             'branch_id' => $this->branch->id,
             'provider_id' => $provider->id,
@@ -217,7 +223,7 @@ class PurchaseModelTest extends TestCase
         ]);
         $item = PurchaseItem::create([
             'purchase_id' => $purchase->id,
-            'product_id' => $product->id,
+            'purchase_product_id' => $product->id,
             'concept' => 'Carbón premium 5kg',
             'quantity' => 1,
             'unit' => 'pieza',
@@ -228,7 +234,7 @@ class PurchaseModelTest extends TestCase
         $product->forceDelete();
 
         $fresh = $item->fresh();
-        $this->assertNull($fresh->product_id);
+        $this->assertNull($fresh->purchase_product_id);
         $this->assertSame('Carbón premium 5kg', $fresh->concept);
     }
 
