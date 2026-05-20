@@ -237,7 +237,7 @@ class TurnoController extends Controller
             abort(403, 'Este corte no pertenece a tu sucursal.');
         }
 
-        $shift->load(['user:id,name', 'withdrawals']);
+        $shift->load(['user:id,name', 'withdrawals', 'cashExpenses:id,cash_register_shift_id,concept,amount,expense_at']);
 
         $tenant = app('tenant');
         $whatsappUrl = null;

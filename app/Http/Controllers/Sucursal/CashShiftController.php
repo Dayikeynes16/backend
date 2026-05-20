@@ -361,7 +361,7 @@ class CashShiftController extends Controller
             abort(403);
         }
 
-        $shift->load(['user:id,name', 'withdrawals']);
+        $shift->load(['user:id,name', 'withdrawals', 'cashExpenses:id,cash_register_shift_id,concept,amount,expense_at']);
 
         // Build WhatsApp link only if the shift is closed and the tenant has
         // an owner_whatsapp configured. Frontend uses has_owner_whatsapp to

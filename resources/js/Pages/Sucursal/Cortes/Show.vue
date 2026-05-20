@@ -92,6 +92,11 @@ const conciliation = computed(() => {
 });
 
 const totalDiff = computed(() => conciliation.value.reduce((sum, m) => sum + m.diff, 0));
+
+const withdrawalsTotal = computed(() => (props.shift.withdrawals || []).reduce((s, w) => s + Number(w.amount), 0));
+const cashExpensesTotal = computed(() => (props.shift.cash_expenses || []).reduce((s, e) => s + Number(e.amount), 0));
+const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.value);
+const money = (v) => '$' + Number(v ?? 0).toFixed(2);
 </script>
 
 <template>
@@ -260,6 +265,28 @@ const totalDiff = computed(() => conciliation.value.reduce((sum, m) => sum + m.d
                             <p class="text-xs text-gray-400">{{ w.reason }}</p>
                         </div>
                         <span class="text-xs text-gray-400">{{ new Date(w.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Salidas en efectivo -->
+            <div v-if="totalCashOut > 0" class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+                    <h2 class="text-sm font-bold text-gray-900">Salidas en efectivo</h2>
+                    <p class="text-xs text-gray-400">Total: <span class="font-semibold text-red-600">-{{ money(totalCashOut) }}</span></p>
+                </div>
+                <div class="divide-y divide-gray-50">
+                    <div class="flex items-center justify-between px-6 py-3">
+                        <p class="text-sm text-gray-600">Retiros</p>
+                        <p class="font-mono text-sm font-semibold tabular-nums text-gray-900">{{ money(withdrawalsTotal) }}</p>
+                    </div>
+                    <div class="flex items-center justify-between px-6 py-3">
+                        <p class="text-sm text-gray-600">Gastos en efectivo</p>
+                        <p class="font-mono text-sm font-semibold tabular-nums text-gray-900">{{ money(cashExpensesTotal) }}</p>
+                    </div>
+                    <div v-for="e in (shift.cash_expenses || [])" :key="e.id" class="flex items-center justify-between px-6 py-2 pl-10">
+                        <p class="text-xs text-gray-400">{{ e.concept }}</p>
+                        <p class="font-mono text-xs tabular-nums text-gray-500">{{ money(e.amount) }}</p>
                     </div>
                 </div>
             </div>

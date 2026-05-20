@@ -1,6 +1,7 @@
 <script setup>
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
+import CajaGastoModal from '@/Components/Caja/CajaGastoModal.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
@@ -9,7 +10,10 @@ const props = defineProps({
     totals: Object,
     tenant: Object,
     paymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
+    expenseSubcategories: { type: Array, default: () => [] },
 });
+
+const gastoOpen = ref(false);
 
 const closeForm = useForm({
     declared_amount: '',
@@ -162,9 +166,11 @@ const colorMap = {
                     </div>
                 </div>
                 <div class="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
-                    <div class="flex items-center gap-4 text-xs text-gray-400">
+                    <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400">
                         <span>Fondo: <span class="font-semibold text-gray-600">${{ parseFloat(shift.opening_amount).toFixed(2) }}</span></span>
                         <span>Retiros: <span class="font-semibold text-red-500">-${{ totals.withdrawals.toFixed(2) }}</span></span>
+                        <span>Gastos: <span class="font-semibold text-red-500">-${{ (totals.cash_expenses ?? 0).toFixed(2) }}</span></span>
+                        <button type="button" @click="gastoOpen = true" class="font-semibold text-red-600 hover:text-red-700">+ Gasto en efectivo</button>
                     </div>
                     <p class="text-sm font-bold text-gray-900">Total: <span class="font-mono tabular-nums">${{ totals.total.toFixed(2) }}</span></p>
                 </div>
@@ -217,6 +223,7 @@ const colorMap = {
                                                 ${{ parseFloat(shift.opening_amount).toFixed(0) }} fondo
                                                 + ${{ totals.cash.toFixed(0) }} cobrado
                                                 <template v-if="totals.withdrawals > 0"> - ${{ totals.withdrawals.toFixed(0) }} retiros</template>
+                                                <template v-if="(totals.cash_expenses ?? 0) > 0"> - ${{ totals.cash_expenses.toFixed(0) }} gastos</template>
                                             </p>
                                         </template>
                                     </div>
@@ -306,6 +313,8 @@ const colorMap = {
                 </form>
             </div>
         </div>
+
+        <CajaGastoModal :open="gastoOpen" :tenant-slug="tenant.slug" :subcategories="expenseSubcategories" @close="gastoOpen = false" />
 
         <FlashToast />
     </CajeroLayout>
