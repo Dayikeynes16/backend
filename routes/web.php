@@ -9,6 +9,7 @@ use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
+use App\Http\Controllers\Caja\GastoController as CajaGastoController;
 use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
 use App\Http\Controllers\Empresa\AsistenteController as EmpresaAsistenteController;
@@ -451,6 +452,7 @@ Route::prefix('{tenant}')
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');
                 Route::get('turno/corte/{shift}', [CajaTurnoController::class, 'showCorte'])->name('turno.corte');
+                Route::post('gastos', [CajaGastoController::class, 'store'])->name('gastos.store');
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
             });
