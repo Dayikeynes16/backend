@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'tenant_id', 'branch_id', 'user_id',
     'opened_at', 'opening_amount', 'closed_at',
-    'total_cash', 'total_card', 'total_transfer', 'total_sales', 'sale_count',
+    'total_cash', 'total_card', 'total_transfer', 'total_cash_expenses', 'total_cash_provider_payments', 'total_sales', 'sale_count',
     'sales_generated_amount', 'sales_generated_count',
     'collections_from_today_amount', 'collections_from_previous_amount',
     'declared_amount', 'declared_card', 'declared_transfer',
@@ -37,6 +37,11 @@ class CashRegisterShift extends Model
         return $this->hasMany(CashWithdrawal::class, 'shift_id');
     }
 
+    public function cashExpenses(): HasMany
+    {
+        return $this->hasMany(Expense::class)->where('payment_method', 'cash');
+    }
+
     protected function casts(): array
     {
         return [
@@ -46,6 +51,8 @@ class CashRegisterShift extends Model
             'total_cash' => 'decimal:2',
             'total_card' => 'decimal:2',
             'total_transfer' => 'decimal:2',
+            'total_cash_expenses' => 'decimal:2',
+            'total_cash_provider_payments' => 'decimal:2',
             'total_sales' => 'decimal:2',
             'sales_generated_amount' => 'decimal:2',
             'collections_from_today_amount' => 'decimal:2',

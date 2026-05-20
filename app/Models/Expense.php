@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'tenant_id', 'branch_id', 'expense_subcategory_id', 'user_id', 'updated_by',
+    'tenant_id', 'branch_id', 'cash_register_shift_id', 'expense_subcategory_id', 'user_id', 'updated_by',
     'cancelled_by', 'concept', 'amount', 'payment_method', 'expense_at', 'description',
     'cancellation_reason',
 ])]
@@ -22,6 +22,11 @@ class Expense extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function cashRegisterShift(): BelongsTo
+    {
+        return $this->belongsTo(CashRegisterShift::class);
     }
 
     public function subcategory(): BelongsTo
