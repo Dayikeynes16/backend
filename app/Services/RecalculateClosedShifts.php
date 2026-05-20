@@ -16,7 +16,22 @@ use App\Models\Sale;
  */
 class RecalculateClosedShifts
 {
-    public function __construct(private ShiftTotalsCalculator $calculator) {}
+    public function __construct(
+        private ShiftTotalsCalculator $calculator,
+        private ShiftCashOutCalculator $cashOut,
+    ) {}
+
+    /**
+     * Recalcula un turno cerrado puntual (p. ej. cuando se cancela/edita un
+     * gasto en efectivo ligado a él).
+     */
+    public function forShift(CashRegisterShift $shift): void
+    {
+        if (! $shift->closed_at) {
+            return;
+        }
+        $this->recompute($shift);
+    }
 
     public function forSale(Sale $sale): void
     {
@@ -39,31 +54,38 @@ class RecalculateClosedShifts
                 ->get();
 
             foreach ($shifts as $shift) {
-                $totals = $this->calculator->compute(
-                    $shift->branch_id,
-                    $shift->user_id,
-                    $shift->opened_at,
-                    $shift->closed_at,
-                );
-
-                $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
-                $expected = round((float) $shift->opening_amount + $totals['total_cash'] - $totalWithdrawals, 2);
-                $declared = (float) $shift->declared_amount;
-
-                $shift->update([
-                    'total_cash' => $totals['total_cash'],
-                    'total_card' => $totals['total_card'],
-                    'total_transfer' => $totals['total_transfer'],
-                    'total_sales' => $totals['total_cash'] + $totals['total_card'] + $totals['total_transfer'],
-                    'sale_count' => $totals['collections_count'],
-                    'sales_generated_amount' => $totals['sales_generated_amount'],
-                    'sales_generated_count' => $totals['sales_generated_count'],
-                    'collections_from_today_amount' => $totals['collections_from_today_amount'],
-                    'collections_from_previous_amount' => $totals['collections_from_previous_amount'],
-                    'expected_amount' => $expected,
-                    'difference' => round($declared - $expected, 2),
-                ]);
+                $this->recompute($shift);
             }
         }
+    }
+
+    private function recompute(CashRegisterShift $shift): void
+    {
+        $totals = $this->calculator->compute(
+            $shift->branch_id,
+            $shift->user_id,
+            $shift->opened_at,
+            $shift->closed_at,
+        );
+
+        $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
+        $cashOutTotals = $this->cashOut->forShift($shift, $totals['total_cash'], $totalWithdrawals);
+        $expected = $cashOutTotals['expected_amount'];
+        $declared = (float) $shift->declared_amount;
+
+        $shift->update([
+            'total_cash' => $totals['total_cash'],
+            'total_card' => $totals['total_card'],
+            'total_transfer' => $totals['total_transfer'],
+            'total_cash_expenses' => $cashOutTotals['cash_expenses'],
+            'total_sales' => $totals['total_cash'] + $totals['total_card'] + $totals['total_transfer'],
+            'sale_count' => $totals['collections_count'],
+            'sales_generated_amount' => $totals['sales_generated_amount'],
+            'sales_generated_count' => $totals['sales_generated_count'],
+            'collections_from_today_amount' => $totals['collections_from_today_amount'],
+            'collections_from_previous_amount' => $totals['collections_from_previous_amount'],
+            'expected_amount' => $expected,
+            'difference' => round($declared - $expected, 2),
+        ]);
     }
 }

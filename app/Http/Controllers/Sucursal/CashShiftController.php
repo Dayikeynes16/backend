@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
+use App\Services\ShiftCashOutCalculator;
 use App\Services\ShiftReportMessageService;
 use App\Services\ShiftTotalsCalculator;
 use App\Services\WhatsappMessageService;
@@ -60,8 +61,7 @@ class CashShiftController extends Controller
         $totalCard = (float) $payments->where('method', 'card')->sum('amount');
         $totalTransfer = (float) $payments->where('method', 'transfer')->sum('amount');
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
-
-        $expected = (float) $shift->opening_amount + $totalCash - $totalWithdrawals;
+        $cashOut = app(ShiftCashOutCalculator::class)->forShift($shift, $totalCash, $totalWithdrawals);
 
         return Inertia::render('Sucursal/Turno/Active', [
             'shift' => $shift->load('withdrawals'),
@@ -71,7 +71,8 @@ class CashShiftController extends Controller
                 'transfer' => $totalTransfer,
                 'total' => $totalCash + $totalCard + $totalTransfer,
                 'withdrawals' => $totalWithdrawals,
-                'expected_cash' => round($expected, 2),
+                'cash_expenses' => $cashOut['cash_expenses'],
+                'expected_cash' => $cashOut['expected_amount'],
                 'payment_count' => $payments->pluck('sale_id')->unique()->count(),
             ],
             'paymentMethods' => $this->enabledMethodsFor($user->branch_id),
@@ -107,7 +108,7 @@ class CashShiftController extends Controller
             ->with('success', 'Turno abierto.');
     }
 
-    public function close(Request $request, ShiftTotalsCalculator $calculator): RedirectResponse
+    public function close(Request $request, ShiftTotalsCalculator $calculator, ShiftCashOutCalculator $cashOut): RedirectResponse
     {
         $user = Auth::user();
 
@@ -153,7 +154,8 @@ class CashShiftController extends Controller
 
         $validated = $request->validate($rules);
 
-        $expectedCash = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
+        $cashOutTotals = $cashOut->forShift($shift, $totalCash, $totalWithdrawals);
+        $expectedCash = $cashOutTotals['expected_amount'];
 
         // Para métodos NO efectivos, se guarda NULL en declared_*/difference_* (significa "no aplica").
         $declaredCash = array_key_exists('declared_amount', $validated)
@@ -176,6 +178,7 @@ class CashShiftController extends Controller
             'total_cash' => $totalCash,
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
+            'total_cash_expenses' => $cashOutTotals['cash_expenses'],
             // total_sales (legacy) = cobranza total del turno = lo que entró al
             // cajón. Se mantiene para no romper código que la consume; en la UI
             // se etiqueta como "Cobrado en turno".
@@ -228,7 +231,7 @@ class CashShiftController extends Controller
         ]);
     }
 
-    public function recalculate(CashRegisterShift $shift, ShiftTotalsCalculator $calculator): RedirectResponse
+    public function recalculate(CashRegisterShift $shift, ShiftTotalsCalculator $calculator, ShiftCashOutCalculator $cashOut): RedirectResponse
     {
         $user = Auth::user();
         $this->authorizeAdmin($user, $shift);
@@ -244,7 +247,8 @@ class CashShiftController extends Controller
         $totalTransfer = $totals['total_transfer'];
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
 
-        $expected = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
+        $cashOutTotals = $cashOut->forShift($shift, $totalCash, $totalWithdrawals);
+        $expected = $cashOutTotals['expected_amount'];
 
         // Respetar lo declarado originalmente: si un método se declaró con NULL
         // (porque estaba desactivado al cierre) no lo "resucitamos" con 0.
@@ -260,6 +264,7 @@ class CashShiftController extends Controller
             'total_cash' => $totalCash,
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
+            'total_cash_expenses' => $cashOutTotals['cash_expenses'],
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
             'sale_count' => $totals['collections_count'],
             'sales_generated_amount' => $totals['sales_generated_amount'],

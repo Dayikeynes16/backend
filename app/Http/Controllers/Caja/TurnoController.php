@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
+use App\Services\ShiftCashOutCalculator;
 use App\Services\ShiftReportMessageService;
 use App\Services\ShiftTotalsCalculator;
 use App\Services\WhatsappMessageService;
@@ -58,7 +59,7 @@ class TurnoController extends Controller
         $totalCard = (float) $payments->where('method', 'card')->sum('amount');
         $totalTransfer = (float) $payments->where('method', 'transfer')->sum('amount');
         $totalWithdrawals = (float) $shift->withdrawals()->sum('amount');
-        $expected = (float) $shift->opening_amount + $totalCash - $totalWithdrawals;
+        $cashOut = app(ShiftCashOutCalculator::class)->forShift($shift, $totalCash, $totalWithdrawals);
 
         return Inertia::render('Caja/Turno/Active', [
             'shift' => $shift->load('withdrawals'),
@@ -68,12 +69,33 @@ class TurnoController extends Controller
                 'transfer' => $totalTransfer,
                 'total' => $totalCash + $totalCard + $totalTransfer,
                 'withdrawals' => $totalWithdrawals,
-                'expected_cash' => round($expected, 2),
+                'cash_expenses' => $cashOut['cash_expenses'],
+                'expected_cash' => $cashOut['expected_amount'],
                 'payment_count' => $payments->pluck('sale_id')->unique()->count(),
             ],
             'paymentMethods' => $this->enabledMethodsFor($user->branch_id),
+            'expenseSubcategories' => $this->expenseSubcategoriesForForm(),
             'tenant' => app('tenant'),
         ]);
+    }
+
+    /**
+     * Subcategorías activas del tenant para el form de gasto en caja.
+     *
+     * @return array<int, array{id: int, name: string, category: string}>
+     */
+    private function expenseSubcategoriesForForm(): array
+    {
+        return \App\Models\ExpenseSubcategory::query()
+            ->where('status', 'active')
+            ->with('category:id,name')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'category' => $s->category?->name ?? '',
+            ])->all();
     }
 
     public function open(Request $request): RedirectResponse
@@ -104,7 +126,7 @@ class TurnoController extends Controller
             ->with('success', 'Turno abierto.');
     }
 
-    public function close(Request $request, ShiftTotalsCalculator $calculator): RedirectResponse
+    public function close(Request $request, ShiftTotalsCalculator $calculator, ShiftCashOutCalculator $cashOut): RedirectResponse
     {
         $user = Auth::user();
 
@@ -147,7 +169,8 @@ class TurnoController extends Controller
 
         $validated = $request->validate($rules);
 
-        $expectedCash = round((float) $shift->opening_amount + $totalCash - $totalWithdrawals, 2);
+        $cashOutTotals = $cashOut->forShift($shift, $totalCash, $totalWithdrawals);
+        $expectedCash = $cashOutTotals['expected_amount'];
 
         // declared_* queda NULL cuando el método no aplica (columna nullable).
         $declaredCash = array_key_exists('declared_amount', $validated)
@@ -166,6 +189,7 @@ class TurnoController extends Controller
             'total_cash' => $totalCash,
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
+            'total_cash_expenses' => $cashOutTotals['cash_expenses'],
             // total_sales (legacy) = cobranza total del turno (lo que entró al
             // cajón). Se conserva; en la UI se etiqueta como "Cobrado en turno".
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
