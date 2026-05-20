@@ -179,6 +179,7 @@ class CashShiftController extends Controller
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
             'total_cash_expenses' => $cashOutTotals['cash_expenses'],
+            'total_cash_provider_payments' => $cashOutTotals['cash_provider_payments'],
             // total_sales (legacy) = cobranza total del turno = lo que entró al
             // cajón. Se mantiene para no romper código que la consume; en la UI
             // se etiqueta como "Cobrado en turno".
@@ -265,6 +266,7 @@ class CashShiftController extends Controller
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
             'total_cash_expenses' => $cashOutTotals['cash_expenses'],
+            'total_cash_provider_payments' => $cashOutTotals['cash_provider_payments'],
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
             'sale_count' => $totals['collections_count'],
             'sales_generated_amount' => $totals['sales_generated_amount'],
@@ -361,7 +363,12 @@ class CashShiftController extends Controller
             abort(403);
         }
 
-        $shift->load(['user:id,name', 'withdrawals', 'cashExpenses:id,cash_register_shift_id,concept,amount,expense_at']);
+        $shift->load([
+            'user:id,name', 'withdrawals',
+            'cashExpenses:id,cash_register_shift_id,concept,amount,expense_at',
+            'cashProviderPayments:id,cash_register_shift_id,provider_id,amount,paid_at',
+            'cashProviderPayments.provider:id,name',
+        ]);
 
         // Build WhatsApp link only if the shift is closed and the tenant has
         // an owner_whatsapp configured. Frontend uses has_owner_whatsapp to

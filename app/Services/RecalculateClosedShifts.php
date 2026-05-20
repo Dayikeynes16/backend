@@ -78,6 +78,7 @@ class RecalculateClosedShifts
             'total_card' => $totals['total_card'],
             'total_transfer' => $totals['total_transfer'],
             'total_cash_expenses' => $cashOutTotals['cash_expenses'],
+            'total_cash_provider_payments' => $cashOutTotals['cash_provider_payments'],
             'total_sales' => $totals['total_cash'] + $totals['total_card'] + $totals['total_transfer'],
             'sale_count' => $totals['collections_count'],
             'sales_generated_amount' => $totals['sales_generated_amount'],

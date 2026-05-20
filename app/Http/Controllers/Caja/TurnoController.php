@@ -190,6 +190,7 @@ class TurnoController extends Controller
             'total_card' => $totalCard,
             'total_transfer' => $totalTransfer,
             'total_cash_expenses' => $cashOutTotals['cash_expenses'],
+            'total_cash_provider_payments' => $cashOutTotals['cash_provider_payments'],
             // total_sales (legacy) = cobranza total del turno (lo que entró al
             // cajón). Se conserva; en la UI se etiqueta como "Cobrado en turno".
             'total_sales' => $totalCash + $totalCard + $totalTransfer,
@@ -237,7 +238,12 @@ class TurnoController extends Controller
             abort(403, 'Este corte no pertenece a tu sucursal.');
         }
 
-        $shift->load(['user:id,name', 'withdrawals', 'cashExpenses:id,cash_register_shift_id,concept,amount,expense_at']);
+        $shift->load([
+            'user:id,name', 'withdrawals',
+            'cashExpenses:id,cash_register_shift_id,concept,amount,expense_at',
+            'cashProviderPayments:id,cash_register_shift_id,provider_id,amount,paid_at',
+            'cashProviderPayments.provider:id,name',
+        ]);
 
         $tenant = app('tenant');
         $whatsappUrl = null;

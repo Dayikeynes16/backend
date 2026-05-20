@@ -80,6 +80,34 @@ class TurnoCorteCashOutTest extends TestCase
         $this->assertSame('0.00', $shift->difference);
     }
 
+    public function test_close_subtracts_cash_provider_payments_from_expected(): void
+    {
+        $shift = $this->openShift();
+
+        \App\Models\ProviderPayment::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'cash_register_shift_id' => $shift->id,
+            'provider_id' => \App\Models\Provider::create(['name' => 'Prov', 'type' => 'otro'])->id,
+            'paid_at' => now(),
+            'amount' => 300,
+            'payment_method' => 'cash',
+            'user_id' => $this->cajero->id,
+        ]);
+
+        $this->actingAs($this->cajero);
+        $this->post(route('caja.turno.close', $this->tenant->slug), [
+            'declared_amount' => 700,
+            'declared_card' => 0,
+            'declared_transfer' => 0,
+        ])->assertRedirect();
+
+        $shift->refresh();
+        // esperado = 1000 - 0 retiros - 0 gastos - 300 pagos a proveedor = 700
+        $this->assertSame('700.00', $shift->expected_amount);
+        $this->assertSame('300.00', $shift->total_cash_provider_payments);
+    }
+
     public function test_recalculate_after_soft_deleting_expense(): void
     {
         $shift = $this->openShift();
