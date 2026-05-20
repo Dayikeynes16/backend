@@ -75,6 +75,8 @@ class TurnoController extends Controller
             ],
             'paymentMethods' => $this->enabledMethodsFor($user->branch_id),
             'expenseSubcategories' => $this->expenseSubcategoriesForForm(),
+            'providers' => \App\Models\Provider::where('status', 'active')->orderBy('name')->get(['id', 'name', 'type']),
+            'purchaseProducts' => \App\Models\PurchaseProduct::where('status', 'active')->orderBy('name')->get(['id', 'name', 'unit']),
             'tenant' => app('tenant'),
         ]);
     }
