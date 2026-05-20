@@ -11,6 +11,7 @@ const props = defineProps({
     filters: { type: Object, default: () => ({}) },
     branches: { type: Array, default: () => [] },
     providers: { type: Array, default: () => [] },
+    purchaseProducts: { type: Array, default: () => [] },
     kpis: { type: Object, default: () => ({ total_amount: 0, count: 0, pending_total: 0, pending_count: 0 }) },
 });
 
@@ -217,6 +218,7 @@ const iaRoutes = { iaStore: 'empresa.compras.ia.store' };
             :open="formOpen"
             :purchase="editing"
             :providers="providers"
+            :purchase-products="purchaseProducts"
             :branches="branches"
             :ai-result="aiResult"
             :routes="formRoutes"

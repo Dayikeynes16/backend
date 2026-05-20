@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\HandlesPurchases;
 use App\Http\Controllers\Controller;
 use App\Models\Provider;
 use App\Models\Purchase;
+use App\Models\PurchaseProduct;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,6 +52,7 @@ class PurchaseController extends Controller
                 'payment_status' => $request->input('payment_status'),
             ],
             'providers' => Provider::where('status', 'active')->orderBy('name')->get(['id', 'name', 'type']),
+            'purchaseProducts' => PurchaseProduct::where('status', 'active')->orderBy('name')->get(['id', 'name', 'unit']),
             'kpis' => $this->kpis(),
             'branch' => ['id' => $user->branch_id, 'name' => optional($user->branch)->name],
         ]);

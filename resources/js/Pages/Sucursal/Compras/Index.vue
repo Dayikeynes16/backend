@@ -10,6 +10,7 @@ const props = defineProps({
     purchases: { type: Array, default: () => [] },
     filters: { type: Object, default: () => ({}) },
     providers: { type: Array, default: () => [] },
+    purchaseProducts: { type: Array, default: () => [] },
     kpis: { type: Object, default: () => ({ total_amount: 0, count: 0, pending_total: 0, pending_count: 0 }) },
     branch: { type: Object, default: () => ({}) },
 });
@@ -194,6 +195,7 @@ const iaRoutes = { iaStore: 'sucursal.compras.ia.store' };
             :open="formOpen"
             :purchase="editing"
             :providers="providers"
+            :purchase-products="purchaseProducts"
             :fixed-branch-id="branch?.id"
             :ai-result="aiResult"
             :routes="formRoutes"

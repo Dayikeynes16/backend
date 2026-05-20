@@ -7,6 +7,7 @@ const props = defineProps({
     open: { type: Boolean, default: false },
     purchase: { type: Object, default: null }, // null = crear; objeto = editar
     providers: { type: Array, default: () => [] },
+    purchaseProducts: { type: Array, default: () => [] },
     branches: { type: Array, default: () => [] }, // vacía si es admin-sucursal
     fixedBranchId: { type: Number, default: null }, // si admin-sucursal
     // Propuesta IA opcional (sólo en modo crear). { draftId, proposal, audioTranscription }
@@ -44,7 +45,7 @@ const isEdit = computed(() => !!props.purchase?.id);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const emptyLine = () => ({
-    product_id: null,
+    purchase_product_id: null,
     concept: '',
     quantity: 1,
     unit: 'kg',
@@ -73,7 +74,7 @@ watch(() => props.open, (open) => {
         form.purchased_at = props.purchase.purchased_at ? props.purchase.purchased_at.slice(0, 10) : todayIso();
         form.notes = props.purchase.notes ?? '';
         form.items = (props.purchase.items || []).map((i) => ({
-            product_id: i.product_id ?? null,
+            purchase_product_id: i.purchase_product_id ?? null,
             concept: i.concept ?? '',
             quantity: Number(i.quantity ?? 0),
             unit: i.unit ?? 'kg',
@@ -129,6 +130,16 @@ const submit = () => {
 };
 
 const units = ['kg', 'g', 'l', 'ml', 'pieza', 'caja', 'bulto', 'cabeza'];
+
+// Resuelve el texto escrito contra el catálogo: si coincide exacto, fija el id
+// y hereda la unidad; si no, deja id null y el server lo crea al guardar.
+const onConceptInput = (line) => {
+    const match = props.purchaseProducts.find(
+        (p) => p.name.toLowerCase() === (line.concept || '').trim().toLowerCase()
+    );
+    line.purchase_product_id = match ? match.id : null;
+    if (match && match.unit) line.unit = match.unit;
+};
 </script>
 
 <template>
@@ -231,7 +242,8 @@ const units = ['kg', 'g', 'l', 'ml', 'pieza', 'caja', 'bulto', 'cabeza'];
                                     <tbody class="divide-y divide-gray-100 bg-white">
                                         <tr v-for="(line, idx) in form.items" :key="idx">
                                             <td class="px-3 py-2">
-                                                <input v-model="line.concept" type="text" placeholder="Ej. Pulpa de res"
+                                                <input v-model="line.concept" type="text" list="catalogo-compra" placeholder="Busca o escribe un producto"
+                                                    @input="onConceptInput(line)" @change="onConceptInput(line)"
                                                     class="w-full rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500" />
                                                 <p v-if="form.errors[`items.${idx}.concept`]" class="mt-1 text-xs text-red-600">{{ form.errors[`items.${idx}.concept`] }}</p>
                                             </td>
@@ -282,6 +294,10 @@ const units = ['kg', 'g', 'l', 'ml', 'pieza', 'caja', 'bulto', 'cabeza'];
                                 class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-orange-700 hover:file:bg-orange-100" />
                             <p class="mt-1 text-xs text-gray-500">Hasta 5 archivos · jpg/png/webp/pdf · 5 MB c/u</p>
                         </div>
+
+                        <datalist id="catalogo-compra">
+                            <option v-for="p in purchaseProducts" :key="p.id" :value="p.name" />
+                        </datalist>
                     </form>
 
                     <footer class="flex items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">

@@ -13,6 +13,7 @@ const navLinks = [
     { label: 'Tickets', route: 'empresa.tickets', icon: 'ticket' },
     { label: 'Proveedores', route: 'empresa.proveedores.index', match: 'empresa.proveedores', icon: 'proveedores' },
     { label: 'Compras', route: 'empresa.compras.index', match: 'empresa.compras', icon: 'compras' },
+    { label: 'Productos de compra', route: 'empresa.productos-compra.index', match: 'empresa.productos-compra', icon: 'proveedores' },
     { label: 'Gastos', route: 'empresa.gastos.index', match: 'empresa.gastos', icon: 'gastos' },
     { label: 'Métricas', route: 'empresa.metricas.index', match: 'empresa.metricas', icon: 'metricas' },
     { label: 'Asistente', route: 'empresa.asistente', match: 'empresa.asistente', icon: 'asistente' },

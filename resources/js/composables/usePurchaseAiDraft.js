@@ -73,7 +73,7 @@ export function usePurchaseAiDraft() {
         }
         if (Array.isArray(proposal.lineas) && proposal.lineas.length > 0) {
             form.items = proposal.lineas.map((l) => ({
-                product_id: l.product_id ?? null,
+                purchase_product_id: null, // el server resuelve por nombre (find-or-create)
                 concept: l.concepto ?? '',
                 quantity: Number(l.quantity ?? 0),
                 unit: l.unit ?? 'kg',

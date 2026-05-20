@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Provider;
 use App\Models\Purchase;
+use App\Models\PurchaseProduct;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -60,6 +61,7 @@ class PurchaseController extends Controller
             ],
             'branches' => Branch::where('tenant_id', $tenant->id)->orderBy('name')->get(['id', 'name']),
             'providers' => Provider::where('status', 'active')->orderBy('name')->get(['id', 'name', 'type']),
+            'purchaseProducts' => PurchaseProduct::where('status', 'active')->orderBy('name')->get(['id', 'name', 'unit']),
             'kpis' => $this->kpis($tenant->id),
         ]);
     }
