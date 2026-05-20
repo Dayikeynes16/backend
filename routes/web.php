@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
 use App\Http\Controllers\Ai\CategoryDraftController as AiCategoryDraftController;
 use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
+use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
@@ -27,11 +28,15 @@ use App\Http\Controllers\Empresa\Metrics\SalesMetricsController as EmpresaSalesM
 use App\Http\Controllers\Empresa\Metrics\ShiftMetricsController as EmpresaShiftMetricsController;
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\PersonalizacionController;
+use App\Http\Controllers\Empresa\ProviderController as EmpresaProviderController;
+use App\Http\Controllers\Empresa\ProviderPaymentController as EmpresaProviderPaymentController;
+use App\Http\Controllers\Empresa\PurchaseController as EmpresaPurchaseController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\TicketConfigController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ExpenseAttachmentController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PurchaseAttachmentController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
 use App\Http\Controllers\Sucursal\AsistenteController as SucursalAsistenteController;
 use App\Http\Controllers\Sucursal\CancelRequestController;
@@ -57,6 +62,9 @@ use App\Http\Controllers\Sucursal\Metrics\ShiftMetricsController as SucursalShif
 use App\Http\Controllers\Sucursal\PagosController;
 use App\Http\Controllers\Sucursal\PaymentController;
 use App\Http\Controllers\Sucursal\ProductoController;
+use App\Http\Controllers\Sucursal\ProviderController as SucursalProviderController;
+use App\Http\Controllers\Sucursal\ProviderPaymentController as SucursalProviderPaymentController;
+use App\Http\Controllers\Sucursal\PurchaseController as SucursalPurchaseController;
 use App\Http\Controllers\Sucursal\SaleHistoryController;
 use App\Http\Controllers\Sucursal\SaleItemController;
 use App\Http\Controllers\Sucursal\SaleLockController;
@@ -161,6 +169,34 @@ Route::prefix('{tenant}')
                 Route::post('asistente/sesiones/{session}/mensajes', [EmpresaAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
                 Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [EmpresaAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
                 Route::post('asistente/transcribir', [EmpresaAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
+
+                // Proveedores (F1 de Compras).
+                Route::resource('proveedores', EmpresaProviderController::class)
+                    ->parameters(['proveedores' => 'provider'])
+                    ->except('create', 'edit');
+                // Pago a cuenta del proveedor (F3) — FIFO sobre sus compras pendientes.
+                Route::post('proveedores/{provider}/pagos', [EmpresaProviderPaymentController::class, 'storeForProvider'])
+                    ->whereNumber('provider')->name('proveedores.pagos.store');
+
+                // Compras (F2).
+                Route::prefix('compras')->name('compras.')->group(function () {
+                    Route::get('/', [EmpresaPurchaseController::class, 'index'])->name('index');
+                    Route::post('/', [EmpresaPurchaseController::class, 'store'])->name('store');
+                    Route::put('{compra}', [EmpresaPurchaseController::class, 'update'])->whereNumber('compra')->name('update');
+                    Route::patch('{compra}/cancelar', [EmpresaPurchaseController::class, 'cancel'])->whereNumber('compra')->name('cancel');
+
+                    // Captura con IA (F4): texto + imágenes + audio → propuesta editable.
+                    Route::post('ia/borrador', [AiPurchaseDraftController::class, 'store'])->name('ia.store');
+
+                    // Pagos a proveedor sobre la compra (F3).
+                    Route::post('{compra}/pagos', [EmpresaProviderPaymentController::class, 'storeForPurchase'])->whereNumber('compra')->name('pagos.store');
+                    Route::delete('{compra}/pagos/{pago}', [EmpresaProviderPaymentController::class, 'destroyPayment'])->whereNumber('compra')->whereNumber('pago')->name('pagos.destroy');
+
+                    // Adjuntos
+                    Route::get('{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'download'])->name('adjuntos.download');
+                    Route::get('{compra}/adjuntos/{attachment}/preview', [PurchaseAttachmentController::class, 'preview'])->name('adjuntos.preview');
+                    Route::delete('{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'destroy'])->name('adjuntos.destroy');
+                });
 
                 Route::get('tickets', [TicketConfigController::class, 'index'])->name('tickets');
                 Route::put('tickets/{branch}', [TicketConfigController::class, 'update'])->name('tickets.update');
@@ -333,6 +369,31 @@ Route::prefix('{tenant}')
                 Route::post('asistente/sesiones/{session}/mensajes', [SucursalAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
                 Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [SucursalAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
                 Route::post('asistente/transcribir', [SucursalAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
+
+                // Proveedores (solo lectura — el CRUD vive en empresa).
+                Route::get('proveedores', [SucursalProviderController::class, 'index'])->name('proveedores.index');
+                // Pago a cuenta (F3): admin-sucursal solo puede saldar sus compras (FIFO scoped).
+                Route::post('proveedores/{provider}/pagos', [SucursalProviderPaymentController::class, 'storeForProvider'])
+                    ->whereNumber('provider')->name('proveedores.pagos.store');
+
+                // Compras (F2). admin-sucursal sólo opera sobre su sucursal.
+                Route::prefix('compras')->name('compras.')->group(function () {
+                    Route::get('/', [SucursalPurchaseController::class, 'index'])->name('index');
+                    Route::post('/', [SucursalPurchaseController::class, 'store'])->name('store');
+                    Route::put('{compra}', [SucursalPurchaseController::class, 'update'])->whereNumber('compra')->name('update');
+                    Route::patch('{compra}/cancelar', [SucursalPurchaseController::class, 'cancel'])->whereNumber('compra')->name('cancel');
+
+                    // Captura con IA (F4): mismo controller que empresa.
+                    Route::post('ia/borrador', [AiPurchaseDraftController::class, 'store'])->name('ia.store');
+
+                    // Pagos a proveedor sobre la compra (F3).
+                    Route::post('{compra}/pagos', [SucursalProviderPaymentController::class, 'storeForPurchase'])->whereNumber('compra')->name('pagos.store');
+                    Route::delete('{compra}/pagos/{pago}', [SucursalProviderPaymentController::class, 'destroyPayment'])->whereNumber('compra')->whereNumber('pago')->name('pagos.destroy');
+
+                    Route::get('{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'download'])->name('adjuntos.download');
+                    Route::get('{compra}/adjuntos/{attachment}/preview', [PurchaseAttachmentController::class, 'preview'])->name('adjuntos.preview');
+                    Route::delete('{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'destroy'])->name('adjuntos.destroy');
+                });
 
                 // Menú online (QR + link público)
                 Route::get('menu-online', [MenuQrController::class, 'show'])->name('menu-online');

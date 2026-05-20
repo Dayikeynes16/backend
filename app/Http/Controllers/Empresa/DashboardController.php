@@ -121,6 +121,7 @@ class DashboardController extends Controller
             ->count();
 
         $expenses = $this->expensesSnapshot($scopeFilter, $date, $yesterday);
+        $purchases = $this->purchasesSnapshot($scopeFilter, $date);
 
         $branches = Branch::where('tenant_id', $tenant->id)
             ->orderBy('name')
@@ -139,6 +140,7 @@ class DashboardController extends Controller
             'cajeroCount' => $cajeroCount,
             'activeCashierCount' => $activeCashierCount,
             'expenses' => $expenses,
+            'purchases' => $purchases,
             'selectedDate' => $date,
             'selectedBranch' => $branchFilter,
             'selectedStatuses' => $statuses,
@@ -146,6 +148,31 @@ class DashboardController extends Controller
             'branchCount' => $branches->where('status', 'active')->count(),
             'tenant' => $tenant,
         ]);
+    }
+
+    /**
+     * Snapshot de Compras del día + saldo total por pagar a proveedores
+     * (compras vivas con amount_pending > 0, scopeadas igual que el resto).
+     *
+     * @return array<string, mixed>
+     */
+    private function purchasesSnapshot(array $filter, string $date): array
+    {
+        $base = fn () => \App\Models\Purchase::query()
+            ->where(fn ($q) => $this->applyFilter($q, $filter))
+            ->where('status', '!=', \App\Enums\PurchaseStatus::Cancelled);
+
+        $totalToday = (float) $base()->whereDate('purchased_at', $date)->sum('total');
+        $countToday = (int) $base()->whereDate('purchased_at', $date)->count();
+        $pendingTotal = (float) $base()->where('amount_pending', '>', 0)->sum('amount_pending');
+        $pendingCount = (int) $base()->where('amount_pending', '>', 0)->count();
+
+        return [
+            'total_today' => $totalToday,
+            'count_today' => $countToday,
+            'pending_total' => $pendingTotal,
+            'pending_count' => $pendingCount,
+        ];
     }
 
     /**

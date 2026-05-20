@@ -5,6 +5,8 @@ import TopProductsCard from './TopProductsCard.vue';
 import ShiftStatusCard from './ShiftStatusCard.vue';
 import CustomerStatsCard from './CustomerStatsCard.vue';
 import ProductDetailsCard from './ProductDetailsCard.vue';
+import PurchaseSummaryCard from './PurchaseSummaryCard.vue';
+import AccountsPayableCard from './AccountsPayableCard.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import axios from 'axios';
@@ -34,6 +36,8 @@ const cardComponents = {
     customer_debt: CustomerStatsCard,
     customer_top_buyers: CustomerStatsCard,
     product_details: ProductDetailsCard,
+    purchase_summary: PurchaseSummaryCard,
+    accounts_payable: AccountsPayableCard,
 };
 
 const messages = ref([...props.messages]);
@@ -237,6 +241,8 @@ function guessKindFromToolName(name) {
         consultar_turnos: 'shift_status',
         consultar_clientes: 'customer_debt',
         consultar_productos: 'product_details',
+        consultar_compras: 'purchase_summary',
+        consultar_cuentas_por_pagar: 'accounts_payable',
     })[name] || 'unknown';
 }
 

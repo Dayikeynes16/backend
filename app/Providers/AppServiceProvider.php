@@ -7,9 +7,11 @@ use App\Models\User;
 use App\Observers\BranchObserver;
 use App\Policies\UserPolicy;
 use App\Services\Ai\Assistant\ToolRegistry;
+use App\Services\Ai\Assistant\Tools\AccountsPayableTool;
 use App\Services\Ai\Assistant\Tools\CustomerStatsTool;
 use App\Services\Ai\Assistant\Tools\ExpenseSummaryTool;
 use App\Services\Ai\Assistant\Tools\ProductDetailsTool;
+use App\Services\Ai\Assistant\Tools\PurchaseSummaryTool;
 use App\Services\Ai\Assistant\Tools\SalesSummaryTool;
 use App\Services\Ai\Assistant\Tools\ShiftStatusTool;
 use App\Services\Ai\Assistant\Tools\TopProductsTool;
@@ -31,6 +33,8 @@ class AppServiceProvider extends ServiceProvider
             $app->make(ShiftStatusTool::class),
             $app->make(CustomerStatsTool::class),
             $app->make(ProductDetailsTool::class),
+            $app->make(PurchaseSummaryTool::class),
+            $app->make(AccountsPayableTool::class),
         ]));
     }
 
