@@ -26,6 +26,13 @@ class PurchaseController extends Controller
     {
         $tenant = app('tenant');
 
+        // Por defecto se muestran las compras de HOY; el calendario del front
+        // alterna el día enviando from/to.
+        if (! $request->filled('from') && ! $request->filled('to')) {
+            $today = now()->toDateString();
+            $request->merge(['from' => $today, 'to' => $today]);
+        }
+
         $query = Purchase::query()->with([
             'provider:id,name', 'branch:id,name',
             'items', 'attachments', 'payments',

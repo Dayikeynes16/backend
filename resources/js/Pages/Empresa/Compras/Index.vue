@@ -3,8 +3,10 @@ import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import CompraFormModal from '@/Components/Compras/CompraFormModal.vue';
 import CompraDetailModal from '@/Components/Compras/CompraDetailModal.vue';
 import CompraCapturaIAModal from '@/Components/Compras/CompraCapturaIAModal.vue';
+import DateField from '@/Components/DateField.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import { localToday } from '@/utils/date';
 
 const props = defineProps({
     purchases: { type: Array, default: () => [] },
@@ -19,8 +21,9 @@ const page = usePage();
 const slug = computed(() => page.props.auth.tenant_slug);
 
 const search = ref(props.filters?.q || '');
-const from = ref(props.filters?.from || '');
-const to = ref(props.filters?.to || '');
+const today = localToday();
+// Por defecto el día de hoy; el calendario permite cambiar de día.
+const selectedDate = ref(props.filters?.from || today);
 const branchId = ref(props.filters?.branch_id || '');
 const providerId = ref(props.filters?.provider_id || '');
 const statusFilter = ref(props.filters?.status || 'all');
@@ -33,8 +36,8 @@ let debounceTimer;
 const navigate = () => {
     router.get(route('empresa.compras.index', slug.value), {
         q: search.value || undefined,
-        from: from.value || undefined,
-        to: to.value || undefined,
+        from: selectedDate.value || undefined,
+        to: selectedDate.value || undefined,
         branch_id: branchId.value || undefined,
         provider_id: providerId.value || undefined,
         status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
@@ -43,7 +46,7 @@ const navigate = () => {
 };
 
 watch(search, () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(navigate, 300); });
-watch([from, to, branchId, providerId, statusFilter, paymentFilter], navigate);
+watch([selectedDate, branchId, providerId, statusFilter, paymentFilter], navigate);
 
 const paymentBadge = (s) => ({
     paid: 'bg-emerald-100 text-emerald-800',
@@ -123,8 +126,9 @@ const iaRoutes = { iaStore: 'empresa.compras.ia.store' };
             <div class="grid grid-cols-1 gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-6">
                 <input v-model="search" type="text" placeholder="Folio, factura, proveedor…"
                     class="rounded-xl border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500 lg:col-span-2" />
-                <input v-model="from" type="date" class="rounded-xl border-gray-300 text-sm" />
-                <input v-model="to" type="date" class="rounded-xl border-gray-300 text-sm" />
+                <div class="lg:col-span-2">
+                    <DateField v-model="selectedDate" mode="single" :max="today" align="left" class="w-full" />
+                </div>
                 <select v-model="branchId" class="rounded-xl border-gray-300 text-sm">
                     <option value="">Todas las sucursales</option>
                     <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
