@@ -45,6 +45,10 @@ class PurchaseController extends Controller
 
         $query = $this->applyIndexFilters($query, $request);
 
+        // KPIs sobre el MISMO conjunto filtrado (fecha, sucursal, proveedor…),
+        // excluyendo canceladas — así las tarjetas cuadran con la tabla.
+        $kpis = $this->kpisFromQuery((clone $query)->where('status', '!=', PurchaseStatus::Cancelled));
+
         // Devolvemos cada compra ya con items + attachments para que el detail
         // modal del frontend no necesite un endpoint adicional. 200 compras es
         // el límite duro; con ~5 líneas promedio el payload es manejable (~50 KB).
@@ -69,7 +73,7 @@ class PurchaseController extends Controller
             'branches' => Branch::where('tenant_id', $tenant->id)->orderBy('name')->get(['id', 'name']),
             'providers' => Provider::where('status', 'active')->orderBy('name')->get(['id', 'name', 'type']),
             'purchaseProducts' => PurchaseProduct::where('status', 'active')->orderBy('name')->get(['id', 'name', 'unit']),
-            'kpis' => $this->kpis($tenant->id),
+            'kpis' => $kpis,
         ]);
     }
 
@@ -144,16 +148,18 @@ class PurchaseController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function kpis(int $tenantId): array
+    /**
+     * KPIs a partir de una query ya filtrada (fecha, sucursal, proveedor…).
+     *
+     * @return array<string, mixed>
+     */
+    private function kpisFromQuery(Builder $query): array
     {
-        $alive = Purchase::query()
-            ->where('status', '!=', PurchaseStatus::Cancelled);
-
         return [
-            'total_amount' => (float) (clone $alive)->sum('total'),
-            'count' => (int) (clone $alive)->count(),
-            'pending_total' => (float) (clone $alive)->sum('amount_pending'),
-            'pending_count' => (int) (clone $alive)->where('amount_pending', '>', 0)->count(),
+            'total_amount' => (float) (clone $query)->sum('total'),
+            'count' => (int) (clone $query)->count(),
+            'pending_total' => (float) (clone $query)->sum('amount_pending'),
+            'pending_count' => (int) (clone $query)->where('amount_pending', '>', 0)->count(),
         ];
     }
 }
