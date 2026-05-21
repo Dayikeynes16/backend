@@ -13,7 +13,7 @@ import { onBeforeUnmount, ref } from 'vue';
  * Requiere contexto seguro (HTTPS o localhost). El stream se libera en stop(),
  * reset() y onBeforeUnmount para apagar el indicador de cámara del dispositivo.
  */
-export function useCamera({ facingMode = 'environment', maxDimension = 1920, quality = 0.85 } = {}) {
+export function useCamera({ facingMode = 'environment', maxDimension = 1920, quality = 0.92, idealWidth = 2560, idealHeight = 1440 } = {}) {
     const isSupported = typeof window !== 'undefined'
         && !!navigator?.mediaDevices?.getUserMedia;
 
@@ -49,8 +49,15 @@ export function useCamera({ facingMode = 'environment', maxDimension = 1920, qua
         videoEl = el;
 
         try {
+            // Pedimos alta resolución: sin esto el navegador entrega un stream
+            // bajo por defecto (~640×480) y la foto sale borrosa. `ideal` no
+            // falla — el navegador entrega lo más cercano que soporte la cámara.
             stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: facingMode } },
+                video: {
+                    facingMode: { ideal: facingMode },
+                    width: { ideal: idealWidth },
+                    height: { ideal: idealHeight },
+                },
                 audio: false,
             });
         } catch (e) {
