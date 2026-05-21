@@ -72,6 +72,12 @@ const livePayments = computed(() => (props.purchase?.payments || []).filter((p) 
 // Adjuntos
 const downloadUrl = (att) => route(props.routes.adjuntoDownload, { tenant: slug.value, compra: props.purchase.id, attachment: att.id });
 const previewUrl = (att) => route(props.routes.adjuntoPreview, { tenant: slug.value, compra: props.purchase.id, attachment: att.id });
+const isImage = (att) => (att.mime_type || '').startsWith('image/');
+
+// Visor de adjunto (lightbox)
+const viewer = ref(null);
+const openViewer = (att) => { viewer.value = att; };
+const closeViewer = () => { viewer.value = null; };
 
 const deleteAttachment = (att) => {
     if (!confirm(`¿Eliminar adjunto "${att.original_name}"?`)) return;
@@ -203,8 +209,17 @@ const isCancelled = computed(() => props.purchase?.status === 'cancelled');
                         <div v-if="purchase.attachments?.length">
                             <h3 class="mb-2 text-sm font-bold uppercase tracking-wide text-gray-700">Adjuntos</h3>
                             <ul class="space-y-2">
-                                <li v-for="att in purchase.attachments" :key="att.id" class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
-                                    <a :href="previewUrl(att)" target="_blank" class="flex-1 truncate text-orange-700 hover:underline">{{ att.original_name }}</a>
+                                <li v-for="att in purchase.attachments" :key="att.id" class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                                    <button type="button" @click="openViewer(att)" class="shrink-0" :title="`Ver ${att.original_name}`">
+                                        <img v-if="isImage(att)" :src="previewUrl(att)" :alt="att.original_name" loading="lazy"
+                                            class="h-12 w-12 rounded-lg border border-gray-200 object-cover transition hover:opacity-80" />
+                                        <span v-else class="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-400 transition hover:bg-gray-100">
+                                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                            </svg>
+                                        </span>
+                                    </button>
+                                    <button type="button" @click="openViewer(att)" class="flex-1 truncate text-left text-orange-700 hover:underline">{{ att.original_name }}</button>
                                     <span class="text-xs text-gray-500">{{ Math.ceil(att.size_bytes / 1024) }} KB</span>
                                     <a :href="downloadUrl(att)" class="text-xs font-medium text-gray-600 hover:text-gray-900">Descargar</a>
                                     <button v-if="!isCancelled" @click="deleteAttachment(att)" class="text-xs font-medium text-red-600 hover:text-red-800">Eliminar</button>
@@ -249,6 +264,21 @@ const isCancelled = computed(() => props.purchase?.status === 'cancelled');
                                 Cancelar compra
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Visor de adjunto (lightbox) -->
+                <div v-if="viewer" class="fixed inset-0 z-[70] flex flex-col bg-black/80" @click.self="closeViewer">
+                    <div class="flex items-center justify-between gap-3 px-4 py-3 text-white">
+                        <span class="truncate text-sm font-medium">{{ viewer.original_name }}</span>
+                        <div class="flex shrink-0 items-center gap-4">
+                            <a :href="downloadUrl(viewer)" class="text-sm hover:underline">Descargar</a>
+                            <button @click="closeViewer" class="rounded-full bg-white/10 px-3 py-1 text-sm hover:bg-white/20">✕</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-1 items-center justify-center overflow-auto p-4" @click.self="closeViewer">
+                        <img v-if="isImage(viewer)" :src="previewUrl(viewer)" :alt="viewer.original_name" class="max-h-full max-w-full object-contain" />
+                        <iframe v-else :src="previewUrl(viewer)" :title="viewer.original_name" class="h-full w-full rounded bg-white"></iframe>
                     </div>
                 </div>
             </div>
