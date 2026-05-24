@@ -9,3 +9,7 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 Broadcast::channel('sucursal.{branchId}', function ($user, $branchId) {
     return $user->branch_id === (int) $branchId;
 });
+
+Broadcast::channel('agenda.user.{userId}', function ($user, int $userId) {
+    return (int) $user->id === (int) $userId;
+});
