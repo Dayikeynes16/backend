@@ -1,6 +1,7 @@
 <script setup>
 import FlashToast from '@/Components/FlashToast.vue';
 import AgendaItemModal from '@/Components/Agenda/AgendaItemModal.vue';
+import AgendaCapturaIAModal from '@/Components/Agenda/AgendaCapturaIAModal.vue';
 import AgendaCalendar from '@/Components/Agenda/AgendaCalendar.vue';
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
@@ -38,18 +39,32 @@ const tabs = [
 const tab = ref('today');
 const modalOpen = ref(false);
 const editing = ref(null);
+const prefill = ref(null);
+const iaOpen = ref(false);
 
 const openCreate = () => {
     editing.value = null;
+    prefill.value = null;
     modalOpen.value = true;
 };
 const openEdit = (item) => {
     editing.value = item;
+    prefill.value = null;
     modalOpen.value = true;
 };
 const closeModal = () => {
     modalOpen.value = false;
     editing.value = null;
+    prefill.value = null;
+};
+
+// La IA devolvió una propuesta: abrimos el modal de CREAR pre-rellenado. Nada
+// se guarda hasta que el usuario confirme (POST a agenda.store sin cambios).
+const onProposal = (proposal) => {
+    iaOpen.value = false;
+    editing.value = null;
+    prefill.value = proposal;
+    modalOpen.value = true;
 };
 const complete = (item) => router.patch(route('agenda.complete', [props.tenant.slug, item.id]), {}, { preserveScroll: true });
 const remove = (item) => {
@@ -92,7 +107,11 @@ const whatsappUrl = (alert) => {
                         {{ t[1] }}<span v-if="t[0] === 'alerts' && alerts.length" class="ml-1 rounded-full bg-white/30 px-1.5 text-xs">{{ alerts.length }}</span>
                     </button>
                 </div>
-                <button type="button" @click="openCreate" class="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700">+ Nuevo</button>
+                <div class="flex gap-2">
+                    <button type="button" @click="iaOpen = true"
+                        class="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:from-violet-700 hover:to-fuchsia-700">✨ Dictar</button>
+                    <button type="button" @click="openCreate" class="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700">+ Nuevo</button>
+                </div>
             </div>
 
             <!-- HOY -->
@@ -140,7 +159,8 @@ const whatsappUrl = (alert) => {
         </div>
 
         <AgendaItemModal :open="modalOpen" :tenant-slug="tenant.slug" :branches="branches"
-            :assignable-users="assignableUsers" :item="editing" @close="closeModal" />
+            :assignable-users="assignableUsers" :item="editing" :prefill="prefill" @close="closeModal" />
+        <AgendaCapturaIAModal :open="iaOpen" :tenant-slug="tenant.slug" @close="iaOpen = false" @proposal="onProposal" />
         <FlashToast />
     </component>
 </template>

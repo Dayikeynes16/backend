@@ -1,6 +1,6 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
@@ -8,8 +8,13 @@ const props = defineProps({
     branches: { type: Array, default: () => [] },
     assignableUsers: { type: Array, default: () => [] },
     item: { type: Object, default: null }, // null = crear
+    prefill: { type: Object, default: null }, // propuesta IA para pre-rellenar al crear
 });
 const emit = defineEmits(['close']);
+
+// Campos que vinieron de la IA (para marcarlos con ✨ en la UI).
+const aiFields = ref(new Set());
+const fromAi = (field) => aiFields.value.has(field);
 
 const form = useForm({
     type: 'task',
@@ -42,10 +47,41 @@ const toLocalInput = (value) => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+// Aplica una propuesta IA al form (modo crear). Marca los campos que vinieron
+// de la IA y NUNCA toca la asignación (assigned_to_user_id es manual por voz).
+const applyPrefill = (p) => {
+    form.reset();
+    aiFields.value = new Set();
+    const mark = (field, value) => {
+        if (value !== null && value !== undefined && value !== '') {
+            aiFields.value.add(field);
+        }
+    };
+    form.type = p.type ?? 'task';
+    mark('type', p.type);
+    form.title = p.title ?? '';
+    mark('title', p.title);
+    form.body = p.body ?? '';
+    mark('body', p.body);
+    form.scope = p.scope ?? 'personal';
+    mark('scope', p.scope);
+    form.starts_at = toLocalInput(p.starts_at);
+    mark('starts_at', form.starts_at);
+    form.ends_at = toLocalInput(p.ends_at);
+    mark('ends_at', form.ends_at);
+    form.remind_at = toLocalInput(p.remind_at);
+    mark('remind_at', form.remind_at);
+    form.recurrence = p.recurrence ?? 'none';
+    mark('recurrence', p.recurrence && p.recurrence !== 'none' ? p.recurrence : null);
+    form.priority = p.priority ?? 'normal';
+    mark('priority', p.priority);
+};
+
 watch(
     () => props.open,
     (v) => {
         form.clearErrors();
+        aiFields.value = new Set();
         if (v && props.item) {
             form.type = props.item.type ?? 'task';
             form.title = props.item.title ?? '';
@@ -60,6 +96,8 @@ watch(
             form.priority = props.item.priority ?? 'normal';
             form.recurrence = props.item.recurrence ?? 'none';
             form.recurrence_until = props.item.recurrence_until ?? '';
+        } else if (v && props.prefill) {
+            applyPrefill(props.prefill);
         } else if (v) {
             form.reset();
         }
@@ -105,6 +143,9 @@ const submit = () => {
                     </header>
 
                     <form @submit.prevent="submit" class="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+                        <div v-if="aiFields.size" class="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-50 to-fuchsia-50 px-3 py-2 text-xs font-medium text-violet-800">
+                            <span>✨ Lo pre-rellenó la IA. Revisa y ajusta antes de guardar.</span>
+                        </div>
                         <div class="flex gap-2">
                             <button v-for="t in types" :key="t[0]" type="button"
                                 @click="form.type = t[0]"
@@ -114,7 +155,7 @@ const submit = () => {
                         </div>
 
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Título <span class="text-red-600">*</span></label>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Título <span class="text-red-600">*</span><span v-if="fromAi('title')" class="ml-1 text-violet-500" title="Sugerido por IA">✨</span></label>
                             <input v-model="form.title" type="text" maxlength="160" placeholder="Ej. Pagar al proveedor"
                                 class="w-full rounded-xl border-gray-300 text-sm focus:border-red-500 focus:ring-red-500" />
                             <p v-if="form.errors.title" class="mt-1 text-xs text-red-600">{{ form.errors.title }}</p>
