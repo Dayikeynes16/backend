@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
+use App\Http\Controllers\Agenda\AgendaController;
 use App\Http\Controllers\Ai\CategoryDraftController as AiCategoryDraftController;
 use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
 use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController;
@@ -468,6 +469,21 @@ Route::prefix('{tenant}')
                 Route::post('compras/ia/borrador', [AiPurchaseDraftController::class, 'store'])->name('compras.ia.store');
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
+            });
+
+        // Agenda (compartida por los 4 roles bajo /{tenant}/agenda)
+        Route::middleware('role:admin-empresa|admin-sucursal|cajero|superadmin')
+            ->prefix('agenda')
+            ->name('agenda.')
+            ->group(function () {
+                Route::get('/', [AgendaController::class, 'index'])->name('index');
+                Route::get('calendario', [AgendaController::class, 'calendar'])->name('calendar');
+                Route::get('alertas', [AgendaController::class, 'alerts'])->name('alerts');
+                Route::post('/', [AgendaController::class, 'store'])->name('store');
+                Route::put('{item}', [AgendaController::class, 'update'])->name('update');
+                Route::patch('{item}/completar', [AgendaController::class, 'complete'])->name('complete');
+                Route::delete('{item}', [AgendaController::class, 'destroy'])->name('destroy');
+                Route::get('{item}/ics', [AgendaController::class, 'ics'])->name('ics');
             });
     });
 
