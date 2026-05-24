@@ -1,5 +1,6 @@
 <script setup>
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
+import AgendaTodayWidget from '@/Components/Agenda/AgendaTodayWidget.vue';
 import DashboardOverview from '@/Components/Dashboard/DashboardOverview.vue';
 import DatePicker from '@/Components/DatePicker.vue';
 import StatusFilterChips from '@/Components/Metrics/StatusFilterChips.vue';
@@ -78,6 +79,8 @@ watch(statuses, navigate, { deep: true });
                 </div>
             </div>
         </template>
+
+        <AgendaTodayWidget class="mb-6" :tenant-slug="tenant.slug" />
 
         <DashboardOverview
             context="empresa"

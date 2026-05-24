@@ -1,5 +1,6 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import AgendaTodayWidget from '@/Components/Agenda/AgendaTodayWidget.vue';
 import DashboardOverview from '@/Components/Dashboard/DashboardOverview.vue';
 import DatePicker from '@/Components/DatePicker.vue';
 import StatusFilterChips from '@/Components/Metrics/StatusFilterChips.vue';
@@ -68,6 +69,8 @@ watch(statuses, reload, { deep: true });
                 <!-- El chip "Admin Sucursal" lo pinta SucursalLayout en el header global; no se duplica aquí. -->
             </div>
         </template>
+
+        <AgendaTodayWidget class="mb-6" :tenant-slug="tenant.slug" />
 
         <DashboardOverview
             context="sucursal"

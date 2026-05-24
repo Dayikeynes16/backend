@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AgendaTodayWidget from '@/Components/Agenda/AgendaTodayWidget.vue';
 import { Head, Link } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -35,6 +36,8 @@ const formatTime = (iso) => {
 
         <div class="py-6">
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8 space-y-6">
+                <AgendaTodayWidget :tenant-slug="tenant.slug" />
+
                 <!-- Stats cards -->
                 <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
                     <div class="rounded-lg bg-white p-5 shadow-sm">
