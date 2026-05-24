@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
 use App\Http\Controllers\Agenda\AgendaController;
+use App\Http\Controllers\Ai\AgendaDraftController as AiAgendaDraftController;
 use App\Http\Controllers\Ai\CategoryDraftController as AiCategoryDraftController;
 use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
 use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController;
@@ -480,6 +481,7 @@ Route::prefix('{tenant}')
                 Route::get('calendario', [AgendaController::class, 'calendar'])->name('calendar');
                 Route::get('alertas', [AgendaController::class, 'alerts'])->name('alerts');
                 Route::post('/', [AgendaController::class, 'store'])->name('store');
+                Route::post('ia/borrador', [AiAgendaDraftController::class, 'store'])->name('ia.store');
                 Route::put('{item}', [AgendaController::class, 'update'])->name('update');
                 Route::patch('{item}/completar', [AgendaController::class, 'complete'])->name('complete');
                 Route::delete('{item}', [AgendaController::class, 'destroy'])->name('destroy');
