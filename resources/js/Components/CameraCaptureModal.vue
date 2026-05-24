@@ -119,6 +119,14 @@ const switchCamera = (deviceId) => {
     start(deviceId);
 };
 
+// Alterna a la siguiente cámara disponible (frontal ↔ trasera, o rota si hay más).
+const cycleCamera = () => {
+    if (devices.value.length < 2) return;
+    const idx = devices.value.findIndex(d => d.deviceId === currentDeviceId.value);
+    const next = devices.value[(idx + 1) % devices.value.length];
+    switchCamera(next.deviceId);
+};
+
 const shoot = () => {
     if (!video.value || !stream.value) return;
     const w = video.value.videoWidth;
@@ -173,15 +181,6 @@ onBeforeUnmount(() => {
                     <!-- Header -->
                     <div class="flex items-center justify-between gap-3 px-5 py-3.5">
                         <h3 class="shrink-0 text-sm font-bold text-white">Tomar foto</h3>
-
-                        <!-- Selector de cámara (solo si hay más de una) -->
-                        <div v-if="devices.length > 1 && !captured && !error" class="relative min-w-0 flex-1">
-                            <select :value="currentDeviceId" @change="switchCamera($event.target.value)"
-                                class="w-full truncate rounded-lg border-0 bg-white/10 py-1.5 pl-3 pr-8 text-xs font-medium text-white focus:ring-2 focus:ring-white/40">
-                                <option v-for="d in devices" :key="d.deviceId" :value="d.deviceId" class="text-gray-900">{{ d.label }}</option>
-                            </select>
-                        </div>
-
                         <button @click="close" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-white/10 hover:text-white">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                         </button>
@@ -189,6 +188,13 @@ onBeforeUnmount(() => {
 
                     <!-- Viewport -->
                     <div class="relative flex aspect-video items-center justify-center bg-black">
+                        <!-- Botón circular: alternar cámara (frontal ↔ trasera) -->
+                        <button v-if="devices.length > 1 && !captured && !error" @click="cycleCamera" :disabled="starting"
+                            class="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur transition hover:bg-black/70 disabled:opacity-40"
+                            title="Cambiar cámara">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+                        </button>
+
                         <!-- Error -->
                         <div v-if="error" class="px-8 text-center">
                             <svg class="mx-auto h-10 w-10 text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>
