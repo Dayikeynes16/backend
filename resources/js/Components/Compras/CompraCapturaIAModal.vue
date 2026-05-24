@@ -3,6 +3,8 @@ import { useAudioRecorder } from '@/composables/useAudioRecorder';
 import { usePurchaseAiDraft } from '@/composables/usePurchaseAiDraft';
 import { computed, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+import CameraCaptureModal from '@/Components/CameraCaptureModal.vue';
+import { isMobileDevice } from '@/utils/device';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
@@ -43,6 +45,20 @@ const onCameraFile = (e) => {
         files.value = [...files.value, ...picked].slice(0, 5);
     }
     e.target.value = '';
+};
+
+// "Tomar foto": móvil → cámara nativa (input capture); desktop → webcam (getUserMedia).
+const cameraInput = ref(null);
+const cameraModalOpen = ref(false);
+const onTakePhoto = () => {
+    if (isMobileDevice()) {
+        cameraInput.value?.click();
+    } else {
+        cameraModalOpen.value = true;
+    }
+};
+const onCameraCapture = (file) => {
+    files.value = [...files.value, file].slice(0, 5);
 };
 
 const recordTimeLabel = computed(() => {
@@ -113,15 +129,15 @@ const close = () => { emit('close'); };
                             <label class="mb-1 block text-sm font-medium text-gray-700">Foto / PDF de la factura (hasta 5)</label>
                             <input type="file" multiple accept="image/jpeg,image/png,image/webp" @change="onFiles" :disabled="loading"
                                 class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-700 hover:file:bg-violet-100" />
-                            <label class="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
-                                :class="{ 'pointer-events-none opacity-50': loading || files.length >= 5 }">
+                            <button type="button" @click="onTakePhoto" :disabled="loading || files.length >= 5"
+                                class="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:pointer-events-none disabled:opacity-50">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
                                 </svg>
                                 Tomar foto
-                                <input type="file" accept="image/*" capture="environment" @change="onCameraFile" class="hidden" :disabled="loading || files.length >= 5" />
-                            </label>
+                            </button>
+                            <input ref="cameraInput" type="file" accept="image/*" capture="environment" @change="onCameraFile" class="hidden" :disabled="loading || files.length >= 5" />
                             <p class="mt-1 text-xs text-gray-500">jpg/png/webp · 5 MB c/u. PDFs no procesa GPT-4o aún.</p>
                             <ul v-if="filesPreview.length" class="mt-2 space-y-1">
                                 <li v-for="f in filesPreview" :key="f.index" class="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-xs">
@@ -180,4 +196,7 @@ const close = () => { emit('close'); };
             </div>
         </Transition>
     </Teleport>
+
+    <!-- Webcam (desktop): captura con getUserMedia cuando `capture` no aplica -->
+    <CameraCaptureModal v-model:open="cameraModalOpen" @capture="onCameraCapture" />
 </template>

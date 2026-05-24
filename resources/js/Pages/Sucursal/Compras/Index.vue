@@ -155,6 +155,7 @@ const iaRoutes = { iaStore: 'sucursal.compras.ia.store' };
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Folio</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Fecha</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Proveedor</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Registrado por</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Total</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Pendiente</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Pago</th>
@@ -169,6 +170,7 @@ const iaRoutes = { iaStore: 'sucursal.compras.ia.store' };
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">{{ fmtDate(p.purchased_at) }}</td>
                             <td class="px-4 py-3 text-sm text-gray-700">{{ p.provider?.name || '—' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">{{ p.creator?.name || '—' }}</td>
                             <td class="px-4 py-3 text-right text-sm font-semibold text-gray-900">{{ fmt(p.total) }}</td>
                             <td class="px-4 py-3 text-right text-sm font-medium" :class="p.amount_pending > 0 ? 'text-amber-700' : 'text-gray-400'">
                                 {{ p.amount_pending > 0 ? fmt(p.amount_pending) : '—' }}
@@ -186,7 +188,7 @@ const iaRoutes = { iaStore: 'sucursal.compras.ia.store' };
                             </td>
                         </tr>
                         <tr v-if="!purchases.length">
-                            <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
+                            <td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">
                                 Sin compras aún. <button @click="openCreate" class="font-semibold text-orange-700 hover:underline">Registra la primera</button>.
                             </td>
                         </tr>

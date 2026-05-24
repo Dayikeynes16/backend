@@ -4,8 +4,12 @@ import FlashToast from '@/Components/FlashToast.vue';
 import CajaGastoModal from '@/Components/Caja/CajaGastoModal.vue';
 import CompraFormModal from '@/Components/Compras/CompraFormModal.vue';
 import CompraCapturaIAModal from '@/Components/Compras/CompraCapturaIAModal.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
+
+const page = usePage();
+const expensesEnabled = computed(() => page.props.auth.branch?.cashier_expenses_enabled ?? false);
+const purchasesEnabled = computed(() => page.props.auth.branch?.cashier_purchases_enabled ?? false);
 
 const props = defineProps({
     shift: Object,
@@ -177,9 +181,9 @@ const colorMap = {
                         <span>Fondo: <span class="font-semibold text-gray-600">${{ parseFloat(shift.opening_amount).toFixed(2) }}</span></span>
                         <span>Retiros: <span class="font-semibold text-red-500">-${{ totals.withdrawals.toFixed(2) }}</span></span>
                         <span>Gastos: <span class="font-semibold text-red-500">-${{ (totals.cash_expenses ?? 0).toFixed(2) }}</span></span>
-                        <button type="button" @click="gastoOpen = true" class="font-semibold text-red-600 hover:text-red-700">+ Gasto en efectivo</button>
-                        <button type="button" @click="compraOpen = true" class="font-semibold text-red-600 hover:text-red-700">+ Compra en efectivo</button>
-                        <button type="button" @click="compraIaOpen = true" class="font-semibold text-violet-600 hover:text-violet-700">+ Compra con IA</button>
+                        <button v-if="expensesEnabled" type="button" @click="gastoOpen = true" class="font-semibold text-red-600 hover:text-red-700">+ Gasto en efectivo</button>
+                        <button v-if="purchasesEnabled" type="button" @click="compraOpen = true" class="font-semibold text-red-600 hover:text-red-700">+ Compra en efectivo</button>
+                        <button v-if="purchasesEnabled" type="button" @click="compraIaOpen = true" class="font-semibold text-violet-600 hover:text-violet-700">+ Compra con IA</button>
                     </div>
                     <p class="text-sm font-bold text-gray-900">Total: <span class="font-mono tabular-nums">${{ totals.total.toFixed(2) }}</span></p>
                 </div>

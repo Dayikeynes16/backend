@@ -3,8 +3,10 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import DateField from '@/Components/DateField.vue';
 import AttachmentViewerModal from '@/Components/Gastos/AttachmentViewerModal.vue';
+import CameraCaptureModal from '@/Components/CameraCaptureModal.vue';
 import { useExpenseAiDraft } from '@/composables/useExpenseAiDraft';
 import { localToday } from '@/utils/date';
+import { isMobileDevice } from '@/utils/device';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -210,6 +212,17 @@ const onFileSelect = (e) => {
     e.target.value = '';
 };
 
+// "Tomar foto": móvil → cámara nativa (input capture); desktop → webcam (getUserMedia).
+const cameraModalOpen = ref(false);
+const onTakePhoto = () => {
+    if (isMobileDevice()) {
+        cameraInput.value?.click();
+    } else {
+        cameraModalOpen.value = true;
+    }
+};
+const onCameraCapture = (file) => addFiles([file]);
+
 const removeNewFile = (i) => {
     const file = newFiles.value[i];
     const url = newFilePreviews.value.get(file);
@@ -400,14 +413,14 @@ const isImageMime = (mime) => mime?.startsWith('image/');
 
                                 <!-- Triggers: cámara + archivo -->
                                 <div v-if="remainingSlots > 0" class="grid grid-cols-2 gap-2">
-                                    <label class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-red-200 bg-red-50/40 px-4 py-3 text-center transition hover:border-red-400 hover:bg-red-50">
+                                    <button type="button" @click="onTakePhoto"
+                                        class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-red-200 bg-red-50/40 px-4 py-3 text-center transition hover:border-red-400 hover:bg-red-50">
                                         <svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
                                         </svg>
                                         <span class="text-sm font-semibold text-red-700">Tomar foto</span>
-                                        <input ref="cameraInput" type="file" accept="image/*" capture="environment" @change="onFileSelect" class="hidden" />
-                                    </label>
+                                    </button>
                                     <label class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 px-4 py-3 text-center transition hover:border-gray-300 hover:bg-gray-50">
                                         <svg class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
@@ -416,6 +429,7 @@ const isImageMime = (mime) => mime?.startsWith('image/');
                                         <input ref="fileInput" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" @change="onFileSelect" class="hidden" />
                                     </label>
                                 </div>
+                                <input ref="cameraInput" type="file" accept="image/*" capture="environment" @change="onFileSelect" class="hidden" />
 
                                 <!-- Grid de miniaturas (existentes + nuevas) -->
                                 <div v-if="totalAttachments > 0" class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -588,4 +602,7 @@ const isImageMime = (mime) => mime?.startsWith('image/');
             :download-url="downloadUrlBuilder"
             @close="viewerOpen = false" />
     </Teleport>
+
+    <!-- Webcam (desktop): captura con getUserMedia cuando `capture` no aplica -->
+    <CameraCaptureModal v-model:open="cameraModalOpen" @capture="onCameraCapture" />
 </template>

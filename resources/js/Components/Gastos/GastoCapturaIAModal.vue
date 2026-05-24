@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useExpenseAiDraft } from '@/composables/useExpenseAiDraft';
 import { useAudioRecorder } from '@/composables/useAudioRecorder';
+import CameraCaptureModal from '@/Components/CameraCaptureModal.vue';
+import { isMobileDevice } from '@/utils/device';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -97,6 +99,18 @@ const onFileSelect = (e) => {
     addFiles(Array.from(e.target.files || []));
     e.target.value = '';
 };
+
+// "Tomar foto": en móvil usa la cámara nativa (input capture); en desktop,
+// donde `capture` se ignora, abre la webcam vía getUserMedia.
+const cameraModalOpen = ref(false);
+const onTakePhoto = () => {
+    if (isMobileDevice()) {
+        cameraInput.value?.click();
+    } else {
+        cameraModalOpen.value = true;
+    }
+};
+const onCameraCapture = (file) => addFiles([file]);
 
 const removeFile = (i) => {
     const f = files.value[i];
@@ -216,15 +230,14 @@ const analyze = async () => {
                                 </div>
 
                                 <div v-if="remainingSlots > 0" class="grid grid-cols-2 gap-2">
-                                    <label class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/40 px-4 py-3 text-center transition hover:border-violet-400 hover:bg-violet-50"
-                                        :class="{ 'pointer-events-none opacity-50': loading }">
+                                    <button type="button" @click="onTakePhoto" :disabled="loading"
+                                        class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/40 px-4 py-3 text-center transition hover:border-violet-400 hover:bg-violet-50 disabled:pointer-events-none disabled:opacity-50">
                                         <svg class="h-5 w-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
                                         </svg>
                                         <span class="text-sm font-semibold text-violet-700">Tomar foto</span>
-                                        <input ref="cameraInput" type="file" accept="image/*" capture="environment" @change="onFileSelect" class="hidden" />
-                                    </label>
+                                    </button>
                                     <label class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 px-4 py-3 text-center transition hover:border-gray-300 hover:bg-gray-50"
                                         :class="{ 'pointer-events-none opacity-50': loading }">
                                         <svg class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
@@ -234,6 +247,7 @@ const analyze = async () => {
                                         <input ref="fileInput" type="file" multiple accept="image/jpeg,image/png,image/webp" @change="onFileSelect" class="hidden" />
                                     </label>
                                 </div>
+                                <input ref="cameraInput" type="file" accept="image/*" capture="environment" @change="onFileSelect" class="hidden" />
 
                                 <div v-if="files.length > 0" class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
                                     <div v-for="(f, i) in files" :key="i" class="group relative aspect-square overflow-hidden rounded-xl bg-violet-50 ring-1 ring-violet-200">
@@ -287,4 +301,7 @@ const analyze = async () => {
             </div>
         </Transition>
     </Teleport>
+
+    <!-- Webcam (desktop): captura con getUserMedia cuando `capture` no aplica -->
+    <CameraCaptureModal v-model:open="cameraModalOpen" @capture="onCameraCapture" />
 </template>

@@ -121,6 +121,8 @@ class SucursalController extends Controller
             'online_ordering_enabled' => 'sometimes|boolean',
             'delivery_enabled' => 'sometimes|boolean',
             'pickup_enabled' => 'sometimes|boolean',
+            'cashier_expenses_enabled' => 'sometimes|boolean',
+            'cashier_purchases_enabled' => 'sometimes|boolean',
             'delivery_tiers' => 'nullable|array',
             'delivery_tiers.*.max_km' => 'required_with:delivery_tiers|numeric|gt:0',
             'delivery_tiers.*.fee' => 'required_with:delivery_tiers|numeric|min:0',

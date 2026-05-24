@@ -34,7 +34,7 @@ class PurchaseController extends Controller
         }
 
         $query = Purchase::query()->with([
-            'provider:id,name', 'branch:id,name',
+            'provider:id,name', 'branch:id,name', 'creator:id,name',
             'items', 'attachments', 'payments',
         ]);
         $query = $this->applyBranchScopeToQuery($query);

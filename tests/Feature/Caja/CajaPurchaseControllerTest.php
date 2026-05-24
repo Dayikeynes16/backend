@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Caja;
 
+use App\Enums\PurchaseStatus;
 use App\Models\CashRegisterShift;
 use App\Models\Provider;
 use App\Models\Purchase;
@@ -83,6 +84,57 @@ class CajaPurchaseControllerTest extends TestCase
     {
         $this->actingAs($this->cajero);
         $this->post(route('caja.compras.store', $this->tenant->slug), $this->payload(200))->assertStatus(422);
+        $this->assertSame(0, Purchase::count());
+    }
+
+    private function makePurchase(int $userId, string $folio): Purchase
+    {
+        return Purchase::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'provider_id' => Provider::create(['name' => 'Prov '.$folio, 'type' => 'mayorista_carne'])->id,
+            'folio' => $folio,
+            'purchased_at' => now(),
+            'status' => PurchaseStatus::Received->value,
+            'subtotal' => 100,
+            'total' => 100,
+            'amount_paid' => 100,
+            'amount_pending' => 0,
+            'created_by' => $userId,
+        ]);
+    }
+
+    public function test_index_shows_only_the_cajeros_own_purchases(): void
+    {
+        $this->makePurchase($this->cajero->id, 'MÍA-1');
+
+        $otroCajero = $this->makeUser('caja2@test.local', 'cajero', $this->branch->id);
+        $this->makePurchase($otroCajero->id, 'AJENA-1');
+
+        $this->actingAs($this->cajero)
+            ->get(route('caja.compras.index', $this->tenant->slug))
+            ->assertInertia(fn ($page) => $page
+                ->component('Caja/Compras/Index')
+                ->has('purchases.data', 1)
+                ->where('purchases.data.0.folio', 'MÍA-1'));
+    }
+
+    public function test_index_forbidden_when_purchases_disabled_for_branch(): void
+    {
+        $this->branch->update(['cashier_purchases_enabled' => false]);
+
+        $this->actingAs($this->cajero)
+            ->get(route('caja.compras.index', $this->tenant->slug))
+            ->assertForbidden();
+    }
+
+    public function test_store_forbidden_when_purchases_disabled_for_branch(): void
+    {
+        $this->branch->update(['cashier_purchases_enabled' => false]);
+        $this->openShift();
+
+        $this->actingAs($this->cajero);
+        $this->post(route('caja.compras.store', $this->tenant->slug), $this->payload(200))->assertForbidden();
         $this->assertSame(0, Purchase::count());
     }
 }

@@ -34,6 +34,8 @@ const form = useForm({
     public_phone: props.sucursal.public_phone || '',
     hours: initialHours,
     sale_item_edit_reason_mode: props.sucursal.sale_item_edit_reason_mode || 'optional',
+    cashier_expenses_enabled: props.sucursal.cashier_expenses_enabled !== undefined ? !!props.sucursal.cashier_expenses_enabled : true,
+    cashier_purchases_enabled: props.sucursal.cashier_purchases_enabled !== undefined ? !!props.sucursal.cashier_purchases_enabled : true,
 });
 
 const submit = () => form.put(route('empresa.sucursales.update', [props.tenant.slug, props.sucursal.id]));
@@ -290,6 +292,42 @@ const copyMenuUrl = async () => {
                         </label>
                     </div>
                     <InputError :message="form.errors.sale_item_edit_reason_mode" class="mt-1" />
+                </div>
+            </section>
+
+            <!-- Permisos del cajero -->
+            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Permisos del cajero</h2>
+                    <p class="mt-1 text-sm text-gray-500">Controla qué puede registrar el cajero desde la caja. El pago en efectivo de gastos y compras sale del cajón y afecta su corte de turno.</p>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    <div class="flex items-start justify-between gap-4 px-6 py-5">
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Registrar gastos</p>
+                            <p class="mt-0.5 text-xs text-gray-500">Muestra el módulo de Gastos al cajero y permite registrar gastos en efectivo durante su turno.</p>
+                        </div>
+                        <label class="inline-flex shrink-0 cursor-pointer items-center gap-2">
+                            <input type="checkbox" v-model="form.cashier_expenses_enabled" class="peer sr-only" />
+                            <div class="relative h-6 w-11 rounded-full bg-gray-200 transition peer-checked:bg-red-600">
+                                <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">{{ form.cashier_expenses_enabled ? 'Activo' : 'Inactivo' }}</span>
+                        </label>
+                    </div>
+                    <div class="flex items-start justify-between gap-4 px-6 py-5">
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Registrar compras</p>
+                            <p class="mt-0.5 text-xs text-gray-500">Muestra el módulo de Compras al cajero y permite registrar compras pagadas en efectivo durante su turno.</p>
+                        </div>
+                        <label class="inline-flex shrink-0 cursor-pointer items-center gap-2">
+                            <input type="checkbox" v-model="form.cashier_purchases_enabled" class="peer sr-only" />
+                            <div class="relative h-6 w-11 rounded-full bg-gray-200 transition peer-checked:bg-red-600">
+                                <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">{{ form.cashier_purchases_enabled ? 'Activo' : 'Inactivo' }}</span>
+                        </label>
+                    </div>
                 </div>
             </section>
 

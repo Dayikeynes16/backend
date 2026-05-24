@@ -7,9 +7,9 @@ use App\Http\Controllers\Ai\CategoryDraftController as AiCategoryDraftController
 use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
 use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
+use App\Http\Controllers\Caja\GastoController as CajaGastoController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
-use App\Http\Controllers\Caja\GastoController as CajaGastoController;
 use App\Http\Controllers\Caja\PurchaseController as CajaPurchaseController;
 use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
@@ -31,9 +31,9 @@ use App\Http\Controllers\Empresa\Metrics\ShiftMetricsController as EmpresaShiftM
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\PersonalizacionController;
 use App\Http\Controllers\Empresa\ProviderController as EmpresaProviderController;
-use App\Http\Controllers\Empresa\PurchaseProductController as EmpresaPurchaseProductController;
 use App\Http\Controllers\Empresa\ProviderPaymentController as EmpresaProviderPaymentController;
 use App\Http\Controllers\Empresa\PurchaseController as EmpresaPurchaseController;
+use App\Http\Controllers\Empresa\PurchaseProductController as EmpresaPurchaseProductController;
 use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\TicketConfigController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
@@ -460,7 +460,10 @@ Route::prefix('{tenant}')
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');
                 Route::get('turno/corte/{shift}', [CajaTurnoController::class, 'showCorte'])->name('turno.corte');
+                Route::get('gastos', [CajaGastoController::class, 'index'])->name('gastos.index');
                 Route::post('gastos', [CajaGastoController::class, 'store'])->name('gastos.store');
+                Route::post('gastos/ia/borrador', [AiExpenseDraftController::class, 'store'])->name('gastos.ia.store');
+                Route::get('compras', [CajaPurchaseController::class, 'index'])->name('compras.index');
                 Route::post('compras', [CajaPurchaseController::class, 'store'])->name('compras.store');
                 Route::post('compras/ia/borrador', [AiPurchaseDraftController::class, 'store'])->name('compras.ia.store');
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');

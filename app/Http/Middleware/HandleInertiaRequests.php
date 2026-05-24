@@ -46,6 +46,8 @@ class HandleInertiaRequests extends Middleware
                 'branch' => $branch ? [
                     'id' => $branch->id,
                     'name' => $branch->name,
+                    'cashier_expenses_enabled' => (bool) $branch->cashier_expenses_enabled,
+                    'cashier_purchases_enabled' => (bool) $branch->cashier_purchases_enabled,
                 ] : null,
             ],
             'flash' => [
