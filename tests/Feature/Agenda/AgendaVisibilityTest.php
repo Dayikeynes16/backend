@@ -55,4 +55,18 @@ class AgendaVisibilityTest extends TestCase
         $this->assertFalse($ids->contains($other->id));
         $this->assertFalse($ids->contains($personalOther->id));
     }
+
+    public function test_only_company_admin_creates_company_scope(): void
+    {
+        $this->assertTrue($this->adminEmpresa->can('createScope', [AgendaItem::class, 'company']));
+        $this->assertFalse($this->adminSucursal->can('createScope', [AgendaItem::class, 'company']));
+        $this->assertTrue($this->adminSucursal->can('createScope', [AgendaItem::class, 'personal']));
+    }
+
+    public function test_cannot_update_others_personal_item(): void
+    {
+        $item = $this->make(['scope' => 'personal', 'user_id' => $this->adminEmpresa->id]);
+        $this->assertFalse($this->cajero->can('update', $item));
+        $this->assertTrue($this->adminEmpresa->can('update', $item));
+    }
 }
