@@ -18,10 +18,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'tenant_id', 'type', 'title', 'body', 'scope', 'branch_id', 'user_id',
     'assigned_to_user_id', 'starts_at', 'ends_at', 'all_day', 'remind_at',
     'completed_at', 'priority', 'recurrence', 'recurrence_until',
+    'cancelled_at', 'cancel_reason', 'reminder_seen_at',
 ])]
 class AgendaItem extends Model
 {
     use BelongsToTenant, HasFactory, SoftDeletes;
+
+    /** @var array<int, string> */
+    protected $appends = ['state'];
 
     protected function casts(): array
     {
@@ -34,6 +38,8 @@ class AgendaItem extends Model
             'ends_at' => 'datetime',
             'remind_at' => 'datetime',
             'completed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'reminder_seen_at' => 'datetime',
             'recurrence_until' => 'date',
             'all_day' => 'boolean',
         ];
@@ -80,5 +86,44 @@ class AgendaItem extends Model
                 });
             }
         });
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereNull('completed_at')->whereNull('cancelled_at');
+    }
+
+    public function scopeOverdue(Builder $query): Builder
+    {
+        return $query->active()->whereNotNull('starts_at')->where('starts_at', '<', now());
+    }
+
+    public function scopePending(Builder $query): Builder
+    {
+        return $query->active()->where(function (Builder $q) {
+            $q->whereNull('starts_at')->orWhere('starts_at', '>=', now());
+        });
+    }
+
+    public function scopeHistory(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereNotNull('completed_at')->orWhereNotNull('cancelled_at');
+        });
+    }
+
+    public function getStateAttribute(): string
+    {
+        if ($this->completed_at) {
+            return 'completed';
+        }
+        if ($this->cancelled_at) {
+            return 'cancelled';
+        }
+        if ($this->starts_at && $this->starts_at->isPast()) {
+            return 'overdue';
+        }
+
+        return 'pending';
     }
 }
