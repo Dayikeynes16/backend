@@ -7,11 +7,13 @@ import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
+    overdue: { type: Array, default: () => [] },
     today: { type: Array, default: () => [] },
     upcoming: { type: Array, default: () => [] },
+    notes: { type: Array, default: () => [] },
     alerts: { type: Array, default: () => [] },
     branches: { type: Array, default: () => [] },
     assignableUsers: { type: Array, default: () => [] },
@@ -34,6 +36,7 @@ const tabs = [
     ['today', 'Hoy'],
     ['calendar', 'Calendario'],
     ['alerts', 'Alertas'],
+    ['completed', 'Completadas'],
 ];
 
 const tab = ref('today');
@@ -71,6 +74,21 @@ const remove = (item) => {
     if (!confirm('¿Eliminar de la agenda?')) return;
     router.delete(route('agenda.destroy', [props.tenant.slug, item.id]), { preserveScroll: true });
 };
+const cancelItem = (item) => {
+    const reason = prompt('Motivo de cancelación (opcional):') ?? '';
+    router.patch(route('agenda.cancel', [props.tenant.slug, item.id]), { cancel_reason: reason }, { preserveScroll: true });
+};
+const snoozeItem = (item, minutes) => router.patch(route('agenda.snooze', [props.tenant.slug, item.id]), { minutes }, { preserveScroll: true });
+
+// Completadas (lazy): solo se piden al abrir la pestaña.
+const completedItems = ref([]);
+const loadCompleted = async () => {
+    const res = await fetch(route('agenda.completadas', props.tenant.slug), { headers: { Accept: 'application/json' } });
+    completedItems.value = (await res.json()).items.data;
+};
+watch(tab, (t) => {
+    if (t === 'completed' && !completedItems.value.length) loadCompleted();
+});
 
 const formatDateTime = (iso) => new Date(iso).toLocaleString('es-MX', {
     timeZone: 'America/Mexico_City',
@@ -116,6 +134,24 @@ const whatsappUrl = (alert) => {
 
             <!-- HOY -->
             <div v-if="tab === 'today'" class="space-y-4">
+                <!-- ATRASADAS -->
+                <div v-if="overdue.length" class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-red-200">
+                    <p class="mb-2 text-xs font-bold uppercase tracking-wider text-red-500">Atrasadas</p>
+                    <div v-for="it in overdue" :key="it.id" class="flex items-center gap-3 border-b border-gray-50 py-2 last:border-0">
+                        <span class="h-2 w-2 shrink-0 rounded-full bg-red-500"></span>
+                        <button v-if="it.type === 'task'" type="button" @click="complete(it)"
+                            class="h-5 w-5 shrink-0 rounded-full border-2 border-red-300 hover:border-red-600" title="Marcar como hecho"></button>
+                        <button type="button" @click="openEdit(it)" class="min-w-0 flex-1 text-left">
+                            <p class="truncate text-sm font-semibold text-gray-900">{{ it.title }}</p>
+                            <p v-if="it.starts_at" class="text-xs text-red-400">{{ formatDateTime(it.starts_at) }}</p>
+                        </button>
+                        <button type="button" @click="snoozeItem(it, 30)" class="text-xs font-semibold text-gray-400 hover:text-gray-700" title="Posponer 30 min">+30m</button>
+                        <button type="button" @click="cancelItem(it)" class="text-xs font-medium text-gray-400 hover:text-amber-600" title="Cancelar">Cancelar</button>
+                        <a :href="route('agenda.ics', [tenant.slug, it.id])" class="text-xs font-medium text-gray-400 hover:text-gray-700" title="Descargar .ics">📅</a>
+                        <button type="button" @click="remove(it)" class="text-xs text-gray-300 hover:text-red-600" title="Eliminar">✕</button>
+                    </div>
+                </div>
+
                 <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
                     <p class="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">Hoy y pendiente</p>
                     <p v-if="!today.length" class="py-6 text-center text-sm text-gray-400">Nada pendiente. 🎉</p>
@@ -126,6 +162,7 @@ const whatsappUrl = (alert) => {
                             <p class="truncate text-sm font-semibold text-gray-900">{{ it.title }}</p>
                             <p v-if="it.starts_at" class="text-xs text-gray-400">{{ formatDateTime(it.starts_at) }}</p>
                         </button>
+                        <button type="button" @click="cancelItem(it)" class="text-xs font-medium text-gray-300 hover:text-amber-600" title="Cancelar">Cancelar</button>
                         <a :href="route('agenda.ics', [tenant.slug, it.id])" class="text-xs font-medium text-gray-400 hover:text-gray-700" title="Descargar .ics">📅</a>
                         <button type="button" @click="remove(it)" class="text-xs text-gray-300 hover:text-red-600" title="Eliminar">✕</button>
                     </div>
@@ -137,13 +174,25 @@ const whatsappUrl = (alert) => {
                         <span class="text-xs text-gray-400">{{ formatShort(it.starts_at) }}</span>
                     </div>
                 </div>
+                <!-- NOTAS -->
+                <div v-if="notes.length" class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
+                    <p class="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">Notas</p>
+                    <div v-for="it in notes" :key="it.id" class="flex items-center gap-3 border-b border-gray-50 py-2 last:border-0">
+                        <span class="h-2 w-2 shrink-0 rounded-full bg-amber-400"></span>
+                        <button type="button" @click="openEdit(it)" class="min-w-0 flex-1 text-left">
+                            <p class="truncate text-sm font-semibold text-gray-900">{{ it.title }}</p>
+                            <p v-if="it.body" class="truncate text-xs text-gray-400">{{ it.body }}</p>
+                        </button>
+                        <button type="button" @click="remove(it)" class="text-xs text-gray-300 hover:text-red-600" title="Eliminar">✕</button>
+                    </div>
+                </div>
             </div>
 
             <!-- CALENDARIO -->
             <AgendaCalendar v-else-if="tab === 'calendar'" :tenant-slug="tenant.slug" />
 
             <!-- ALERTAS -->
-            <div v-else class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
+            <div v-else-if="tab === 'alerts'" class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
                 <p v-if="!alerts.length" class="py-6 text-center text-sm text-gray-400">Sin alertas. Todo al corriente.</p>
                 <div v-for="a in alerts" :key="a.key" class="flex items-center gap-3 border-b border-gray-50 py-2.5 last:border-0">
                     <span :class="['h-2 w-2 shrink-0 rounded-full', a.severity === 'high' ? 'bg-red-500' : 'bg-amber-400']"></span>
@@ -154,6 +203,22 @@ const whatsappUrl = (alert) => {
                     <span v-if="a.amount" class="text-sm font-bold tabular-nums text-gray-900">${{ Number(a.amount).toLocaleString('es-MX') }}</span>
                     <a v-if="whatsappUrl(a)" :href="whatsappUrl(a)" target="_blank" rel="noopener"
                         class="rounded-lg bg-green-50 px-2 py-1 text-xs font-bold text-green-700 hover:bg-green-100">WhatsApp</a>
+                </div>
+            </div>
+
+            <!-- COMPLETADAS -->
+            <div v-else class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
+                <p v-if="!completedItems.length" class="py-6 text-center text-sm text-gray-400">Sin historial todavía.</p>
+                <div v-for="it in completedItems" :key="it.id" class="flex items-center gap-3 border-b border-gray-50 py-2.5 last:border-0">
+                    <span :class="['h-2 w-2 shrink-0 rounded-full', it.state === 'cancelled' ? 'bg-gray-400' : 'bg-green-500']"></span>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-semibold text-gray-700" :class="it.state === 'cancelled' ? 'line-through' : ''">{{ it.title }}</p>
+                        <p v-if="it.state === 'cancelled' && it.cancel_reason" class="truncate text-xs text-gray-400">{{ it.cancel_reason }}</p>
+                    </div>
+                    <span :class="['rounded-full px-2 py-0.5 text-xs font-bold', it.state === 'cancelled' ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700']">
+                        {{ it.state === 'cancelled' ? 'Cancelada' : 'Completada' }}
+                    </span>
+                    <span class="whitespace-nowrap text-xs text-gray-400">{{ formatShort(it.state === 'cancelled' ? it.cancelled_at : it.completed_at) }}</span>
                 </div>
             </div>
         </div>
