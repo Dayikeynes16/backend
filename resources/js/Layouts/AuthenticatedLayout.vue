@@ -5,6 +5,7 @@ import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
+import AgendaBell from '@/Components/Agenda/AgendaBell.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 
 const showingNavigationDropdown = ref(false);
@@ -74,6 +75,7 @@ const navLinks = computed(() => {
                         </div>
 
                         <div class="hidden sm:ms-6 sm:flex sm:items-center">
+                            <AgendaBell class="mr-2" />
                             <span class="mr-3 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
                                 {{ role }}
                             </span>

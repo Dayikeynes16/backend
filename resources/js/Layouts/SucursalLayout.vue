@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
+import AgendaBell from '@/Components/Agenda/AgendaBell.vue';
 
 const page = usePage();
 const sidebarOpen = ref(false);
@@ -116,7 +117,10 @@ const iconPaths = {
                 </button>
                 <div class="flex flex-1 items-center justify-between">
                     <slot name="header" />
-                    <span class="hidden rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 sm:inline-flex">Admin Sucursal</span>
+                    <div class="flex items-center gap-2">
+                        <AgendaBell />
+                        <span class="hidden rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 sm:inline-flex">Admin Sucursal</span>
+                    </div>
                 </div>
             </header>
             <main class="p-5 lg:p-8"><slot /></main>
