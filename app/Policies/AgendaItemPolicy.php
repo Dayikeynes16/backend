@@ -57,6 +57,11 @@ class AgendaItemPolicy
         return $this->update($user, $item);
     }
 
+    public function cancel(User $user, AgendaItem $item): bool
+    {
+        return $this->update($user, $item);
+    }
+
     public function complete(User $user, AgendaItem $item): bool
     {
         return $item->tenant_id === $user->tenant_id
