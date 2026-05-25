@@ -31,25 +31,30 @@ class AgendaController extends Controller
         $user = Auth::user();
         $tenant = app('tenant');
 
-        $today = AgendaItem::visibleTo($user)
-            ->whereNull('completed_at')
-            ->where(function ($q) {
-                $q->whereDate('starts_at', '<=', now())
-                    ->orWhereDate('remind_at', '<=', now());
-            })
-            ->orderBy('starts_at')
-            ->get();
+        $overdue = AgendaItem::visibleTo($user)->overdue()->orderBy('starts_at')->get();
 
-        $upcoming = AgendaItem::visibleTo($user)
-            ->whereNull('completed_at')
+        $today = AgendaItem::visibleTo($user)->active()
+            ->where(function ($q) {
+                $q->whereDate('starts_at', now()->toDateString())
+                    ->orWhereDate('remind_at', now()->toDateString());
+            })
+            ->whereNotIn('id', $overdue->pluck('id'))
+            ->orderBy('starts_at')->get();
+
+        $upcoming = AgendaItem::visibleTo($user)->active()
             ->whereNotNull('starts_at')
             ->whereBetween('starts_at', [now()->addDay()->startOfDay(), now()->addWeek()->endOfDay()])
-            ->orderBy('starts_at')
-            ->get();
+            ->orderBy('starts_at')->get();
+
+        $notes = AgendaItem::visibleTo($user)->active()
+            ->where('type', 'note')->whereNull('starts_at')
+            ->orderByDesc('created_at')->get();
 
         return Inertia::render('Agenda/Index', [
+            'overdue' => $overdue,
             'today' => $today,
             'upcoming' => $upcoming,
+            'notes' => $notes,
             'alerts' => $alerts->for($user),
             'branches' => $this->branchesForUser($user),
             'assignableUsers' => $this->assignableUsers($user),
@@ -63,7 +68,7 @@ class AgendaController extends Controller
         $from = Carbon::parse($request->query('from', now()->startOfMonth()->toDateString()));
         $to = Carbon::parse($request->query('to', now()->endOfMonth()->toDateString()));
 
-        $occurrences = $calendar->expand(AgendaItem::visibleTo($user), $from, $to->endOfDay());
+        $occurrences = $calendar->expand(AgendaItem::visibleTo($user)->whereNull('cancelled_at'), $from, $to->endOfDay());
 
         return response()->json([
             'occurrences' => collect($occurrences)->map(fn ($o) => [
@@ -72,6 +77,7 @@ class AgendaController extends Controller
                 'type' => $o['item']->type->value,
                 'starts_at' => $o['starts_at']->toIso8601String(),
                 'all_day' => $o['item']->all_day,
+                'completed_at' => optional($o['item']->completed_at)->toIso8601String(),
             ])->values(),
         ]);
     }
@@ -151,6 +157,82 @@ class AgendaController extends Controller
         return response($ics, 200, [
             'Content-Type' => 'text/calendar; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="agenda-'.$item->id.'.ics"',
+        ]);
+    }
+
+    public function cancel(Request $request, AgendaItem $item): RedirectResponse
+    {
+        $this->authorize('cancel', $item);
+        $validated = $request->validate(['cancel_reason' => 'nullable|string|max:255']);
+        $item->update([
+            'cancelled_at' => now(),
+            'cancel_reason' => $validated['cancel_reason'] ?? null,
+        ]);
+
+        return back()->with('success', 'Tarea cancelada.');
+    }
+
+    public function snooze(Request $request, AgendaItem $item): RedirectResponse
+    {
+        $this->authorize('complete', $item);
+        $validated = $request->validate(['minutes' => 'required|integer|min:1|max:10080']);
+        $item->update([
+            'remind_at' => now()->addMinutes($validated['minutes']),
+            'reminder_seen_at' => null,
+        ]);
+
+        return back()->with('success', 'Recordatorio pospuesto.');
+    }
+
+    public function markReminderSeen(AgendaItem $item): RedirectResponse
+    {
+        $this->authorize('view', $item);
+        $item->update(['reminder_seen_at' => now()]);
+
+        return back();
+    }
+
+    public function completed(Request $request): JsonResponse
+    {
+        $items = AgendaItem::visibleTo(Auth::user())
+            ->history()
+            ->orderByDesc('completed_at')
+            ->orderByDesc('cancelled_at')
+            ->paginate(30);
+
+        return response()->json(['items' => $items]);
+    }
+
+    public function notifications(AgendaAlertService $alerts): JsonResponse
+    {
+        $user = Auth::user();
+
+        $due = AgendaItem::visibleTo($user)->active()
+            ->whereNotNull('remind_at')->where('remind_at', '<=', now())
+            ->whereNull('reminder_seen_at')
+            ->orderBy('remind_at')->limit(20)->get();
+
+        $overdue = AgendaItem::visibleTo($user)->overdue()
+            ->orderBy('starts_at')->limit(10)->get();
+
+        $financial = $alerts->for($user);
+
+        $map = fn ($i) => [
+            'id' => $i->id, 'title' => $i->title, 'type' => $i->type->value,
+            'starts_at' => optional($i->starts_at)->toIso8601String(),
+            'remind_at' => optional($i->remind_at)->toIso8601String(),
+        ];
+
+        return response()->json([
+            'due_reminders' => $due->map($map)->values(),
+            'overdue' => $overdue->map($map)->values(),
+            'alerts' => $financial,
+            'counts' => [
+                'due_reminders' => $due->count(),
+                'overdue' => $overdue->count(),
+                'alerts' => count($financial),
+                'total' => $due->count() + $overdue->count() + count($financial),
+            ],
         ]);
     }
 

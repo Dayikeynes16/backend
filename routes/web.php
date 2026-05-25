@@ -193,8 +193,8 @@ Route::prefix('{tenant}')
                 Route::prefix('compras')->name('compras.')->group(function () {
                     Route::get('/', [EmpresaPurchaseController::class, 'index'])->name('index');
                     Route::post('/', [EmpresaPurchaseController::class, 'store'])->name('store');
-                    Route::put('{compra}', [EmpresaPurchaseController::class, 'update'])->whereNumber('compra')->name('update');
-                    Route::patch('{compra}/cancelar', [EmpresaPurchaseController::class, 'cancel'])->whereNumber('compra')->name('cancel');
+                    Route::put('{compra}', [EmpresaPurchaseController::class, 'updatePurchase'])->whereNumber('compra')->name('update');
+                    Route::patch('{compra}/cancelar', [EmpresaPurchaseController::class, 'cancelPurchase'])->whereNumber('compra')->name('cancel');
 
                     // Captura con IA (F4): texto + imágenes + audio → propuesta editable.
                     Route::post('ia/borrador', [AiPurchaseDraftController::class, 'store'])->name('ia.store');
@@ -391,8 +391,8 @@ Route::prefix('{tenant}')
                 Route::prefix('compras')->name('compras.')->group(function () {
                     Route::get('/', [SucursalPurchaseController::class, 'index'])->name('index');
                     Route::post('/', [SucursalPurchaseController::class, 'store'])->name('store');
-                    Route::put('{compra}', [SucursalPurchaseController::class, 'update'])->whereNumber('compra')->name('update');
-                    Route::patch('{compra}/cancelar', [SucursalPurchaseController::class, 'cancel'])->whereNumber('compra')->name('cancel');
+                    Route::put('{compra}', [SucursalPurchaseController::class, 'updatePurchase'])->whereNumber('compra')->name('update');
+                    Route::patch('{compra}/cancelar', [SucursalPurchaseController::class, 'cancelPurchase'])->whereNumber('compra')->name('cancel');
 
                     // Captura con IA (F4): mismo controller que empresa.
                     Route::post('ia/borrador', [AiPurchaseDraftController::class, 'store'])->name('ia.store');
@@ -468,6 +468,16 @@ Route::prefix('{tenant}')
                 Route::get('compras', [CajaPurchaseController::class, 'index'])->name('compras.index');
                 Route::post('compras', [CajaPurchaseController::class, 'store'])->name('compras.store');
                 Route::post('compras/ia/borrador', [AiPurchaseDraftController::class, 'store'])->name('compras.ia.store');
+
+                // Corrección de compras propias (turno abierto): editar, cancelar, pagar.
+                Route::put('compras/{compra}', [CajaPurchaseController::class, 'update'])->whereNumber('compra')->name('compras.update');
+                Route::patch('compras/{compra}/cancelar', [CajaPurchaseController::class, 'cancel'])->whereNumber('compra')->name('compras.cancel');
+                Route::post('compras/{compra}/pagos', [CajaPurchaseController::class, 'storePayment'])->whereNumber('compra')->name('compras.pagos.store');
+                Route::delete('compras/{compra}/pagos/{pago}', [CajaPurchaseController::class, 'destroyPayment'])->whereNumber('compra')->whereNumber('pago')->name('compras.pagos.destroy');
+
+                // Corrección de gastos propios (turno abierto): editar, cancelar.
+                Route::put('gastos/{gasto}', [CajaGastoController::class, 'update'])->whereNumber('gasto')->name('gastos.update');
+                Route::delete('gastos/{gasto}', [CajaGastoController::class, 'destroy'])->whereNumber('gasto')->name('gastos.destroy');
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
             });
@@ -486,6 +496,11 @@ Route::prefix('{tenant}')
                 Route::patch('{item}/completar', [AgendaController::class, 'complete'])->name('complete');
                 Route::delete('{item}', [AgendaController::class, 'destroy'])->name('destroy');
                 Route::get('{item}/ics', [AgendaController::class, 'ics'])->name('ics');
+                Route::get('completadas', [AgendaController::class, 'completed'])->name('completadas');
+                Route::get('notificaciones', [AgendaController::class, 'notifications'])->name('notificaciones');
+                Route::patch('{item}/cancelar', [AgendaController::class, 'cancel'])->name('cancel');
+                Route::patch('{item}/posponer', [AgendaController::class, 'snooze'])->name('snooze');
+                Route::patch('{item}/visto', [AgendaController::class, 'markReminderSeen'])->name('visto');
             });
     });
 
