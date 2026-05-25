@@ -1,5 +1,5 @@
 <script setup>
-import { useForm } from '@inertiajs/vue3';
+import { router, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -107,10 +107,21 @@ watch(
 const isEdit = computed(() => !!props.item);
 const needsBranch = computed(() => form.scope === 'branch');
 const isEvent = computed(() => form.type === 'event');
+// Solo se puede cancelar una tarea activa (no completada ni ya cancelada).
+const canCancel = computed(() => isEdit.value && props.item && !['completed', 'cancelled'].includes(props.item.state));
 
 const close = () => {
     form.clearErrors();
     emit('close');
+};
+
+const cancelItem = () => {
+    const reason = prompt('Motivo de cancelación (opcional):') ?? '';
+    router.patch(
+        route('agenda.cancel', [props.tenantSlug, props.item.id]),
+        { cancel_reason: reason },
+        { preserveScroll: true, onSuccess: () => emit('close') }
+    );
 };
 
 const submit = () => {
@@ -230,9 +241,11 @@ const submit = () => {
                         </div>
                     </form>
 
-                    <footer class="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+                    <footer class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+                        <button v-if="canCancel" type="button" @click="cancelItem" :disabled="form.processing"
+                            class="mr-auto rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">Cancelar tarea</button>
                         <button type="button" @click="close" :disabled="form.processing"
-                            class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">Cancelar</button>
+                            class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">Cerrar</button>
                         <button type="button" @click="submit" :disabled="form.processing || !form.title.trim()"
                             class="rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50">
                             {{ form.processing ? 'Guardando…' : 'Guardar' }}
