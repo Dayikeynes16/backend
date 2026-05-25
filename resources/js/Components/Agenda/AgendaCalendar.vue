@@ -70,7 +70,7 @@ onMounted(fetchRange);
                 :class="['min-h-[64px] rounded-lg border p-1 text-left', inMonth(d) ? 'border-gray-100' : 'border-transparent bg-gray-50/50 text-gray-300']">
                 <div :class="['text-[11px] font-semibold', isToday(d) ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white' : '']">{{ d.getDate() }}</div>
                 <div v-for="o in itemsForDay(d)" :key="o.id + o.starts_at"
-                    class="mt-0.5 truncate rounded bg-red-50 px-1 text-[10px] font-medium text-red-700">
+                    :class="['mt-0.5 truncate rounded px-1 text-[10px] font-medium', o.completed_at ? 'bg-gray-100 text-gray-500 line-through opacity-60' : 'bg-red-50 text-red-700']">
                     {{ o.title }}
                 </div>
             </div>
