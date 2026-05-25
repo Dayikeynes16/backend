@@ -105,6 +105,15 @@ final class PurchasePaymentService
 
             $this->recalculate($locked);
 
+            if ($locked->purchase_id ?? $locked->id) {
+                app(AuditLogger::class)->logPaymentAdded(
+                    $locked,
+                    $amount,
+                    $payment->payment_method->value,
+                    $payload['user_id'] ?? null,
+                );
+            }
+
             return $payment;
         });
     }
@@ -130,6 +139,14 @@ final class PurchasePaymentService
                 $purchase = Purchase::find($payment->purchase_id);
                 if ($purchase) {
                     $this->recalculate($purchase);
+
+                    app(AuditLogger::class)->logPaymentCancelled(
+                        $purchase,
+                        (float) $payment->amount,
+                        $payment->payment_method->value,
+                        $reason,
+                        $cancelledBy,
+                    );
                 }
             }
         });

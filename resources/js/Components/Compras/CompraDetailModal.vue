@@ -1,15 +1,17 @@
 <script setup>
 import PagoProveedorModal from './PagoProveedorModal.vue';
+import HistorialTimeline from '@/Components/Historial/HistorialTimeline.vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
     purchase: { type: Object, default: null },
+    canManage: { type: Boolean, default: true },
     routes: {
         type: Object,
         required: true,
-        validator: (v) => v.cancel && v.adjuntoDownload && v.adjuntoPreview && v.adjuntoDestroy,
+        validator: (v) => !!v.cancel,
     },
 });
 const emit = defineEmits(['close', 'edit', 'refresh']);
@@ -180,7 +182,7 @@ const isCancelled = computed(() => props.purchase?.status === 'cancelled');
                         <div v-if="!isCancelled || livePayments.length">
                             <div class="mb-2 flex items-center justify-between">
                                 <h3 class="text-sm font-bold uppercase tracking-wide text-gray-700">Pagos</h3>
-                                <button v-if="!isCancelled && purchase.amount_pending > 0 && routes.pagoStore"
+                                <button v-if="!isCancelled && canManage && purchase.amount_pending > 0 && routes.pagoStore"
                                     type="button" @click="askPay"
                                     class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700">
                                     + Registrar pago
@@ -199,14 +201,14 @@ const isCancelled = computed(() => props.purchase?.status === 'cancelled');
                                         </span>
                                         <span v-if="pago.notes" class="text-xs italic text-gray-500">{{ pago.notes }}</span>
                                     </span>
-                                    <button v-if="!isCancelled && routes.pagoDestroy" @click="deletePayment(pago)"
+                                    <button v-if="!isCancelled && canManage && routes.pagoDestroy" @click="deletePayment(pago)"
                                         class="text-xs font-medium text-red-600 hover:text-red-800">Cancelar</button>
                                 </li>
                             </ul>
                         </div>
 
                         <!-- Adjuntos -->
-                        <div v-if="purchase.attachments?.length">
+                        <div v-if="purchase.attachments?.length && routes.adjuntoPreview">
                             <h3 class="mb-2 text-sm font-bold uppercase tracking-wide text-gray-700">Adjuntos</h3>
                             <ul class="space-y-2">
                                 <li v-for="att in purchase.attachments" :key="att.id" class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
@@ -232,16 +234,19 @@ const isCancelled = computed(() => props.purchase?.status === 'cancelled');
                             <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Notas</div>
                             {{ purchase.notes }}
                         </div>
+
+                        <!-- Historial -->
+                        <HistorialTimeline :history="purchase.history || []" />
                     </div>
 
                     <footer class="flex justify-between gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-                        <button v-if="!isCancelled" @click="askCancel"
+                        <button v-if="!isCancelled && canManage" @click="askCancel"
                             class="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
                             Cancelar compra
                         </button>
                         <div class="ml-auto flex gap-2">
                             <button @click="emit('close')" class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">Cerrar</button>
-                            <button v-if="!isCancelled" @click="emit('edit')"
+                            <button v-if="!isCancelled && canManage" @click="emit('edit')"
                                 class="rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-red-700">
                                 Editar
                             </button>

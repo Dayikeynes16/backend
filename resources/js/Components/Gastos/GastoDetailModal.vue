@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import AttachmentViewerModal from '@/Components/Gastos/AttachmentViewerModal.vue';
+import HistorialTimeline from '@/Components/Historial/HistorialTimeline.vue';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -138,6 +139,9 @@ const isPdf = (att) => att?.mime_type === 'application/pdf';
                                 </button>
                             </div>
                         </div>
+
+                        <!-- Historial -->
+                        <HistorialTimeline :history="expense.history || []" />
                     </div>
 
                     <!-- Footer -->

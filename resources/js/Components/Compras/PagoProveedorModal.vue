@@ -89,14 +89,16 @@ const methodOptions = [
                     <form @submit.prevent="submit" class="space-y-4 px-5 py-5">
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-700">Monto <span class="text-red-600">*</span></label>
-                            <input v-model.number="form.amount" type="number" step="0.01" min="0.01"
-                                class="w-full rounded-xl border-gray-300 text-base font-semibold focus:border-orange-500 focus:ring-orange-500" />
+                            <div class="relative">
+                                <input v-model.number="form.amount" type="number" step="0.01" min="0.01"
+                                    class="w-full rounded-xl border-gray-300 py-2 pl-3 pr-20 text-base font-semibold focus:border-orange-500 focus:ring-orange-500" />
+                                <button v-if="mode === 'purchase' && purchase" type="button"
+                                    @click="form.amount = purchase.amount_pending"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-200 active:bg-gray-300">
+                                    Exacto
+                                </button>
+                            </div>
                             <p v-if="form.errors.amount" class="mt-1 text-xs text-red-600">{{ form.errors.amount }}</p>
-                            <button v-if="mode === 'purchase' && purchase && form.amount !== purchase.amount_pending" type="button"
-                                @click="form.amount = purchase.amount_pending"
-                                class="mt-1 text-xs font-medium text-orange-700 hover:underline">
-                                Saldar total ({{ fmt(purchase.amount_pending) }})
-                            </button>
                         </div>
 
                         <div>

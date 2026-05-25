@@ -26,7 +26,6 @@ const today = localToday();
 const selectedRange = ref({ from: props.filters?.from || today, to: props.filters?.to || today });
 const branchId = ref(props.filters?.branch_id || '');
 const providerId = ref(props.filters?.provider_id || '');
-const statusFilter = ref(props.filters?.status || 'all');
 const paymentFilter = ref(props.filters?.payment_status || '');
 
 const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -40,13 +39,12 @@ const navigate = () => {
         to: selectedRange.value?.to || undefined,
         branch_id: branchId.value || undefined,
         provider_id: providerId.value || undefined,
-        status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
         payment_status: paymentFilter.value || undefined,
     }, { preserveState: true, preserveScroll: true, replace: true });
 };
 
 watch(search, () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(navigate, 300); });
-watch([selectedRange, branchId, providerId, statusFilter, paymentFilter], navigate);
+watch([selectedRange, branchId, providerId, paymentFilter], navigate);
 
 const paymentBadge = (s) => ({
     paid: 'bg-emerald-100 text-emerald-800',
@@ -138,14 +136,7 @@ const iaRoutes = { iaStore: 'empresa.compras.ia.store' };
                     <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
                 </select>
                 <div class="col-span-full flex flex-wrap items-center gap-2">
-                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Estado:</span>
-                    <button v-for="s in ['all', 'received', 'cancelled']" :key="s"
-                        @click="statusFilter = s"
-                        :class="['rounded-lg px-3 py-1 text-xs font-semibold transition',
-                            statusFilter === s ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">
-                        {{ s === 'all' ? 'Todas' : s === 'received' ? 'Recibidas' : 'Canceladas' }}
-                    </button>
-                    <span class="ml-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Pago:</span>
+                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Pago:</span>
                     <button v-for="ps in ['', 'pending', 'partial', 'paid']" :key="ps || 'all'"
                         @click="paymentFilter = ps"
                         :class="['rounded-lg px-3 py-1 text-xs font-semibold transition',

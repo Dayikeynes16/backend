@@ -35,7 +35,7 @@ class PurchaseController extends Controller
 
         $query = Purchase::query()->with([
             'provider:id,name', 'branch:id,name', 'creator:id,name',
-            'items', 'attachments', 'payments',
+            'items', 'attachments', 'payments', 'history.user:id,name',
         ]);
         $query = $this->applyBranchScopeToQuery($query);
         $query = $this->applyIndexFilters($query, $request);

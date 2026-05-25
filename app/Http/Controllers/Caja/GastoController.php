@@ -10,6 +10,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Services\AuditLogger;
 use App\Services\ExpenseAttachmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,6 +50,9 @@ class GastoController extends Controller
                 'subcategory:id,expense_category_id,name',
                 'subcategory.category:id,name',
                 'attachments:id,expense_id,original_name,mime_type,size_bytes',
+                'history.user:id,name',
+                'branch:id,name',
+                'user:id,name',
             ])
             ->when($request->search, function ($q, $s) {
                 $q->where(fn ($q2) => $q2
@@ -60,7 +64,13 @@ class GastoController extends Controller
             ->orderByDesc('expense_at')
             ->orderByDesc('id')
             ->paginate(25)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(function (Expense $e) {
+                $shift = CashRegisterShift::where('user_id', Auth::id())->whereNull('closed_at')->first();
+                $e->setAttribute('can_manage', $shift && $e->cash_register_shift_id === $shift->id);
+
+                return $e;
+            });
 
         $hasOpenShift = CashRegisterShift::where('user_id', $user->id)
             ->whereNull('closed_at')
@@ -93,6 +103,70 @@ class GastoController extends Controller
         if (! $branch || ! $branch->cashier_expenses_enabled) {
             abort(403, 'El registro de gastos no está habilitado para tu sucursal.');
         }
+    }
+
+    private function assertCajaCanMutate(Expense $gasto): CashRegisterShift
+    {
+        if ($gasto->tenant_id !== app('tenant')->id) {
+            abort(404);
+        }
+        $shift = CashRegisterShift::where('user_id', Auth::id())->whereNull('closed_at')->first();
+        if (! $shift
+            || $gasto->user_id !== Auth::id()
+            || $gasto->cash_register_shift_id !== $shift->id) {
+            abort(403, 'Solo puedes corregir tus gastos del turno abierto.');
+        }
+
+        return $shift;
+    }
+
+    public function update(Request $request, Expense $gasto): RedirectResponse
+    {
+        $this->ensureModuleEnabled(Auth::user()->branch_id);
+        $this->assertCajaCanMutate($gasto);
+
+        $validated = $request->validate([
+            'concept' => 'required|string|max:160',
+            'amount' => 'required|numeric|min:0.01|max:99999999.99',
+            'expense_subcategory_id' => [
+                'required',
+                Rule::exists('expense_subcategories', 'id')
+                    ->where(fn ($q) => $q->where('tenant_id', app('tenant')->id)->where('status', 'active')),
+            ],
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $auditor = app(AuditLogger::class);
+        $before = $auditor->expenseSnapshot($gasto->loadMissing('subcategory', 'branch'));
+
+        $gasto->update([
+            'concept' => $validated['concept'],
+            'amount' => $validated['amount'],
+            'expense_subcategory_id' => $validated['expense_subcategory_id'],
+            'description' => $validated['description'] ?? null,
+            'updated_by' => Auth::id(),
+        ]);
+
+        $after = $auditor->expenseSnapshot($gasto->fresh()->loadMissing('subcategory', 'branch'));
+        $auditor->logUpdatedIfChanged($gasto, $before, $after);
+
+        return back()->with('success', 'Gasto actualizado.');
+    }
+
+    public function destroy(Request $request, Expense $gasto): RedirectResponse
+    {
+        $this->ensureModuleEnabled(Auth::user()->branch_id);
+        $this->assertCajaCanMutate($gasto);
+
+        $reason = $request->validate([
+            'cancellation_reason' => 'nullable|string|max:255',
+        ])['cancellation_reason'] ?? null;
+
+        $gasto->update(['cancelled_by' => Auth::id(), 'cancellation_reason' => $reason]);
+        $gasto->delete();
+        app(AuditLogger::class)->logCancelled($gasto, $reason ?? '');
+
+        return back()->with('success', 'Gasto eliminado.');
     }
 
     public function store(Request $request): RedirectResponse
@@ -130,6 +204,8 @@ class GastoController extends Controller
                 'expense_at' => now(),
                 'description' => $validated['description'] ?? null,
             ]);
+
+            app(AuditLogger::class)->logCreated($expense);
 
             if ($request->hasFile('attachments')) {
                 $this->attachments->attach($expense, $request->file('attachments'), $user->id);
