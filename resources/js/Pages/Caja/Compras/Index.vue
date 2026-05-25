@@ -2,6 +2,7 @@
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import CompraFormModal from '@/Components/Compras/CompraFormModal.vue';
+import CompraDetailModal from '@/Components/Compras/CompraDetailModal.vue';
 import CompraCapturaIAModal from '@/Components/Compras/CompraCapturaIAModal.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
@@ -22,6 +23,25 @@ const branchId = computed(() => page.props.auth.branch?.id ?? null);
 const compraOpen = ref(false);
 const compraIaOpen = ref(false);
 const compraAiResult = ref(null);
+
+const detailOpen = ref(false);
+const selected = ref(null);
+const editFromDetail = ref(false);
+
+const cajaCompraRoutes = {
+    cancel: 'caja.compras.cancel',
+    pagoStore: 'caja.compras.pagos.store',
+    pagoDestroy: 'caja.compras.pagos.destroy',
+};
+
+const openDetail = (p) => { selected.value = p; detailOpen.value = true; };
+const onEdit = () => {
+    detailOpen.value = false;
+    compraAiResult.value = null;
+    editFromDetail.value = true;
+    compraOpen.value = true;
+};
+const onDetailRefresh = () => router.reload({ preserveScroll: true });
 
 const search = ref(props.filters?.search || '');
 let debounceTimer;
@@ -112,7 +132,8 @@ const fmtDate = (v) => v ? new Date(v).toLocaleDateString('es-MX', { day: '2-dig
                         <th class="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500">Total</th>
                     </tr></thead>
                     <tbody class="divide-y divide-gray-50 bg-white">
-                        <tr v-for="p in purchases.data" :key="p.id" class="transition hover:bg-red-50/30">
+                        <tr v-for="p in purchases.data" :key="p.id" @click="openDetail(p)"
+                            class="cursor-pointer transition hover:bg-red-50/30">
                             <td class="px-5 py-3 text-sm font-semibold text-gray-700">{{ fmtDate(p.purchased_at) }}</td>
                             <td class="px-5 py-3 text-sm text-gray-700">
                                 <div class="font-bold text-gray-900">{{ p.folio }}</div>
@@ -148,11 +169,15 @@ const fmtDate = (v) => v ? new Date(v).toLocaleDateString('es-MX', { day: '2-dig
             @close="compraIaOpen = false"
             @analyzed="(r) => { compraAiResult = r; compraIaOpen = false; compraOpen = true; }" />
 
-        <CompraFormModal :open="compraOpen" :purchase="null" cash-mode
+        <CompraFormModal :open="compraOpen" :purchase="editFromDetail ? selected : null" cash-mode
             :providers="providers" :purchase-products="purchaseProducts"
             :fixed-branch-id="branchId" :ai-result="compraAiResult"
-            :routes="{ store: 'caja.compras.store', update: 'caja.compras.store' }"
-            @close="compraOpen = false; compraAiResult = null" />
+            :routes="{ store: 'caja.compras.store', update: 'caja.compras.update' }"
+            @close="compraOpen = false; compraAiResult = null; editFromDetail = false" />
+
+        <CompraDetailModal :open="detailOpen" :purchase="selected"
+            :can-manage="selected?.can_manage ?? false" :routes="cajaCompraRoutes"
+            @close="detailOpen = false" @edit="onEdit" @refresh="onDetailRefresh" />
 
         <FlashToast />
     </CajeroLayout>

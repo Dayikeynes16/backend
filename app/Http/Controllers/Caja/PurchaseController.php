@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Caja;
 
+use App\Enums\PurchaseStatus;
 use App\Http\Controllers\Concerns\HandlesPurchases;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Provider;
+use App\Models\ProviderPayment;
 use App\Models\Purchase;
 use App\Models\PurchaseProduct;
 use App\Services\PurchaseFolioGenerator;
@@ -37,10 +39,14 @@ class PurchaseController extends Controller
 
         $this->ensureModuleEnabled($user->branch_id);
 
+        $shift = $this->openShift();
+        $shiftId = $shift?->id;
+
         $query = Purchase::query()
             ->where('branch_id', $user->branch_id)
             ->where('created_by', $user->id)
-            ->with(['provider:id,name', 'items', 'payments'])
+            ->where('status', '!=', PurchaseStatus::Cancelled)
+            ->with(['provider:id,name', 'branch:id,name', 'items', 'payments', 'attachments', 'history.user:id,name'])
             ->when($request->search, function ($q, $s) {
                 $q->where(fn ($q2) => $q2
                     ->where('folio', 'ilike', "%{$s}%")
@@ -52,11 +58,17 @@ class PurchaseController extends Controller
             ->orderByDesc('purchased_at')
             ->orderByDesc('id')
             ->paginate(25)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(function (Purchase $p) use ($shiftId) {
+                $data = $this->serializePurchase($p);
+                $data['can_manage'] = $shiftId !== null
+                    && $p->cash_register_shift_id === $shiftId
+                    && $p->status !== PurchaseStatus::Cancelled;
 
-        $hasOpenShift = CashRegisterShift::where('user_id', $user->id)
-            ->whereNull('closed_at')
-            ->exists();
+                return $data;
+            });
+
+        $hasOpenShift = $shift !== null;
 
         return Inertia::render('Caja/Compras/Index', [
             'purchases' => $purchases,
@@ -130,6 +142,85 @@ class PurchaseController extends Controller
         }
 
         return back()->with('success', 'Compra en efectivo registrada.');
+    }
+
+    /**
+     * Turno abierto del cajero actual (o null).
+     */
+    private function openShift(): ?CashRegisterShift
+    {
+        return CashRegisterShift::where('user_id', Auth::id())
+            ->whereNull('closed_at')
+            ->first();
+    }
+
+    /**
+     * Candado de Caja: la compra debe ser del cajero y pertenecer a su turno
+     * abierto. Si no, 403.
+     */
+    private function assertCajaCanMutate(Purchase $purchase): CashRegisterShift
+    {
+        if ($purchase->tenant_id !== app('tenant')->id) {
+            abort(404);
+        }
+        $shift = $this->openShift();
+        if (! $shift
+            || $purchase->created_by !== Auth::id()
+            || $purchase->cash_register_shift_id !== $shift->id) {
+            abort(403, 'Solo puedes corregir tus compras del turno abierto.');
+        }
+
+        return $shift;
+    }
+
+    public function update(Request $request, Purchase $compra, PurchasePaymentService $payments): RedirectResponse
+    {
+        $this->ensureModuleEnabled(Auth::user()->branch_id);
+        $this->assertCajaCanMutate($compra);
+
+        // Reusa la lógica compartida (incluye regla "total >= pagado" e historial).
+        return $this->updatePurchase($request, $compra, $payments);
+    }
+
+    public function cancel(Request $request, Purchase $compra): RedirectResponse
+    {
+        $this->ensureModuleEnabled(Auth::user()->branch_id);
+        $this->assertCajaCanMutate($compra);
+
+        return $this->cancelPurchase($request, $compra);
+    }
+
+    public function storePayment(Request $request, Purchase $compra, PurchasePaymentService $payments): RedirectResponse
+    {
+        $this->ensureModuleEnabled(Auth::user()->branch_id);
+        $shift = $this->assertCajaCanMutate($compra);
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+        ]);
+
+        $payments->applyPayment($compra, [
+            'amount' => $validated['amount'],
+            'payment_method' => 'cash',
+            'user_id' => Auth::id(),
+            'cash_register_shift_id' => $shift->id,
+        ]);
+
+        return back()->with('success', 'Pago registrado.');
+    }
+
+    public function destroyPayment(Request $request, Purchase $compra, ProviderPayment $pago, PurchasePaymentService $payments): RedirectResponse
+    {
+        $this->ensureModuleEnabled(Auth::user()->branch_id);
+        $this->assertCajaCanMutate($compra);
+
+        if ($pago->purchase_id !== $compra->id) {
+            abort(404);
+        }
+        $reason = $request->validate(['reason' => 'required|string|max:500'])['reason'];
+        $payments->cancelPayment($pago, Auth::id(), $reason);
+
+        return back()->with('success', 'Pago cancelado.');
     }
 
     // ─── Hooks del trait (sólo se usa store) ─────────────────────────────

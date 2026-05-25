@@ -7,10 +7,13 @@ use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\AiExpenseDraft;
 use App\Models\Branch;
+use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Services\Ai\AiExpenseDraftService;
+use App\Services\AuditLogger;
 use App\Services\ExpenseAttachmentService;
+use App\Services\RecalculateClosedShifts;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -44,6 +47,7 @@ class GastoController extends Controller
                 'branch:id,name',
                 'user:id,name',
                 'attachments:id,expense_id,original_name,mime_type,size_bytes',
+                'history.user:id,name',
             ])
             ->when($request->branch_id, fn ($q, $b) => $q->where('branch_id', $b))
             ->when($request->expense_category_id, function ($q, $cat) {
@@ -146,6 +150,8 @@ class GastoController extends Controller
             return $expense;
         });
 
+        app(AuditLogger::class)->logCreated($expense);
+
         return back()->with('success', 'Gasto registrado.');
     }
 
@@ -181,6 +187,9 @@ class GastoController extends Controller
 
         $validated = $request->validate($this->validationRules($tenant->id), $this->messages());
 
+        $auditor = app(AuditLogger::class);
+        $before = $auditor->expenseSnapshot($gasto->loadMissing('subcategory', 'branch'));
+
         $gasto->update([
             'branch_id' => $validated['branch_id'],
             'expense_subcategory_id' => $validated['expense_subcategory_id'],
@@ -202,6 +211,10 @@ class GastoController extends Controller
             }
             $this->attachments->attach($gasto, $request->file('attachments'), $user->id);
         }
+
+        $after = $auditor->expenseSnapshot($gasto->fresh()->loadMissing('subcategory', 'branch'));
+        $auditor->logUpdatedIfChanged($gasto, $before, $after);
+        $this->recalcShiftIfClosed($gasto);
 
         return back()->with('success', 'Gasto actualizado.');
     }
@@ -225,7 +238,26 @@ class GastoController extends Controller
         ]);
         $gasto->delete();
 
+        app(AuditLogger::class)->logCancelled($gasto, $reason ?? '');
+        $this->recalcShiftIfClosed($gasto);
+
         return back()->with('success', 'Gasto eliminado.');
+    }
+
+    /**
+     * Si el gasto estaba ligado a un turno YA cerrado, su monto/baja cambia el
+     * efectivo del corte → recalcula ese corte. Turno abierto no hace falta
+     * (el corte suma en vivo al cerrar).
+     */
+    private function recalcShiftIfClosed(Expense $gasto): void
+    {
+        if (! $gasto->cash_register_shift_id) {
+            return;
+        }
+        $shift = CashRegisterShift::find($gasto->cash_register_shift_id);
+        if ($shift && $shift->closed_at) {
+            app(RecalculateClosedShifts::class)->forShift($shift);
+        }
     }
 
     private function validationRules(int $tenantId, bool $includeAiDraft = false): array

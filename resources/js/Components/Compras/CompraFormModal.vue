@@ -283,13 +283,17 @@ const onConceptInput = (line) => {
                             <p v-if="form.errors.items" class="mt-1 text-xs text-red-600">{{ form.errors.items }}</p>
                         </div>
 
-                        <!-- Pagado en efectivo (modo caja) -->
-                        <div v-if="cashMode" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                        <!-- Pagado en efectivo (modo caja, solo al crear) -->
+                        <div v-if="cashMode && !purchase" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                             <label class="mb-1 block text-sm font-medium text-emerald-900">Pagado en efectivo ahora</label>
-                            <input v-model.number="form.paid_amount" type="number" step="0.01" min="0" :max="total"
-                                class="w-40 rounded-lg border-gray-300 text-right text-sm focus:border-emerald-500 focus:ring-emerald-500" />
-                            <button type="button" @click="form.paid_amount = Number(total.toFixed(2))"
-                                class="ml-2 text-xs font-semibold text-emerald-700 hover:underline">Pagar total ({{ fmt(total) }})</button>
+                            <div class="relative inline-block w-48">
+                                <input v-model.number="form.paid_amount" type="number" step="0.01" min="0" :max="total"
+                                    class="w-full rounded-lg border-gray-300 py-2 pl-3 pr-20 text-right text-sm focus:border-emerald-500 focus:ring-emerald-500" />
+                                <button type="button" @click="form.paid_amount = Number(total.toFixed(2))"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200 active:bg-emerald-300">
+                                    Exacto
+                                </button>
+                            </div>
                             <p class="mt-1 text-xs text-emerald-700">Sale del cajón y descuenta del corte. Lo no pagado queda como saldo del proveedor.</p>
                             <p v-if="form.errors.amount" class="mt-1 text-xs text-red-600">{{ form.errors.amount }}</p>
                         </div>

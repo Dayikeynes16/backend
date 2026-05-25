@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\PurchaseStatus;
+use App\Models\Concerns\RecordsHistory;
 use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -19,7 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class Purchase extends Model
 {
-    use BelongsToTenant, SoftDeletes;
+    use BelongsToTenant, RecordsHistory, SoftDeletes;
 
     public function branch(): BelongsTo
     {

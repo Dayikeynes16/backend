@@ -2,6 +2,7 @@
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import GastoFormModal from '@/Components/Gastos/GastoFormModal.vue';
+import GastoDetailModal from '@/Components/Gastos/GastoDetailModal.vue';
 import GastoCapturaIAModal from '@/Components/Gastos/GastoCapturaIAModal.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
@@ -30,10 +31,37 @@ const registerHint = computed(() => {
 
 // --- Form modal ---
 const formOpen = ref(false);
+const editId = ref(null);
 const aiProposal = ref(null);
 const aiDraftId = ref(null);
 const aiAttachments = ref([]);
 const aiTranscription = ref(null);
+
+// --- Detail modal ---
+const detailOpen = ref(false);
+const selected = ref(null);
+const paymentMethods = [
+    { value: 'cash', label: 'Efectivo' },
+    { value: 'card', label: 'Tarjeta' },
+    { value: 'transfer', label: 'Transferencia' },
+];
+
+const openDetail = (e) => { selected.value = e; detailOpen.value = true; };
+const onEditGasto = () => {
+    detailOpen.value = false;
+    resetAi();
+    editId.value = selected.value.id;
+    formOpen.value = true;
+};
+const onDeleteGasto = () => {
+    if (!selected.value) return;
+    const reason = prompt('Motivo de cancelación (opcional):') ?? '';
+    router.delete(route('caja.gastos.destroy', { tenant: props.tenant.slug, gasto: selected.value.id }), {
+        data: { cancellation_reason: reason },
+        preserveScroll: true,
+        onSuccess: () => { detailOpen.value = false; },
+    });
+};
 
 const resetAi = () => {
     aiProposal.value = null;
@@ -146,7 +174,8 @@ const fmtTime = (v) => v ? new Date(v).toLocaleTimeString('es-MX', { hour: '2-di
                         <th class="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500">Monto</th>
                     </tr></thead>
                     <tbody class="divide-y divide-gray-50 bg-white">
-                        <tr v-for="e in expenses.data" :key="e.id" class="transition hover:bg-red-50/30">
+                        <tr v-for="e in expenses.data" :key="e.id" @click="openDetail(e)"
+                            class="cursor-pointer transition hover:bg-red-50/30">
                             <td class="px-5 py-3 text-sm text-gray-700">
                                 <div class="font-semibold">{{ fmtDate(e.expense_at) }}</div>
                                 <div class="text-xs text-gray-400">{{ fmtTime(e.expense_at) }}</div>
@@ -193,19 +222,33 @@ const fmtTime = (v) => v ? new Date(v).toLocaleTimeString('es-MX', { hour: '2-di
         <!-- Form (efectivo fijo, sin selector de sucursal ni método de pago) -->
         <GastoFormModal
             :show="formOpen"
-            mode="create"
+            :mode="editId ? 'edit' : 'create'"
             :tenant-slug="tenant.slug"
             :categories="categories"
             :allow-branch-select="false"
             :fixed-branch-id="branchId"
+            :expense="editId ? selected : null"
             :ai-proposal="aiProposal"
             :ai-draft-id="aiDraftId"
             :ai-attachments="aiAttachments"
             :ai-transcription="aiTranscription"
-            submit-route-name="caja.gastos.store"
+            :submit-route-name="editId ? 'caja.gastos.update' : 'caja.gastos.store'"
             attachment-destroy-route-name="caja.gastos.store"
-            @close="formOpen = false; resetAi()"
-            @success="formOpen = false; resetAi()" />
+            @close="formOpen = false; editId = null; resetAi()"
+            @success="formOpen = false; editId = null; resetAi()" />
+
+        <GastoDetailModal
+            :show="detailOpen"
+            :expense="selected"
+            :tenant-slug="tenant.slug"
+            preview-route-name="caja.gastos.index"
+            download-route-name="caja.gastos.index"
+            :can-edit="selected?.can_manage ?? false"
+            :can-delete="selected?.can_manage ?? false"
+            :payment-methods="paymentMethods"
+            @close="detailOpen = false"
+            @edit="onEditGasto"
+            @delete="onDeleteGasto" />
 
         <FlashToast />
     </CajeroLayout>

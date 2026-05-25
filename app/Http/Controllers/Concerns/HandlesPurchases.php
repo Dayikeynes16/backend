@@ -3,15 +3,20 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Enums\AiDraftStatus;
+use App\Enums\PaymentMethod;
 use App\Enums\PurchaseStatus;
 use App\Models\AiPurchaseDraft;
 use App\Models\Branch;
+use App\Models\CashRegisterShift;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\PurchaseProduct;
+use App\Models\Tenant;
+use App\Services\AuditLogger;
 use App\Services\PurchaseAttachmentService;
 use App\Services\PurchaseFolioGenerator;
 use App\Services\PurchasePaymentService;
+use App\Services\RecalculateClosedShifts;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -124,7 +129,7 @@ trait HandlesPurchases
      * @param  array<string, mixed>  $validated
      * @param  array<string, mixed>  $extra
      */
-    protected function createPurchaseWithItems(array $validated, int $branchId, \App\Models\Tenant $tenant, PurchaseFolioGenerator $folios, array $extra = []): Purchase
+    protected function createPurchaseWithItems(array $validated, int $branchId, Tenant $tenant, PurchaseFolioGenerator $folios, array $extra = []): Purchase
     {
         return DB::transaction(function () use ($validated, $branchId, $tenant, $folios, $extra) {
             $subtotal = 0.0;
@@ -205,6 +210,8 @@ trait HandlesPurchases
 
         $payments->recalculate($purchase);
 
+        app(AuditLogger::class)->logCreated($purchase);
+
         return $this->redirectAfterWrite($request, 'Compra registrada.');
     }
 
@@ -235,7 +242,7 @@ trait HandlesPurchases
 
     // ─── Update ──────────────────────────────────────────────────────────
 
-    public function update(Request $request, Purchase $compra, PurchasePaymentService $payments): RedirectResponse
+    public function updatePurchase(Request $request, Purchase $compra, PurchasePaymentService $payments): RedirectResponse
     {
         $purchase = $compra;
         $this->assertCanMutate($purchase);
@@ -247,26 +254,29 @@ trait HandlesPurchases
         $branchId = $this->resolveBranchIdForWrite($request);
         $this->assertBranchBelongsToTenant($branchId, $purchase->tenant_id);
 
-        DB::transaction(function () use ($purchase, $validated, $branchId) {
-            $subtotal = 0.0;
-            foreach ($validated['items'] as $line) {
-                $subtotal += (float) $line['quantity'] * (float) $line['unit_price'];
-            }
-            $subtotal = round($subtotal, 2);
+        $newSubtotal = 0.0;
+        foreach ($validated['items'] as $line) {
+            $newSubtotal += (float) $line['quantity'] * (float) $line['unit_price'];
+        }
+        $newSubtotal = round($newSubtotal, 2);
+        if ($newSubtotal + 0.001 < (float) $purchase->amount_paid) {
+            abort(422, 'El total no puede ser menor a lo ya pagado ($'.number_format((float) $purchase->amount_paid, 2).'). Cancela un pago primero.');
+        }
 
+        $auditor = app(AuditLogger::class);
+        $before = $auditor->purchaseSnapshot($purchase->loadMissing('provider', 'items'));
+
+        DB::transaction(function () use ($purchase, $validated, $branchId, $newSubtotal) {
             $purchase->update([
                 'branch_id' => $branchId,
                 'provider_id' => $validated['provider_id'],
                 'invoice_number' => $validated['invoice_number'] ?? null,
                 'purchased_at' => CarbonImmutable::parse($validated['purchased_at']),
-                'subtotal' => $subtotal,
-                'total' => $subtotal,
+                'subtotal' => $newSubtotal,
+                'total' => $newSubtotal,
                 'notes' => $validated['notes'] ?? null,
             ]);
 
-            // Estrategia simple para items: borrar todos y recrear. Mantiene
-            // la BD coherente sin lógica de diff que añade complejidad sin
-            // ganancia para F2.
             $purchase->items()->delete();
             foreach ($validated['items'] as $line) {
                 $product = $this->resolvePurchaseProduct($purchase->tenant_id, $line['purchase_product_id'] ?? null, $line['concept'], $line['unit']);
@@ -283,7 +293,6 @@ trait HandlesPurchases
             }
         });
 
-        // Si subió adjuntos nuevos en el update.
         if ($request->hasFile('attachments')) {
             $request->validate([
                 'attachments.*' => [
@@ -298,12 +307,15 @@ trait HandlesPurchases
 
         $payments->recalculate($purchase);
 
+        $after = $auditor->purchaseSnapshot($purchase->fresh()->loadMissing('provider', 'items'));
+        $auditor->logUpdatedIfChanged($purchase, $before, $after);
+
         return $this->redirectAfterWrite($request, 'Compra actualizada.');
     }
 
     // ─── Cancel ──────────────────────────────────────────────────────────
 
-    public function cancel(Request $request, Purchase $compra): RedirectResponse
+    public function cancelPurchase(Request $request, Purchase $compra): RedirectResponse
     {
         $purchase = $compra;
         $this->assertCanMutate($purchase);
@@ -321,6 +333,30 @@ trait HandlesPurchases
             'cancelled_at' => now(),
             'cancel_reason' => $validated['reason'],
         ]);
+
+        // Devolver el efectivo: cancelar los pagos en efectivo vivos y
+        // recalcular los cortes CERRADOS afectados (los abiertos suman en vivo).
+        $payments = app(PurchasePaymentService::class);
+        $affectedShiftIds = [];
+        $cashPayments = $purchase->payments()
+            ->whereNull('cancelled_at')
+            ->where('payment_method', PaymentMethod::Cash->value)
+            ->get();
+        foreach ($cashPayments as $pago) {
+            if ($pago->cash_register_shift_id) {
+                $affectedShiftIds[$pago->cash_register_shift_id] = true;
+            }
+            $payments->cancelPayment($pago, Auth::id(), 'Compra cancelada: '.$validated['reason']);
+        }
+        $recalc = app(RecalculateClosedShifts::class);
+        foreach (array_keys($affectedShiftIds) as $shiftId) {
+            $shift = CashRegisterShift::find($shiftId);
+            if ($shift && $shift->closed_at) {
+                $recalc->forShift($shift);
+            }
+        }
+
+        app(AuditLogger::class)->logCancelled($purchase, $validated['reason']);
 
         return back()->with('success', 'Compra cancelada.');
     }
@@ -390,6 +426,14 @@ trait HandlesPurchases
             ])->values(),
             'cancelled_at' => $p->cancelled_at?->toIso8601String(),
             'cancel_reason' => $p->cancel_reason,
+            'history' => $p->relationLoaded('history')
+                ? $p->history->take(50)->map(fn ($h) => [
+                    'event' => $h->event->value,
+                    'user_name' => $h->user?->name ?? 'Usuario eliminado',
+                    'created_at' => $h->created_at?->toIso8601String(),
+                    'changes' => $h->changes,
+                ])->values()
+                : [],
         ];
     }
 
@@ -430,12 +474,8 @@ trait HandlesPurchases
             $query->where('provider_id', $providerId);
         }
 
-        $status = $request->input('status', 'all');
-        if ($status === 'received') {
-            $query->where('status', PurchaseStatus::Received);
-        } elseif ($status === 'cancelled') {
-            $query->where('status', PurchaseStatus::Cancelled);
-        }
+        // Las compras canceladas no se listan (siguen en BD para reportes).
+        $query->where('status', '!=', PurchaseStatus::Cancelled);
 
         $paymentStatus = $request->input('payment_status');
         if ($paymentStatus === 'pending') {
