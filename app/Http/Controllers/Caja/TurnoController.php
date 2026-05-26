@@ -5,10 +5,7 @@ namespace App\Http\Controllers\Caja;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
-use App\Models\ExpenseSubcategory;
 use App\Models\Payment;
-use App\Models\Provider;
-use App\Models\PurchaseProduct;
 use App\Services\ShiftCashOutCalculator;
 use App\Services\ShiftReportMessageService;
 use App\Services\ShiftTotalsCalculator;
@@ -78,30 +75,8 @@ class TurnoController extends Controller
                 'payment_count' => $payments->pluck('sale_id')->unique()->count(),
             ],
             'paymentMethods' => $this->enabledMethodsFor($user->branch_id),
-            'expenseSubcategories' => $this->expenseSubcategoriesForForm(),
-            'providers' => Provider::where('status', 'active')->orderBy('name')->get(['id', 'name', 'type']),
-            'purchaseProducts' => PurchaseProduct::where('status', 'active')->orderBy('name')->get(['id', 'name', 'unit']),
             'tenant' => app('tenant'),
         ]);
-    }
-
-    /**
-     * Subcategorías activas del tenant para el form de gasto en caja.
-     *
-     * @return array<int, array{id: int, name: string, category: string}>
-     */
-    private function expenseSubcategoriesForForm(): array
-    {
-        return ExpenseSubcategory::query()
-            ->where('status', 'active')
-            ->with('category:id,name')
-            ->orderBy('name')
-            ->get()
-            ->map(fn ($s) => [
-                'id' => $s->id,
-                'name' => $s->name,
-                'category' => $s->category?->name ?? '',
-            ])->all();
     }
 
     public function open(Request $request): RedirectResponse
