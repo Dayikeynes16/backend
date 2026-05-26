@@ -11,6 +11,9 @@ const page = usePage();
 // Negocio y sucursal vienen de los props compartidos de Inertia (HandleInertiaRequests).
 const businessName = computed(() => page.props.auth?.tenant?.name || 'Negocio');
 const branchName = computed(() => page.props.auth?.branch?.name || '');
+// Ancho de papel térmico configurado por sucursal (58mm / 80mm); 80mm por defecto.
+const paperWidth = computed(() => page.props.auth?.branch?.ticket_width || '80mm');
+const previewWidth = computed(() => (paperWidth.value === '58mm' ? '260px' : '340px'));
 
 const text = ref('');
 const now = ref('');
@@ -66,8 +69,8 @@ const close = () => emit('close');
 
                         <!-- Vista previa 80 mm -->
                         <div>
-                            <p class="mb-1 text-sm font-medium text-gray-700">Vista previa (80 mm)</p>
-                            <div class="mx-auto rounded-lg border border-dashed border-gray-300 bg-white p-4" style="width: 340px; max-width: 100%;">
+                            <p class="mb-1 text-sm font-medium text-gray-700">Vista previa ({{ paperWidth }})</p>
+                            <div class="mx-auto rounded-lg border border-dashed border-gray-300 bg-white p-4" :style="{ width: previewWidth, maxWidth: '100%' }">
                                 <div class="text-center">
                                     <p class="text-sm font-bold">{{ businessName }}</p>
                                     <p v-if="branchName" class="text-xs text-gray-500">{{ branchName }}</p>
@@ -90,18 +93,25 @@ const close = () => emit('close');
                 </div>
             </div>
 
-            <!-- Contenido solo-impresión (hijo directo de body vía Teleport) -->
-            <div class="hidden print:block" style="width: 80mm;">
-                <div style="font-family: monospace; font-size: 12px; line-height: 1.4; padding: 4px;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 14px; font-weight: bold;">{{ businessName }}</div>
-                        <div v-if="branchName" style="font-size: 11px;">{{ branchName }}</div>
-                        <div style="font-size: 10px; color: #666;">{{ now }}</div>
-                    </div>
-                    <div style="border-top: 1px dashed #000; margin: 6px 0;" />
-                    <div style="white-space: pre-wrap; word-break: break-word;">{{ text }}</div>
-                    <div style="margin-top: 12px;" />
+            <!-- Contenido solo-impresión (hijo directo de body vía Teleport).
+                 El ancho sigue el papel configurado (58/80 mm) y el padding en mm
+                 mantiene el texto fuera de la zona no imprimible de la térmica. -->
+            <div class="hidden print:block" :style="{
+                width: paperWidth,
+                boxSizing: 'border-box',
+                padding: '4mm 5mm',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                lineHeight: '1.45',
+            }">
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; font-weight: bold; overflow-wrap: break-word; word-break: break-word;">{{ businessName }}</div>
+                    <div v-if="branchName" style="font-size: 11px; overflow-wrap: break-word; word-break: break-word;">{{ branchName }}</div>
+                    <div style="font-size: 10px; color: #666;">{{ now }}</div>
                 </div>
+                <div style="border-top: 1px dashed #000; margin: 6px 0;" />
+                <div style="white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;">{{ text }}</div>
+                <div style="margin-top: 12px;" />
             </div>
         </template>
     </Teleport>
