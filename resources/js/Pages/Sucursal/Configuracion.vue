@@ -58,6 +58,7 @@ const showCreateKey = ref(false);
 const keyForm = useForm({ name: '' });
 const copied = ref(false);
 const confirmRevokeId = ref(null);
+const confirmDeleteId = ref(null);
 
 const submitKey = () => {
     keyForm.post(route('sucursal.api-keys.store', props.tenant.slug), {
@@ -69,6 +70,13 @@ const revokeKey = () => {
     if (!confirmRevokeId.value) return;
     router.delete(route('sucursal.api-keys.destroy', [props.tenant.slug, confirmRevokeId.value]), {
         onSuccess: () => { confirmRevokeId.value = null; },
+    });
+};
+
+const deleteKey = () => {
+    if (!confirmDeleteId.value) return;
+    router.delete(route('sucursal.api-keys.force-delete', [props.tenant.slug, confirmDeleteId.value]), {
+        onSuccess: () => { confirmDeleteId.value = null; },
     });
 };
 
@@ -255,8 +263,8 @@ const revokedKeys = computed(() => props.apiKeys?.filter(k => k.status !== 'acti
                     <div v-if="revokedKeys.length > 0">
                         <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Revocadas</p>
                         <div class="space-y-2">
-                            <div v-for="key in revokedKeys" :key="key.id" class="flex items-center justify-between rounded-xl p-3 opacity-50 ring-1 ring-gray-100">
-                                <div class="flex items-center gap-3">
+                            <div v-for="key in revokedKeys" :key="key.id" class="flex items-center justify-between rounded-xl p-3 ring-1 ring-gray-100">
+                                <div class="flex items-center gap-3 opacity-60">
                                     <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100">
                                         <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg>
                                     </div>
@@ -265,6 +273,9 @@ const revokedKeys = computed(() => props.apiKeys?.filter(k => k.status !== 'acti
                                         <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">Revocada</span>
                                     </div>
                                 </div>
+                                <button @click="confirmDeleteId = key.id" class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-400 transition hover:bg-red-50 hover:text-red-600">
+                                    Eliminar
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -284,6 +295,14 @@ const revokedKeys = computed(() => props.apiKeys?.filter(k => k.status !== 'acti
             variant="danger"
             @confirm="revokeKey"
             @cancel="confirmRevokeId = null" />
+
+        <ConfirmDialog v-if="confirmDeleteId"
+            title="Eliminar API Key del listado"
+            message="Se borra definitivamente del listado. No afecta a ninguna integración (esta key ya estaba revocada o expirada)."
+            confirm-label="Eliminar"
+            variant="danger"
+            @confirm="deleteKey"
+            @cancel="confirmDeleteId = null" />
 
         <FlashToast />
     </SucursalLayout>

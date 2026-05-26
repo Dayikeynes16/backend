@@ -45,7 +45,7 @@ class ApiKeyController extends Controller
         ]);
 
         $user = Auth::user();
-        $rawKey = 'csa_' . Str::random(40);
+        $rawKey = 'csa_'.Str::random(40);
         $hash = hash('sha256', $rawKey);
 
         $expiresAt = $request->expires_in_days
@@ -66,19 +66,44 @@ class ApiKeyController extends Controller
 
     public function destroy(ApiKey $api_key): RedirectResponse
     {
-        $user = Auth::user();
-
-        if ($api_key->branch_id !== $user->branch_id) {
-            abort(403, 'Esta API Key no pertenece a tu sucursal.');
-        }
-
-        if ($api_key->tenant_id !== $user->tenant_id) {
-            abort(403, 'Esta API Key no pertenece a tu empresa.');
-        }
+        $this->authorizeKey($api_key);
 
         $api_key->update(['status' => 'inactive']);
 
         return redirect()->route('sucursal.configuracion', app('tenant')->slug)
             ->with('success', 'API Key revocada.');
+    }
+
+    /**
+     * Borra definitivamente del listado una API Key que ya no está en uso
+     * (revocada o expirada). Las activas hay que revocarlas primero, así no
+     * se elimina una key viva por accidente.
+     */
+    public function forceDelete(ApiKey $api_key): RedirectResponse
+    {
+        $this->authorizeKey($api_key);
+
+        if ($api_key->status === 'active' && ! $api_key->isExpired()) {
+            return redirect()->route('sucursal.configuracion', app('tenant')->slug)
+                ->with('error', 'Revoca la API Key antes de eliminarla del listado.');
+        }
+
+        $api_key->delete();
+
+        return redirect()->route('sucursal.configuracion', app('tenant')->slug)
+            ->with('success', 'API Key eliminada del listado.');
+    }
+
+    private function authorizeKey(ApiKey $apiKey): void
+    {
+        $user = Auth::user();
+
+        if ($apiKey->branch_id !== $user->branch_id) {
+            abort(403, 'Esta API Key no pertenece a tu sucursal.');
+        }
+
+        if ($apiKey->tenant_id !== $user->tenant_id) {
+            abort(403, 'Esta API Key no pertenece a tu empresa.');
+        }
     }
 }
