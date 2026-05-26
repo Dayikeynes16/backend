@@ -70,34 +70,13 @@ class TurnoController extends Controller
                 'total' => $totalCash + $totalCard + $totalTransfer,
                 'withdrawals' => $totalWithdrawals,
                 'cash_expenses' => $cashOut['cash_expenses'],
+                'cash_provider_payments' => $cashOut['cash_provider_payments'],
                 'expected_cash' => $cashOut['expected_amount'],
                 'payment_count' => $payments->pluck('sale_id')->unique()->count(),
             ],
             'paymentMethods' => $this->enabledMethodsFor($user->branch_id),
-            'expenseSubcategories' => $this->expenseSubcategoriesForForm(),
-            'providers' => \App\Models\Provider::where('status', 'active')->orderBy('name')->get(['id', 'name', 'type']),
-            'purchaseProducts' => \App\Models\PurchaseProduct::where('status', 'active')->orderBy('name')->get(['id', 'name', 'unit']),
             'tenant' => app('tenant'),
         ]);
-    }
-
-    /**
-     * Subcategorías activas del tenant para el form de gasto en caja.
-     *
-     * @return array<int, array{id: int, name: string, category: string}>
-     */
-    private function expenseSubcategoriesForForm(): array
-    {
-        return \App\Models\ExpenseSubcategory::query()
-            ->where('status', 'active')
-            ->with('category:id,name')
-            ->orderBy('name')
-            ->get()
-            ->map(fn ($s) => [
-                'id' => $s->id,
-                'name' => $s->name,
-                'category' => $s->category?->name ?? '',
-            ])->all();
     }
 
     public function open(Request $request): RedirectResponse
@@ -158,15 +137,18 @@ class TurnoController extends Controller
             $effective[] = 'cash';
         }
 
+        // Regla de negocio: un campo de declarado vacío NO debe romper el cierre.
+        // Se valida como `nullable` (no `required`) y más abajo se concilia como 0.00
+        // para los métodos efectivos. `numeric|min:0` sigue blindando basura/negativos.
         $rules = ['notes' => 'nullable|string|max:500'];
         if (in_array('cash', $effective, true)) {
-            $rules['declared_amount'] = 'required|numeric|min:0';
+            $rules['declared_amount'] = 'nullable|numeric|min:0';
         }
         if (in_array('card', $effective, true)) {
-            $rules['declared_card'] = 'required|numeric|min:0';
+            $rules['declared_card'] = 'nullable|numeric|min:0';
         }
         if (in_array('transfer', $effective, true)) {
-            $rules['declared_transfer'] = 'required|numeric|min:0';
+            $rules['declared_transfer'] = 'nullable|numeric|min:0';
         }
 
         $validated = $request->validate($rules);
@@ -174,13 +156,16 @@ class TurnoController extends Controller
         $cashOutTotals = $cashOut->forShift($shift, $totalCash, $totalWithdrawals);
         $expectedCash = $cashOutTotals['expected_amount'];
 
-        // declared_* queda NULL cuando el método no aplica (columna nullable).
-        $declaredCash = array_key_exists('declared_amount', $validated)
-            ? round((float) $validated['declared_amount'], 2) : null;
-        $declaredCard = array_key_exists('declared_card', $validated)
-            ? round((float) $validated['declared_card'], 2) : null;
-        $declaredTransfer = array_key_exists('declared_transfer', $validated)
-            ? round((float) $validated['declared_transfer'], 2) : null;
+        // Un método EFECTIVO con campo vacío/ausente se concilia como 0.00 (no se
+        // obliga al cajero a teclear 0). Los métodos que NO aplican quedan en NULL:
+        // ese es el discriminador "no aplica vs declarado en cero" que usan el corte
+        // y el recálculo (RecalculateClosedShifts).
+        $declaredCash = in_array('cash', $effective, true)
+            ? round((float) ($validated['declared_amount'] ?? 0), 2) : null;
+        $declaredCard = in_array('card', $effective, true)
+            ? round((float) ($validated['declared_card'] ?? 0), 2) : null;
+        $declaredTransfer = in_array('transfer', $effective, true)
+            ? round((float) ($validated['declared_transfer'] ?? 0), 2) : null;
 
         $diffCash = $declaredCash !== null ? round($declaredCash - $expectedCash, 2) : null;
         $diffCard = $declaredCard !== null ? round($declaredCard - $totalCard, 2) : null;

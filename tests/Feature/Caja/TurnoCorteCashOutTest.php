@@ -6,6 +6,8 @@ use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseSubcategory;
+use App\Models\Provider;
+use App\Models\ProviderPayment;
 use App\Services\RecalculateClosedShifts;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
@@ -84,11 +86,11 @@ class TurnoCorteCashOutTest extends TestCase
     {
         $shift = $this->openShift();
 
-        \App\Models\ProviderPayment::create([
+        ProviderPayment::create([
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
             'cash_register_shift_id' => $shift->id,
-            'provider_id' => \App\Models\Provider::create(['name' => 'Prov', 'type' => 'otro'])->id,
+            'provider_id' => Provider::create(['name' => 'Prov', 'type' => 'otro'])->id,
             'paid_at' => now(),
             'amount' => 300,
             'payment_method' => 'cash',
@@ -106,6 +108,47 @@ class TurnoCorteCashOutTest extends TestCase
         // esperado = 1000 - 0 retiros - 0 gastos - 300 pagos a proveedor = 700
         $this->assertSame('700.00', $shift->expected_amount);
         $this->assertSame('300.00', $shift->total_cash_provider_payments);
+    }
+
+    public function test_close_treats_blank_declared_amounts_as_zero(): void
+    {
+        $shift = $this->openShift(); // fondo 1000, sin cobros en el turno
+
+        $this->actingAs($this->cajero);
+        // El cajero no captura nada: los campos de declarado llegan ausentes/vacíos.
+        $this->post(route('caja.turno.close', $this->tenant->slug), [])
+            ->assertRedirect();
+
+        $shift->refresh();
+        $this->assertNotNull($shift->closed_at);
+        // Métodos efectivos (cash/card/transfer habilitados) → declarado = 0.00, no NULL.
+        $this->assertSame('0.00', $shift->declared_amount);
+        $this->assertSame('0.00', $shift->declared_card);
+        $this->assertSame('0.00', $shift->declared_transfer);
+        // esperado = 1000 fondo; declarado 0 → faltante de 1000 en efectivo.
+        $this->assertSame('1000.00', $shift->expected_amount);
+        $this->assertSame('-1000.00', $shift->difference);
+        $this->assertSame('0.00', $shift->difference_card);
+        $this->assertSame('0.00', $shift->difference_transfer);
+    }
+
+    public function test_close_treats_empty_string_declared_as_zero(): void
+    {
+        $shift = $this->openShift();
+
+        $this->actingAs($this->cajero);
+        // Strings vacíos (lo que envía el front si no se completa) no deben romper el cierre.
+        $this->post(route('caja.turno.close', $this->tenant->slug), [
+            'declared_amount' => '',
+            'declared_card' => '',
+            'declared_transfer' => '',
+        ])->assertRedirect();
+
+        $shift->refresh();
+        $this->assertNotNull($shift->closed_at);
+        $this->assertSame('0.00', $shift->declared_amount);
+        $this->assertSame('1000.00', $shift->expected_amount);
+        $this->assertSame('-1000.00', $shift->difference);
     }
 
     public function test_recalculate_after_soft_deleting_expense(): void

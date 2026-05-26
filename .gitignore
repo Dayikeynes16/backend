@@ -27,3 +27,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 .superpowers/
+.agents/
+skills-lock.json
+CLAUDE.md
