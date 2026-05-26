@@ -28,7 +28,10 @@ class StoreAgendaItemRequest extends FormRequest
             'body' => ['nullable', 'string', 'max:5000'],
             'scope' => ['required', Rule::enum(AgendaScope::class)],
             'branch_id' => [
-                Rule::requiredIf(fn () => $this->input('scope') === AgendaScope::Branch->value),
+                // Solo el admin de empresa/superadmin elige sucursal; el resto usa la
+                // suya automáticamente (el controlador la rellena), así que no la exigimos.
+                Rule::requiredIf(fn () => $this->input('scope') === AgendaScope::Branch->value
+                    && ($this->user()->hasRole('admin-empresa') || $this->user()->hasRole('superadmin'))),
                 'nullable',
                 Rule::exists('branches', 'id')->where('tenant_id', $tenantId),
             ],

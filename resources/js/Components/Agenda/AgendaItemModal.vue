@@ -1,6 +1,10 @@
 <script setup>
-import { router, useForm } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+
+const page = usePage();
+// Solo el admin de empresa/superadmin puede crear ítems con alcance "Empresa".
+const canCompanyScope = computed(() => ['admin-empresa', 'superadmin'].includes(page.props.auth?.role));
 
 const props = defineProps({
     open: { type: Boolean, default: false },
@@ -184,7 +188,7 @@ const submit = () => {
                             <select v-model="form.scope" class="w-full rounded-xl border-gray-300 text-sm focus:border-red-500 focus:ring-red-500">
                                 <option value="personal">Personal</option>
                                 <option value="branch">Sucursal</option>
-                                <option value="company">Empresa</option>
+                                <option v-if="canCompanyScope || form.scope === 'company'" value="company">Empresa</option>
                             </select>
                             <p v-if="form.errors.scope" class="mt-1 text-xs text-red-600">{{ form.errors.scope }}</p>
                         </div>

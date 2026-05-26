@@ -110,7 +110,15 @@ class AgendaController extends Controller
 
     public function update(UpdateAgendaItemRequest $request, AgendaItem $item): RedirectResponse
     {
-        $item->update($request->validated());
+        $user = Auth::user();
+        $data = $request->validated();
+
+        // branch no admin solo puede ser su sucursal
+        if (($data['scope'] ?? null) === 'branch' && ! ($user->hasRole('admin-empresa') || $user->hasRole('superadmin'))) {
+            $data['branch_id'] = $user->branch_id;
+        }
+
+        $item->update($data);
 
         return back()->with('success', 'Actualizado.');
     }
