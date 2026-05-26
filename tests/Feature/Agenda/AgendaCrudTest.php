@@ -39,6 +39,21 @@ class AgendaCrudTest extends TestCase
             ])->assertForbidden();
     }
 
+    public function test_cajero_creates_branch_task_with_own_branch(): void
+    {
+        $this->actingAs($this->cajero)
+            ->post(route('agenda.store', $this->tenant->slug), [
+                'type' => 'task', 'title' => 'Informar que no hay monedas', 'scope' => 'branch',
+            ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('agenda_items', [
+            'title' => 'Informar que no hay monedas',
+            'user_id' => $this->cajero->id,
+            'scope' => 'branch',
+            'branch_id' => $this->cajero->branch_id,
+        ]);
+    }
+
     public function test_completing_recurring_task_generates_next(): void
     {
         $task = AgendaItem::create([
