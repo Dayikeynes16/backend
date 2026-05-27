@@ -101,8 +101,9 @@ class PurchaseController extends Controller
 
     protected function redirectAfterWrite(Request $request, string $message): RedirectResponse
     {
-        return redirect()
-            ->route('sucursal.compras.index', app('tenant')->slug)
+        // Regresa a la pantalla de origen (listado de Compras o detalle del
+        // proveedor) conservando filtros; cae al listado si no hay referer.
+        return back(fallback: route('sucursal.compras.index', app('tenant')->slug))
             ->with('success', $message);
     }
 

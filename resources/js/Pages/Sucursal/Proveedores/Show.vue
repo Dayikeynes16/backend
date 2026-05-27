@@ -7,6 +7,7 @@ import { computed } from 'vue';
 defineProps({
     provider: { type: Object, required: true },
     seed: { type: Object, default: () => ({}) },
+    purchaseProducts: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -23,6 +24,6 @@ const slug = computed(() => page.props.auth.tenant_slug);
             </div>
         </template>
 
-        <ProviderDetail :provider="provider" :seed="seed" route-prefix="sucursal" :can-register-payment="true" />
+        <ProviderDetail :provider="provider" :seed="seed" :purchase-products="purchaseProducts" route-prefix="sucursal" :can-register-payment="true" />
     </SucursalLayout>
 </template>

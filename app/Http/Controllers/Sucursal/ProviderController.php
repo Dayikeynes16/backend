@@ -6,6 +6,7 @@ use App\Enums\ProviderType;
 use App\Http\Controllers\Concerns\HandlesProviderDetail;
 use App\Http\Controllers\Controller;
 use App\Models\Provider;
+use App\Models\PurchaseProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -73,6 +74,7 @@ class ProviderController extends Controller
                 'status' => $provider->status,
             ],
             'seed' => $this->providerSeed($provider),
+            'purchaseProducts' => PurchaseProduct::where('status', 'active')->orderBy('name')->get(['id', 'name', 'unit']),
         ]);
     }
 

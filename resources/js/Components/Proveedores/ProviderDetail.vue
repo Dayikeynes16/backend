@@ -1,6 +1,9 @@
 <script setup>
 import KpiCard from '@/Components/Metrics/KpiCard.vue';
 import PagoProveedorModal from '@/Components/Compras/PagoProveedorModal.vue';
+import CompraDetailModal from '@/Components/Compras/CompraDetailModal.vue';
+import CompraFormModal from '@/Components/Compras/CompraFormModal.vue';
+import PagoDetalleModal from '@/Components/Proveedores/PagoDetalleModal.vue';
 import { useProviderStats } from '@/composables/useProviderStats';
 import { formatCurrency } from '@/composables/useCurrency';
 import { Link, usePage } from '@inertiajs/vue3';
@@ -13,6 +16,8 @@ const props = defineProps({
     // 'empresa' | 'sucursal' — define los nombres de ruta y el alcance (back-end).
     routePrefix: { type: String, required: true },
     canRegisterPayment: { type: Boolean, default: true },
+    // Catálogo de productos de compra para el autocompletado del form de edición.
+    purchaseProducts: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -126,6 +131,31 @@ const paymentPurchase = ref(null); // null ⇒ pago a cuenta (FIFO); set ⇒ pag
 const openAccountPayment = () => { paymentPurchase.value = null; paymentOpen.value = true; };
 const openPurchasePayment = (purchase) => { paymentPurchase.value = purchase; paymentOpen.value = true; };
 const onPaymentCreated = () => { paymentOpen.value = false; reload(); };
+
+// Detalle de compra (solo lectura): reutiliza el modal del módulo Compras. Las
+// acciones de gestión (editar/cancelar/adjuntos) viven en Compras, no aquí.
+const detailOpen = ref(false);
+const detailPurchase = ref(null);
+const openDetail = (purchase) => { detailPurchase.value = purchase; detailOpen.value = true; };
+const detailRoutes = { cancel: `${props.routePrefix}.compras.cancel` };
+
+// Editar compra: solo mientras siga PENDIENTE (sin pagos). Reutiliza el form de
+// Compras; la sucursal queda fijada a la sucursal de la compra.
+const editFormOpen = ref(false);
+const editingPurchase = ref(null);
+const openEdit = (purchase) => { editingPurchase.value = purchase; editFormOpen.value = true; };
+const onEditClose = () => { editFormOpen.value = false; reload(); };
+const editRoutes = {
+    store: `${props.routePrefix}.compras.store`,
+    update: `${props.routePrefix}.compras.update`,
+};
+const formProviders = computed(() => [{ id: props.provider.id, name: props.provider.name }]);
+const editFixedBranchId = computed(() => editingPurchase.value?.branch?.id ?? null);
+
+// Detalle de un pago (solo lectura).
+const pagoDetailOpen = ref(false);
+const selectedPago = ref(null);
+const openPago = (pay) => { selectedPago.value = pay; pagoDetailOpen.value = true; };
 
 // ─── Helpers de formato ─────────────────────────────────────────────────────
 const fmt = (n) => formatCurrency(n);
@@ -252,7 +282,7 @@ const relationState = computed(() => {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <tr v-for="c in compras.items" :key="c.id" class="text-sm hover:bg-gray-50">
+                            <tr v-for="c in compras.items" :key="c.id" class="cursor-pointer text-sm hover:bg-gray-50" @click="openDetail(c)">
                                 <td class="px-3 py-2 font-medium text-gray-900">{{ c.folio }}
                                     <span v-if="c.invoice_number" class="block text-xs text-gray-400">{{ c.invoice_number }}</span>
                                 </td>
@@ -264,9 +294,12 @@ const relationState = computed(() => {
                                 <td class="px-3 py-2">
                                     <span :class="['rounded-full px-2 py-0.5 text-xs font-semibold', paymentBadge(c.payment_status)]">{{ paymentLabel(c.payment_status) }}</span>
                                 </td>
-                                <td class="px-3 py-2 text-right">
-                                    <button v-if="canRegisterPayment && c.amount_pending > 0" type="button" @click="openPurchasePayment(c)"
-                                        class="text-xs font-semibold text-emerald-700 hover:text-emerald-900">Pagar</button>
+                                <td class="whitespace-nowrap px-3 py-2 text-right">
+                                    <button type="button" @click.stop="openDetail(c)" class="text-xs font-semibold text-gray-600 hover:text-gray-900">Ver</button>
+                                    <button v-if="canRegisterPayment && c.payment_status === 'pending'" type="button" @click.stop="openEdit(c)"
+                                        class="ml-3 text-xs font-semibold text-orange-700 hover:text-orange-900">Editar</button>
+                                    <button v-if="canRegisterPayment && c.amount_pending > 0" type="button" @click.stop="openPurchasePayment(c)"
+                                        class="ml-3 text-xs font-semibold text-emerald-700 hover:text-emerald-900">Pagar</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -298,7 +331,7 @@ const relationState = computed(() => {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <tr v-for="pay in pagos.items" :key="pay.id" class="text-sm hover:bg-gray-50" :class="pay.cancelled_at ? 'opacity-50' : ''">
+                            <tr v-for="pay in pagos.items" :key="pay.id" class="cursor-pointer text-sm hover:bg-gray-50" :class="pay.cancelled_at ? 'opacity-50' : ''" @click="openPago(pay)">
                                 <td class="px-3 py-2 text-gray-600">{{ fmtDate(pay.paid_at) }}</td>
                                 <td class="px-3 py-2 text-right font-semibold text-gray-900">{{ fmt(pay.amount) }}</td>
                                 <td class="px-3 py-2 text-gray-600">{{ methodLabel(pay.payment_method) }}</td>
@@ -359,5 +392,28 @@ const relationState = computed(() => {
             @close="paymentOpen = false"
             @created="onPaymentCreated"
         />
+
+        <!-- Detalle de compra en solo lectura (reutiliza el modal de Compras). -->
+        <CompraDetailModal
+            :open="detailOpen"
+            :purchase="detailPurchase"
+            :can-manage="false"
+            :routes="detailRoutes"
+            @close="detailOpen = false"
+        />
+
+        <!-- Edición de compra pendiente (reutiliza el form de Compras). -->
+        <CompraFormModal
+            :open="editFormOpen"
+            :purchase="editingPurchase"
+            :providers="formProviders"
+            :purchase-products="purchaseProducts"
+            :fixed-branch-id="editFixedBranchId"
+            :routes="editRoutes"
+            @close="onEditClose"
+        />
+
+        <!-- Detalle de un pago (solo lectura). -->
+        <PagoDetalleModal :open="pagoDetailOpen" :payment="selectedPago" @close="pagoDetailOpen = false" />
     </div>
 </template>
