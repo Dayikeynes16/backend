@@ -106,26 +106,6 @@ class PurchaseController extends Controller
             ->with('success', $message);
     }
 
-    private function paymentStatusFor(Purchase $p): string
-    {
-        if ($p->status === PurchaseStatus::Cancelled) {
-            return 'cancelled';
-        }
-        $paid = (float) $p->amount_paid;
-        $total = (float) $p->total;
-        if ($paid <= 0) {
-            return 'pending';
-        }
-        if ($paid >= $total) {
-            return 'paid';
-        }
-
-        return 'partial';
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
     /**
      * KPIs a partir de una query ya filtrada (fecha, proveedor…) y scopeada
      * a la sucursal.

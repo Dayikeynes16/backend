@@ -108,47 +108,6 @@ class PurchaseController extends Controller
     // ─── Helpers privados ────────────────────────────────────────────────
 
     /**
-     * @return array<string, mixed>
-     */
-    private function serializeListRow(Purchase $p): array
-    {
-        return [
-            'id' => $p->id,
-            'folio' => $p->folio,
-            'invoice_number' => $p->invoice_number,
-            'purchased_at' => $p->purchased_at?->toIso8601String(),
-            'status' => $p->status->value,
-            'provider' => $p->provider ? ['id' => $p->provider->id, 'name' => $p->provider->name] : null,
-            'branch' => $p->branch ? ['id' => $p->branch->id, 'name' => $p->branch->name] : null,
-            'total' => (float) $p->total,
-            'amount_paid' => (float) $p->amount_paid,
-            'amount_pending' => (float) $p->amount_pending,
-            'payment_status' => $this->paymentStatusFor($p),
-            'attachments_count' => (int) ($p->attachments_count ?? 0),
-        ];
-    }
-
-    private function paymentStatusFor(Purchase $p): string
-    {
-        if ($p->status === PurchaseStatus::Cancelled) {
-            return 'cancelled';
-        }
-        $paid = (float) $p->amount_paid;
-        $total = (float) $p->total;
-        if ($paid <= 0) {
-            return 'pending';
-        }
-        if ($paid >= $total) {
-            return 'paid';
-        }
-
-        return 'partial';
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    /**
      * KPIs a partir de una query ya filtrada (fecha, sucursal, proveedor…).
      *
      * @return array<string, mixed>

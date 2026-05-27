@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Empresa;
 
 use App\Enums\ProviderType;
+use App\Http\Controllers\Concerns\HandlesProviderDetail;
 use App\Http\Controllers\Controller;
 use App\Models\Provider;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +22,8 @@ use Inertia\Response;
  */
 class ProviderController extends Controller
 {
+    use HandlesProviderDetail;
+
     public function index(Request $request): Response
     {
         $tenant = app('tenant');
@@ -78,6 +81,7 @@ class ProviderController extends Controller
 
         return Inertia::render('Empresa/Proveedores/Show', [
             'provider' => $this->serializeProvider($provider->loadCount('purchases')),
+            'seed' => $this->providerSeed($provider),
         ]);
     }
 

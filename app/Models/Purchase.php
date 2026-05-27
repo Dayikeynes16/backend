@@ -74,4 +74,32 @@ class Purchase extends Model
             'amount_pending' => 'decimal:2',
         ];
     }
+
+    /**
+     * Estado de pago DERIVADO (no se almacena): pending / partial (abonada) /
+     * paid (pagada) / cancelled, calculado a partir de amount_paid vs total.
+     *
+     * Única fuente de verdad reutilizada por la serialización de compras y por
+     * el detalle de proveedor. El listado de Compras filtra el mismo umbral en
+     * SQL (HandlesPurchases::applyIndexFilters), que debe mantenerse alineado.
+     */
+    public function paymentStatus(): string
+    {
+        if ($this->status === PurchaseStatus::Cancelled) {
+            return 'cancelled';
+        }
+
+        $paid = (float) $this->amount_paid;
+        $total = (float) $this->total;
+
+        if ($paid <= 0) {
+            return 'pending';
+        }
+
+        if ($paid >= $total) {
+            return 'paid';
+        }
+
+        return 'partial';
+    }
 }
