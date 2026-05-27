@@ -262,6 +262,7 @@ const {
             v-if="daySummary"
             class="mb-4"
             storage-key="historial-ventas"
+            :default-collapsed="true"
             :title="summaryTitle"
             legend="Ventas del día — cobradas o pendientes, sin canceladas."
             :kpis="summaryKpis"
