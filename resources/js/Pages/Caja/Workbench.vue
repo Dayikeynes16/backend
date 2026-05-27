@@ -3,7 +3,8 @@ import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
-import SaleDetailModal from '@/Components/Caja/SaleDetailModal.vue';
+import SaleDetail from '@/Components/Caja/SaleDetail.vue';
+import SaleDetailModalShell from '@/Components/SaleDetailModalShell.vue';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { useSaleActions } from '@/composables/useSaleActions';
@@ -28,6 +29,7 @@ const selectedId = ref(null);
 const selected = computed(() => props.sales.find(s => s.id === selectedId.value) || null);
 const showDetail = computed(() => !!selected.value);
 const showCancelRequest = ref(false);
+const detailDirty = ref(false); // monto capturado sin cobrar → confirmar antes de cerrar el modal
 
 // Real-time updates (same as Sucursal)
 const { sales: queuedSales } = useSaleQueue(props.branchId);
@@ -189,22 +191,27 @@ const submitCancelRequest = (reason) => {
         </div>
 
         <!-- Detalle de venta en modal grande -->
-        <SaleDetailModal
-            :show="showDetail"
-            :sale="selected"
-            :tenant-slug="tenant.slug"
-            :tenant="tenant"
-            :branch-info="branchInfo"
-            :payment-methods="paymentMethods"
-            :customers="customers"
-            :is-locked-by-other="selected ? isLockedByOther(selected.id) : false"
-            :locked-by-name="selected ? (lockedByName(selected.id) || '') : ''"
-            @close="closeDetail"
-            @paid="reloadSales"
-            @mutated="reloadSales"
-            @pause="handlePause"
-            @reactivate="handleReactivate"
-            @request-cancel="showCancelRequest = true" />
+        <SaleDetailModalShell :show="showDetail" :dirty="detailDirty" @close="closeDetail">
+            <template #default="{ requestClose }">
+                <SaleDetail v-if="selected"
+                    :key="selected.id"
+                    :sale="selected"
+                    :tenant-slug="tenant.slug"
+                    :tenant="tenant"
+                    :branch-info="branchInfo"
+                    :payment-methods="paymentMethods"
+                    :customers="customers"
+                    :is-locked-by-other="isLockedByOther(selected.id)"
+                    :locked-by-name="lockedByName(selected.id) || ''"
+                    @update:dirty="detailDirty = $event"
+                    @close="requestClose"
+                    @paid="reloadSales"
+                    @mutated="reloadSales"
+                    @pause="handlePause"
+                    @reactivate="handleReactivate"
+                    @request-cancel="showCancelRequest = true" />
+            </template>
+        </SaleDetailModalShell>
 
         <CancelSaleDialog v-if="showCancelRequest" :folio="selected?.folio" mode="request" :processing="cancelProcessing" @confirm="submitCancelRequest" @cancel="showCancelRequest = false" />
 
