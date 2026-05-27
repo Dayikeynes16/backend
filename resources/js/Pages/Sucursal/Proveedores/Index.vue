@@ -1,6 +1,6 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -80,7 +80,10 @@ const typeBadgeColor = (type) => ({
                     </thead>
                     <tbody class="divide-y divide-gray-100 bg-white">
                         <tr v-for="p in providers" :key="p.id" class="hover:bg-gray-50">
-                            <td class="px-4 py-3 font-semibold text-gray-900">{{ p.name }}</td>
+                            <td class="px-4 py-3">
+                                <Link :href="route('sucursal.proveedores.show', { tenant: slug, provider: p.id })"
+                                    class="font-semibold text-gray-900 hover:text-orange-700 hover:underline">{{ p.name }}</Link>
+                            </td>
                             <td class="px-4 py-3 text-sm">
                                 <span :class="['rounded-full px-2 py-0.5 text-xs font-semibold', typeBadgeColor(p.type)]">{{ p.type_label }}</span>
                             </td>

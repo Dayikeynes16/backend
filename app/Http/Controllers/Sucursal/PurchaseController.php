@@ -101,31 +101,12 @@ class PurchaseController extends Controller
 
     protected function redirectAfterWrite(Request $request, string $message): RedirectResponse
     {
-        return redirect()
-            ->route('sucursal.compras.index', app('tenant')->slug)
+        // Regresa a la pantalla de origen (listado de Compras o detalle del
+        // proveedor) conservando filtros; cae al listado si no hay referer.
+        return back(fallback: route('sucursal.compras.index', app('tenant')->slug))
             ->with('success', $message);
     }
 
-    private function paymentStatusFor(Purchase $p): string
-    {
-        if ($p->status === PurchaseStatus::Cancelled) {
-            return 'cancelled';
-        }
-        $paid = (float) $p->amount_paid;
-        $total = (float) $p->total;
-        if ($paid <= 0) {
-            return 'pending';
-        }
-        if ($paid >= $total) {
-            return 'paid';
-        }
-
-        return 'partial';
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
     /**
      * KPIs a partir de una query ya filtrada (fecha, proveedor…) y scopeada
      * a la sucursal.

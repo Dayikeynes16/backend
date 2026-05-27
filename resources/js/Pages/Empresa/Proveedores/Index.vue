@@ -151,7 +151,8 @@ const flash = computed(() => page.props.flash || {});
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-3">
                                     <div>
-                                        <div class="font-semibold text-gray-900">{{ p.name }}</div>
+                                        <Link :href="route('empresa.proveedores.show', { tenant: slug, provider: p.id })"
+                                            class="font-semibold text-gray-900 hover:text-orange-700 hover:underline">{{ p.name }}</Link>
                                         <div v-if="p.rfc" class="text-xs text-gray-500">RFC: {{ p.rfc }}</div>
                                     </div>
                                     <span v-if="p.status === 'inactive'" class="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">Inactivo</span>
@@ -166,7 +167,8 @@ const flash = computed(() => page.props.flash || {});
                                 {{ p.pending_total > 0 ? fmt(p.pending_total) : '—' }}
                             </td>
                             <td class="px-4 py-3 text-right">
-                                <button @click="openEdit(p)" class="text-sm font-medium text-orange-700 hover:text-orange-900">Editar</button>
+                                <Link :href="route('empresa.proveedores.show', { tenant: slug, provider: p.id })" class="text-sm font-medium text-gray-700 hover:text-gray-900">Ver</Link>
+                                <button @click="openEdit(p)" class="ml-3 text-sm font-medium text-orange-700 hover:text-orange-900">Editar</button>
                                 <button @click="remove(p)" class="ml-3 text-sm font-medium text-red-600 hover:text-red-800">Eliminar</button>
                             </td>
                         </tr>

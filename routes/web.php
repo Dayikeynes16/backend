@@ -183,6 +183,12 @@ Route::prefix('{tenant}')
                 Route::post('proveedores/{provider}/pagos', [EmpresaProviderPaymentController::class, 'storeForProvider'])
                     ->whereNumber('provider')->name('proveedores.pagos.store');
 
+                // Detalle del proveedor (lectura): resumen, compras, pagos y productos por rango de fechas.
+                Route::get('proveedores/{provider}/resumen', [EmpresaProviderController::class, 'resumen'])->whereNumber('provider')->name('proveedores.resumen');
+                Route::get('proveedores/{provider}/compras', [EmpresaProviderController::class, 'compras'])->whereNumber('provider')->name('proveedores.compras');
+                Route::get('proveedores/{provider}/pagos', [EmpresaProviderController::class, 'pagos'])->whereNumber('provider')->name('proveedores.pagos.index');
+                Route::get('proveedores/{provider}/productos', [EmpresaProviderController::class, 'productos'])->whereNumber('provider')->name('proveedores.productos');
+
                 // Catálogo de productos de compra (tenant-wide).
                 Route::get('productos-compra', [EmpresaPurchaseProductController::class, 'index'])->name('productos-compra.index');
                 Route::post('productos-compra', [EmpresaPurchaseProductController::class, 'store'])->name('productos-compra.store');
@@ -386,6 +392,13 @@ Route::prefix('{tenant}')
                 // Pago a cuenta (F3): admin-sucursal solo puede saldar sus compras (FIFO scoped).
                 Route::post('proveedores/{provider}/pagos', [SucursalProviderPaymentController::class, 'storeForProvider'])
                     ->whereNumber('provider')->name('proveedores.pagos.store');
+
+                // Detalle del proveedor (lectura, scopeado a su sucursal): show + resumen/compras/pagos/productos.
+                Route::get('proveedores/{provider}', [SucursalProviderController::class, 'show'])->whereNumber('provider')->name('proveedores.show');
+                Route::get('proveedores/{provider}/resumen', [SucursalProviderController::class, 'resumen'])->whereNumber('provider')->name('proveedores.resumen');
+                Route::get('proveedores/{provider}/compras', [SucursalProviderController::class, 'compras'])->whereNumber('provider')->name('proveedores.compras');
+                Route::get('proveedores/{provider}/pagos', [SucursalProviderController::class, 'pagos'])->whereNumber('provider')->name('proveedores.pagos.index');
+                Route::get('proveedores/{provider}/productos', [SucursalProviderController::class, 'productos'])->whereNumber('provider')->name('proveedores.productos');
 
                 // Compras (F2). admin-sucursal sólo opera sobre su sucursal.
                 Route::prefix('compras')->name('compras.')->group(function () {
