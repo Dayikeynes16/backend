@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ProductController;
@@ -20,6 +21,19 @@ Route::prefix('v1')
         Route::get('sales', [SaleController::class, 'index'])->name('api.sales.index');
         Route::get('sales/{sale}', [SaleController::class, 'show'])->name('api.sales.show');
     });
+
+// Autenticación de usuario para el hub de escritorio (Sanctum token).
+// Fuera del grupo auth.apikey: NO afecta a las básculas ni a la sesión Inertia.
+Route::prefix('v1')->group(function () {
+    Route::post('auth/login', [AuthController::class, 'login'])
+        ->middleware('throttle:10,1')
+        ->name('api.auth.login');
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('auth/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
+        Route::get('auth/me', [AuthController::class, 'me'])->name('api.auth.me');
+    });
+});
 
 // Public endpoints for online ordering SPA. No auth. Rate-limited.
 Route::prefix('public/{tenantSlug}')
