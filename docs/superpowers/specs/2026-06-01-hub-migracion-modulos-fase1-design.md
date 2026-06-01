@@ -138,7 +138,7 @@ Todos bajo `/api/v1/hub/*`, con `auth:sanctum` + rol (cajero/admin-sucursal). El
 | Cobrar sin turno abierto | 409 | "Abre un turno antes de cobrar." |
 | Turno ya abierto | 409 | "Ya tienes un turno abierto." |
 | Validación | 422 | Errores por campo. |
-| Reintento de cobro | dedupe por `client_reference` | No duplica; muestra el pago existente. |
+| Reintento de cobro | dedupe por `client_reference` (diseño nuevo, ver Endpoints) | No duplica; muestra el pago existente. |
 | Cargando | — | Skeleton/spinner MD3. |
 
 ## Testing
@@ -146,9 +146,13 @@ Todos bajo `/api/v1/hub/*`, con `auth:sanctum` + rol (cajero/admin-sucursal). El
 - **Backend (PHPUnit):** turno (abrir / 409 si existe / cerrar con totales), ventas
   (lista filtra por sucursal del token, detalle), cobro (registra, cambio, transición,
   **idempotencia por `client_reference`**, 409 sin turno, aislamiento de sucursal).
-  **Regresión:** suite de turno/pagos Inertia existente (los tests que cubran
-  `TurnoController` y `Sucursal/PaymentController` — verificar nombres al planificar) +
-  básculas (`tests/Feature/PresentationSaleContractTest.php`) + `tests/Feature/Auth`.
+  **Regresión:** suite de turno/pagos Inertia existente — en concreto
+  `tests/Feature/Caja/TurnoCorteCashOutTest.php`, `tests/Feature/Caja/PagosIndexTest.php`,
+  `tests/Feature/Sucursal/CashShiftCloseTest.php`, `tests/Feature/Sucursal/PagosSummaryTest.php`
+  (cobertura por flujo, no hay test nombrado por controlador; si se elige convergencia (a),
+  confirmar que estos ejercitan el `recalculate()` privado antes de confiar en ellos como
+  red de seguridad) + básculas (`tests/Feature/PresentationSaleContractTest.php`) +
+  `tests/Feature/Auth`.
   (Nota: `tests/Feature/Api/SaleIdempotencyTest.php` NO existe en este branch; vive en la
   rama de idempotencia sin mergear — no referenciarlo aquí.)
 - **Hub (Vitest):** `httpClient` (mapeo de errores con fetch inyectado), `shift.js`/
