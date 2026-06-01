@@ -3,6 +3,9 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
+use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
+use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Public\DeliveryController as PublicDeliveryController;
@@ -34,6 +37,20 @@ Route::prefix('v1')->group(function () {
         Route::get('auth/me', [AuthController::class, 'me'])->name('api.auth.me');
     });
 });
+
+// Hub de escritorio: operaciones de caja autenticadas por usuario (Sanctum).
+// Separado del grupo auth.apikey (básculas) y de Inertia.
+Route::prefix('v1/hub')
+    ->middleware(['auth:sanctum', 'hub.role'])
+    ->group(function () {
+        Route::get('shift/current', [HubShiftController::class, 'current'])->name('api.hub.shift.current');
+        Route::post('shift/open', [HubShiftController::class, 'open'])->name('api.hub.shift.open');
+        Route::post('shift/close', [HubShiftController::class, 'close'])->name('api.hub.shift.close');
+
+        Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
+        Route::get('sales/{sale}', [HubSaleController::class, 'show'])->name('api.hub.sales.show');
+        Route::post('sales/{sale}/payments', [HubPaymentController::class, 'store'])->name('api.hub.sales.payments.store');
+    });
 
 // Public endpoints for online ordering SPA. No auth. Rate-limited.
 Route::prefix('public/{tenantSlug}')
