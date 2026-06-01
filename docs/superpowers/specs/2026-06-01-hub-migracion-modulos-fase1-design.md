@@ -80,17 +80,32 @@ Todos bajo `/api/v1/hub/*`, con `auth:sanctum` + rol (cajero/admin-sucursal). El
 | `POST hub/shift/close` | `ShiftTotalsCalculator` + `ShiftCashOutCalculator` | Cierra turno; devuelve datos del corte. |
 | `GET hub/sales` | query de ventas activas/pendientes de la sucursal | Lista para cobrar (polling). Paginada. |
 | `GET hub/sales/{sale}` | — | Detalle + ítems + pagos. |
-| `POST hub/sales/{sale}/payments` | `SalePaymentService::recalculate` | Registra cobro; calcula cambio; transiciona estado. **Requiere turno abierto.** |
+| `POST hub/sales/{sale}/payments` | servicio de recálculo de pago (ver nota de convergencia) | Registra cobro; calcula cambio; transiciona estado. **Requiere turno abierto.** |
 
 **Reglas / contrato:**
-- **Idempotencia de cobro:** `POST payments` acepta `client_reference` (UUID) opcional;
-  reintentos no duplican el pago. Aditivo: columna `client_reference` nullable en
-  `payments` + índice único parcial `(sale_id, client_reference)`. Comportamiento
-  idéntico al actual cuando es `null` (web Inertia).
+- **Idempotencia de cobro (DISEÑO NUEVO, no copia de un patrón existente):** en este
+  branch **no existe** ninguna columna `client_reference` (la de `sales` vive en la rama
+  `feature/hub-backend-idempotencia`, aún sin mergear; `Api/SaleController@store` hoy
+  deduplica folios solo con `pg_advisory_xact_lock`). Por tanto la idempotencia de pagos
+  es **subsistema nuevo a construir**: columna `client_reference` nullable en `payments`
+  + índice único parcial `(sale_id, client_reference)` (patrón Postgres
+  `WHERE client_reference IS NOT NULL`, que sí tiene precedente) + **ruta de lectura de
+  dedupe** (buscar pago existente por `(sale_id, client_reference)` antes de crear) y su
+  manejo de concurrencia. Comportamiento idéntico al actual cuando es `null` (web Inertia).
+- **Convergencia del recálculo de pago (DECISIÓN DE IMPLEMENTACIÓN):** el camino real de
+  registro de pago `Sucursal/PaymentController@store` usa un método **privado
+  `recalculate()` propio**, NO `SalePaymentService::recalculate` (este último solo lo
+  usan `CustomerPaymentController` y `SaleItemEditor`). El paso 1 del patrón (extraer
+  lógica a servicio) debe decidir explícitamente: **(a)** extraer ese `recalculate`
+  privado a un servicio compartido y migrar también el camino Inertia (convergencia real,
+  refactor mayor, cubierto por la regresión de pagos), o **(b)** aceptar dos
+  implementaciones de recálculo divergentes. Recomendado **(a)** para no divergir el
+  cálculo de dinero entre web y hub. Esto NO es "solo extraer la apertura de turno".
 - **Cobrar exige turno abierto** del usuario; si no, **409** con mensaje claro.
 - **Aislamiento:** toda query filtra por `branch_id` del usuario del token.
-- Los controladores Inertia de turno/pagos **no se tocan**; solo se extrae la lógica de
-  apertura de turno a `ShiftService` (pagos ya usa `SalePaymentService`).
+- Los controladores Inertia de turno/pagos **no se tocan en su contrato**; el refactor de
+  extracción (turno: apertura → `ShiftService`; pago: recálculo → servicio compartido si
+  se elige (a)) preserva comportamiento y queda cubierto por los tests Inertia existentes.
 
 ## Hub — capa API (main) y pantallas (renderer)
 
@@ -131,9 +146,11 @@ Todos bajo `/api/v1/hub/*`, con `auth:sanctum` + rol (cajero/admin-sucursal). El
 - **Backend (PHPUnit):** turno (abrir / 409 si existe / cerrar con totales), ventas
   (lista filtra por sucursal del token, detalle), cobro (registra, cambio, transición,
   **idempotencia por `client_reference`**, 409 sin turno, aislamiento de sucursal).
-  **Regresión:** suite de turno/pagos Inertia existente + básculas
-  (`tests/Feature/Api/SaleIdempotencyTest.php`, `tests/Feature/PresentationSaleContractTest.php`)
-  + `tests/Feature/Auth`.
+  **Regresión:** suite de turno/pagos Inertia existente (los tests que cubran
+  `TurnoController` y `Sucursal/PaymentController` — verificar nombres al planificar) +
+  básculas (`tests/Feature/PresentationSaleContractTest.php`) + `tests/Feature/Auth`.
+  (Nota: `tests/Feature/Api/SaleIdempotencyTest.php` NO existe en este branch; vive en la
+  rama de idempotencia sin mergear — no referenciarlo aquí.)
 - **Hub (Vitest):** `httpClient` (mapeo de errores con fetch inyectado), `shift.js`/
   `sales.js` (forma de respuestas), lógica pura de "cobrar requiere turno". SQLite no
   interviene.
@@ -161,5 +178,7 @@ config, compras, gastos). Cada uno será su propio spec siguiendo el patrón.
 - Backend en rama propia (p. ej. `feature/hub-modulos-fase1`); hub en su repo.
 - Usar skills: `material-3` (UI), electron en `carniceria-hub/.agents/skills/electron/`,
   `laravel-best-practices` (backend), `vue`/`vue-best-practices` (renderer).
-- NO editar `config/sanctum.php` (guard `web` de Spatie alinea con `auth:sanctum`).
+- NO tocar la config de guards: el guard `web` por defecto (en `config/auth.php`) ya
+  alinea con `auth:sanctum` y los roles Spatie (guard `web`). No hace falta `config/sanctum.php`
+  (no existe) ni editar guards.
 - El grupo `/api/v1/hub/*` es nuevo y separado del grupo `auth.apikey` (básculas).
