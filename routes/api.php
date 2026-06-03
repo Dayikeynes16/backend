@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
 use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
 use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
+use App\Http\Controllers\Api\Hub\PurchaseController as HubPurchaseController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
 use App\Http\Controllers\Api\ProductController;
@@ -53,6 +54,9 @@ Route::prefix('v1/hub')
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
+
+        Route::get('purchases', [HubPurchaseController::class, 'index'])->name('api.hub.purchases.index');
+        Route::post('purchases', [HubPurchaseController::class, 'store'])->name('api.hub.purchases.store');
 
         Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
         Route::get('sales/{sale}', [HubSaleController::class, 'show'])->name('api.hub.sales.show');
