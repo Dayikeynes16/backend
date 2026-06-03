@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
 use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
@@ -46,6 +47,8 @@ Route::prefix('v1/hub')
         Route::get('shift/current', [HubShiftController::class, 'current'])->name('api.hub.shift.current');
         Route::post('shift/open', [HubShiftController::class, 'open'])->name('api.hub.shift.open');
         Route::post('shift/close', [HubShiftController::class, 'close'])->name('api.hub.shift.close');
+
+        Route::get('history', [HubHistoryController::class, 'index'])->name('api.hub.history.index');
 
         Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
         Route::get('sales/{sale}', [HubSaleController::class, 'show'])->name('api.hub.sales.show');
