@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
 use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
 use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
@@ -51,6 +52,8 @@ Route::prefix('v1/hub')
         Route::post('shift/close', [HubShiftController::class, 'close'])->name('api.hub.shift.close');
 
         Route::get('history', [HubHistoryController::class, 'index'])->name('api.hub.history.index');
+
+        Route::get('customers', [HubCustomerController::class, 'index'])->name('api.hub.customers.index');
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
