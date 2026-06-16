@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import AgendaBell from '@/Components/Agenda/AgendaBell.vue';
 import NotaRapidaModal from '@/Components/NotaRapida/NotaRapidaModal.vue';
+import VerifyEmailBanner from '@/Components/VerifyEmailBanner.vue';
 
 const page = usePage();
 const sidebarOpen = ref(false);
@@ -94,6 +95,7 @@ const isActive = (link) => route().current(link.route + '*') || route().current(
                     </div>
                 </div>
             </header>
+            <VerifyEmailBanner />
             <main class="p-5 lg:p-8"><slot /></main>
         </div>
 

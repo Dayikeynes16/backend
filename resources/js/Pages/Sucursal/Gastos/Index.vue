@@ -5,6 +5,7 @@ import DateField from '@/Components/DateField.vue';
 import GastoFormModal from '@/Components/Gastos/GastoFormModal.vue';
 import GastoDetailModal from '@/Components/Gastos/GastoDetailModal.vue';
 import GastoCapturaIAModal from '@/Components/Gastos/GastoCapturaIAModal.vue';
+import CategoriasManager from '@/Components/Gastos/CategoriasManager.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import { localToday } from '@/utils/date';
@@ -13,6 +14,8 @@ const props = defineProps({
     expenses: Object,
     totals: Object,
     categories: Array,
+    canManageCategories: { type: Boolean, default: false },
+    tab: { type: String, default: 'gastos' },
     paymentMethods: { type: Array, default: () => [] },
     filters: Object,
     tenant: Object,
@@ -20,6 +23,21 @@ const props = defineProps({
 
 const page = usePage();
 const userBranchId = computed(() => page.props.auth?.user?.branch_id ?? null);
+
+// --- Tabs (la pestaña Categorías solo existe si la empresa habilitó el toggle) ---
+const activeTab = ref(props.canManageCategories ? (props.tab || 'gastos') : 'gastos');
+const switchTab = (t) => {
+    activeTab.value = t;
+    router.get(route('sucursal.gastos.index', props.tenant.slug), {
+        search: search.value || undefined,
+        expense_category_id: categoryFilter.value || undefined,
+        expense_subcategory_id: subcategoryFilter.value || undefined,
+        payment_method: paymentMethodFilter.value || undefined,
+        from: dateRange.value?.from || undefined,
+        to: dateRange.value?.to || undefined,
+        tab: t,
+    }, { preserveState: true, replace: true });
+};
 
 // --- Filters ---
 const search = ref(props.filters?.search || '');
@@ -148,7 +166,32 @@ const goToPage = (url) => {
     <SucursalLayout>
         <template #header><h1 class="text-xl font-bold text-gray-900">Gastos</h1></template>
 
-        <div class="space-y-5">
+        <!-- Tabs (solo cuando la empresa habilitó la gestión de categorías) -->
+        <div v-if="canManageCategories" class="mb-5 flex gap-1 border-b border-gray-200">
+            <button @click="switchTab('gastos')"
+                :class="['relative px-5 py-2.5 text-sm font-semibold transition',
+                    activeTab === 'gastos' ? 'text-red-600' : 'text-gray-500 hover:text-gray-700']">
+                Gastos
+                <span v-if="activeTab === 'gastos'" class="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-red-600"></span>
+            </button>
+            <button @click="switchTab('categorias')"
+                :class="['relative px-5 py-2.5 text-sm font-semibold transition',
+                    activeTab === 'categorias' ? 'text-red-600' : 'text-gray-500 hover:text-gray-700']">
+                Categorías
+                <span v-if="activeTab === 'categorias'" class="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-red-600"></span>
+            </button>
+        </div>
+
+        <!-- TAB: CATEGORIAS -->
+        <CategoriasManager
+            v-if="canManageCategories && activeTab === 'categorias'"
+            :categories="categories"
+            :tenant-slug="tenant.slug"
+            route-prefix="sucursal"
+            :can-delete="false" />
+
+        <!-- TAB: GASTOS -->
+        <div v-show="!canManageCategories || activeTab === 'gastos'" class="space-y-5">
             <!-- KPI cards -->
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
                 <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
@@ -214,7 +257,8 @@ const goToPage = (url) => {
             <!-- Empty state — sin categorías -->
             <div v-if="!hasUsableCategories" class="rounded-2xl border border-dashed border-amber-200 bg-amber-50/40 p-6 text-center">
                 <p class="text-sm font-bold text-amber-800">Aún no hay categorías de gastos configuradas</p>
-                <p class="mt-1 text-xs text-amber-700">Pide al admin de empresa que cree las categorías y subcategorías que aplican.</p>
+                <p v-if="canManageCategories" class="mt-1 text-xs text-amber-700">Ve a la pestaña <button @click="switchTab('categorias')" class="font-bold underline">Categorías</button> y crea las que aplican (Servicios, Insumos, Renta, etc.).</p>
+                <p v-else class="mt-1 text-xs text-amber-700">Pide al admin de empresa que cree las categorías y subcategorías que aplican.</p>
             </div>
 
             <!-- Table -->

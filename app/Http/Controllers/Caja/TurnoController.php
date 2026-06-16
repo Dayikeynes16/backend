@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Caja;
 
+use App\Exceptions\ShiftAlreadyOpenException;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use App\Services\ShiftCashOutCalculator;
 use App\Services\ShiftReportMessageService;
+use App\Services\ShiftService;
 use App\Services\ShiftTotalsCalculator;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\RedirectResponse;
@@ -83,25 +85,15 @@ class TurnoController extends Controller
     {
         $user = Auth::user();
 
-        $existing = CashRegisterShift::where('user_id', $user->id)
-            ->whereNull('closed_at')
-            ->exists();
-
-        if ($existing) {
-            return redirect()->route('caja.workbench', app('tenant')->slug);
-        }
-
         $validated = $request->validate([
             'opening_amount' => 'nullable|numeric|min:0',
         ]);
 
-        CashRegisterShift::create([
-            'tenant_id' => $user->tenant_id,
-            'branch_id' => $user->branch_id,
-            'user_id' => $user->id,
-            'opened_at' => now(),
-            'opening_amount' => $validated['opening_amount'] ?? 0,
-        ]);
+        try {
+            app(ShiftService::class)->open($user, (float) ($validated['opening_amount'] ?? 0));
+        } catch (ShiftAlreadyOpenException) {
+            return redirect()->route('caja.workbench', app('tenant')->slug);
+        }
 
         return redirect()->route('caja.workbench', app('tenant')->slug)
             ->with('success', 'Turno abierto.');

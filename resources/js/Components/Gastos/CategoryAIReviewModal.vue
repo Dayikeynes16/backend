@@ -5,6 +5,7 @@ import { useCategoryAiDraft } from '@/composables/useCategoryAiDraft';
 const props = defineProps({
     show: { type: Boolean, default: false },
     tenantSlug: { type: String, required: true },
+    routePrefix: { type: String, default: 'empresa' },
     /** Resultado de useCategoryAiDraft.submitDraft() */
     draftResult: { type: Object, default: null },
     /** Para volver al modal de captura si el usuario quiere reintentar */
@@ -116,6 +117,7 @@ const reanalyze = async () => {
         const result = await submitDraft({
             tenantSlug: props.tenantSlug,
             text,
+            routePrefix: props.routePrefix,
         });
         // El nuevo draft REEMPLAZA al anterior; conservamos el texto enviado
         // como originalText para futuras iteraciones si vuelve a pedir más.
@@ -183,7 +185,7 @@ const submitManualEdit = async () => {
     const text = manualEditText.value.trim();
     if (!text || submitting.value) return;
     try {
-        const result = await submitDraft({ tenantSlug: props.tenantSlug, text });
+        const result = await submitDraft({ tenantSlug: props.tenantSlug, text, routePrefix: props.routePrefix });
         currentDraft.value = { ...result, originalText: text };
         manualEditOpen.value = false;
         initialize();
@@ -267,7 +269,7 @@ const save = async () => {
     }
 
     try {
-        const result = await applyDraft({ tenantSlug: props.tenantSlug, payload });
+        const result = await applyDraft({ tenantSlug: props.tenantSlug, payload, routePrefix: props.routePrefix });
         emit('saved', result);
         emit('close');
     } catch (e) {

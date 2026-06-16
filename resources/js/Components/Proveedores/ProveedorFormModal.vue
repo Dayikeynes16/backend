@@ -6,6 +6,9 @@ const props = defineProps({
     open: { type: Boolean, default: false },
     provider: { type: Object, default: null },
     types: { type: Array, default: () => [] },
+    // Prefijo de las rutas de escritura (empresa | sucursal). El catálogo de
+    // proveedores es tenant-wide; ambos roles escriben sobre el mismo.
+    routePrefix: { type: String, default: 'empresa' },
 });
 const emit = defineEmits(['close']);
 
@@ -45,12 +48,12 @@ const close = () => { form.clearErrors(); emit('close'); };
 
 const submit = () => {
     if (isEdit.value) {
-        form.put(route('empresa.proveedores.update', { tenant: slug.value, provider: props.provider.id }), {
+        form.put(route(`${props.routePrefix}.proveedores.update`, { tenant: slug.value, provider: props.provider.id }), {
             preserveScroll: true,
             onSuccess: () => close(),
         });
     } else {
-        form.post(route('empresa.proveedores.store', slug.value), {
+        form.post(route(`${props.routePrefix}.proveedores.store`, slug.value), {
             preserveScroll: true,
             onSuccess: () => { close(); form.reset(); },
         });

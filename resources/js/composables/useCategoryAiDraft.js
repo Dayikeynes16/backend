@@ -18,11 +18,11 @@ export function useCategoryAiDraft() {
     const applying = ref(false);
     const error = ref('');
 
-    const submitDraft = async ({ tenantSlug, text, audio }) => {
+    const submitDraft = async ({ tenantSlug, text, audio, routePrefix = 'empresa' }) => {
         submitting.value = true;
         error.value = '';
 
-        const url = route('empresa.gastos.categorias.ia.store', tenantSlug);
+        const url = route(`${routePrefix}.gastos.categorias.ia.store`, tenantSlug);
         const fd = new FormData();
         if (text) fd.append('input_text', text);
         if (audio) {
@@ -54,11 +54,11 @@ export function useCategoryAiDraft() {
         }
     };
 
-    const applyDraft = async ({ tenantSlug, payload }) => {
+    const applyDraft = async ({ tenantSlug, payload, routePrefix = 'empresa' }) => {
         applying.value = true;
         error.value = '';
 
-        const url = route('empresa.gastos.categorias.ia.apply', tenantSlug);
+        const url = route(`${routePrefix}.gastos.categorias.ia.apply`, tenantSlug);
 
         try {
             const { data } = await axios.post(url, payload, {

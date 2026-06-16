@@ -6,6 +6,7 @@ use App\Enums\AiDraftStatus;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\AiExpenseDraft;
+use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -74,14 +75,24 @@ class GastoController extends Controller
             'count' => (clone $query)->count(),
         ];
 
+        $canManageCategories = $this->canManageCategories();
+
+        // Cuando puede gestionar el catálogo, necesita ver TODAS las categorías
+        // (incluidas inactivas y sus subcategorías inactivas) para administrarlas;
+        // de lo contrario solo las activas que usa al registrar gastos.
         $categories = ExpenseCategory::with([
-            'subcategories' => fn ($q) => $q->where('status', 'active')->orderBy('name'),
-        ])->where('status', 'active')->orderBy('name')->get(['id', 'name', 'description', 'aliases', 'status']);
+            'subcategories' => fn ($q) => $q->when(! $canManageCategories, fn ($qq) => $qq->where('status', 'active'))->orderBy('name'),
+        ])
+            ->when(! $canManageCategories, fn ($q) => $q->where('status', 'active'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'description', 'aliases', 'includes', 'excludes', 'status']);
 
         return Inertia::render('Sucursal/Gastos/Index', [
             'expenses' => $expenses,
             'totals' => $totals,
             'categories' => $categories,
+            'canManageCategories' => $canManageCategories,
+            'tab' => $request->input('tab', 'gastos'),
             'paymentMethods' => $this->paymentMethodOptions(),
             'filters' => array_merge(
                 $request->only('expense_category_id', 'expense_subcategory_id', 'payment_method', 'search'),
@@ -89,6 +100,23 @@ class GastoController extends Controller
             ),
             'tenant' => $tenant,
         ]);
+    }
+
+    /**
+     * El admin-sucursal puede gestionar categorías/subcategorías si la empresa
+     * habilitó el toggle en su sucursal. superadmin siempre puede.
+     */
+    private function canManageCategories(): bool
+    {
+        $user = Auth::user();
+
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+
+        $branch = $user->branch_id ? Branch::find($user->branch_id) : null;
+
+        return (bool) ($branch?->branch_admin_expense_categories_enabled);
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\SalePaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -66,14 +67,14 @@ class PaymentController extends Controller
                 'amount' => round($actualPayment, 2),
             ]);
 
-            $this->recalculate($sale, $user);
+            app(SalePaymentService::class)->recalculate($sale, $user);
             $change = round((float) $validated['amount'] - $actualPayment, 2);
         });
 
         $this->broadcastSaleUpdate($sale);
 
         $msg = $sale->amount_pending <= 0
-            ? "Venta {$sale->folio} cobrada." . ($change > 0 ? " Cambio: \${$change}" : '')
+            ? "Venta {$sale->folio} cobrada.".($change > 0 ? " Cambio: \${$change}" : '')
             : "Pago registrado. Pendiente: \${$sale->amount_pending}";
 
         return back()->with('success', $msg);
@@ -91,6 +92,7 @@ class PaymentController extends Controller
         if ($payment->customer_payment_id !== null) {
             $payment->loadMissing('customerPayment:id,folio');
             $folio = $payment->customerPayment?->folio ?? 'global';
+
             return back()->with('error', "Este pago es parte del cobro {$folio} y no puede editarse individualmente.");
         }
 
@@ -112,7 +114,7 @@ class PaymentController extends Controller
 
         DB::transaction(function () use ($payment, $sale, $user, $validated) {
             $payment->update(array_merge($validated, ['updated_by' => $user->id]));
-            $this->recalculate($sale, $user);
+            app(SalePaymentService::class)->recalculate($sale, $user);
         });
 
         $this->broadcastSaleUpdate($sale);
@@ -132,12 +134,13 @@ class PaymentController extends Controller
         if ($payment->customer_payment_id !== null) {
             $payment->loadMissing('customerPayment:id,folio');
             $folio = $payment->customerPayment?->folio ?? 'global';
+
             return back()->with('error', "Este pago es parte del cobro {$folio} y no puede eliminarse individualmente.");
         }
 
         DB::transaction(function () use ($payment, $sale, $user) {
             $payment->delete();
-            $this->recalculate($sale, $user);
+            app(SalePaymentService::class)->recalculate($sale, $user);
         });
 
         $this->broadcastSaleUpdate($sale);
@@ -158,37 +161,6 @@ class PaymentController extends Controller
         if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('admin-empresa') && ! $user->hasRole('superadmin')) {
             abort(403, 'No tienes permiso para modificar pagos.');
         }
-    }
-
-    /**
-     * Recalculate sale totals and status based on current payments.
-     * Must be called inside a DB transaction. Does NOT broadcast.
-     */
-    private function recalculate(Sale $sale, $user): void
-    {
-        $totalPaid = $sale->payments()->sum('amount');
-        $pending = round((float) $sale->total - $totalPaid, 2);
-
-        $data = [
-            'amount_paid' => $totalPaid,
-            'amount_pending' => max($pending, 0),
-        ];
-
-        if ($pending <= 0 && $totalPaid > 0) {
-            $data['status'] = SaleStatus::Completed;
-            $data['completed_at'] = now();
-            $data['user_id'] = $user->id;
-        } elseif ($totalPaid > 0) {
-            if ($sale->status === SaleStatus::Completed) {
-                $data['status'] = SaleStatus::Active;
-                $data['completed_at'] = null;
-            }
-        } elseif ($totalPaid == 0 && $sale->status !== SaleStatus::Cancelled) {
-            $data['status'] = SaleStatus::Active;
-            $data['completed_at'] = null;
-        }
-
-        $sale->update($data);
     }
 
     /**

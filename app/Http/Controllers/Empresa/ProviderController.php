@@ -4,14 +4,13 @@ namespace App\Http\Controllers\Empresa;
 
 use App\Enums\ProviderType;
 use App\Http\Controllers\Concerns\HandlesProviderDetail;
+use App\Http\Controllers\Concerns\HandlesProviderWrites;
 use App\Http\Controllers\Controller;
 use App\Models\Provider;
 use App\Models\PurchaseProduct;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,6 +23,7 @@ use Inertia\Response;
 class ProviderController extends Controller
 {
     use HandlesProviderDetail;
+    use HandlesProviderWrites;
 
     public function index(Request $request): Response
     {
@@ -87,35 +87,6 @@ class ProviderController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        $tenant = app('tenant');
-
-        $validated = $this->validatedFromRequest($request, $tenant->id);
-
-        Provider::create(array_merge($validated, [
-            'tenant_id' => $tenant->id,
-            'status' => 'active',
-            'created_by' => Auth::id(),
-        ]));
-
-        return back()->with('success', 'Proveedor creado.');
-    }
-
-    public function update(Request $request, Provider $provider): RedirectResponse
-    {
-        $tenant = app('tenant');
-        if ($provider->tenant_id !== $tenant->id) {
-            abort(403);
-        }
-
-        $validated = $this->validatedFromRequest($request, $tenant->id, $provider->id, withStatus: true);
-
-        $provider->update($validated);
-
-        return back()->with('success', 'Proveedor actualizado.');
-    }
-
     public function destroy(Provider $provider): RedirectResponse
     {
         $tenant = app('tenant');
@@ -139,35 +110,6 @@ class ProviderController extends Controller
         $provider->delete();
 
         return back()->with('success', 'Proveedor eliminado.');
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function validatedFromRequest(Request $request, int $tenantId, ?int $ignoreId = null, bool $withStatus = false): array
-    {
-        $nameRule = Rule::unique('providers', 'name')
-            ->where(fn ($q) => $q->where('tenant_id', $tenantId)->whereNull('deleted_at'));
-        if ($ignoreId) {
-            $nameRule = $nameRule->ignore($ignoreId);
-        }
-
-        $rules = [
-            'name' => ['required', 'string', 'max:160', $nameRule],
-            'phone' => 'nullable|string|max:40',
-            'email' => 'nullable|email|max:160',
-            'rfc' => 'nullable|string|max:20',
-            'address' => 'nullable|string|max:500',
-            'type' => ['required', Rule::enum(ProviderType::class)],
-            'notes' => 'nullable|string|max:1000',
-        ];
-        if ($withStatus) {
-            $rules['status'] = 'required|in:active,inactive';
-        }
-
-        return $request->validate($rules, [
-            'name.unique' => 'Ya existe un proveedor con ese nombre.',
-        ]);
     }
 
     /**

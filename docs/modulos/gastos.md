@@ -42,10 +42,16 @@ expense_categories  (tenant_id, name, description?, aliases?, status, created_by
 |---|:-:|:-:|:-:|:-:|
 | Ver/editar/eliminar gastos del tenant | ✅ | ✅ todas las sucursales | sólo su sucursal | ❌ |
 | Crear gasto (con sucursal obligatoria) | ✅ | ✅ elige sucursal | ✅ forzado a la suya | ❌ |
-| CRUD categorías y subcategorías | ✅ | ✅ | ❌ (sólo lectura) | ❌ |
+| Crear/editar categorías y subcategorías | ✅ | ✅ | ✅ **si** la empresa habilita el toggle de su sucursal | ❌ |
+| Eliminar categorías y subcategorías | ✅ | ✅ | ❌ (reservado a empresa) | ❌ |
+| Crear categoría con IA | ✅ | ✅ | ✅ **si** la empresa habilita el toggle de su sucursal | ❌ |
 | Descargar / previsualizar adjuntos | ✅ | ✅ todas | ✅ sólo de su sucursal | ❌ |
 
 Implementación: middleware `role:...` en cada grupo de rutas + checks manuales `tenant_id`/`branch_id` en cada controller (igual que `WithdrawalController`).
+
+### Delegación al admin-sucursal (catálogo compartido)
+
+Las categorías/subcategorías son **tenant-wide** (compartidas por toda la empresa). La empresa puede delegar su gestión al admin-sucursal activando el toggle por sucursal **`branch_admin_expense_categories_enabled`** (columna en `branches`, default `false`) desde *Editar Sucursal*. Con el toggle activo, el admin-sucursal puede **crear y editar** (incluida la creación con IA) sobre el catálogo compartido; **no puede eliminar**. La lógica de escritura se comparte vía el concern `HandlesExpenseCategoryWrites` / `HandlesExpenseSubcategoryWrites` (empresa y sucursal usan el mismo); las rutas de escritura de sucursal se gatean con el middleware `branch.feature:branch_admin_expense_categories_enabled`. El frontend reutiliza el componente `Components/Gastos/CategoriasManager.vue` (parametrizado por `routePrefix` y `canDelete`).
 
 ## Rutas
 

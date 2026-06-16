@@ -61,7 +61,8 @@ ai_purchase_drafts                 ← propuesta IA pendiente de confirmar
 
 | Acción | superadmin | admin-empresa | admin-sucursal | cajero |
 |---|:-:|:-:|:-:|:-:|
-| CRUD Proveedores | ✅ | ✅ | Solo lectura | ❌ |
+| Crear/editar Proveedores | ✅ | ✅ | Lectura siempre; crear/editar **si** la empresa habilita el toggle de su sucursal | ❌ |
+| Eliminar Proveedores | ✅ | ✅ | ❌ (reservado a empresa) | ❌ |
 | Crear Compra | ✅ | Elige sucursal | Forzado a la suya | ❌ |
 | Ver/editar Compra | ✅ | Todas | Solo su sucursal | ❌ |
 | Cancelar Compra | ✅ | ✅ (con motivo) | Solo de su sucursal (con motivo) | ❌ |
@@ -102,7 +103,7 @@ DELETE /{tenant}/empresa/compras/{compra}/adjuntos/{att}          empresa.compra
 
 ### Sucursal (admin-sucursal)
 
-Igual que Empresa pero scopeado a su `branch_id`. CRUD de proveedores se reduce a `index` (solo lectura).
+Igual que Empresa pero scopeado a su `branch_id`. Los proveedores siempre son de **lectura**; además, si la empresa activa el toggle por sucursal **`branch_admin_providers_enabled`** (columna en `branches`, default `false`, editable en *Editar Sucursal*), el admin-sucursal gana `proveedores.store` y `proveedores.update` sobre el catálogo **tenant-wide compartido** (no `destroy`). Esas rutas se gatean con el middleware `branch.feature:branch_admin_providers_enabled` y reutilizan el concern `HandlesProviderWrites` (mismo que empresa) y el componente `ProveedorFormModal` (parametrizado por `routePrefix`).
 
 ## Validaciones
 

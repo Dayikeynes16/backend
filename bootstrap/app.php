@@ -1,8 +1,25 @@
 <?php
 
+use App\Http\Middleware\AuthenticateApiKey;
+use App\Http\Middleware\EnsureBranchFeature;
+use App\Http\Middleware\EnsureHubRole;
+use App\Http\Middleware\EnsureUserBelongsToTenant;
+use App\Http\Middleware\ForcePasswordChange;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ResolvePublicTenant;
+use App\Http\Middleware\ResolveTenant;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Session\Middleware\StartSession;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,18 +32,20 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withBroadcasting(__DIR__.'/../routes/channels.php')
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-            \App\Http\Middleware\ForcePasswordChange::class,
+            HandleInertiaRequests::class,
+            AddLinkHeadersForPreloadedAssets::class,
+            ForcePasswordChange::class,
         ]);
 
         $middleware->alias([
-            'resolve.tenant' => \App\Http\Middleware\ResolveTenant::class,
-            'resolve.public.tenant' => \App\Http\Middleware\ResolvePublicTenant::class,
-            'ensure.tenant' => \App\Http\Middleware\EnsureUserBelongsToTenant::class,
-            'auth.apikey' => \App\Http\Middleware\AuthenticateApiKey::class,
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'resolve.tenant' => ResolveTenant::class,
+            'resolve.public.tenant' => ResolvePublicTenant::class,
+            'ensure.tenant' => EnsureUserBelongsToTenant::class,
+            'branch.feature' => EnsureBranchFeature::class,
+            'auth.apikey' => AuthenticateApiKey::class,
+            'hub.role' => EnsureHubRole::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
         ]);
 
         // Ensure resolve.tenant runs BEFORE SubstituteBindings so that
@@ -34,14 +53,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // NOTE: Do NOT include EnsureUserBelongsToTenant here — it must
         //       stay after 'auth' in the route-level middleware stack.
         $middleware->priority([
-            \Illuminate\Cookie\Middleware\EncryptCookies::class,
-            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-            \Illuminate\Session\Middleware\StartSession::class,
-            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-            \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
-            \App\Http\Middleware\ResolveTenant::class,
-            \App\Http\Middleware\ResolvePublicTenant::class,
-            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            ShareErrorsFromSession::class,
+            ValidateCsrfToken::class,
+            ResolveTenant::class,
+            ResolvePublicTenant::class,
+            SubstituteBindings::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
