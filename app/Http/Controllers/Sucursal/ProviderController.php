@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Sucursal;
 
 use App\Enums\ProviderType;
 use App\Http\Controllers\Concerns\HandlesProviderDetail;
+use App\Http\Controllers\Concerns\HandlesProviderWrites;
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Provider;
 use App\Models\PurchaseProduct;
 use Illuminate\Http\Request;
@@ -13,21 +15,28 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Solo lectura del catálogo de proveedores para admin-sucursal. El CRUD
- * vive en Empresa (los proveedores son tenant-wide). admin-sucursal sólo
- * los consulta para asignarlos a sus compras.
+ * Catálogo de proveedores para admin-sucursal. Los proveedores son tenant-wide;
+ * el admin-sucursal siempre los consulta para asignarlos a sus compras, y puede
+ * crearlos/editarlos cuando la empresa habilita el toggle
+ * `branch_admin_providers_enabled` de su sucursal (las rutas de escritura se
+ * gatean con el middleware `branch.feature`). El borrado queda en empresa.
  */
 class ProviderController extends Controller
 {
     use HandlesProviderDetail;
+    use HandlesProviderWrites;
 
     public function index(Request $request): Response
     {
+        $canManage = $this->canManageProviders();
+
         $search = trim((string) $request->input('q', ''));
         $typeFilter = $request->input('type');
 
         $providers = Provider::query()
-            ->where('status', 'active')
+            // Cuando puede gestionar, mostramos también inactivos para poder
+            // reactivarlos/editarlos; de lo contrario solo los activos.
+            ->when(! $canManage, fn ($q) => $q->where('status', 'active'))
             ->when($search !== '', function ($q) use ($search) {
                 $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%']);
             })
@@ -38,6 +47,11 @@ class ProviderController extends Controller
                 'id' => $p->id,
                 'name' => $p->name,
                 'phone' => $p->phone,
+                'email' => $p->email,
+                'rfc' => $p->rfc,
+                'address' => $p->address,
+                'notes' => $p->notes,
+                'status' => $p->status,
                 'type' => $p->type instanceof ProviderType ? $p->type->value : $p->type,
                 'type_label' => $p->type instanceof ProviderType ? $this->typeLabel($p->type) : (string) $p->type,
             ]);
@@ -45,11 +59,29 @@ class ProviderController extends Controller
         return Inertia::render('Sucursal/Proveedores/Index', [
             'providers' => $providers,
             'filters' => ['q' => $search, 'type' => $typeFilter],
+            'canManage' => $canManage,
             'types' => array_map(fn (ProviderType $t) => [
                 'value' => $t->value,
                 'label' => $this->typeLabel($t),
             ], ProviderType::cases()),
         ]);
+    }
+
+    /**
+     * El admin-sucursal puede gestionar proveedores si la empresa habilitó el
+     * toggle en su sucursal. superadmin siempre puede.
+     */
+    private function canManageProviders(): bool
+    {
+        $user = Auth::user();
+
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+
+        $branch = $user->branch_id ? Branch::find($user->branch_id) : null;
+
+        return (bool) ($branch?->branch_admin_providers_enabled);
     }
 
     /**

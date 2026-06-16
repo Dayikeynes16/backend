@@ -53,6 +53,8 @@ use App\Http\Controllers\Sucursal\CustomerPaymentController;
 use App\Http\Controllers\Sucursal\CustomerPriceController;
 use App\Http\Controllers\Sucursal\CustomerStatsController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
+use App\Http\Controllers\Sucursal\ExpenseCategoryController as SucursalExpenseCategoryController;
+use App\Http\Controllers\Sucursal\ExpenseSubcategoryController as SucursalExpenseSubcategoryController;
 use App\Http\Controllers\Sucursal\GastoController as SucursalGastoController;
 use App\Http\Controllers\Sucursal\MenuQrController;
 use App\Http\Controllers\Sucursal\Metrics\CancellationMetricsController as SucursalCancellationMetricsController;
@@ -387,8 +389,13 @@ Route::prefix('{tenant}')
                 Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [SucursalAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
                 Route::post('asistente/transcribir', [SucursalAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
 
-                // Proveedores (solo lectura — el CRUD vive en empresa).
+                // Proveedores: lectura siempre; crear/editar solo si la empresa
+                // habilitó el toggle de la sucursal (catálogo tenant-wide compartido).
                 Route::get('proveedores', [SucursalProviderController::class, 'index'])->name('proveedores.index');
+                Route::middleware('branch.feature:branch_admin_providers_enabled')->group(function () {
+                    Route::post('proveedores', [SucursalProviderController::class, 'store'])->name('proveedores.store');
+                    Route::put('proveedores/{provider}', [SucursalProviderController::class, 'update'])->whereNumber('provider')->name('proveedores.update');
+                });
                 // Pago a cuenta (F3): admin-sucursal solo puede saldar sus compras (FIFO scoped).
                 Route::post('proveedores/{provider}/pagos', [SucursalProviderPaymentController::class, 'storeForProvider'])
                     ->whereNumber('provider')->name('proveedores.pagos.store');
@@ -437,10 +444,26 @@ Route::prefix('{tenant}')
 
                 // Gastos
                 Route::prefix('gastos')->name('gastos.')->group(function () {
+                    // Categorías y subcategorías (catálogo tenant-wide compartido):
+                    // crear/editar solo si la empresa habilitó el toggle de la
+                    // sucursal. El borrado queda en empresa. Van primero (rutas más
+                    // específicas antes de las dinámicas {gasto}).
+                    Route::middleware('branch.feature:branch_admin_expense_categories_enabled')->group(function () {
+                        Route::post('categorias', [SucursalExpenseCategoryController::class, 'store'])->name('categorias.store');
+                        Route::put('categorias/{category}', [SucursalExpenseCategoryController::class, 'update'])->whereNumber('category')->name('categorias.update');
+
+                        Route::post('subcategorias', [SucursalExpenseSubcategoryController::class, 'store'])->name('subcategorias.store');
+                        Route::put('subcategorias/{subcategory}', [SucursalExpenseSubcategoryController::class, 'update'])->whereNumber('subcategory')->name('subcategorias.update');
+
+                        // Crear categoría con IA: draft (controller role-agnóstico) + bulk apply.
+                        Route::post('categorias/ia/borrador', [AiCategoryDraftController::class, 'store'])->name('categorias.ia.store');
+                        Route::post('categorias/ia/aplicar', [SucursalExpenseCategoryController::class, 'storeFromAiDraft'])->name('categorias.ia.apply');
+                    });
+
                     Route::get('/', [SucursalGastoController::class, 'index'])->name('index');
                     Route::post('/', [SucursalGastoController::class, 'store'])->name('store');
-                    Route::put('{gasto}', [SucursalGastoController::class, 'update'])->name('update');
-                    Route::delete('{gasto}', [SucursalGastoController::class, 'destroy'])->name('destroy');
+                    Route::put('{gasto}', [SucursalGastoController::class, 'update'])->whereNumber('gasto')->name('update');
+                    Route::delete('{gasto}', [SucursalGastoController::class, 'destroy'])->whereNumber('gasto')->name('destroy');
 
                     // Draft IA (mismo controller que empresa — la lógica es idéntica)
                     Route::post('ia/borrador', [AiExpenseDraftController::class, 'store'])->name('ia.store');

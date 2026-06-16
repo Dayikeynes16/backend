@@ -36,6 +36,8 @@ const form = useForm({
     sale_item_edit_reason_mode: props.sucursal.sale_item_edit_reason_mode || 'optional',
     cashier_expenses_enabled: props.sucursal.cashier_expenses_enabled !== undefined ? !!props.sucursal.cashier_expenses_enabled : true,
     cashier_purchases_enabled: props.sucursal.cashier_purchases_enabled !== undefined ? !!props.sucursal.cashier_purchases_enabled : true,
+    branch_admin_providers_enabled: !!props.sucursal.branch_admin_providers_enabled,
+    branch_admin_expense_categories_enabled: !!props.sucursal.branch_admin_expense_categories_enabled,
 });
 
 const submit = () => form.put(route('empresa.sucursales.update', [props.tenant.slug, props.sucursal.id]));
@@ -326,6 +328,42 @@ const copyMenuUrl = async () => {
                                 <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
                             </div>
                             <span class="text-sm font-semibold text-gray-700">{{ form.cashier_purchases_enabled ? 'Activo' : 'Inactivo' }}</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Permisos del admin de sucursal sobre catálogos compartidos -->
+            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Gestión de catálogos por el admin de sucursal</h2>
+                    <p class="mt-1 text-sm text-gray-500">Permite que el admin de esta sucursal cree y edite proveedores y categorías de gasto. Son catálogos compartidos con toda la empresa; no podrá eliminarlos.</p>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    <div class="flex items-start justify-between gap-4 px-6 py-5">
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Gestionar proveedores</p>
+                            <p class="mt-0.5 text-xs text-gray-500">El admin de sucursal podrá crear y editar proveedores (compartidos con toda la empresa). No incluye eliminar.</p>
+                        </div>
+                        <label class="inline-flex shrink-0 cursor-pointer items-center gap-2">
+                            <input type="checkbox" v-model="form.branch_admin_providers_enabled" class="peer sr-only" />
+                            <div class="relative h-6 w-11 rounded-full bg-gray-200 transition peer-checked:bg-red-600">
+                                <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">{{ form.branch_admin_providers_enabled ? 'Activo' : 'Inactivo' }}</span>
+                        </label>
+                    </div>
+                    <div class="flex items-start justify-between gap-4 px-6 py-5">
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Gestionar categorías de gasto</p>
+                            <p class="mt-0.5 text-xs text-gray-500">El admin de sucursal podrá crear y editar categorías y subcategorías de gasto, incluyendo la creación con IA. No incluye eliminar.</p>
+                        </div>
+                        <label class="inline-flex shrink-0 cursor-pointer items-center gap-2">
+                            <input type="checkbox" v-model="form.branch_admin_expense_categories_enabled" class="peer sr-only" />
+                            <div class="relative h-6 w-11 rounded-full bg-gray-200 transition peer-checked:bg-red-600">
+                                <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">{{ form.branch_admin_expense_categories_enabled ? 'Activo' : 'Inactivo' }}</span>
                         </label>
                     </div>
                 </div>

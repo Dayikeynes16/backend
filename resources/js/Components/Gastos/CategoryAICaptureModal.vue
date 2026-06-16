@@ -6,6 +6,7 @@ import { useCategoryAiDraft } from '@/composables/useCategoryAiDraft';
 const props = defineProps({
     show: { type: Boolean, default: false },
     tenantSlug: { type: String, required: true },
+    routePrefix: { type: String, default: 'empresa' },
 });
 
 const emit = defineEmits(['close', 'proposal']);
@@ -42,6 +43,7 @@ const analyze = async () => {
             tenantSlug: props.tenantSlug,
             text: userText,
             audio: recorder.audioBlob.value,
+            routePrefix: props.routePrefix,
         });
         // Pasamos el texto que escribió el usuario para que el modal de revisión
         // pueda usarlo como base si la IA pide aclaración (modo iterativo).
