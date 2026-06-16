@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import AgendaBell from '@/Components/Agenda/AgendaBell.vue';
+import VerifyEmailBanner from '@/Components/VerifyEmailBanner.vue';
 
 const page = usePage();
 const sidebarOpen = ref(false);
@@ -112,6 +113,7 @@ const isActive = (link) => {
                     </div>
                 </div>
             </header>
+            <VerifyEmailBanner />
             <main class="p-5 lg:p-8"><slot /></main>
         </div>
     </div>
