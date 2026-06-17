@@ -40,7 +40,9 @@ lo habilita para su sucursal, (2) **historial de cambios** (quién y cuándo), y
    de Nombre, Unidad, Categoría y Estado (activo/inactivo) — la desactivación queda
    registrada como un cambio del campo `status`. **No** se agrega un evento `Deleted`
    dedicado (un producto borrado es soft-delete y desaparece de la lista; su historial
-   no es alcanzable). Se reutiliza la infraestructura existente de auditoría.
+   no es alcanzable). Se reutiliza la infraestructura existente de auditoría. El `destroy`
+   de Empresa **no** borra las filas de `audit_logs` del producto (el logger es inmutable,
+   solo inserta); quedan huérfanas y son inofensivas — no se requiere limpieza.
 
 ## Backend
 
@@ -146,7 +148,7 @@ sigue garantizando el aislamiento cross-tenant; cada `update`/`destroy`/`history
 - **Empresa:** crea/edita/elimina; al crear y editar se registra `AuditLog` con `user_id`
   y diff correcto; el endpoint de historial devuelve las entradas.
 - **Sucursal toggle ON:** ve `index`, crea y edita; el historial registra al usuario de
-  sucursal; **no** existe ruta/permiso de `destroy` (404/403).
+  sucursal; la ruta de `destroy` **no** existe para sucursal → 404.
 - **Sucursal toggle OFF:** `index`, `store`, `update`, `historial` → 403.
 - **`superadmin`:** bypass del middleware en rutas de sucursal.
 - **Aislamiento cross-tenant:** `update`/`history` de un producto de otro tenant → 403/404.
