@@ -63,6 +63,11 @@ ai_purchase_drafts                 ← propuesta IA pendiente de confirmar
 |---|:-:|:-:|:-:|:-:|
 | Crear/editar Proveedores | ✅ | ✅ | Lectura siempre; crear/editar **si** la empresa habilita el toggle de su sucursal | ❌ |
 | Eliminar Proveedores | ✅ | ✅ | ❌ (reservado a empresa) | ❌ |
+| Ver/crear/editar Productos de compra | ✅ | ✅ | Solo **si** la empresa habilita el toggle de su sucursal (módulo oculto si no) | ❌ |
+| Eliminar Productos de compra | ✅ | ✅ | ❌ (reservado a empresa) | ❌ |
+| Ver historial de Producto de compra | ✅ | ✅ | Con el toggle activo | ❌ |
+| Crear/editar Categorías de productos de compra | ✅ | ✅ | Con el mismo toggle de productos | ❌ |
+| Eliminar Categorías de productos de compra | ✅ | ✅ | ❌ (reservado a empresa) | ❌ |
 | Crear Compra | ✅ | Elige sucursal | Forzado a la suya | ❌ |
 | Ver/editar Compra | ✅ | Todas | Solo su sucursal | ❌ |
 | Cancelar Compra | ✅ | ✅ (con motivo) | Solo de su sucursal (con motivo) | ❌ |
@@ -104,6 +109,27 @@ DELETE /{tenant}/empresa/compras/{compra}/adjuntos/{att}          empresa.compra
 ### Sucursal (admin-sucursal)
 
 Igual que Empresa pero scopeado a su `branch_id`. Los proveedores siempre son de **lectura**; además, si la empresa activa el toggle por sucursal **`branch_admin_providers_enabled`** (columna en `branches`, default `false`, editable en *Editar Sucursal*), el admin-sucursal gana `proveedores.store` y `proveedores.update` sobre el catálogo **tenant-wide compartido** (no `destroy`). Esas rutas se gatean con el middleware `branch.feature:branch_admin_providers_enabled` y reutilizan el concern `HandlesProviderWrites` (mismo que empresa) y el componente `ProveedorFormModal` (parametrizado por `routePrefix`).
+
+#### Productos de compra (admin-sucursal)
+
+A diferencia de Proveedores, el catálogo de **productos de compra** está **totalmente oculto** para la sucursal salvo que la empresa active el toggle **`branch_admin_purchase_products_enabled`** (columna en `branches`, default `false`, editable en *Editar Sucursal*). Con el toggle activo, **todo** el grupo de rutas de sucursal (incluida la lectura) queda disponible y se gatea con `branch.feature:branch_admin_purchase_products_enabled`; sin él, hasta el `index` responde 403 y el ítem de menú no aparece (`SucursalLayout` lee el flag de `auth.branch`). Puede `index`/`store`/`update` y ver `historial`, pero **no `destroy`** (reservado a empresa). Reutiliza los concerns `HandlesPurchaseProductWrites` y `SerializesPurchaseProducts`, el componente compartido `PurchaseProductsManager` (con `canDelete=false`), `ProductoCompraFormModal` y el drawer `ProductoCompraHistorialDrawer`.
+
+```
+GET  /{tenant}/sucursal/productos-compra                            sucursal.productos-compra.index       ← gated
+GET  /{tenant}/sucursal/productos-compra/{producto}/historial       sucursal.productos-compra.historial   ← gated
+POST /{tenant}/sucursal/productos-compra                            sucursal.productos-compra.store       ← gated
+PUT  /{tenant}/sucursal/productos-compra/{producto}                 sucursal.productos-compra.update      ← gated
+```
+
+#### Categorías de productos de compra (administrables)
+
+Las categorías de los productos de compra son un **catálogo en BD** (`purchase_product_categories`, tenant-wide), no un enum fijo. Cada empresa crea/edita/desactiva sus propias categorías. `purchase_products.category` (string enum legacy) fue reemplazado por la FK **`purchase_product_category_id`** (`nullOnDelete`). Al crear un tenant se siembran 5 categorías estándar como punto de partida (`Res, Cerdo, Pollo, Insumos, Otro`, vía `PurchaseProductCategory::seedDefaultsFor()`); la migración de datos preservó las asignaciones previas.
+
+Se gestionan en una **pestaña "Categorías"** dentro de la pantalla *Productos de compra* (componente `PurchaseProductCategoriesManager`). Empresa: crear/editar/eliminar. Sucursal: crear/editar con el mismo toggle de productos; **no eliminar**. **Eliminar una categoría deja sus productos sin categoría** (la FK queda en `null`). Concern compartido: `HandlesPurchaseProductCategoryWrites`. Rutas: `…/productos-compra/categorias` (store), `…/productos-compra/categorias/{categoria}` (update; destroy solo empresa).
+
+#### Historial de productos de compra
+
+Cada producto de compra registra su historial de cambios en `audit_logs` (vía el trait `RecordsHistory` + servicio `AuditLogger`, igual que Compras/Gastos): se loguean los eventos **`created`** y **`updated`** (con diff de Nombre, Unidad, Categoría y Estado — la desactivación queda como cambio de `status`). Se consulta bajo demanda en `…/productos-compra/{producto}/historial` (JSON) y se muestra con `HistorialTimeline`. El `destroy` de empresa no borra las filas de auditoría (son inmutables; quedan huérfanas e inofensivas).
 
 ## Validaciones
 

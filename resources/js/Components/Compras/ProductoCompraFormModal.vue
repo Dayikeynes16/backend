@@ -6,6 +6,7 @@ const props = defineProps({
     open: { type: Boolean, default: false },
     product: { type: Object, default: null },
     categories: { type: Array, default: () => [] },
+    routePrefix: { type: String, default: 'empresa' },
 });
 const emit = defineEmits(['close']);
 
@@ -15,14 +16,14 @@ const isEdit = computed(() => !!props.product?.id);
 
 const units = ['kg', 'g', 'l', 'ml', 'pieza', 'caja', 'bulto', 'cabeza'];
 
-const form = useForm({ name: '', unit: 'kg', category: '', status: 'active' });
+const form = useForm({ name: '', unit: 'kg', purchase_product_category_id: '', status: 'active' });
 
 watch(() => props.open, (open) => {
     if (!open) return;
     if (props.product) {
         form.name = props.product.name ?? '';
         form.unit = props.product.unit ?? 'kg';
-        form.category = props.product.category ?? '';
+        form.purchase_product_category_id = props.product.category_id ?? '';
         form.status = props.product.status ?? 'active';
     } else {
         form.reset();
@@ -34,11 +35,11 @@ const close = () => { form.clearErrors(); emit('close'); };
 
 const submit = () => {
     if (isEdit.value) {
-        form.put(route('empresa.productos-compra.update', { tenant: slug.value, producto_compra: props.product.id }), {
+        form.put(route(`${props.routePrefix}.productos-compra.update`, { tenant: slug.value, producto_compra: props.product.id }), {
             preserveScroll: true, onSuccess: () => close(),
         });
     } else {
-        form.post(route('empresa.productos-compra.store', slug.value), {
+        form.post(route(`${props.routePrefix}.productos-compra.store`, slug.value), {
             preserveScroll: true, onSuccess: () => { close(); form.reset(); },
         });
     }
@@ -73,10 +74,11 @@ const submit = () => {
                             </div>
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-gray-700">Categoría</label>
-                                <select v-model="form.category" class="w-full rounded-xl border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
+                                <select v-model="form.purchase_product_category_id" class="w-full rounded-xl border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
                                     <option value="">— sin categoría —</option>
                                     <option v-for="c in categories" :key="c.value" :value="c.value">{{ c.label }}</option>
                                 </select>
+                                <p v-if="categories.length === 0" class="mt-1 text-xs text-gray-400">Aún no hay categorías. Créalas en la pestaña «Categorías».</p>
                             </div>
                         </div>
                         <div v-if="isEdit">

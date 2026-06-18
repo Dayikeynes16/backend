@@ -1,5 +1,5 @@
 <script setup>
-import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
+import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import PurchaseProductsManager from '@/Components/Compras/PurchaseProductsManager.vue';
 import { Head } from '@inertiajs/vue3';
 
@@ -9,12 +9,13 @@ defineProps({
     categories: { type: Array, default: () => [] },
     categoryRows: { type: Array, default: () => [] },
     stats: { type: Object, default: () => ({}) },
+    canManage: { type: Boolean, default: false },
 });
 </script>
 
 <template>
     <Head title="Productos de compra" />
-    <EmpresaLayout>
+    <SucursalLayout>
         <template #header><h1 class="text-lg font-bold text-gray-900">Productos de compra</h1></template>
 
         <PurchaseProductsManager
@@ -23,8 +24,8 @@ defineProps({
             :categories="categories"
             :category-rows="categoryRows"
             :stats="stats"
-            route-prefix="empresa"
-            :can-delete="true"
+            route-prefix="sucursal"
+            :can-delete="false"
         />
-    </EmpresaLayout>
+    </SucursalLayout>
 </template>

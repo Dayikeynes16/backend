@@ -6,6 +6,7 @@ use App\Enums\AuditEvent;
 use App\Models\AuditLog;
 use App\Models\Expense;
 use App\Models\Purchase;
+use App\Models\PurchaseProduct;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
@@ -98,6 +99,26 @@ class AuditLogger
                 'expense_at' => $e->expense_at?->toDateString(),
                 'description' => $e->description,
                 'branch' => $e->branch?->name,
+            ],
+            'items' => [],
+        ];
+    }
+
+    /**
+     * Snapshot legible de un producto de compra. Los valores se guardan ya
+     * formateados (label de categoría, estado en español) para que el
+     * historial se muestre sin mapeos adicionales en el frontend.
+     *
+     * @return array{fields: array<string, mixed>, items: array<int, array<string, mixed>>}
+     */
+    public function purchaseProductSnapshot(PurchaseProduct $p): array
+    {
+        return [
+            'fields' => [
+                'name' => $p->name,
+                'unit' => $p->unit,
+                'category' => $p->category?->name,
+                'status' => $p->status === 'active' ? 'Activo' : 'Inactivo',
             ],
             'items' => [],
         ];

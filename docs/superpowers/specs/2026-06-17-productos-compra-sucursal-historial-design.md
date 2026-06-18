@@ -158,3 +158,28 @@ sigue garantizando el aislamiento cross-tenant; cada `update`/`destroy`/`history
 
 Actualizar `docs/modulos/compras.md` (matriz de permisos + nuevo toggle
 `branch_admin_purchase_products_enabled` + historial de productos de compra).
+
+## Apéndice — Categorías administrables (extensión acordada el 2026-06-17)
+
+Tras la implementación inicial se decidió convertir la **categoría** de producto
+de compra de un enum fijo a un **catálogo administrable** (como las categorías de
+Gastos, pero sin subcategorías ni IA).
+
+Decisiones del usuario:
+- **Catálogo en BD**, no enum. Nueva tabla `purchase_product_categories`
+  (tenant-wide: `name`, `status`, `created_by`). Se elimina el enum
+  `App\Enums\PurchaseProductCategory`.
+- `purchase_products.category` (string) → FK `purchase_product_category_id`
+  (`nullOnDelete`). Migración de datos: siembra 5 categorías estándar por tenant
+  y reasigna los valores existentes; tenants nuevos las reciben vía
+  `PurchaseProductCategory::seedDefaultsFor()` (panel admin + DemoSeeder).
+- **Eliminar una categoría deja sus productos sin categoría** (FK a `null`); no se
+  bloquea el borrado. La categoría **no** usa SoftDeletes (hard delete + FK
+  `nullOnDelete`).
+- **Gestión en pestañas** dentro de la pantalla *Productos de compra*
+  (Productos | Categorías), componente `PurchaseProductCategoriesManager`.
+- **Permisos**: empresa CRUD completo; sucursal crear/editar con el **mismo** toggle
+  `branch_admin_purchase_products_enabled` (sin toggle nuevo); eliminar solo empresa.
+- Color de badge **autoasignado por id** desde una paleta fija (sin color manual).
+- Concern compartido `HandlesPurchaseProductCategoryWrites`; rutas anidadas en
+  `productos-compra/categorias`.

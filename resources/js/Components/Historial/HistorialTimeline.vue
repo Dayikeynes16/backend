@@ -19,6 +19,7 @@ const FIELD_LABEL = {
     provider: 'Proveedor', invoice_number: 'Factura', purchased_at: 'Fecha', total: 'Total', notes: 'Notas',
     concept: 'Concepto', amount: 'Monto', subcategory: 'Subcategoría', payment_method: 'Método', expense_at: 'Fecha',
     description: 'Notas', branch: 'Sucursal',
+    name: 'Nombre', unit: 'Unidad', category: 'Categoría', status: 'Estado',
 };
 const METHOD_LABEL = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
 

@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseSubcategory;
 use App\Models\Product;
+use App\Models\PurchaseProductCategory;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -40,6 +41,8 @@ class DemoSeeder extends Seeder
             'max_branches' => 5,
             'max_users' => 20,
         ]);
+
+        PurchaseProductCategory::seedDefaultsFor($tenant->id);
 
         // Branch: Sucursal Centro
         $branch = Branch::create([

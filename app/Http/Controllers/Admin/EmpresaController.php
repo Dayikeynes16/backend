@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CashRegisterShift;
+use App\Models\PurchaseProductCategory;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Tenant;
@@ -81,6 +82,8 @@ class EmpresaController extends Controller
             ]);
 
             $admin->assignRole('admin-empresa');
+
+            PurchaseProductCategory::seedDefaultsFor($tenant->id);
         });
 
         return redirect()->route('admin.empresas.index')

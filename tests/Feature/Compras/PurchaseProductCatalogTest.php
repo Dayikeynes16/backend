@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Compras;
 
+use App\Models\AuditLog;
 use App\Models\Provider;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\PurchaseProduct;
+use App\Models\PurchaseProductCategory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -107,17 +109,19 @@ class PurchaseProductCatalogTest extends TestCase
 
     public function test_admin_empresa_creates_catalog_product(): void
     {
+        $cat = PurchaseProductCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Res', 'status' => 'active']);
+
         $this->actingAs($this->adminEmpresa);
         $this->post(route('empresa.productos-compra.store', $this->tenant->slug), [
             'name' => 'Costilla de res',
             'unit' => 'kg',
-            'category' => 'res',
+            'purchase_product_category_id' => $cat->id,
         ])->assertRedirect();
 
         $this->assertDatabaseHas('purchase_products', [
             'tenant_id' => $this->tenant->id,
             'name' => 'Costilla de res',
-            'category' => 'res',
+            'purchase_product_category_id' => $cat->id,
         ]);
     }
 
@@ -156,5 +160,151 @@ class PurchaseProductCatalogTest extends TestCase
     {
         $this->actingAs($this->cajero);
         $this->get(route('empresa.productos-compra.index', $this->tenant->slug))->assertForbidden();
+    }
+
+    public function test_create_logs_audit_event(): void
+    {
+        $this->actingAs($this->adminEmpresa);
+        $this->post(route('empresa.productos-compra.store', $this->tenant->slug), [
+            'name' => 'Costilla de res', 'unit' => 'kg', 'category' => 'res',
+        ])->assertRedirect();
+
+        $product = PurchaseProduct::firstOrFail();
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_type' => $product->getMorphClass(),
+            'auditable_id' => $product->id,
+            'event' => 'created',
+            'user_id' => $this->adminEmpresa->id,
+        ]);
+    }
+
+    public function test_update_logs_audit_diff(): void
+    {
+        $cat = PurchaseProductCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Res', 'status' => 'active']);
+        $product = PurchaseProduct::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Canal de res',
+            'unit' => 'kg', 'status' => 'active',
+        ]);
+
+        $this->actingAs($this->adminEmpresa);
+        $this->put(route('empresa.productos-compra.update', [$this->tenant->slug, $product->id]), [
+            'name' => 'Canal de res', 'unit' => 'kg', 'purchase_product_category_id' => $cat->id, 'status' => 'inactive',
+        ])->assertRedirect();
+
+        $log = AuditLog::where('auditable_id', $product->id)->where('event', 'updated')->firstOrFail();
+        $this->assertSame($this->adminEmpresa->id, $log->user_id);
+        $this->assertSame([null, 'Res'], $log->changes['fields']['category']);
+        $this->assertSame(['Activo', 'Inactivo'], $log->changes['fields']['status']);
+    }
+
+    public function test_update_without_changes_does_not_log(): void
+    {
+        $product = PurchaseProduct::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Canal de res',
+            'unit' => 'kg', 'status' => 'active',
+        ]);
+
+        $this->actingAs($this->adminEmpresa);
+        $this->put(route('empresa.productos-compra.update', [$this->tenant->slug, $product->id]), [
+            'name' => 'Canal de res', 'unit' => 'kg', 'status' => 'active',
+        ])->assertRedirect();
+
+        $this->assertSame(0, AuditLog::where('event', 'updated')->count());
+    }
+
+    public function test_history_endpoint_returns_entries(): void
+    {
+        $product = PurchaseProduct::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Canal de res',
+            'unit' => 'kg', 'status' => 'active',
+        ]);
+
+        $this->actingAs($this->adminEmpresa);
+        $this->put(route('empresa.productos-compra.update', [$this->tenant->slug, $product->id]), [
+            'name' => 'Canal de res', 'unit' => 'kg', 'status' => 'inactive',
+        ])->assertRedirect();
+
+        $this->get(route('empresa.productos-compra.historial', [$this->tenant->slug, $product->id]))
+            ->assertOk()
+            ->assertJsonPath('product.id', $product->id)
+            ->assertJsonPath('history.0.event', 'updated')
+            ->assertJsonPath('history.0.user_name', $this->adminEmpresa->name);
+    }
+
+    public function test_index_includes_stats(): void
+    {
+        $cat = PurchaseProductCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Res', 'status' => 'active']);
+        PurchaseProduct::create(['tenant_id' => $this->tenant->id, 'name' => 'A', 'unit' => 'kg', 'status' => 'active', 'purchase_product_category_id' => $cat->id]);
+        PurchaseProduct::create(['tenant_id' => $this->tenant->id, 'name' => 'B', 'unit' => 'kg', 'status' => 'inactive']);
+        PurchaseProduct::create(['tenant_id' => $this->tenant->id, 'name' => 'C', 'unit' => 'kg', 'status' => 'active']);
+
+        $this->actingAs($this->adminEmpresa);
+        $stats = $this->get(route('empresa.productos-compra.index', $this->tenant->slug))
+            ->viewData('page')['props']['stats'];
+
+        $this->assertSame(3, $stats['total']);
+        $this->assertSame(2, $stats['active']);
+        $this->assertSame(1, $stats['inactive']);
+        $this->assertSame(2, $stats['uncategorized']);
+    }
+
+    public function test_index_paginates_products(): void
+    {
+        for ($i = 1; $i <= 30; $i++) {
+            PurchaseProduct::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Prod '.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
+                'unit' => 'kg',
+                'status' => 'active',
+            ]);
+        }
+
+        $this->actingAs($this->adminEmpresa);
+        $products = $this->get(route('empresa.productos-compra.index', $this->tenant->slug))
+            ->viewData('page')['props']['products'];
+
+        $this->assertSame(30, $products['total']);
+        $this->assertSame(25, $products['per_page']);
+        $this->assertCount(25, $products['data']);
+    }
+
+    public function test_admin_empresa_creates_category(): void
+    {
+        $this->actingAs($this->adminEmpresa);
+        $this->post(route('empresa.productos-compra.categorias.store', $this->tenant->slug), [
+            'name' => 'Embutidos',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('purchase_product_categories', [
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Embutidos',
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_category_name_unique_per_tenant(): void
+    {
+        PurchaseProductCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Res', 'status' => 'active']);
+
+        $this->actingAs($this->adminEmpresa);
+        $this->from(route('empresa.productos-compra.index', $this->tenant->slug))
+            ->post(route('empresa.productos-compra.categorias.store', $this->tenant->slug), ['name' => 'Res'])
+            ->assertSessionHasErrors('name');
+    }
+
+    public function test_delete_category_sets_products_uncategorized(): void
+    {
+        $cat = PurchaseProductCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Res', 'status' => 'active']);
+        $product = PurchaseProduct::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Canal de res',
+            'unit' => 'kg', 'status' => 'active', 'purchase_product_category_id' => $cat->id,
+        ]);
+
+        $this->actingAs($this->adminEmpresa);
+        $this->delete(route('empresa.productos-compra.categorias.destroy', ['tenant' => $this->tenant->slug, 'categoria' => $cat->id]))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('purchase_product_categories', ['id' => $cat->id]);
+        $this->assertNull($product->fresh()->purchase_product_category_id);
     }
 }
