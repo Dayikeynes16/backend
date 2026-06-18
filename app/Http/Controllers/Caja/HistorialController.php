@@ -17,6 +17,10 @@ class HistorialController extends Controller
     {
         $user = Auth::user();
 
+        $product = trim((string) $request->input('product', ''));
+        $minTotal = $request->input('min_total');
+        $maxTotal = $request->input('max_total');
+
         // Sales where this cajero registered at least one payment
         $saleIds = Payment::where('user_id', $user->id)
             ->distinct()
@@ -29,6 +33,12 @@ class HistorialController extends Controller
                 fn ($q, $d) => $q->whereDate('created_at', $d),
                 fn ($q) => $q->whereDate('created_at', today())
             )
+            ->when($product !== '', fn ($q) => $q->whereHas(
+                'items',
+                fn ($iq) => $iq->where('product_name', 'ilike', '%'.addcslashes($product, '%_\\').'%')
+            ))
+            ->when(is_numeric($minTotal), fn ($q) => $q->where('total', '>=', (float) $minTotal))
+            ->when(is_numeric($maxTotal), fn ($q) => $q->where('total', '<=', (float) $maxTotal))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->cursorPaginate(20)
@@ -38,7 +48,12 @@ class HistorialController extends Controller
 
         return Inertia::render('Caja/Historial', [
             'sales' => $sales,
-            'filters' => $request->only('date'),
+            'filters' => [
+                'date' => $request->input('date'),
+                'product' => $product !== '' ? $product : null,
+                'min_total' => is_numeric($minTotal) ? $minTotal : null,
+                'max_total' => is_numeric($maxTotal) ? $maxTotal : null,
+            ],
             'tenant' => app('tenant'),
             'branchInfo' => [
                 'name' => $branch->name,

@@ -26,15 +26,23 @@ const props = defineProps({
     /**
      * Estado inicial cuando el usuario aún no ha tocado el desplegable.
      * Si el usuario lo ha colapsado/expandido antes (persistido en
-     * localStorage), esa preferencia gana sobre este default.
+     * localStorage), esa preferencia gana sobre este default — salvo que
+     * `persist` esté en false.
      */
     defaultCollapsed: { type: Boolean, default: false },
+    /**
+     * Cuando es false el estado NO se recuerda entre cargas: el desplegable
+     * siempre arranca en `defaultCollapsed` (puede abrirse durante la sesión,
+     * pero al recargar vuelve a su estado por defecto).
+     */
+    persist: { type: Boolean, default: true },
 });
 
 const STORAGE_PREFIX = 'cn:dsb:';
 const collapsed = ref(props.defaultCollapsed);
 
 onMounted(() => {
+    if (!props.persist) return;
     try {
         const saved = localStorage.getItem(STORAGE_PREFIX + props.storageKey);
         if (saved !== null) collapsed.value = saved === '1';
@@ -43,6 +51,7 @@ onMounted(() => {
 
 const toggleCollapsed = () => {
     collapsed.value = !collapsed.value;
+    if (!props.persist) return;
     try {
         localStorage.setItem(STORAGE_PREFIX + props.storageKey, collapsed.value ? '1' : '0');
     } catch (e) { /* */ }

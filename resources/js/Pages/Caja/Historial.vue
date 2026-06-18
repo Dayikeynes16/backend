@@ -13,6 +13,25 @@ import { ref, computed, watch } from 'vue';
 const props = defineProps({ sales: Object, filters: Object, tenant: Object, branchInfo: Object });
 
 const date = ref(props.filters?.date || '');
+const product = ref(props.filters?.product || '');
+const minTotal = ref(props.filters?.min_total ?? '');
+const maxTotal = ref(props.filters?.max_total ?? '');
+
+const queryParams = () => ({
+    date: date.value || undefined,
+    product: product.value.trim() || undefined,
+    min_total: minTotal.value !== '' && minTotal.value !== null ? minTotal.value : undefined,
+    max_total: maxTotal.value !== '' && maxTotal.value !== null ? maxTotal.value : undefined,
+});
+
+const hasActiveFilters = computed(() =>
+    !!product.value.trim() || minTotal.value !== '' || maxTotal.value !== '');
+
+const clearFilters = () => {
+    product.value = '';
+    minTotal.value = '';
+    maxTotal.value = '';
+};
 
 const methodMeta = {
     cash:     { label: 'Efectivo',      color: 'text-emerald-600', iconBg: 'bg-emerald-100 text-emerald-600',
@@ -47,9 +66,17 @@ watch(() => props.sales, (newSales) => {
     }
 });
 
-watch(date, (v) => {
+const applyFilters = () => {
     selected.value = null;
-    router.get(route('caja.historial', props.tenant.slug), { date: v || undefined }, { preserveState: true, replace: true });
+    router.get(route('caja.historial', props.tenant.slug), queryParams(), { preserveState: true, replace: true });
+};
+
+watch(date, applyFilters);
+
+let filterTimer = null;
+watch([product, minTotal, maxTotal], () => {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(applyFilters, 350);
 });
 
 // --- Infinite scroll ---
@@ -58,7 +85,7 @@ const loadMore = () => {
     loadingMore.value = true;
     router.get(route('caja.historial', props.tenant.slug), {
         cursor: nextCursor.value,
-        date: date.value || undefined,
+        ...queryParams(),
     }, {
         preserveState: true, preserveScroll: true, only: ['sales'],
         onSuccess: () => {
@@ -94,7 +121,7 @@ const paidPct = computed(() => {
 // --- WhatsApp ---
 const reloadCurrent = () => router.reload({
     only: ['sales'],
-    data: { date: date.value || undefined },
+    data: queryParams(),
     preserveScroll: true,
 });
 
@@ -132,8 +159,40 @@ const {
 
         <div class="flex h-[calc(100vh-7rem)] gap-5">
             <div class="flex w-[380px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-                <div class="border-b border-gray-100 px-5 py-4">
+                <div class="border-b border-gray-100 px-5 py-4 space-y-3">
                     <DatePicker v-model="date" />
+
+                    <!-- Buscar por producto -->
+                    <div class="relative">
+                        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                        <input v-model="product" type="text" placeholder="Buscar por producto..."
+                            class="w-full rounded-xl border-0 bg-gray-50 py-2.5 pl-9 pr-9 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-red-500" />
+                        <button v-if="product" type="button" @click="product = ''"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 transition hover:text-gray-500">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <!-- Rango de precio (total de la venta) -->
+                    <div class="flex items-center gap-2">
+                        <div class="relative flex-1">
+                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                            <input v-model="minTotal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Mín"
+                                class="w-full rounded-xl border-0 bg-gray-50 py-2.5 pl-7 pr-3 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-red-500" />
+                        </div>
+                        <span class="text-gray-300">—</span>
+                        <div class="relative flex-1">
+                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                            <input v-model="maxTotal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Máx"
+                                class="w-full rounded-xl border-0 bg-gray-50 py-2.5 pl-7 pr-3 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-red-500" />
+                        </div>
+                    </div>
+
+                    <button v-if="hasActiveFilters" type="button" @click="clearFilters"
+                        class="flex items-center gap-1 text-xs font-medium text-gray-400 transition hover:text-gray-600">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        Limpiar filtros
+                    </button>
                 </div>
                 <div ref="listRef" @scroll="onScroll" class="flex-1 overflow-y-auto p-3 space-y-2">
                     <div v-for="sale in allSales" :key="sale.id" @click="selected = sale"
@@ -152,7 +211,7 @@ const {
                         <svg class="h-5 w-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" /></svg>
                     </div>
                     <p v-if="!hasMore && allSales.length > 0" class="py-3 text-center text-xs text-gray-300">No hay mas ventas.</p>
-                    <div v-if="allSales.length === 0 && !loadingMore" class="py-16 text-center text-sm text-gray-400">Sin ventas.</div>
+                    <div v-if="allSales.length === 0 && !loadingMore" class="py-16 text-center text-sm text-gray-400">{{ hasActiveFilters ? 'Sin resultados para los filtros.' : 'Sin ventas.' }}</div>
                 </div>
             </div>
 

@@ -20,6 +20,10 @@ class SaleHistoryController extends Controller
         $tenantId = app('tenant')->id;
         $date = $request->date ?: now()->toDateString();
 
+        $product = trim((string) $request->input('product', ''));
+        $minTotal = $request->input('min_total');
+        $maxTotal = $request->input('max_total');
+
         // Sin búsqueda: ventas del día (fecha canónica COALESCE(completed_at,
         // created_at), igual que Métricas/Dashboard). Incluye:
         //   - Completed/Pending normales (ventas reales)
@@ -47,6 +51,12 @@ class SaleHistoryController extends Controller
                         SaleStatus::Fulfilled->value,
                     ]),
             )
+            ->when($product !== '', fn ($q) => $q->whereHas(
+                'items',
+                fn ($iq) => $iq->where('product_name', 'ilike', '%'.addcslashes($product, '%_\\').'%')
+            ))
+            ->when(is_numeric($minTotal), fn ($q) => $q->where('total', '>=', (float) $minTotal))
+            ->when(is_numeric($maxTotal), fn ($q) => $q->where('total', '<=', (float) $maxTotal))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->cursorPaginate(50)
@@ -82,7 +92,11 @@ class SaleHistoryController extends Controller
 
         return Inertia::render('Sucursal/Historial/Index', [
             'sales' => $sales,
-            'filters' => $request->only('status', 'search', 'date'),
+            'filters' => array_merge($request->only('status', 'search', 'date'), [
+                'product' => $product !== '' ? $product : null,
+                'min_total' => is_numeric($minTotal) ? $minTotal : null,
+                'max_total' => is_numeric($maxTotal) ? $maxTotal : null,
+            ]),
             'tenant' => app('tenant'),
             'paymentMethods' => $paymentMethods,
             'canEditPayments' => $canEditPayments,

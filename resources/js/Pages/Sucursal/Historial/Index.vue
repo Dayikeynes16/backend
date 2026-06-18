@@ -71,6 +71,26 @@ const enabledMethods = computed(() =>
 // --- Filters ---
 const search = ref(props.filters?.search || '');
 const date = ref(props.filters?.date || '');
+const product = ref(props.filters?.product || '');
+const minTotal = ref(props.filters?.min_total ?? '');
+const maxTotal = ref(props.filters?.max_total ?? '');
+
+const queryParams = () => ({
+    search: search.value || undefined,
+    date: date.value || undefined,
+    product: product.value.trim() || undefined,
+    min_total: minTotal.value !== '' && minTotal.value !== null ? minTotal.value : undefined,
+    max_total: maxTotal.value !== '' && maxTotal.value !== null ? maxTotal.value : undefined,
+});
+
+const hasAdvancedFilters = computed(() =>
+    !!product.value.trim() || minTotal.value !== '' || maxTotal.value !== '');
+
+const clearAdvancedFilters = () => {
+    product.value = '';
+    minTotal.value = '';
+    maxTotal.value = '';
+};
 
 // --- Accumulated sales list ---
 const allSales = ref([...props.sales.data]);
@@ -95,14 +115,12 @@ const applyFilters = () => {
     debounceTimer = setTimeout(() => {
         selectedId.value = null;
         selected.value = null;
-        router.get(route('sucursal.historial.index', props.tenant.slug), {
-            search: search.value || undefined,
-            date: date.value || undefined,
-        }, { preserveState: true, replace: true });
+        router.get(route('sucursal.historial.index', props.tenant.slug), queryParams(), { preserveState: true, replace: true });
     }, 300);
 };
 
 watch(search, applyFilters);
+watch([product, minTotal, maxTotal], applyFilters);
 watch(date, () => { clearTimeout(debounceTimer); applyFilters(); });
 
 // --- Infinite scroll ---
@@ -111,8 +129,7 @@ const loadMore = () => {
     loadingMore.value = true;
     router.get(route('sucursal.historial.index', props.tenant.slug), {
         cursor: nextCursor.value,
-        search: search.value || undefined,
-        date: date.value || undefined,
+        ...queryParams(),
     }, {
         preserveState: true, preserveScroll: true, only: ['sales'],
         onSuccess: () => {
@@ -261,7 +278,7 @@ const {
         <DaySummaryBar
             v-if="daySummary"
             class="mb-4"
-            storage-key="historial-ventas"
+            :persist="false"
             :default-collapsed="true"
             :title="summaryTitle"
             legend="Ventas del día — cobradas o pendientes, sin canceladas."
@@ -279,6 +296,31 @@ const {
                             <input v-model="search" type="text" placeholder="Buscar folio..." class="w-full rounded-lg border-gray-200 py-2 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:border-red-400 focus:ring-red-300" />
                         </div>
                         <DatePicker v-model="date" />
+                    </div>
+
+                    <!-- Buscar por producto dentro de la venta -->
+                    <div class="relative">
+                        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" /></svg>
+                        <input v-model="product" type="text" placeholder="Buscar por producto..." class="w-full rounded-lg border-gray-200 py-2 pl-10 pr-9 text-sm text-gray-700 placeholder-gray-400 focus:border-red-400 focus:ring-red-300" />
+                        <button v-if="product" type="button" @click="product = ''" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 transition hover:text-gray-500">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <!-- Rango de precio (total de la venta) -->
+                    <div class="flex items-center gap-2">
+                        <div class="relative flex-1">
+                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                            <input v-model="minTotal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Mín" class="w-full rounded-lg border-gray-200 py-2 pl-7 pr-3 text-sm text-gray-700 placeholder-gray-400 focus:border-red-400 focus:ring-red-300" />
+                        </div>
+                        <span class="text-gray-300">—</span>
+                        <div class="relative flex-1">
+                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                            <input v-model="maxTotal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Máx" class="w-full rounded-lg border-gray-200 py-2 pl-7 pr-3 text-sm text-gray-700 placeholder-gray-400 focus:border-red-400 focus:ring-red-300" />
+                        </div>
+                        <button v-if="hasAdvancedFilters" type="button" @click="clearAdvancedFilters" title="Limpiar filtros de producto y precio" class="shrink-0 rounded-lg p-2 text-gray-300 transition hover:bg-gray-100 hover:text-gray-500">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        </button>
                     </div>
                 </div>
 
