@@ -40,13 +40,9 @@ const methodPieOptions = computed(() => ({
     dataLabels: { enabled: false },
 }));
 
-// Card "Ventas por hora" — adaptativa según rango.
-//   ≤7 días: bar chart 0h-23h (sumando todos los días del rango).
-//   >7 días: heatmap día-de-semana × hora.
-// Sin datos: empty state.
-const daysInRange = computed(() => Number(page.props.range?.days ?? 1));
-const useBarMode = computed(() => daysInRange.value <= 7);
-
+// Card "Ventas por hora": una sola barra por hora (suma de todos los días del
+// rango), con la hora pico resaltada y una frase de insight. Recorta las horas
+// sin actividad para una lectura limpia. Sin datos: empty state.
 const hourlyTotals = computed(() => {
     const m = props.data?.heatmap ?? {};
     return Array.from({ length: 24 }, (_, h) => {
@@ -61,17 +57,9 @@ const hourlyTotals = computed(() => {
 const totalHourAmount = computed(() => hourlyTotals.value.reduce((s, v) => s + v, 0));
 const isHourEmpty = computed(() => totalHourAmount.value === 0);
 
-const hourCardTitle = computed(() =>
-    useBarMode.value ? 'Ventas por hora' : 'Ventas por hora y día de la semana'
-);
-const hourCardSubtitle = computed(() =>
-    useBarMode.value
-        ? 'Suma de ventas por hora del día en el rango seleccionado.'
-        : 'Color = monto vendido. Más oscuro = más ventas. Identifica horas pico para planear staff y producción.'
-);
+const hh = (h) => `${String(h).padStart(2, '0')}h`;
 
-// Abreviador del Y-axis. Mismo helper que TimeSeriesCard usa (todavía no
-// vive en useCurrency).
+// Abreviador del Y-axis.
 function abbreviated(v) {
     const n = Number(v ?? 0);
     if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -79,58 +67,65 @@ function abbreviated(v) {
     return `$${Math.round(n)}`;
 }
 
+// Ventana de horas con actividad (con 1h de padding a cada lado para contexto).
+const activeHours = computed(() => {
+    const t = hourlyTotals.value;
+    const first = t.findIndex(v => v > 0);
+    if (first === -1) return [];
+    const last = 23 - [...t].reverse().findIndex(v => v > 0);
+    const out = [];
+    for (let h = Math.max(0, first - 1); h <= Math.min(23, last + 1); h++) out.push(h);
+    return out;
+});
+
+const peakHour = computed(() => {
+    if (totalHourAmount.value <= 0) return null;
+    const t = hourlyTotals.value;
+    let idx = 0;
+    t.forEach((v, h) => { if (v > t[idx]) idx = h; });
+    return idx;
+});
+
+// Franja pico: ventana contigua de 3h con mayor suma, y su % del total.
+const peakWindow = computed(() => {
+    if (totalHourAmount.value <= 0) return null;
+    const t = hourlyTotals.value;
+    const W = 3;
+    let bestStart = 0, bestSum = -1;
+    for (let s = 0; s <= 24 - W; s++) {
+        let sum = 0;
+        for (let h = s; h < s + W; h++) sum += t[h];
+        if (sum > bestSum) { bestSum = sum; bestStart = s; }
+    }
+    return { from: bestStart, to: bestStart + W - 1, share: Math.round((bestSum / totalHourAmount.value) * 100) };
+});
+
+const insight = computed(() => {
+    if (peakHour.value === null || !peakWindow.value) return null;
+    const w = peakWindow.value;
+    return `Concentras el ${w.share}% de tus ventas entre las ${hh(w.from)} y las ${hh(w.to)}. Tu hora más fuerte es las ${hh(peakHour.value)}.`;
+});
+
 const barSeries = computed(() => [
-    { name: 'Ventas', data: hourlyTotals.value },
+    { name: 'Ventas', data: activeHours.value.map(h => hourlyTotals.value[h]) },
 ]);
 
 const barOptions = computed(() => ({
     chart: { type: 'bar', toolbar: { show: false }, fontFamily: 'inherit' },
-    colors: ['#dc2626'],
-    plotOptions: { bar: { columnWidth: '60%', borderRadius: 4, dataLabels: { position: 'top' } } },
-    dataLabels: {
-        enabled: true,
-        formatter: (v) => v > 0 ? formatCurrency(v) : '',
-        style: { fontSize: '10px', fontWeight: 700, colors: ['#111827'] },
-        offsetY: -20,
-    },
+    plotOptions: { bar: { columnWidth: '62%', borderRadius: 5, distributed: true } },
+    colors: activeHours.value.map(h => h === peakHour.value ? '#dc2626' : '#fecaca'),
+    dataLabels: { enabled: false },
+    legend: { show: false },
     xaxis: {
-        categories: Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}h`),
+        categories: activeHours.value.map(hh),
         labels: { style: { fontSize: '11px', colors: '#6b7280' }, rotate: 0 },
         axisBorder: { show: false },
         axisTicks: { show: false },
     },
     yaxis: { labels: { formatter: abbreviated, style: { fontSize: '11px', colors: '#9ca3af' } } },
     tooltip: { y: { formatter: (v) => formatCurrency(v) } },
-    grid: { borderColor: '#f3f4f6', strokeDashArray: 4, padding: { top: 30 } },
-    legend: { show: false },
+    grid: { borderColor: '#f3f4f6', strokeDashArray: 4 },
 }));
-
-const heatmapSeries = computed(() => {
-    const matrix = props.data?.heatmap ?? {};
-    const days = { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb', 7: 'Dom' };
-    return [7, 6, 5, 4, 3, 2, 1].map(dn => ({
-        name: days[dn],
-        data: Array.from({ length: 24 }, (_, h) => ({
-            x: String(h).padStart(2, '0') + 'h',
-            y: Math.round(matrix[dn]?.[h]?.total ?? 0),
-        })),
-    }));
-});
-const heatmapOptions = {
-    chart: { type: 'heatmap', toolbar: { show: false }, fontFamily: 'inherit' },
-    dataLabels: { enabled: false },
-    plotOptions: { heatmap: { radius: 4, colorScale: { ranges: [
-        { from: 0,    to: 0,      color: '#f9fafb', name: 'Sin ventas' },
-        { from: 1,    to: 500,    color: '#fecaca', name: 'Hasta $500' },
-        { from: 501,  to: 2000,   color: '#fca5a5', name: '$500 – $2k' },
-        { from: 2001, to: 5000,   color: '#ef4444', name: '$2k – $5k' },
-        { from: 5001, to: 999999, color: '#991b1b', name: 'Más de $5k' },
-    ] } } },
-    xaxis: {
-        labels: { rotate: -45, hideOverlappingLabels: true, style: { fontSize: '10px', colors: '#6b7280' } },
-    },
-    tooltip: { y: { formatter: v => formatCurrency(v) } },
-};
 
 const tableColumns = [
     { key: 'day', label: 'Día', format: 'date', strong: true },
@@ -183,7 +178,7 @@ const tableColumns = [
 
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="lg:col-span-2">
-                <ChartCard :title="hourCardTitle" :subtitle="hourCardSubtitle">
+                <ChartCard title="Ventas por hora" subtitle="Suma de ventas por hora del día en el rango seleccionado. La hora pico va resaltada.">
                     <div v-if="isHourEmpty"
                         class="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-12 text-center">
                         <span class="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
@@ -196,8 +191,12 @@ const tableColumns = [
                             Cuando registres ventas verás aquí en qué horas se concentran.
                         </p>
                     </div>
-                    <apexchart v-else-if="useBarMode" type="bar" height="280" :options="barOptions" :series="barSeries" />
-                    <apexchart v-else type="heatmap" height="320" :options="heatmapOptions" :series="heatmapSeries" />
+                    <template v-else>
+                        <p v-if="insight" class="mb-4 flex items-start gap-2 rounded-xl border border-orange-100 bg-orange-50 px-3.5 py-2.5 text-sm font-medium text-orange-800">
+                            <span class="text-base leading-none">💡</span><span>{{ insight }}</span>
+                        </p>
+                        <apexchart type="bar" height="280" :options="barOptions" :series="barSeries" />
+                    </template>
                 </ChartCard>
             </div>
             <ChartCard title="Cobranza por método de pago" subtitle="Distribución de pagos recibidos en el período. Puede incluir pagos de ventas de días anteriores.">
