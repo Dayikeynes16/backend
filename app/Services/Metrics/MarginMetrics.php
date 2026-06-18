@@ -180,6 +180,7 @@ class MarginMetrics extends AbstractMetrics
             ->whereNull('si.cost_price_at_sale')
             ->distinct()
             ->pluck('si.product_id')
+            ->filter() // descarta líneas sin producto (texto libre): no van al set de ids.
             ->all();
 
         $missingSet = array_flip($productIdsWithMissingCost);

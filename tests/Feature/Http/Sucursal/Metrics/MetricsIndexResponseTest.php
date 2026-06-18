@@ -32,9 +32,10 @@ class MetricsIndexResponseTest extends TestCase
                 ->has('statuses')
                 ->has('tenant')
                 ->where('selected_branch_id', $this->branch->id)
+                ->has('data') // el index ahora es el Resumen (P&L + KPIs + alertas)
+                ->has('data.pnl')
                 ->missing('compare')
                 ->missing('refresh')
-                ->missing('data')
                 ->missing('backfill_run_at')
             );
     }
