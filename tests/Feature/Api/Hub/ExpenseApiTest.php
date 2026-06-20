@@ -98,4 +98,85 @@ class ExpenseApiTest extends TestCase
             ->getJson('/api/v1/hub/expenses')
             ->assertStatus(403);
     }
+
+    private function createExpense(string $token, string $concept = 'Recibo CFE', float $amount = 150): int
+    {
+        return $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses', [
+                'concept' => $concept, 'amount' => $amount, 'expense_subcategory_id' => $this->subcategory->id,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+    }
+
+    public function test_index_includes_shift_context(): void
+    {
+        $token = $this->token();
+        $this->withToken($token)->postJson('/api/v1/hub/shift/open', ['opening_amount' => 500])->assertCreated();
+        $this->createExpense($token);
+
+        $res = $this->withToken($token)->getJson('/api/v1/hub/expenses')->assertOk();
+        $this->assertEquals(500, $res->json('shift.opening_amount'));
+        $this->assertNotNull($res->json('shift.opened_at'));
+    }
+
+    public function test_search_filters_by_concept(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $this->createExpense($token, 'Recibo de luz');
+        $this->createExpense($token, 'Compra de bolsas');
+
+        $res = $this->withToken($token)->getJson('/api/v1/hub/expenses?search=luz')->assertOk();
+        $this->assertCount(1, $res->json('data'));
+    }
+
+    public function test_update_expense(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createExpense($token);
+
+        $this->withToken($token)
+            ->patchJson("/api/v1/hub/expenses/{$id}", [
+                'concept' => 'Recibo agua', 'amount' => 99, 'expense_subcategory_id' => $this->subcategory->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.concept', 'Recibo agua')
+            ->assertJsonPath('data.amount', 99);
+    }
+
+    public function test_cancel_expense_removes_it_from_list(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createExpense($token);
+
+        $this->withToken($token)
+            ->deleteJson("/api/v1/hub/expenses/{$id}", ['cancellation_reason' => 'duplicado'])
+            ->assertOk()
+            ->assertJsonPath('action', 'cancelled');
+
+        $res = $this->withToken($token)->getJson('/api/v1/hub/expenses')->assertOk();
+        $this->assertCount(0, $res->json('data'));
+        $this->assertEquals(0, $res->json('total'));
+    }
+
+    public function test_cannot_edit_other_users_expense(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        // Gasto de otro usuario en la misma sucursal.
+        $foreign = Expense::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'expense_subcategory_id' => $this->subcategory->id, 'user_id' => $this->adminSucursal->id,
+            'concept' => 'ajeno', 'amount' => 10, 'payment_method' => 'cash', 'expense_at' => now(),
+        ]);
+
+        $this->withToken($token)
+            ->patchJson("/api/v1/hub/expenses/{$foreign->id}", [
+                'concept' => 'x', 'amount' => 5, 'expense_subcategory_id' => $this->subcategory->id,
+            ])
+            ->assertStatus(404);
+    }
 }
