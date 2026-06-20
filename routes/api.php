@@ -55,6 +55,11 @@ Route::prefix('v1/hub')
         Route::get('history', [HubHistoryController::class, 'index'])->name('api.hub.history.index');
 
         Route::get('customers', [HubCustomerController::class, 'index'])->name('api.hub.customers.index');
+        Route::post('customers', [HubCustomerController::class, 'store'])->name('api.hub.customers.store');
+        Route::get('customers/{customer}', [HubCustomerController::class, 'show'])->whereNumber('customer')->name('api.hub.customers.show');
+        Route::patch('customers/{customer}', [HubCustomerController::class, 'update'])->whereNumber('customer')->name('api.hub.customers.update');
+        Route::delete('customers/{customer}', [HubCustomerController::class, 'destroy'])->whereNumber('customer')->name('api.hub.customers.destroy');
+        Route::get('customers/{customer}/history', [HubCustomerController::class, 'history'])->whereNumber('customer')->name('api.hub.customers.history');
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
