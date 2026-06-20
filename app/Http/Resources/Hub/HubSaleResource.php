@@ -5,6 +5,7 @@ namespace App\Http\Resources\Hub;
 use App\Enums\SaleStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
 class HubSaleResource extends JsonResource
 {
@@ -24,6 +25,12 @@ class HubSaleResource extends JsonResource
             'origin' => $this->origin,
             'origin_name' => $this->origin_name,
             'created_at' => $this->created_at->toIso8601String(),
+            // cancel_requested_at no está casteado a datetime en el modelo Sale;
+            // se parsea defensivamente para no alterar el modelo compartido.
+            'cancel_requested_at' => $this->cancel_requested_at
+                ? Carbon::parse($this->cancel_requested_at)->toIso8601String()
+                : null,
+            'cancel_request_reason' => $this->cancel_request_reason,
             // Cliente asignado (precios preferenciales). Solo se incluye si la
             // relación fue eager-loaded; el catálogo lo expone en el detalle.
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [

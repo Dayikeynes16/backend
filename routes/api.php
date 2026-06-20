@@ -69,8 +69,14 @@ Route::prefix('v1/hub')
         Route::put('providers/{provider}', [HubProviderController::class, 'update'])->whereNumber('provider')->name('api.hub.providers.update');
 
         Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
-        Route::get('sales/{sale}', [HubSaleController::class, 'show'])->name('api.hub.sales.show');
-        Route::post('sales/{sale}/payments', [HubPaymentController::class, 'store'])->name('api.hub.sales.payments.store');
+        Route::get('sales/{sale}', [HubSaleController::class, 'show'])->whereNumber('sale')->name('api.hub.sales.show');
+        Route::post('sales/{sale}/payments', [HubPaymentController::class, 'store'])->whereNumber('sale')->name('api.hub.sales.payments.store');
+        // Acciones de mesa de trabajo (cajero): estado, cancelación, cliente, WhatsApp.
+        Route::patch('sales/{sale}/status', [HubSaleController::class, 'updateStatus'])->whereNumber('sale')->name('api.hub.sales.update-status');
+        Route::post('sales/{sale}/request-cancel', [HubSaleController::class, 'requestCancel'])->whereNumber('sale')->name('api.hub.sales.request-cancel');
+        Route::patch('sales/{sale}/customer', [HubSaleController::class, 'assignCustomer'])->whereNumber('sale')->name('api.hub.sales.assign-customer');
+        Route::get('sales/{sale}/whatsapp', [HubSaleController::class, 'whatsappLink'])->whereNumber('sale')->name('api.hub.sales.whatsapp');
+        Route::post('sales/{sale}/whatsapp-phone', [HubSaleController::class, 'storeWhatsappPhone'])->whereNumber('sale')->name('api.hub.sales.whatsapp-phone');
     });
 
 // Public endpoints for online ordering SPA. No auth. Rate-limited.
