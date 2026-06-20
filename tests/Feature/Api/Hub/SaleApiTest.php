@@ -254,4 +254,39 @@ class SaleApiTest extends TestCase
 
         $this->assertStringContainsString('wa.me', $res->json('url'));
     }
+
+    public function test_lock_acquire_and_unlock(): void
+    {
+        $sale = $this->makeSaleWithItem(SaleStatus::Active);
+        $token = $this->cajero->createToken('hub')->plainTextToken;
+
+        $this->withToken($token)->postJson("/api/v1/hub/sales/{$sale->id}/lock")->assertOk();
+        $this->assertSame($this->cajero->id, $sale->refresh()->locked_by);
+
+        $this->withToken($token)->postJson("/api/v1/hub/sales/{$sale->id}/unlock")->assertOk();
+        $this->assertNull($sale->refresh()->locked_by);
+    }
+
+    public function test_lock_conflict_returns_409(): void
+    {
+        $sale = $this->makeSaleWithItem(SaleStatus::Active);
+        // La tiene otro usuario, lock vigente.
+        $sale->forceFill(['locked_by' => $this->adminSucursal->id, 'locked_at' => now()])->save();
+
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->postJson("/api/v1/hub/sales/{$sale->id}/lock")
+            ->assertStatus(409)
+            ->assertJsonPath('locked', true);
+    }
+
+    public function test_resource_reports_locked_by_other(): void
+    {
+        $sale = $this->makeSaleWithItem(SaleStatus::Active);
+        $sale->forceFill(['locked_by' => $this->adminSucursal->id, 'locked_at' => now()])->save();
+
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson("/api/v1/hub/sales/{$sale->id}")
+            ->assertOk()
+            ->assertJsonPath('data.locked_by_other', true);
+    }
 }

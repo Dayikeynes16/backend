@@ -120,6 +120,10 @@ Route::prefix('v1/hub')
         Route::post('sales/{sale}/request-cancel', [HubSaleController::class, 'requestCancel'])->whereNumber('sale')->name('api.hub.sales.request-cancel');
         Route::patch('sales/{sale}/customer', [HubSaleController::class, 'assignCustomer'])->whereNumber('sale')->name('api.hub.sales.assign-customer');
         Route::get('sales/{sale}/whatsapp', [HubSaleController::class, 'whatsappLink'])->whereNumber('sale')->name('api.hub.sales.whatsapp');
+        // Lock de concurrencia (5 min con heartbeat).
+        Route::post('sales/{sale}/lock', [HubSaleController::class, 'lock'])->whereNumber('sale')->name('api.hub.sales.lock');
+        Route::post('sales/{sale}/unlock', [HubSaleController::class, 'unlock'])->whereNumber('sale')->name('api.hub.sales.unlock');
+        Route::post('sales/{sale}/heartbeat', [HubSaleController::class, 'heartbeat'])->whereNumber('sale')->name('api.hub.sales.heartbeat');
         Route::post('sales/{sale}/whatsapp-phone', [HubSaleController::class, 'storeWhatsappPhone'])->whereNumber('sale')->name('api.hub.sales.whatsapp-phone');
     });
 
