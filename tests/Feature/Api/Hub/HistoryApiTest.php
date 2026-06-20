@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\Hub;
 use App\Enums\SaleStatus;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -84,5 +85,66 @@ class HistoryApiTest extends TestCase
         $this->withToken($this->adminEmpresa->createToken('hub')->plainTextToken)
             ->getJson('/api/v1/hub/history')
             ->assertStatus(403);
+    }
+
+    private function withItem(Sale $sale, string $name): Sale
+    {
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_name' => $name,
+            'unit_type' => 'kg',
+            'quantity' => 1,
+            'unit_price' => $sale->total,
+            'subtotal' => $sale->total,
+        ]);
+
+        return $sale;
+    }
+
+    public function test_filters_by_product(): void
+    {
+        $beef = $this->withItem($this->sale($this->branch->id), 'Bistec de res');
+        $this->payBy($this->cajero->id, $beef);
+        $pork = $this->withItem($this->sale($this->branch->id), 'Chuleta de cerdo');
+        $this->payBy($this->cajero->id, $pork);
+
+        $res = $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history?product=res')
+            ->assertOk();
+
+        $folios = collect($res->json('data'))->pluck('folio');
+        $this->assertTrue($folios->contains($beef->folio));
+        $this->assertFalse($folios->contains($pork->folio));
+    }
+
+    public function test_filters_by_total_range(): void
+    {
+        $cheap = $this->sale($this->branch->id, 50);
+        $this->payBy($this->cajero->id, $cheap);
+        $pricey = $this->sale($this->branch->id, 500);
+        $this->payBy($this->cajero->id, $pricey);
+
+        $res = $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history?min_total=100')
+            ->assertOk();
+
+        $folios = collect($res->json('data'))->pluck('folio');
+        $this->assertTrue($folios->contains($pricey->folio));
+        $this->assertFalse($folios->contains($cheap->folio));
+    }
+
+    public function test_returns_day_summary(): void
+    {
+        $a = $this->sale($this->branch->id, 120);
+        $this->payBy($this->cajero->id, $a);
+        $b = $this->sale($this->branch->id, 80);
+        $this->payBy($this->cajero->id, $b);
+
+        $res = $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history')
+            ->assertOk();
+
+        $this->assertSame(2, $res->json('summary.count'));
+        $this->assertEquals(200, $res->json('summary.total'));
     }
 }
