@@ -8,21 +8,21 @@ use App\Http\Resources\Hub\ShiftResource;
 use App\Services\ShiftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
 
 class ShiftController extends Controller
 {
     public function __construct(private ShiftService $shifts) {}
 
-    public function current(Request $request): JsonResponse|JsonResource
+    public function current(Request $request): JsonResponse
     {
         $shift = $this->shifts->current($request->user());
 
-        if ($shift === null) {
-            return response()->json(['data' => null]);
-        }
-
-        return ShiftResource::make($shift);
+        return response()->json([
+            'data' => $shift ? ShiftResource::make($shift)->resolve($request) : null,
+            // Conciliación EN VIVO del turno abierto (esperado, totales por
+            // método y salidas) para el panel del turno activo.
+            'summary' => $shift ? $this->shifts->summary($shift) : null,
+        ]);
     }
 
     public function open(Request $request): JsonResponse
@@ -38,7 +38,7 @@ class ShiftController extends Controller
         return ShiftResource::make($shift)->response()->setStatusCode(201);
     }
 
-    public function close(Request $request): JsonResource
+    public function close(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'declared_amount' => 'nullable|numeric|min:0',
@@ -49,6 +49,10 @@ class ShiftController extends Controller
 
         $shift = $this->shifts->close($request->user(), $validated);
 
-        return ShiftResource::make($shift);
+        // El corte: shift cerrado + resumen de conciliación con desglose de salidas.
+        return response()->json([
+            'data' => ShiftResource::make($shift)->resolve($request),
+            'summary' => $this->shifts->summary($shift),
+        ]);
     }
 }

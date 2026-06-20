@@ -120,6 +120,109 @@ class ShiftService
     }
 
     /**
+     * Resumen de conciliación de un turno para el hub. Funciona EN VIVO para un
+     * turno abierto (recalcula con el reloj actual) y con los valores
+     * persistidos para un turno cerrado (el corte). Incluye el esperado por
+     * método, declarados/diferencias (solo si está cerrado) y el desglose de
+     * salidas de efectivo (retiros, gastos, pagos a proveedor).
+     *
+     * @return array<string, mixed>
+     */
+    public function summary(CashRegisterShift $shift): array
+    {
+        $isOpen = $shift->closed_at === null;
+
+        if ($isOpen) {
+            $totals = $this->totals->compute($shift->branch_id, $shift->user_id, $shift->opened_at, now());
+            $totalCash = $totals['total_cash'];
+            $totalCard = $totals['total_card'];
+            $totalTransfer = $totals['total_transfer'];
+            $withdrawalsTotal = (float) $shift->withdrawals()->sum('amount');
+            $cashOut = $this->cashOut->forShift($shift, $totalCash, $withdrawalsTotal);
+            $expectedCash = $cashOut['expected_amount'];
+            $cashExpenses = $cashOut['cash_expenses'];
+            $cashProviderPayments = $cashOut['cash_provider_payments'];
+            $saleCount = $totals['collections_count'];
+            $previous = $totals['collections_from_previous_amount'];
+        } else {
+            $totalCash = (float) $shift->total_cash;
+            $totalCard = (float) $shift->total_card;
+            $totalTransfer = (float) $shift->total_transfer;
+            $withdrawalsTotal = (float) $shift->withdrawals()->sum('amount');
+            $expectedCash = (float) $shift->expected_amount;
+            $cashExpenses = (float) $shift->total_cash_expenses;
+            $cashProviderPayments = (float) $shift->total_cash_provider_payments;
+            $saleCount = (int) $shift->sale_count;
+            $previous = (float) $shift->collections_from_previous_amount;
+        }
+
+        $enabled = $this->enabledMethodsFor($shift->branch_id);
+        $withMovement = array_keys(array_filter([
+            'cash' => $totalCash > 0,
+            'card' => $totalCard > 0,
+            'transfer' => $totalTransfer > 0,
+        ]));
+        $effective = array_values(array_unique([...$enabled, ...$withMovement, 'cash']));
+        $order = ['cash', 'card', 'transfer'];
+        usort($effective, fn ($a, $b) => array_search($a, $order) <=> array_search($b, $order));
+
+        $expectedByMethod = ['cash' => $expectedCash, 'card' => $totalCard, 'transfer' => $totalTransfer];
+        $declaredByMethod = ['cash' => $shift->declared_amount, 'card' => $shift->declared_card, 'transfer' => $shift->declared_transfer];
+        $diffByMethod = ['cash' => $shift->difference, 'card' => $shift->difference_card, 'transfer' => $shift->difference_transfer];
+
+        $reconciliation = array_map(fn ($m) => [
+            'method' => $m,
+            'expected' => round((float) $expectedByMethod[$m], 2),
+            'declared' => $isOpen || $declaredByMethod[$m] === null ? null : (float) $declaredByMethod[$m],
+            'difference' => $isOpen || $diffByMethod[$m] === null ? null : (float) $diffByMethod[$m],
+        ], $effective);
+
+        return [
+            'is_open' => $isOpen,
+            'opened_at' => $shift->opened_at?->toIso8601String(),
+            'closed_at' => $shift->closed_at?->toIso8601String(),
+            'cashier' => $shift->user?->name,
+            'opening_amount' => (float) $shift->opening_amount,
+            'totals' => ['cash' => $totalCash, 'card' => $totalCard, 'transfer' => $totalTransfer],
+            'total_collected' => round($totalCash + $totalCard + $totalTransfer, 2),
+            'collections_from_previous' => round($previous, 2),
+            'sale_count' => $saleCount,
+            'expected_cash' => round($expectedCash, 2),
+            'cash_out' => [
+                'withdrawals' => round($withdrawalsTotal, 2),
+                'expenses' => round($cashExpenses, 2),
+                'provider_payments' => round($cashProviderPayments, 2),
+            ],
+            'reconciliation' => $reconciliation,
+            'difference_total' => $isOpen
+                ? null
+                : round((float) $shift->difference + (float) $shift->difference_card + (float) $shift->difference_transfer, 2),
+            'enabled_methods' => $effective,
+            'notes' => $shift->notes,
+            'breakdown' => [
+                'withdrawals' => $shift->withdrawals()->orderByDesc('created_at')->get()->map(fn ($w) => [
+                    'id' => $w->id,
+                    'amount' => (float) $w->amount,
+                    'reason' => $w->reason,
+                    'at' => $w->created_at?->toIso8601String(),
+                ])->values(),
+                'expenses' => $shift->cashExpenses()->orderByDesc('expense_at')->get()->map(fn ($e) => [
+                    'id' => $e->id,
+                    'concept' => $e->concept,
+                    'amount' => (float) $e->amount,
+                    'at' => $e->expense_at?->toIso8601String(),
+                ])->values(),
+                'provider_payments' => $shift->cashProviderPayments()->with('provider:id,name')->orderByDesc('paid_at')->get()->map(fn ($p) => [
+                    'id' => $p->id,
+                    'provider' => $p->provider?->name,
+                    'amount' => (float) $p->amount,
+                    'at' => $p->paid_at?->toIso8601String(),
+                ])->values(),
+            ],
+        ];
+    }
+
+    /**
      * Métodos de pago habilitados en la sucursal.
      *
      * @return list<string>
