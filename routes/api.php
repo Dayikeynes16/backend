@@ -76,6 +76,9 @@ Route::prefix('v1/hub')
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
+        Route::get('expenses/{expense}', [HubExpenseController::class, 'show'])->whereNumber('expense')->name('api.hub.expenses.show');
+        Route::patch('expenses/{expense}', [HubExpenseController::class, 'update'])->whereNumber('expense')->name('api.hub.expenses.update');
+        Route::delete('expenses/{expense}', [HubExpenseController::class, 'destroy'])->whereNumber('expense')->name('api.hub.expenses.destroy');
 
         Route::get('purchases', [HubPurchaseController::class, 'index'])->name('api.hub.purchases.index');
         Route::post('purchases', [HubPurchaseController::class, 'store'])->name('api.hub.purchases.store');

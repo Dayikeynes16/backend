@@ -22,15 +22,22 @@ class ExpenseController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $request->validate(['search' => 'nullable|string|max:100']);
+
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
         $this->ensureModuleEnabled($user->branch_id);
 
+        $search = trim((string) $request->input('search', ''));
+
         $baseQuery = Expense::where('branch_id', $user->branch_id)
             ->where('user_id', $user->id)
-            ->whereNull('cancelled_by');
+            ->whereNull('cancelled_by')
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('concept', 'ilike', "%{$search}%")
+                ->orWhere('description', 'ilike', "%{$search}%")));
 
-        // Total exacto sobre TODO el conjunto, no solo las 50 filas listadas.
+        // Total exacto sobre TODO el conjunto filtrado, no solo las 50 filas.
         $total = (float) (clone $baseQuery)->sum('amount');
 
         $expenses = (clone $baseQuery)
@@ -43,6 +50,9 @@ class ExpenseController extends Controller
             'subcategories' => fn ($q) => $q->where('status', 'active')->orderBy('name'),
         ])->where('status', 'active')->orderBy('name')->get(['id', 'name']);
 
+        // Contexto del turno: total que sale del cajón afecta el corte.
+        $shift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->first();
+
         return response()->json([
             'data' => HubExpenseResource::collection($expenses),
             'categories' => $categories->map(fn ($c) => [
@@ -51,7 +61,81 @@ class ExpenseController extends Controller
                 'subcategories' => $c->subcategories->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values(),
             ])->values(),
             'total' => $total,
+            'shift' => $shift ? [
+                'opened_at' => $shift->opened_at?->toIso8601String(),
+                'opening_amount' => (float) $shift->opening_amount,
+            ] : null,
         ]);
+    }
+
+    public function show(Request $request, int $expense): JsonResponse
+    {
+        $found = $this->findOwnExpense($request, $expense);
+
+        return response()->json(['data' => HubExpenseResource::make($found->load('subcategory.category'))]);
+    }
+
+    public function update(Request $request, int $expense): JsonResponse
+    {
+        $user = $request->user();
+        app()->instance('tenant', $user->tenant);
+        $this->ensureModuleEnabled($user->branch_id);
+
+        $found = $this->findOwnExpense($request, $expense);
+        if ($found->cancelled_by !== null) {
+            return response()->json(['message' => 'No se puede editar un gasto cancelado.'], 422);
+        }
+
+        $validated = $request->validate([
+            'concept' => 'required|string|max:160',
+            'amount' => 'required|numeric|min:0.01|max:99999999.99',
+            'expense_subcategory_id' => [
+                'required',
+                Rule::exists('expense_subcategories', 'id')->where(
+                    fn ($q) => $q->where('tenant_id', $user->tenant_id)->where('status', 'active')
+                ),
+            ],
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $found->update([
+            'concept' => $validated['concept'],
+            'amount' => $validated['amount'],
+            'expense_subcategory_id' => $validated['expense_subcategory_id'],
+            'description' => $validated['description'] ?? null,
+            'updated_by' => $user->id,
+        ]);
+
+        return response()->json(['data' => HubExpenseResource::make($found->refresh()->load('subcategory.category'))]);
+    }
+
+    public function destroy(Request $request, int $expense): JsonResponse
+    {
+        $user = $request->user();
+        app()->instance('tenant', $user->tenant);
+
+        $found = $this->findOwnExpense($request, $expense);
+        if ($found->cancelled_by !== null) {
+            return response()->json(['message' => 'Este gasto ya fue cancelado.'], 422);
+        }
+
+        $validated = $request->validate(['cancellation_reason' => 'nullable|string|max:255']);
+
+        $found->update([
+            'cancelled_by' => $user->id,
+            'cancellation_reason' => $validated['cancellation_reason'] ?? null,
+        ]);
+
+        return response()->json(['action' => 'cancelled']);
+    }
+
+    private function findOwnExpense(Request $request, int $expense): Expense
+    {
+        $user = $request->user();
+
+        return Expense::where('branch_id', $user->branch_id)
+            ->where('user_id', $user->id)
+            ->findOrFail($expense);
     }
 
     public function store(Request $request): JsonResponse
