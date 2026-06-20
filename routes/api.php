@@ -91,6 +91,12 @@ Route::prefix('v1/hub')
         Route::get('providers', [HubProviderController::class, 'index'])->name('api.hub.providers.index');
         Route::post('providers', [HubProviderController::class, 'store'])->name('api.hub.providers.store');
         Route::put('providers/{provider}', [HubProviderController::class, 'update'])->whereNumber('provider')->name('api.hub.providers.update');
+        // Detalle de proveedor (admin-sucursal): resumen/compras/pagos/productos + pago a cuenta.
+        Route::get('providers/{provider}', [HubProviderController::class, 'show'])->whereNumber('provider')->name('api.hub.providers.show');
+        Route::get('providers/{provider}/compras', [HubProviderController::class, 'compras'])->whereNumber('provider')->name('api.hub.providers.compras');
+        Route::get('providers/{provider}/pagos', [HubProviderController::class, 'pagos'])->whereNumber('provider')->name('api.hub.providers.pagos');
+        Route::get('providers/{provider}/productos', [HubProviderController::class, 'productos'])->whereNumber('provider')->name('api.hub.providers.productos');
+        Route::post('providers/{provider}/pagos', [HubProviderController::class, 'accountPayment'])->whereNumber('provider')->name('api.hub.providers.account-payment');
 
         Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
         Route::get('sales/{sale}', [HubSaleController::class, 'show'])->whereNumber('sale')->name('api.hub.sales.show');

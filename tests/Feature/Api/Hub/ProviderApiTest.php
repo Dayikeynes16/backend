@@ -2,7 +2,10 @@
 
 namespace Tests\Feature\Api\Hub;
 
+use App\Enums\PurchaseStatus;
 use App\Models\Provider;
+use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
@@ -167,5 +170,86 @@ class ProviderApiTest extends TestCase
         $this->withToken($this->adminToken())
             ->putJson("/api/v1/hub/providers/{$foreign->id}", $this->payload(['status' => 'active']))
             ->assertStatus(404);
+    }
+
+    private function makePurchase(Provider $p, float $total, float $paid = 0): Purchase
+    {
+        return Purchase::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'provider_id' => $p->id,
+            'folio' => 'CMP-'.fake()->unique()->numerify('#####'),
+            'purchased_at' => now(),
+            'status' => PurchaseStatus::Received,
+            'subtotal' => $total,
+            'total' => $total,
+            'amount_paid' => $paid,
+            'amount_pending' => $total - $paid,
+        ]);
+    }
+
+    public function test_show_returns_resumen_and_debt(): void
+    {
+        $provider = $this->makeProvider();
+        $this->makePurchase($provider, 100, 30);
+
+        $res = $this->withToken($this->adminToken())
+            ->getJson("/api/v1/hub/providers/{$provider->id}")
+            ->assertOk()
+            ->assertJsonPath('resumen.compras_count', 1);
+
+        $this->assertEquals(100, $res->json('resumen.total_comprado'));
+        $this->assertEquals(70, $res->json('resumen.deuda_actual'));
+        $this->assertNotNull($res->json('resumen.ultima_compra.folio'));
+    }
+
+    public function test_detail_forbidden_for_cajero(): void
+    {
+        $provider = $this->makeProvider();
+
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson("/api/v1/hub/providers/{$provider->id}")
+            ->assertStatus(403);
+    }
+
+    public function test_account_payment_reduces_debt_fifo(): void
+    {
+        $provider = $this->makeProvider();
+        $this->makePurchase($provider, 100); // más antigua
+        $this->makePurchase($provider, 50);
+
+        $this->withToken($this->adminToken())
+            ->postJson("/api/v1/hub/providers/{$provider->id}/pagos", ['amount' => 120, 'payment_method' => 'cash'])
+            ->assertCreated()
+            ->assertJsonPath('applied_count', 2);
+
+        $res = $this->withToken($this->adminToken())
+            ->getJson("/api/v1/hub/providers/{$provider->id}")
+            ->assertOk();
+        $this->assertEquals(30, $res->json('resumen.deuda_actual'));
+    }
+
+    public function test_compras_and_productos_listing(): void
+    {
+        $provider = $this->makeProvider();
+        $purchase = $this->makePurchase($provider, 100);
+        PurchaseItem::create([
+            'purchase_id' => $purchase->id,
+            'concept' => 'Costilla',
+            'quantity' => 5,
+            'unit' => 'kg',
+            'unit_price' => 20,
+            'subtotal' => 100,
+        ]);
+
+        $this->withToken($this->adminToken())
+            ->getJson("/api/v1/hub/providers/{$provider->id}/compras")
+            ->assertOk()
+            ->assertJsonPath('data.0.folio', $purchase->folio);
+
+        $this->withToken($this->adminToken())
+            ->getJson("/api/v1/hub/providers/{$provider->id}/productos")
+            ->assertOk()
+            ->assertJsonPath('items.0.concept', 'Costilla');
     }
 }
