@@ -132,10 +132,19 @@ class CustomerController extends Controller
     public function show(Request $request, int $customer): JsonResponse
     {
         $found = $this->findCustomer($request, $customer);
+        $found->load(['prices.product:id,name,price,unit_type']);
 
         return response()->json([
             'data' => $this->row($found),
             'stats' => $this->stats($found),
+            'prices' => $found->prices->map(fn ($p) => [
+                'id' => $p->id,
+                'product_id' => $p->product_id,
+                'product_name' => $p->product?->name,
+                'catalog_price' => $p->product ? (float) $p->product->price : null,
+                'price' => (float) $p->price,
+                'unit_type' => $p->product?->unit_type,
+            ])->values(),
         ]);
     }
 
