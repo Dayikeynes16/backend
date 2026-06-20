@@ -4,9 +4,12 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
+use App\Http\Controllers\Api\Hub\CustomerPaymentController as HubCustomerPaymentController;
+use App\Http\Controllers\Api\Hub\CustomerPriceController as HubCustomerPriceController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
 use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
 use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
+use App\Http\Controllers\Api\Hub\ProductController as HubProductController;
 use App\Http\Controllers\Api\Hub\ProviderController as HubProviderController;
 use App\Http\Controllers\Api\Hub\PurchaseController as HubPurchaseController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
@@ -60,6 +63,15 @@ Route::prefix('v1/hub')
         Route::patch('customers/{customer}', [HubCustomerController::class, 'update'])->whereNumber('customer')->name('api.hub.customers.update');
         Route::delete('customers/{customer}', [HubCustomerController::class, 'destroy'])->whereNumber('customer')->name('api.hub.customers.destroy');
         Route::get('customers/{customer}/history', [HubCustomerController::class, 'history'])->whereNumber('customer')->name('api.hub.customers.history');
+        // Fiado: ledger + cobro global FIFO + cancelar.
+        Route::get('customers/{customer}/payments', [HubCustomerPaymentController::class, 'index'])->whereNumber('customer')->name('api.hub.customers.payments.index');
+        Route::post('customers/{customer}/payments', [HubCustomerPaymentController::class, 'store'])->whereNumber('customer')->name('api.hub.customers.payments.store');
+        Route::delete('customers/{customer}/payments/{payment}', [HubCustomerPaymentController::class, 'destroy'])->whereNumber('customer')->whereNumber('payment')->name('api.hub.customers.payments.destroy');
+        // Precios preferenciales por producto.
+        Route::post('customers/{customer}/prices', [HubCustomerPriceController::class, 'store'])->whereNumber('customer')->name('api.hub.customers.prices.store');
+        Route::patch('customers/{customer}/prices/{price}', [HubCustomerPriceController::class, 'update'])->whereNumber('customer')->whereNumber('price')->name('api.hub.customers.prices.update');
+        Route::delete('customers/{customer}/prices/{price}', [HubCustomerPriceController::class, 'destroy'])->whereNumber('customer')->whereNumber('price')->name('api.hub.customers.prices.destroy');
+        Route::get('products', [HubProductController::class, 'index'])->name('api.hub.products.index');
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
