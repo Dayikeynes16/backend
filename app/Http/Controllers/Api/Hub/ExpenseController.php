@@ -26,9 +26,14 @@ class ExpenseController extends Controller
         app()->instance('tenant', $user->tenant);
         $this->ensureModuleEnabled($user->branch_id);
 
-        $expenses = Expense::where('branch_id', $user->branch_id)
+        $baseQuery = Expense::where('branch_id', $user->branch_id)
             ->where('user_id', $user->id)
-            ->whereNull('cancelled_by')
+            ->whereNull('cancelled_by');
+
+        // Total exacto sobre TODO el conjunto, no solo las 50 filas listadas.
+        $total = (float) (clone $baseQuery)->sum('amount');
+
+        $expenses = (clone $baseQuery)
             ->with('subcategory.category')
             ->orderByDesc('expense_at')
             ->limit(50)
@@ -45,7 +50,7 @@ class ExpenseController extends Controller
                 'name' => $c->name,
                 'subcategories' => $c->subcategories->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values(),
             ])->values(),
-            'total' => (float) $expenses->sum('amount'),
+            'total' => $total,
         ]);
     }
 
