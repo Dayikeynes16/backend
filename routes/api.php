@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
 use App\Http\Controllers\Api\Hub\ProductController as HubProductController;
 use App\Http\Controllers\Api\Hub\ProviderController as HubProviderController;
 use App\Http\Controllers\Api\Hub\PurchaseController as HubPurchaseController;
+use App\Http\Controllers\Api\Hub\PurchaseProductController as HubPurchaseProductController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
 use App\Http\Controllers\Api\ProductController;
@@ -78,6 +79,12 @@ Route::prefix('v1/hub')
 
         Route::get('purchases', [HubPurchaseController::class, 'index'])->name('api.hub.purchases.index');
         Route::post('purchases', [HubPurchaseController::class, 'store'])->name('api.hub.purchases.store');
+        Route::get('purchases/{purchase}', [HubPurchaseController::class, 'show'])->whereNumber('purchase')->name('api.hub.purchases.show');
+        Route::patch('purchases/{purchase}', [HubPurchaseController::class, 'update'])->whereNumber('purchase')->name('api.hub.purchases.update');
+        Route::post('purchases/{purchase}/cancel', [HubPurchaseController::class, 'cancel'])->whereNumber('purchase')->name('api.hub.purchases.cancel');
+        Route::post('purchases/{purchase}/payments', [HubPurchaseController::class, 'addPayment'])->whereNumber('purchase')->name('api.hub.purchases.payments.store');
+        Route::delete('purchases/{purchase}/payments/{payment}', [HubPurchaseController::class, 'cancelPayment'])->whereNumber('purchase')->whereNumber('payment')->name('api.hub.purchases.payments.cancel');
+        Route::get('purchase-products', [HubPurchaseProductController::class, 'index'])->name('api.hub.purchase-products.index');
 
         // Proveedores (admin-sucursal): lectura siempre; crear/editar gateado por
         // el toggle branch_admin_providers_enabled. Sin borrar.

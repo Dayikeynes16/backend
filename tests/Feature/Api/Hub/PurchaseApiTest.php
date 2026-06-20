@@ -98,4 +98,100 @@ class PurchaseApiTest extends TestCase
             ->getJson('/api/v1/hub/purchases')
             ->assertStatus(403);
     }
+
+    private function createPurchase(string $token, array $over = []): int
+    {
+        return $this->withToken($token)
+            ->postJson('/api/v1/hub/purchases', $this->payload($over))
+            ->assertCreated()
+            ->json('data.id');
+    }
+
+    public function test_show_returns_detail_with_payment_status(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createPurchase($token, ['paid_amount' => 400]);
+
+        $this->withToken($token)
+            ->getJson("/api/v1/hub/purchases/{$id}")
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'partial')
+            ->assertJsonPath('data.amount_pending', 500)
+            ->assertJsonCount(1, 'data.items')
+            ->assertJsonCount(1, 'data.payments');
+    }
+
+    public function test_add_payment_then_cancel_payment(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createPurchase($token); // pendiente 900
+
+        $res = $this->withToken($token)
+            ->postJson("/api/v1/hub/purchases/{$id}/payments", ['amount' => 900, 'payment_method' => 'cash'])
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'paid')
+            ->assertJsonPath('data.amount_pending', 0);
+
+        $paymentId = collect($res->json('data.payments'))->firstWhere('cancelled_at', null)['id'];
+
+        $this->withToken($token)
+            ->deleteJson("/api/v1/hub/purchases/{$id}/payments/{$paymentId}", ['reason' => 'error'])
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'pending')
+            ->assertJsonPath('data.amount_pending', 900);
+    }
+
+    public function test_add_payment_rejects_overpay(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createPurchase($token); // 900
+
+        $this->withToken($token)
+            ->postJson("/api/v1/hub/purchases/{$id}/payments", ['amount' => 1000, 'payment_method' => 'cash'])
+            ->assertStatus(422);
+    }
+
+    public function test_update_replaces_items_and_total(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createPurchase($token);
+
+        $this->withToken($token)
+            ->patchJson("/api/v1/hub/purchases/{$id}", $this->payload([
+                'items' => [['concept' => 'Lomo', 'quantity' => 5, 'unit' => 'kg', 'unit_price' => 100]],
+            ]))
+            ->assertOk()
+            ->assertJsonPath('data.total', 500);
+    }
+
+    public function test_cancel_purchase(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createPurchase($token);
+
+        $this->withToken($token)
+            ->postJson("/api/v1/hub/purchases/{$id}/cancel", ['reason' => 'duplicada'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'cancelled')
+            ->assertJsonPath('data.payment_status', 'cancelled');
+    }
+
+    public function test_purchase_products_catalog_search(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        // Crear una compra crea el producto de catálogo por nombre.
+        $this->createPurchase($token, ['items' => [['concept' => 'Costilla especial', 'quantity' => 1, 'unit' => 'kg', 'unit_price' => 50]]]);
+
+        $res = $this->withToken($token)
+            ->getJson('/api/v1/hub/purchase-products?search=costilla')
+            ->assertOk();
+
+        $this->assertGreaterThanOrEqual(1, count($res->json('data')));
+    }
 }
