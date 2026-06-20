@@ -31,6 +31,10 @@ class HubSaleResource extends JsonResource
                 ? Carbon::parse($this->cancel_requested_at)->toIso8601String()
                 : null,
             'cancel_request_reason' => $this->cancel_request_reason,
+            // Bloqueo de concurrencia: en uso por otro usuario si está bloqueada
+            // por alguien distinto y el lock no expiró (< 5 min).
+            'locked_by_other' => $this->isLockedByOther($request),
+            'locked_by_name' => $this->whenLoaded('lockedByUser', fn () => $this->lockedByUser?->name),
             // Cliente asignado (precios preferenciales). Solo se incluye si la
             // relación fue eager-loaded; el catálogo lo expone en el detalle.
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
@@ -58,5 +62,17 @@ class HubSaleResource extends JsonResource
                 'created_at' => $p->created_at->toIso8601String(),
             ])),
         ];
+    }
+
+    private function isLockedByOther(Request $request): bool
+    {
+        $userId = $request->user()?->id;
+
+        return (bool) (
+            $this->locked_by
+            && $this->locked_by !== $userId
+            && $this->locked_at
+            && Carbon::parse($this->locked_at)->diffInMinutes(now()) < 5
+        );
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\Hub;
 
 use App\Enums\SaleStatus;
+use App\Events\SaleLocked;
+use App\Events\SaleUnlocked;
 use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubSaleResource;
@@ -13,6 +15,7 @@ use App\Services\PhoneNormalizer;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Enum;
 
@@ -41,7 +44,7 @@ class SaleController extends Controller
             $query->where('status', SaleStatus::Pending);
         }
 
-        $sales = $query->with(['items', 'customer:id,name,phone'])
+        $sales = $query->with(['items', 'customer:id,name,phone', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
@@ -55,15 +58,20 @@ class SaleController extends Controller
     public function show(Request $request, int $sale): HubSaleResource
     {
         $found = $this->findSale($request, $sale);
-        $found->load(['items', 'payments', 'customer']);
+        $found->load(['items', 'payments', 'customer', 'lockedByUser:id,name']);
 
         $branch = Branch::withoutGlobalScopes()->find($request->user()->branch_id);
 
         // Los métodos de pago habilitados de la sucursal viajan junto al detalle
         // para que el hub no los hardcodee (evita ofrecer un método que el
-        // backend rechazaría con 422).
+        // backend rechazaría con 422). branch alimenta el ticket de impresión.
         return HubSaleResource::make($found)->additional([
             'payment_methods' => $branch?->enabledPaymentMethods() ?? ['cash', 'card', 'transfer'],
+            'branch' => $branch ? [
+                'name' => $branch->name,
+                'address' => $branch->address,
+                'phone' => $branch->phone,
+            ] : null,
         ]);
     }
 
@@ -180,6 +188,62 @@ class SaleController extends Controller
         return response()->json($whatsapp->linkForSale($found->fresh()));
     }
 
+    /** Adquiere el lock de concurrencia (5 min). 409 si otro la tiene. */
+    public function lock(Request $request, int $sale): JsonResponse
+    {
+        $user = $request->user();
+        $this->findSale($request, $sale); // 404 si no es de la sucursal
+
+        return DB::transaction(function () use ($sale, $user) {
+            $locked = Sale::withoutGlobalScopes()->lockForUpdate()->find($sale);
+
+            if ($locked->locked_by && $locked->locked_by !== $user->id
+                && $locked->locked_at && $locked->locked_at->diffInMinutes(now()) < 5) {
+                return response()->json([
+                    'locked' => true,
+                    'locked_by_name' => $locked->lockedByUser?->name ?? 'Otro usuario',
+                ], 409);
+            }
+
+            // Un usuario solo mantiene un lock: libera los demás.
+            Sale::withoutGlobalScopes()->where('locked_by', $user->id)->where('id', '!=', $locked->id)->get()
+                ->each(function (Sale $prev) {
+                    $prev->updateQuietly(['locked_by' => null, 'locked_at' => null]);
+                    $this->dispatchEvent(fn () => SaleUnlocked::dispatch($prev->id, $prev->branch_id));
+                });
+
+            $locked->updateQuietly(['locked_by' => $user->id, 'locked_at' => now()]);
+            $this->dispatchEvent(fn () => SaleLocked::dispatch($locked->id, $locked->branch_id, $user->id, $user->name));
+
+            return response()->json(['ok' => true]);
+        });
+    }
+
+    public function unlock(Request $request, int $sale): JsonResponse
+    {
+        $user = $request->user();
+        $found = $this->findSale($request, $sale);
+
+        if ($found->locked_by === $user->id) {
+            $found->updateQuietly(['locked_by' => null, 'locked_at' => null]);
+            $this->dispatchEvent(fn () => SaleUnlocked::dispatch($found->id, $found->branch_id));
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function heartbeat(Request $request, int $sale): JsonResponse
+    {
+        $user = $request->user();
+        $found = $this->findSale($request, $sale);
+
+        if ($found->locked_by === $user->id) {
+            $found->updateQuietly(['locked_at' => now()]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     /** Venta de la sucursal del token; cross-branch → 404. */
     private function findSale(Request $request, int $sale): Sale
     {
@@ -197,10 +261,16 @@ class SaleController extends Controller
 
     private function broadcast(Sale $sale): void
     {
+        $this->dispatchEvent(fn () => SaleUpdated::dispatch($sale->fresh()));
+    }
+
+    /** Dispara un evento tolerando que el broadcasting (Reverb) esté caído. */
+    private function dispatchEvent(callable $dispatch): void
+    {
         try {
-            SaleUpdated::dispatch($sale->fresh());
+            $dispatch();
         } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+            Log::warning('Hub sale event dispatch failed', ['error' => $e->getMessage()]);
         }
     }
 }
