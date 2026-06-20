@@ -3,9 +3,11 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\Hub\ConfigController as HubConfigController;
 use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
 use App\Http\Controllers\Api\Hub\CustomerPaymentController as HubCustomerPaymentController;
 use App\Http\Controllers\Api\Hub\CustomerPriceController as HubCustomerPriceController;
+use App\Http\Controllers\Api\Hub\DashboardController as HubDashboardController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
 use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
 use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
@@ -52,6 +54,15 @@ Route::prefix('v1')->group(function () {
 Route::prefix('v1/hub')
     ->middleware(['auth:sanctum', 'hub.role'])
     ->group(function () {
+        Route::get('dashboard', [HubDashboardController::class, 'index'])->name('api.hub.dashboard.index');
+
+        // Configuración de negocio de la sucursal (admin-sucursal): métodos de pago + API keys.
+        Route::get('config', [HubConfigController::class, 'index'])->name('api.hub.config.index');
+        Route::put('config/payment-methods', [HubConfigController::class, 'updatePaymentMethods'])->name('api.hub.config.payment-methods');
+        Route::post('config/api-keys', [HubConfigController::class, 'storeApiKey'])->name('api.hub.config.api-keys.store');
+        Route::delete('config/api-keys/{apiKey}', [HubConfigController::class, 'revokeApiKey'])->whereNumber('apiKey')->name('api.hub.config.api-keys.revoke');
+        Route::delete('config/api-keys/{apiKey}/force', [HubConfigController::class, 'deleteApiKey'])->whereNumber('apiKey')->name('api.hub.config.api-keys.delete');
+
         Route::get('shift/current', [HubShiftController::class, 'current'])->name('api.hub.shift.current');
         Route::post('shift/open', [HubShiftController::class, 'open'])->name('api.hub.shift.open');
         Route::post('shift/close', [HubShiftController::class, 'close'])->name('api.hub.shift.close');
