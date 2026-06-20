@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
 use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
 use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
+use App\Http\Controllers\Api\Hub\ProviderController as HubProviderController;
 use App\Http\Controllers\Api\Hub\PurchaseController as HubPurchaseController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
@@ -60,6 +61,12 @@ Route::prefix('v1/hub')
 
         Route::get('purchases', [HubPurchaseController::class, 'index'])->name('api.hub.purchases.index');
         Route::post('purchases', [HubPurchaseController::class, 'store'])->name('api.hub.purchases.store');
+
+        // Proveedores (admin-sucursal): lectura siempre; crear/editar gateado por
+        // el toggle branch_admin_providers_enabled. Sin borrar.
+        Route::get('providers', [HubProviderController::class, 'index'])->name('api.hub.providers.index');
+        Route::post('providers', [HubProviderController::class, 'store'])->name('api.hub.providers.store');
+        Route::put('providers/{provider}', [HubProviderController::class, 'update'])->whereNumber('provider')->name('api.hub.providers.update');
 
         Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
         Route::get('sales/{sale}', [HubSaleController::class, 'show'])->name('api.hub.sales.show');
