@@ -4,7 +4,10 @@ namespace Tests\Feature\Api\Hub;
 
 use App\Models\Provider;
 use App\Models\Purchase;
+use App\Services\PurchaseAttachmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
 
@@ -179,6 +182,31 @@ class PurchaseApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'cancelled')
             ->assertJsonPath('data.payment_status', 'cancelled');
+    }
+
+    public function test_attach_download_and_delete_on_purchase(): void
+    {
+        Storage::fake(PurchaseAttachmentService::disk());
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createPurchase($token);
+
+        $res = $this->withToken($token)
+            ->post("/api/v1/hub/purchases/{$id}/attachments", [
+                'attachments' => [UploadedFile::fake()->create('factura.pdf', 20, 'application/pdf')],
+            ])
+            ->assertOk();
+        $this->assertCount(1, $res->json('data.attachments'));
+        $attId = $res->json('data.attachments.0.id');
+
+        $this->withToken($token)
+            ->get("/api/v1/hub/purchases/{$id}/attachments/{$attId}")
+            ->assertOk();
+
+        $this->withToken($token)
+            ->deleteJson("/api/v1/hub/purchases/{$id}/attachments/{$attId}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data.attachments');
     }
 
     public function test_purchase_products_catalog_search(): void

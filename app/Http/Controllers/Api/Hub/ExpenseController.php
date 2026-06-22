@@ -10,9 +10,12 @@ use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Services\AuditLogger;
+use App\Services\ExpenseAttachmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExpenseController extends Controller
 {
@@ -41,7 +44,7 @@ class ExpenseController extends Controller
         $total = (float) (clone $baseQuery)->sum('amount');
 
         $expenses = (clone $baseQuery)
-            ->with('subcategory.category')
+            ->with(['subcategory.category', 'attachments'])
             ->orderByDesc('expense_at')
             ->limit(50)
             ->get();
@@ -72,7 +75,7 @@ class ExpenseController extends Controller
     {
         $found = $this->findOwnExpense($request, $expense);
 
-        return response()->json(['data' => HubExpenseResource::make($found->load('subcategory.category'))]);
+        return response()->json(['data' => HubExpenseResource::make($found->load(['subcategory.category', 'attachments']))]);
     }
 
     public function update(Request $request, int $expense): JsonResponse
@@ -106,7 +109,7 @@ class ExpenseController extends Controller
             'updated_by' => $user->id,
         ]);
 
-        return response()->json(['data' => HubExpenseResource::make($found->refresh()->load('subcategory.category'))]);
+        return response()->json(['data' => HubExpenseResource::make($found->refresh()->load(['subcategory.category', 'attachments']))]);
     }
 
     public function destroy(Request $request, int $expense): JsonResponse
@@ -127,6 +130,45 @@ class ExpenseController extends Controller
         ]);
 
         return response()->json(['action' => 'cancelled']);
+    }
+
+    public function storeAttachment(Request $request, int $expense, ExpenseAttachmentService $attachments): JsonResponse
+    {
+        $user = $request->user();
+        app()->instance('tenant', $user->tenant);
+        $found = $this->findOwnExpense($request, $expense);
+
+        $request->validate([
+            'attachments' => 'required|array|max:'.ExpenseAttachmentService::MAX_PER_EXPENSE,
+            'attachments.*' => [
+                'file', 'mimes:jpg,jpeg,png,webp,pdf',
+                'mimetypes:'.implode(',', ExpenseAttachmentService::ALLOWED_MIMES),
+                'max:'.(ExpenseAttachmentService::MAX_BYTES / 1024),
+            ],
+        ]);
+
+        $attachments->attach($found, $request->file('attachments'), $user->id);
+
+        return response()->json(['data' => HubExpenseResource::make($found->refresh()->load(['subcategory.category', 'attachments']))]);
+    }
+
+    public function downloadAttachment(Request $request, int $expense, int $attachment): StreamedResponse
+    {
+        $found = $this->findOwnExpense($request, $expense);
+        $att = $found->attachments()->findOrFail($attachment);
+
+        return Storage::disk(ExpenseAttachmentService::disk())->download($att->path, $att->original_name);
+    }
+
+    public function destroyAttachment(Request $request, int $expense, int $attachment): JsonResponse
+    {
+        $found = $this->findOwnExpense($request, $expense);
+        $att = $found->attachments()->findOrFail($attachment);
+
+        Storage::disk(ExpenseAttachmentService::disk())->delete($att->path);
+        $att->delete();
+
+        return response()->json(['data' => HubExpenseResource::make($found->refresh()->load(['subcategory.category', 'attachments']))]);
     }
 
     private function findOwnExpense(Request $request, int $expense): Expense

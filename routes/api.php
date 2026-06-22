@@ -90,6 +90,9 @@ Route::prefix('v1/hub')
         Route::get('expenses/{expense}', [HubExpenseController::class, 'show'])->whereNumber('expense')->name('api.hub.expenses.show');
         Route::patch('expenses/{expense}', [HubExpenseController::class, 'update'])->whereNumber('expense')->name('api.hub.expenses.update');
         Route::delete('expenses/{expense}', [HubExpenseController::class, 'destroy'])->whereNumber('expense')->name('api.hub.expenses.destroy');
+        Route::post('expenses/{expense}/attachments', [HubExpenseController::class, 'storeAttachment'])->whereNumber('expense')->name('api.hub.expenses.attachments.store');
+        Route::get('expenses/{expense}/attachments/{attachment}', [HubExpenseController::class, 'downloadAttachment'])->whereNumber('expense')->whereNumber('attachment')->name('api.hub.expenses.attachments.download');
+        Route::delete('expenses/{expense}/attachments/{attachment}', [HubExpenseController::class, 'destroyAttachment'])->whereNumber('expense')->whereNumber('attachment')->name('api.hub.expenses.attachments.destroy');
 
         Route::get('purchases', [HubPurchaseController::class, 'index'])->name('api.hub.purchases.index');
         Route::post('purchases', [HubPurchaseController::class, 'store'])->name('api.hub.purchases.store');
@@ -98,6 +101,9 @@ Route::prefix('v1/hub')
         Route::post('purchases/{purchase}/cancel', [HubPurchaseController::class, 'cancel'])->whereNumber('purchase')->name('api.hub.purchases.cancel');
         Route::post('purchases/{purchase}/payments', [HubPurchaseController::class, 'addPayment'])->whereNumber('purchase')->name('api.hub.purchases.payments.store');
         Route::delete('purchases/{purchase}/payments/{payment}', [HubPurchaseController::class, 'cancelPayment'])->whereNumber('purchase')->whereNumber('payment')->name('api.hub.purchases.payments.cancel');
+        Route::post('purchases/{purchase}/attachments', [HubPurchaseController::class, 'storeAttachment'])->whereNumber('purchase')->name('api.hub.purchases.attachments.store');
+        Route::get('purchases/{purchase}/attachments/{attachment}', [HubPurchaseController::class, 'downloadAttachment'])->whereNumber('purchase')->whereNumber('attachment')->name('api.hub.purchases.attachments.download');
+        Route::delete('purchases/{purchase}/attachments/{attachment}', [HubPurchaseController::class, 'destroyAttachment'])->whereNumber('purchase')->whereNumber('attachment')->name('api.hub.purchases.attachments.destroy');
         Route::get('purchase-products', [HubPurchaseProductController::class, 'index'])->name('api.hub.purchase-products.index');
 
         // Proveedores (admin-sucursal): lectura siempre; crear/editar gateado por

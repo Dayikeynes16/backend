@@ -45,6 +45,12 @@ class HubPurchaseResource extends JsonResource
                 'paid_at' => $p->paid_at?->toIso8601String(),
                 'cancelled_at' => $p->cancelled_at?->toIso8601String(),
             ])),
+            'attachments' => $this->whenLoaded('attachments', fn () => $this->attachments->map(fn ($a) => [
+                'id' => $a->id,
+                'original_name' => $a->original_name,
+                'mime_type' => $a->mime_type,
+                'size_bytes' => $a->size_bytes,
+            ])->values()),
         ];
     }
 
