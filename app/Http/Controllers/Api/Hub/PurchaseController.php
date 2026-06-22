@@ -10,6 +10,7 @@ use App\Models\CashRegisterShift;
 use App\Models\Provider;
 use App\Models\ProviderPayment;
 use App\Models\Purchase;
+use App\Services\PurchaseAttachmentService;
 use App\Services\PurchaseFolioGenerator;
 use App\Services\PurchasePaymentService;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,7 +18,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Compras en efectivo del cajero. Reusa el trait HandlesPurchases
@@ -104,10 +107,52 @@ class PurchaseController extends Controller
         Auth::setUser($user);
 
         $found = Purchase::where('branch_id', $user->branch_id)
-            ->with(['provider:id,name', 'items', 'payments'])
+            ->with(['provider:id,name', 'items', 'payments', 'attachments'])
             ->findOrFail($purchase);
 
         return response()->json(['data' => HubPurchaseResource::make($found)]);
+    }
+
+    public function storeAttachment(Request $request, int $purchase, PurchaseAttachmentService $attachments): JsonResponse
+    {
+        $user = $request->user();
+        app()->instance('tenant', $user->tenant);
+        Auth::setUser($user);
+        $found = Purchase::where('branch_id', $user->branch_id)->findOrFail($purchase);
+
+        $request->validate([
+            'attachments' => 'required|array|max:'.PurchaseAttachmentService::MAX_PER_PURCHASE,
+            'attachments.*' => [
+                'file', 'mimes:jpg,jpeg,png,webp,pdf',
+                'mimetypes:'.implode(',', PurchaseAttachmentService::ALLOWED_MIMES),
+                'max:'.(PurchaseAttachmentService::MAX_BYTES / 1024),
+            ],
+        ]);
+
+        $attachments->attach($found, $request->file('attachments'), $user->id);
+
+        return response()->json(['data' => HubPurchaseResource::make($found->refresh()->load(['provider:id,name', 'items', 'payments', 'attachments']))]);
+    }
+
+    public function downloadAttachment(Request $request, int $purchase, int $attachment): StreamedResponse
+    {
+        $user = $request->user();
+        $found = Purchase::where('branch_id', $user->branch_id)->findOrFail($purchase);
+        $att = $found->attachments()->findOrFail($attachment);
+
+        return Storage::disk(PurchaseAttachmentService::disk())->download($att->path, $att->original_name);
+    }
+
+    public function destroyAttachment(Request $request, int $purchase, int $attachment): JsonResponse
+    {
+        $user = $request->user();
+        $found = Purchase::where('branch_id', $user->branch_id)->findOrFail($purchase);
+        $att = $found->attachments()->findOrFail($attachment);
+
+        Storage::disk(PurchaseAttachmentService::disk())->delete($att->path);
+        $att->delete();
+
+        return response()->json(['data' => HubPurchaseResource::make($found->refresh()->load(['provider:id,name', 'items', 'payments', 'attachments']))]);
     }
 
     public function update(Request $request, int $purchase, PurchasePaymentService $payments): JsonResponse

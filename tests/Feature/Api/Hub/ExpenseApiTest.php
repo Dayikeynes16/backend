@@ -5,7 +5,10 @@ namespace Tests\Feature\Api\Hub;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseSubcategory;
+use App\Services\ExpenseAttachmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
 
@@ -160,6 +163,48 @@ class ExpenseApiTest extends TestCase
         $res = $this->withToken($token)->getJson('/api/v1/hub/expenses')->assertOk();
         $this->assertCount(0, $res->json('data'));
         $this->assertEquals(0, $res->json('total'));
+    }
+
+    public function test_attach_list_download_and_delete(): void
+    {
+        Storage::fake(ExpenseAttachmentService::disk());
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createExpense($token);
+
+        // Subir adjunto.
+        $res = $this->withToken($token)
+            ->post("/api/v1/hub/expenses/{$id}/attachments", [
+                'attachments' => [UploadedFile::fake()->image('ticket.jpg')],
+            ])
+            ->assertOk();
+        $this->assertCount(1, $res->json('data.attachments'));
+        $attId = $res->json('data.attachments.0.id');
+
+        // Descargar.
+        $this->withToken($token)
+            ->get("/api/v1/hub/expenses/{$id}/attachments/{$attId}")
+            ->assertOk();
+
+        // Borrar.
+        $this->withToken($token)
+            ->deleteJson("/api/v1/hub/expenses/{$id}/attachments/{$attId}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data.attachments');
+    }
+
+    public function test_attachment_rejects_bad_mime(): void
+    {
+        Storage::fake(ExpenseAttachmentService::disk());
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createExpense($token);
+
+        $this->withToken($token)
+            ->post("/api/v1/hub/expenses/{$id}/attachments", [
+                'attachments' => [UploadedFile::fake()->create('notas.txt', 5, 'text/plain')],
+            ], ['Accept' => 'application/json'])
+            ->assertStatus(422);
     }
 
     public function test_cannot_edit_other_users_expense(): void
