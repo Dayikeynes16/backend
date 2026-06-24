@@ -42,11 +42,11 @@ const hrefFor = (routeName) => {
 </script>
 
 <template>
-    <aside class="hidden w-56 shrink-0 lg:block">
+    <aside class="hidden w-44 shrink-0 lg:block">
         <nav class="sticky top-24 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm">
             <p class="mb-1 px-3 pt-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Módulo</p>
             <Link :href="hrefFor(axes[0].route)"
-                :class="['group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition',
+                :class="['group flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition',
                     activeAxis === null ? 'bg-red-50 text-red-700' : 'text-gray-700 hover:bg-gray-50']">
                 <svg class="h-4 w-4 shrink-0" :class="activeAxis === null ? 'text-red-600' : 'text-gray-400 group-hover:text-gray-600'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" :d="axes[0].iconPath" />
@@ -57,7 +57,7 @@ const hrefFor = (routeName) => {
             <p class="mb-1 mt-3 px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Ejes</p>
             <div class="space-y-0.5">
                 <Link v-for="axis in axes.slice(1)" :key="axis.key" :href="hrefFor(axis.route)"
-                    :class="['group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition',
+                    :class="['group flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition',
                         activeAxis === axis.key ? 'bg-red-50 text-red-700' : 'text-gray-700 hover:bg-gray-50']">
                     <svg class="h-4 w-4 shrink-0" :class="activeAxis === axis.key ? 'text-red-600' : 'text-gray-400 group-hover:text-gray-600'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" :d="axis.iconPath" />
