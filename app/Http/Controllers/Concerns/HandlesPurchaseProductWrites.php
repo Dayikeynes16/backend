@@ -11,10 +11,9 @@ use Illuminate\Validation\Rule;
 
 /**
  * Escritura del catálogo de productos de compra (tenant-wide). Compartido por
- * el controlador de empresa y el de sucursal — el catálogo es el mismo; el
- * acceso del admin-sucursal se gatea por el toggle
- * `branch_admin_purchase_products_enabled`. El borrado (destroy) NO vive aquí:
- * queda reservado a empresa/superadmin. Cada escritura registra el historial.
+ * el controlador de empresa y el de sucursal — el catálogo es el mismo y ambos
+ * roles pueden crear/editar. El borrado (destroy) NO vive aquí: queda reservado
+ * a empresa/superadmin. Cada escritura registra el historial.
  */
 trait HandlesPurchaseProductWrites
 {

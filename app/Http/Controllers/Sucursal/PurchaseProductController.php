@@ -14,11 +14,9 @@ use Inertia\Response;
 
 /**
  * Catálogo de productos de compra y sus categorías para admin-sucursal. El
- * catálogo es tenant-wide; el acceso completo (incl. lectura) se concede sólo
- * cuando la empresa habilita el toggle `branch_admin_purchase_products_enabled`
- * de su sucursal — todas las rutas de este controlador se gatean con el
- * middleware `branch.feature`. Puede crear/editar/activar-desactivar productos
- * y categorías, pero NO eliminar (el destroy queda en empresa).
+ * catálogo es tenant-wide y el admin de sucursal tiene acceso completo: puede
+ * leer, crear y editar/activar-desactivar productos y categorías, pero NO
+ * eliminar (el destroy queda reservado a empresa).
  */
 class PurchaseProductController extends Controller
 {
