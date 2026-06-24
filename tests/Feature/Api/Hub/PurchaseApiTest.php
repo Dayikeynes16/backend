@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Api\Hub;
 
+use App\Enums\AiDraftStatus;
+use App\Models\AiPurchaseDraft;
 use App\Models\Provider;
 use App\Models\Purchase;
 use App\Services\PurchaseAttachmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -221,5 +224,84 @@ class PurchaseApiTest extends TestCase
             ->assertOk();
 
         $this->assertGreaterThanOrEqual(1, count($res->json('data')));
+    }
+
+    public function test_store_with_ai_draft_id_consumes_draft_and_moves_attachment(): void
+    {
+        $disk = Storage::fake(PurchaseAttachmentService::disk());
+        $token = $this->token();
+        $this->openShift($token);
+
+        $srcPath = "tenants/{$this->tenant->id}/ai_purchase_drafts/seed/factura.jpg";
+        $disk->put($srcPath, 'fake-invoice-bytes');
+        $draft = AiPurchaseDraft::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->cajero->id,
+            'status' => AiDraftStatus::Ready->value,
+            'input_text' => 'Compré costillas',
+            'attachment_paths' => [[
+                'path' => $srcPath,
+                'original_name' => 'factura.jpg',
+                'mime_type' => 'image/jpeg',
+                'size_bytes' => 18,
+            ]],
+            'parsed_proposal' => ['proveedor' => ['id' => $this->provider->id]],
+        ]);
+
+        $res = $this->withToken($token)
+            ->postJson('/api/v1/hub/purchases', $this->payload(['ai_draft_id' => $draft->id]))
+            ->assertCreated();
+
+        $this->assertCount(1, $res->json('data.attachments'));
+
+        $draft->refresh();
+        $this->assertSame(AiDraftStatus::Consumed->value, $draft->status->value);
+        $this->assertSame($res->json('data.id'), $draft->purchase_id);
+        $disk->assertMissing($srcPath);
+    }
+
+    public function test_ai_draft_endpoint_calls_openai_and_returns_proposal(): void
+    {
+        Storage::fake(PurchaseAttachmentService::disk());
+        config()->set('ai.openai.api_key', 'sk-test');
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'model' => 'gpt-4o',
+                'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+                'choices' => [[
+                    'message' => ['content' => json_encode([
+                        'proveedor' => ['nombre' => 'Proveedor X'],
+                        'invoice_number' => 'F-99',
+                        'fecha' => now()->toDateString(),
+                        'items' => [['concepto' => 'Costillas', 'cantidad' => 10, 'unidad' => 'kg', 'precio' => 90]],
+                        'notas' => null,
+                    ])],
+                ]],
+            ], 200),
+        ]);
+
+        $token = $this->token();
+        $this->openShift($token);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/purchases/ai-draft', [
+                'input_text' => 'Compré 10 kg de costillas a 90 el kilo, factura F-99',
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', AiDraftStatus::Ready->value)
+            ->assertJsonPath('proposal.invoice_number', 'F-99');
+
+        $this->assertSame(1, AiPurchaseDraft::where('user_id', $this->cajero->id)->count());
+    }
+
+    public function test_ai_draft_endpoint_requires_some_input(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/purchases/ai-draft', [])
+            ->assertStatus(422);
     }
 }

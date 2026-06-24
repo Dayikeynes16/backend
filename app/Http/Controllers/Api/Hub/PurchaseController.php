@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Api\Hub;
 
+use App\Enums\AiDraftStatus;
 use App\Http\Controllers\Concerns\HandlesPurchases;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubPurchaseResource;
+use App\Models\AiPurchaseDraft;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Provider;
 use App\Models\ProviderPayment;
 use App\Models\Purchase;
+use App\Services\Ai\AiPurchaseDraftService;
 use App\Services\PurchaseAttachmentService;
 use App\Services\PurchaseFolioGenerator;
 use App\Services\PurchasePaymentService;
@@ -21,6 +24,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 /**
  * Compras en efectivo del cajero. Reusa el trait HandlesPurchases
@@ -95,9 +99,72 @@ class PurchaseController extends Controller
             $payments->recalculate($purchase);
         }
 
-        $purchase->refresh()->load(['provider:id,name', 'items']);
+        // Si vino de la captura por IA, consume el draft (mueve la foto de la
+        // factura a la compra y lo marca consumido).
+        $draftId = (int) $request->input('ai_draft_id', 0);
+        if ($draftId > 0) {
+            $draft = AiPurchaseDraft::query()
+                ->where('id', $draftId)
+                ->where('tenant_id', $user->tenant_id)
+                ->where('status', AiDraftStatus::Ready->value)
+                ->first();
+            if ($draft) {
+                app(PurchaseAttachmentService::class)->attachFromDraft($purchase, $draft, $user->id);
+                $draft->update([
+                    'status' => AiDraftStatus::Consumed->value,
+                    'purchase_id' => $purchase->id,
+                    'consumed_at' => now(),
+                ]);
+            }
+        }
+
+        $purchase->refresh()->load(['provider:id,name', 'items', 'attachments']);
 
         return response()->json(['data' => HubPurchaseResource::make($purchase)], 201);
+    }
+
+    /**
+     * Borrador de compra desde IA (texto/imagen/audio → GPT-4o/Whisper). Reusa
+     * AiPurchaseDraftService; devuelve la propuesta para prerrellenar el form.
+     */
+    public function aiDraft(Request $request, AiPurchaseDraftService $service): JsonResponse
+    {
+        $user = $request->user();
+        app()->instance('tenant', $user->tenant);
+        Auth::setUser($user);
+        $this->ensureModuleEnabled($user->branch_id);
+
+        $maxAudioKb = (int) (config('ai.expenses.max_audio_bytes', 10 * 1024 * 1024) / 1024);
+
+        $validated = $request->validate([
+            'input_text' => ['nullable', 'string', 'max:'.config('ai.expenses.max_input_text_length', 2000)],
+            'attachments' => 'nullable|array|max:'.config('ai.purchases.max_images', 5),
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'mimetypes:image/jpeg,image/png,image/webp', 'max:'.(PurchaseAttachmentService::MAX_BYTES / 1024)],
+            'audio' => ['nullable', 'file', 'mimes:webm,ogg,oga,mp3,mpga,m4a,mp4,wav,flac,aac', 'max:'.$maxAudioKb],
+        ]);
+
+        $text = $validated['input_text'] ?? null;
+        $files = $request->file('attachments') ?? [];
+        $audio = $request->file('audio');
+
+        if (trim((string) $text) === '' && $files === [] && $audio === null) {
+            return response()->json(['message' => 'Aporta al menos un texto, una imagen o un audio para analizar.'], 422);
+        }
+
+        try {
+            $draft = $service->createDraft($user->tenant, $user, $text, $files, $audio);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'No pude analizar la compra. Intenta de nuevo o captúrala manualmente.'], 502);
+        }
+
+        return response()->json([
+            'draft_id' => $draft->id,
+            'status' => $draft->status->value,
+            'proposal' => $draft->parsed_proposal,
+            'audio_transcription' => $draft->audio_transcription,
+        ]);
     }
 
     public function show(Request $request, int $purchase): JsonResponse

@@ -87,6 +87,7 @@ Route::prefix('v1/hub')
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
+        Route::post('expenses/ai-draft', [HubExpenseController::class, 'aiDraft'])->name('api.hub.expenses.ai-draft');
         Route::get('expenses/{expense}', [HubExpenseController::class, 'show'])->whereNumber('expense')->name('api.hub.expenses.show');
         Route::patch('expenses/{expense}', [HubExpenseController::class, 'update'])->whereNumber('expense')->name('api.hub.expenses.update');
         Route::delete('expenses/{expense}', [HubExpenseController::class, 'destroy'])->whereNumber('expense')->name('api.hub.expenses.destroy');
@@ -96,6 +97,7 @@ Route::prefix('v1/hub')
 
         Route::get('purchases', [HubPurchaseController::class, 'index'])->name('api.hub.purchases.index');
         Route::post('purchases', [HubPurchaseController::class, 'store'])->name('api.hub.purchases.store');
+        Route::post('purchases/ai-draft', [HubPurchaseController::class, 'aiDraft'])->name('api.hub.purchases.ai-draft');
         Route::get('purchases/{purchase}', [HubPurchaseController::class, 'show'])->whereNumber('purchase')->name('api.hub.purchases.show');
         Route::patch('purchases/{purchase}', [HubPurchaseController::class, 'update'])->whereNumber('purchase')->name('api.hub.purchases.update');
         Route::post('purchases/{purchase}/cancel', [HubPurchaseController::class, 'cancel'])->whereNumber('purchase')->name('api.hub.purchases.cancel');

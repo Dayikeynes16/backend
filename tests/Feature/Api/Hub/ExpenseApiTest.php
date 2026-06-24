@@ -2,12 +2,15 @@
 
 namespace Tests\Feature\Api\Hub;
 
+use App\Enums\AiDraftStatus;
+use App\Models\AiExpenseDraft;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseSubcategory;
 use App\Services\ExpenseAttachmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -223,5 +226,94 @@ class ExpenseApiTest extends TestCase
                 'concept' => 'x', 'amount' => 5, 'expense_subcategory_id' => $this->subcategory->id,
             ])
             ->assertStatus(404);
+    }
+
+    public function test_store_with_ai_draft_id_consumes_draft_and_moves_attachment(): void
+    {
+        $disk = Storage::fake(ExpenseAttachmentService::disk());
+        $token = $this->token();
+        $this->openShift($token);
+
+        // Simula un draft Ready de IA con la foto del ticket ya almacenada.
+        $srcPath = "tenants/{$this->tenant->id}/ai_drafts/seed/ticket.jpg";
+        $disk->put($srcPath, 'fake-image-bytes');
+        $draft = AiExpenseDraft::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->cajero->id,
+            'status' => AiDraftStatus::Ready->value,
+            'input_text' => 'Pagué 150 de luz',
+            'attachment_paths' => [[
+                'path' => $srcPath,
+                'original_name' => 'ticket.jpg',
+                'mime_type' => 'image/jpeg',
+                'size_bytes' => 16,
+            ]],
+            'parsed_proposal' => ['concepto' => 'Luz', 'monto' => 150],
+        ]);
+
+        $res = $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses', [
+                'concept' => 'Recibo CFE',
+                'amount' => 150,
+                'expense_subcategory_id' => $this->subcategory->id,
+                'ai_draft_id' => $draft->id,
+            ])
+            ->assertCreated();
+
+        // La foto del draft quedó adjunta al gasto.
+        $this->assertCount(1, $res->json('data.attachments'));
+
+        // El draft quedó consumido y ligado al gasto; la foto se movió.
+        $draft->refresh();
+        $this->assertSame(AiDraftStatus::Consumed->value, $draft->status->value);
+        $this->assertSame($res->json('data.id'), $draft->expense_id);
+        $disk->assertMissing($srcPath);
+    }
+
+    public function test_ai_draft_endpoint_calls_openai_and_returns_proposal(): void
+    {
+        Storage::fake(ExpenseAttachmentService::disk());
+        config()->set('ai.openai.api_key', 'sk-test');
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'model' => 'gpt-4o',
+                'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+                'choices' => [[
+                    'message' => ['content' => json_encode([
+                        'concepto' => 'Recibo de luz',
+                        'monto' => 150.0,
+                        'fecha' => now()->toDateString(),
+                        'expense_subcategory_id' => $this->subcategory->id,
+                        'metodo_pago' => 'cash',
+                        'descripcion' => 'CFE',
+                        'confianza' => 'alta',
+                    ])],
+                ]],
+            ], 200),
+        ]);
+
+        $token = $this->token();
+        $this->openShift($token);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses/ai-draft', [
+                'input_text' => 'Pagué 150 de luz a CFE en efectivo',
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', AiDraftStatus::Ready->value)
+            ->assertJsonPath('proposal.concepto', 'Recibo de luz');
+
+        $this->assertSame(1, AiExpenseDraft::where('user_id', $this->cajero->id)->count());
+    }
+
+    public function test_ai_draft_endpoint_requires_some_input(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses/ai-draft', [])
+            ->assertStatus(422);
     }
 }
