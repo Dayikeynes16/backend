@@ -10,9 +10,9 @@ use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
 
 /**
- * Acceso del admin-sucursal al catálogo de productos de compra, gobernado por
- * el toggle por sucursal `branch_admin_purchase_products_enabled`. Con el toggle
- * apagado el módulo está totalmente oculto (incluida la lectura).
+ * Acceso del admin-sucursal al catálogo de productos de compra. Es un catálogo
+ * tenant-wide y el admin de sucursal tiene acceso completo (leer, crear y
+ * editar productos y categorías). Eliminar queda reservado a empresa.
  */
 class PurchaseProductBranchAdminTest extends TestCase
 {
@@ -35,38 +35,18 @@ class PurchaseProductBranchAdminTest extends TestCase
         ], $attrs));
     }
 
-    public function test_index_is_forbidden_when_toggle_off(): void
+    public function test_index_succeeds_for_branch_admin(): void
     {
-        $this->actingAs($this->adminSucursal);
-        $this->get(route('sucursal.productos-compra.index', $this->tenant->slug))->assertForbidden();
-    }
-
-    public function test_store_update_and_history_are_forbidden_when_toggle_off(): void
-    {
-        $product = $this->product();
-        $this->actingAs($this->adminSucursal);
-
-        $this->post(route('sucursal.productos-compra.store', $this->tenant->slug), [
-            'name' => 'Pierna de cerdo', 'unit' => 'kg',
-        ])->assertForbidden();
-
-        $this->put(route('sucursal.productos-compra.update', [$this->tenant->slug, $product->id]), [
-            'name' => 'Otro', 'unit' => 'kg', 'status' => 'active',
-        ])->assertForbidden();
-
-        $this->get(route('sucursal.productos-compra.historial', [$this->tenant->slug, $product->id]))->assertForbidden();
-
-        $this->assertSame(1, PurchaseProduct::count());
-    }
-
-    public function test_index_store_and_update_succeed_when_toggle_on(): void
-    {
-        $this->branch->update(['branch_admin_purchase_products_enabled' => true]);
         $this->actingAs($this->adminSucursal);
 
         $index = $this->get(route('sucursal.productos-compra.index', $this->tenant->slug));
         $index->assertOk();
         $this->assertTrue($index->viewData('page')['props']['canManage']);
+    }
+
+    public function test_store_update_and_history_succeed_for_branch_admin(): void
+    {
+        $this->actingAs($this->adminSucursal);
 
         $cat = PurchaseProductCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Res', 'status' => 'active']);
 
@@ -97,6 +77,8 @@ class PurchaseProductBranchAdminTest extends TestCase
             'event' => 'updated',
             'user_id' => $this->adminSucursal->id,
         ]);
+
+        $this->get(route('sucursal.productos-compra.historial', [$this->tenant->slug, $product->id]))->assertOk();
     }
 
     public function test_sucursal_cannot_delete_purchase_products(): void
@@ -104,19 +86,8 @@ class PurchaseProductBranchAdminTest extends TestCase
         $this->assertFalse(Route::has('sucursal.productos-compra.destroy'));
     }
 
-    public function test_category_store_is_forbidden_when_toggle_off(): void
+    public function test_category_store_and_update_succeed_for_branch_admin(): void
     {
-        $this->actingAs($this->adminSucursal);
-        $this->post(route('sucursal.productos-compra.categorias.store', $this->tenant->slug), [
-            'name' => 'Embutidos',
-        ])->assertForbidden();
-
-        $this->assertDatabaseCount('purchase_product_categories', 0);
-    }
-
-    public function test_category_store_and_update_succeed_when_toggle_on(): void
-    {
-        $this->branch->update(['branch_admin_purchase_products_enabled' => true]);
         $this->actingAs($this->adminSucursal);
 
         $this->post(route('sucursal.productos-compra.categorias.store', $this->tenant->slug), [
@@ -138,12 +109,11 @@ class PurchaseProductBranchAdminTest extends TestCase
         $this->assertFalse(Route::has('sucursal.productos-compra.categorias.destroy'));
     }
 
-    public function test_superadmin_bypasses_toggle(): void
+    public function test_superadmin_can_access(): void
     {
         $superadmin = $this->makeUser('super@test.local', 'superadmin', null);
         $this->actingAs($superadmin);
 
-        // Toggle apagado, pero superadmin pasa siempre.
         $this->get(route('sucursal.productos-compra.index', $this->tenant->slug))->assertOk();
     }
 }

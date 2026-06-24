@@ -26,26 +26,17 @@ const baseNavLinks = [
     { label: 'Cancelaciones', route: 'sucursal.cancelaciones.index', icon: 'cancelaciones' },
     { label: 'Proveedores', route: 'sucursal.proveedores.index', match: 'sucursal.proveedores', icon: 'proveedores' },
     { label: 'Compras', route: 'sucursal.compras.index', match: 'sucursal.compras', icon: 'compras' },
+    { label: 'Productos de compra', route: 'sucursal.productos-compra.index', match: 'sucursal.productos-compra', icon: 'productoscompra' },
     { label: 'Gastos', route: 'sucursal.gastos.index', match: 'sucursal.gastos', icon: 'gastos' },
     { label: 'Cortes', route: 'sucursal.cortes.index', match: 'sucursal.cortes', icon: 'cortes' },
     { label: 'Métricas', route: 'sucursal.metricas.index', match: 'sucursal.metricas', icon: 'metricas' },
-    { label: 'Asistente', route: 'sucursal.asistente', match: 'sucursal.asistente', icon: 'asistente' },
+    // Asistente oculto del navbar (la función sigue disponible por URL/ruta).
+    // { label: 'Asistente', route: 'sucursal.asistente', match: 'sucursal.asistente', icon: 'asistente' },
     { label: 'Menú online', route: 'sucursal.menu-online', icon: 'menuqr' },
     { label: 'Configuracion', route: 'sucursal.configuracion', icon: 'config' },
 ];
 
-// "Productos de compra" solo aparece si la empresa habilitó el toggle de la
-// sucursal (catálogo tenant-wide compartido). Se inserta junto a Compras.
-const navLinks = computed(() => {
-    const links = [...baseNavLinks];
-    if (page.props.auth.branch?.branch_admin_purchase_products_enabled) {
-        const idx = links.findIndex(l => l.route === 'sucursal.compras.index');
-        links.splice(idx >= 0 ? idx + 1 : links.length, 0, {
-            label: 'Productos de compra', route: 'sucursal.productos-compra.index', match: 'sucursal.productos-compra', icon: 'productoscompra',
-        });
-    }
-    return links;
-});
+const navLinks = computed(() => baseNavLinks);
 
 const isActive = (link) => {
     if (link.match) {

@@ -125,7 +125,6 @@ class SucursalController extends Controller
             'cashier_purchases_enabled' => 'sometimes|boolean',
             'branch_admin_providers_enabled' => 'sometimes|boolean',
             'branch_admin_expense_categories_enabled' => 'sometimes|boolean',
-            'branch_admin_purchase_products_enabled' => 'sometimes|boolean',
             'delivery_tiers' => 'nullable|array',
             'delivery_tiers.*.max_km' => 'required_with:delivery_tiers|numeric|gt:0',
             'delivery_tiers.*.fee' => 'required_with:delivery_tiers|numeric|min:0',

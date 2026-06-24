@@ -14,7 +14,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'online_ordering_enabled', 'delivery_enabled', 'pickup_enabled',
     'cashier_expenses_enabled', 'cashier_purchases_enabled',
     'branch_admin_providers_enabled', 'branch_admin_expense_categories_enabled',
-    'branch_admin_purchase_products_enabled',
     'delivery_tiers', 'max_delivery_km', 'min_order_amount',
     'public_phone', 'hours',
 ])]
@@ -48,7 +47,6 @@ class Branch extends Model
             'cashier_purchases_enabled' => 'boolean',
             'branch_admin_providers_enabled' => 'boolean',
             'branch_admin_expense_categories_enabled' => 'boolean',
-            'branch_admin_purchase_products_enabled' => 'boolean',
             'max_delivery_km' => 'decimal:3',
             'min_order_amount' => 'decimal:2',
         ];

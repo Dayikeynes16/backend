@@ -10,8 +10,7 @@ use Illuminate\Validation\Rule;
 
 /**
  * Escritura del catálogo de categorías de productos de compra (tenant-wide).
- * Compartido por empresa y sucursal — el acceso del admin-sucursal se gatea por
- * el mismo toggle que los productos (`branch_admin_purchase_products_enabled`).
+ * Compartido por empresa y sucursal — ambos roles pueden crear/editar.
  * El borrado (destroyCategory) NO vive aquí: queda reservado a empresa.
  */
 trait HandlesPurchaseProductCategoryWrites

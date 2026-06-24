@@ -432,18 +432,16 @@ Route::prefix('{tenant}')
                     Route::delete('{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'destroy'])->name('adjuntos.destroy');
                 });
 
-                // Catálogo de productos de compra (tenant-wide). Acceso completo
-                // (lectura incluida) solo si la empresa habilitó el toggle de la
-                // sucursal. Crear/editar sí; eliminar queda en empresa.
-                Route::middleware('branch.feature:branch_admin_purchase_products_enabled')->group(function () {
-                    Route::get('productos-compra', [SucursalPurchaseProductController::class, 'index'])->name('productos-compra.index');
-                    Route::get('productos-compra/{producto_compra}/historial', [SucursalPurchaseProductController::class, 'history'])->whereNumber('producto_compra')->name('productos-compra.historial');
-                    Route::post('productos-compra', [SucursalPurchaseProductController::class, 'store'])->name('productos-compra.store');
-                    Route::put('productos-compra/{producto_compra}', [SucursalPurchaseProductController::class, 'update'])->whereNumber('producto_compra')->name('productos-compra.update');
-                    // Categorías del catálogo (sin eliminar — reservado a empresa).
-                    Route::post('productos-compra/categorias', [SucursalPurchaseProductController::class, 'storeCategory'])->name('productos-compra.categorias.store');
-                    Route::put('productos-compra/categorias/{categoria}', [SucursalPurchaseProductController::class, 'updateCategory'])->whereNumber('categoria')->name('productos-compra.categorias.update');
-                });
+                // Catálogo de productos de compra (tenant-wide). El admin de
+                // sucursal tiene acceso completo: lectura, crear y editar
+                // productos y categorías. Eliminar queda reservado a empresa.
+                Route::get('productos-compra', [SucursalPurchaseProductController::class, 'index'])->name('productos-compra.index');
+                Route::get('productos-compra/{producto_compra}/historial', [SucursalPurchaseProductController::class, 'history'])->whereNumber('producto_compra')->name('productos-compra.historial');
+                Route::post('productos-compra', [SucursalPurchaseProductController::class, 'store'])->name('productos-compra.store');
+                Route::put('productos-compra/{producto_compra}', [SucursalPurchaseProductController::class, 'update'])->whereNumber('producto_compra')->name('productos-compra.update');
+                // Categorías del catálogo (sin eliminar — reservado a empresa).
+                Route::post('productos-compra/categorias', [SucursalPurchaseProductController::class, 'storeCategory'])->name('productos-compra.categorias.store');
+                Route::put('productos-compra/categorias/{categoria}', [SucursalPurchaseProductController::class, 'updateCategory'])->whereNumber('categoria')->name('productos-compra.categorias.update');
 
                 // Menú online (QR + link público)
                 Route::get('menu-online', [MenuQrController::class, 'show'])->name('menu-online');
