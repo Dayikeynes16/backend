@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\Hub\ProductController as HubProductController;
 use App\Http\Controllers\Api\Hub\ProviderController as HubProviderController;
 use App\Http\Controllers\Api\Hub\PurchaseController as HubPurchaseController;
 use App\Http\Controllers\Api\Hub\PurchaseProductController as HubPurchaseProductController;
+use App\Http\Controllers\Api\Hub\RealtimeController as HubRealtimeController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
 use App\Http\Controllers\Api\ProductController;
@@ -55,6 +56,10 @@ Route::prefix('v1/hub')
     ->middleware(['auth:sanctum', 'hub.role'])
     ->group(function () {
         Route::get('dashboard', [HubDashboardController::class, 'index'])->name('api.hub.dashboard.index');
+
+        // Tiempo real (Reverb/Echo): parámetros de conexión + auth de canal privado vía Sanctum.
+        Route::get('realtime/config', [HubRealtimeController::class, 'config'])->name('api.hub.realtime.config');
+        Route::post('realtime/auth', [HubRealtimeController::class, 'authenticate'])->name('api.hub.realtime.auth');
 
         // Configuración de negocio de la sucursal (admin-sucursal): métodos de pago + API keys.
         Route::get('config', [HubConfigController::class, 'index'])->name('api.hub.config.index');
