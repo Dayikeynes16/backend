@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Api\Hub;
 
+use App\Enums\AiDraftStatus;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubExpenseResource;
+use App\Models\AiExpenseDraft;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Services\Ai\AiExpenseDraftService;
 use App\Services\AuditLogger;
 use App\Services\ExpenseAttachmentService;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class ExpenseController extends Controller
 {
@@ -201,6 +205,7 @@ class ExpenseController extends Controller
                 ),
             ],
             'description' => 'nullable|string|max:1000',
+            'ai_draft_id' => 'nullable|integer',
         ]);
 
         // El gasto del cajero siempre es en efectivo y ligado al turno.
@@ -219,9 +224,80 @@ class ExpenseController extends Controller
 
         app(AuditLogger::class)->logCreated($expense);
 
-        $expense->load('subcategory.category');
+        // Si vino de la captura por IA, consume el draft: mueve sus adjuntos
+        // (foto del ticket) al gasto y lo marca consumido.
+        if (! empty($validated['ai_draft_id'])) {
+            $this->consumeAiDraft($expense, (int) $validated['ai_draft_id'], $user->id, $user->tenant_id);
+        }
+
+        $expense->load(['subcategory.category', 'attachments']);
 
         return response()->json(['data' => HubExpenseResource::make($expense)], 201);
+    }
+
+    /**
+     * Crea un borrador de gasto desde IA (texto/imagen/audio → GPT-4o/Whisper).
+     * Síncrono; devuelve la propuesta para prerrellenar el formulario. NO crea
+     * el gasto (eso ocurre al confirmar en store con el ai_draft_id). Reusa el
+     * pipeline de la web (AiExpenseDraftService).
+     */
+    public function aiDraft(Request $request, AiExpenseDraftService $service): JsonResponse
+    {
+        $user = $request->user();
+        app()->instance('tenant', $user->tenant);
+        $this->ensureModuleEnabled($user->branch_id);
+
+        $maxAudioKb = (int) (config('ai.expenses.max_audio_bytes', 10 * 1024 * 1024) / 1024);
+
+        $validated = $request->validate([
+            'input_text' => ['nullable', 'string', 'max:'.config('ai.expenses.max_input_text_length', 2000)],
+            'attachments' => 'nullable|array|max:'.config('ai.expenses.max_images', 5),
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'mimetypes:image/jpeg,image/png,image/webp', 'max:'.(ExpenseAttachmentService::MAX_BYTES / 1024)],
+            'audio' => ['nullable', 'file', 'mimes:webm,ogg,oga,mp3,mpga,m4a,mp4,wav,flac,aac', 'max:'.$maxAudioKb],
+        ]);
+
+        $text = $validated['input_text'] ?? null;
+        $files = $request->file('attachments') ?? [];
+        $audio = $request->file('audio');
+
+        if (trim((string) $text) === '' && $files === [] && $audio === null) {
+            return response()->json(['message' => 'Aporta al menos un texto, una imagen o un audio para analizar.'], 422);
+        }
+
+        try {
+            $draft = $service->createDraft($user->tenant, $user, $text, $files, $audio);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'No pude analizar el gasto. Intenta de nuevo o captúralo manualmente.'], 502);
+        }
+
+        return response()->json([
+            'draft_id' => $draft->id,
+            'status' => $draft->status->value,
+            'proposal' => $draft->parsed_proposal,
+            'audio_transcription' => $draft->audio_transcription,
+        ]);
+    }
+
+    private function consumeAiDraft(Expense $expense, int $draftId, int $userId, int $tenantId): void
+    {
+        $draft = AiExpenseDraft::query()
+            ->where('id', $draftId)
+            ->where('tenant_id', $tenantId)
+            ->where('status', AiDraftStatus::Ready->value)
+            ->first();
+
+        if (! $draft) {
+            return;
+        }
+
+        app(ExpenseAttachmentService::class)->attachFromDraft($expense, $draft, $userId);
+        $draft->update([
+            'status' => AiDraftStatus::Consumed->value,
+            'expense_id' => $expense->id,
+            'consumed_at' => now(),
+        ]);
     }
 
     private function ensureModuleEnabled(?int $branchId): void
