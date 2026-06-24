@@ -11,9 +11,12 @@ const sent = ref(false);
 const sending = ref(false);
 
 const show = computed(() => {
-    const user = page.props.auth?.user;
-    if (!user || user.email_verified_at) return false;
-    return !dismissed.value;
+    // Verificación de correo deshabilitada por ahora: no mostramos el aviso de
+    // "Verifica tu correo / Reenviar enlace". Para reactivar, restaurar el bloque comentado.
+    return false;
+    // const user = page.props.auth?.user;
+    // if (!user || user.email_verified_at) return false;
+    // return !dismissed.value;
 });
 
 const resend = () => {

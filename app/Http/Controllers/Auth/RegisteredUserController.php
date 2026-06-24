@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -44,9 +43,9 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        // Welcome email (always) + verification email (via MustVerifyEmail listener).
+        // Correo de bienvenida (siempre). La verificación de correo es opcional por
+        // ahora, así que NO disparamos Registered y NO se envía el correo de verificación.
         $user->notify(new WelcomeNotification);
-        event(new Registered($user));
 
         Auth::login($user);
 

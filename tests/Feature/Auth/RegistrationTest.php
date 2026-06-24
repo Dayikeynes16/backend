@@ -36,6 +36,7 @@ class RegistrationTest extends TestCase
 
         $user = User::firstWhere('email', 'test@example.com');
         Notification::assertSentTo($user, WelcomeNotification::class);
-        Notification::assertSentTo($user, VerifyEmailBranded::class);
+        // La verificación de correo es opcional por ahora: el registro NO envía el correo de verificación.
+        Notification::assertNotSentTo($user, VerifyEmailBranded::class);
     }
 }
