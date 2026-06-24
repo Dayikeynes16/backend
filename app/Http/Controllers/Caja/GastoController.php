@@ -60,21 +60,52 @@ class GastoController extends Controller
                     ->orWhere('description', 'ilike', "%{$s}%"));
             });
 
+        // Turno abierto del cajero (uno solo). Sirve para can_manage y para el
+        // resumen "Gastos de tu turno".
+        $openShift = CashRegisterShift::where('user_id', $user->id)
+            ->whereNull('closed_at')
+            ->first();
+
         $expenses = (clone $query)
             ->orderByDesc('expense_at')
             ->orderByDesc('id')
             ->paginate(25)
             ->withQueryString()
-            ->through(function (Expense $e) {
-                $shift = CashRegisterShift::where('user_id', Auth::id())->whereNull('closed_at')->first();
-                $e->setAttribute('can_manage', $shift && $e->cash_register_shift_id === $shift->id);
+            ->through(function (Expense $e) use ($openShift) {
+                $e->setAttribute('can_manage', $openShift && $e->cash_register_shift_id === $openShift->id);
 
                 return $e;
             });
 
-        $hasOpenShift = CashRegisterShift::where('user_id', $user->id)
-            ->whereNull('closed_at')
-            ->exists();
+        // Totales por día (exactos, independientes de la paginación y respetando la búsqueda).
+        // expense_at es timestamp sin zona, ya en hora local (America/Mexico_City),
+        // así que to_char da el mismo día que ve el cajero. Clave: 'YYYY-MM-DD'.
+        $dailyTotals = (clone $query)
+            ->toBase()
+            ->selectRaw("to_char(expense_at, 'YYYY-MM-DD') as day, sum(amount) as total, count(*) as count")
+            ->groupBy('day')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->day => [
+                'total' => (float) $row->total,
+                'count' => (int) $row->count,
+            ]]);
+
+        // Gastos del turno abierto: mismo filtro que el corte (ShiftCashOutCalculator)
+        // para que el total coincida con lo que se descuenta del cajón.
+        $currentShift = null;
+        if ($openShift) {
+            $shiftExpenses = Expense::query()
+                ->where('cash_register_shift_id', $openShift->id)
+                ->where('payment_method', PaymentMethod::Cash->value);
+
+            $currentShift = [
+                'opened_at' => $openShift->opened_at,
+                'total' => round((float) (clone $shiftExpenses)->sum('amount'), 2),
+                'count' => (clone $shiftExpenses)->count(),
+            ];
+        }
+
+        $hasOpenShift = (bool) $openShift;
 
         $categories = ExpenseCategory::with([
             'subcategories' => fn ($q) => $q->where('status', 'active')->orderBy('name'),
@@ -86,6 +117,8 @@ class GastoController extends Controller
                 'amount' => (float) (clone $query)->sum('amount'),
                 'count' => (clone $query)->count(),
             ],
+            'dailyTotals' => $dailyTotals,
+            'currentShift' => $currentShift,
             'categories' => $categories,
             'hasOpenShift' => $hasOpenShift,
             'filters' => $request->only('search'),

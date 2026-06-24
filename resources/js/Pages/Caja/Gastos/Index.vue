@@ -10,6 +10,8 @@ import { computed, ref, watch } from 'vue';
 const props = defineProps({
     expenses: Object,
     totals: Object,
+    dailyTotals: { type: Object, default: () => ({}) },
+    currentShift: { type: Object, default: null },
     categories: { type: Array, default: () => [] },
     hasOpenShift: { type: Boolean, default: false },
     filters: Object,
@@ -103,8 +105,49 @@ const goToPage = (url) => {
 };
 
 const money = (v) => '$' + Number(v ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (v) => v ? new Date(v).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtTime = (v) => v ? new Date(v).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
+const fmtDateTime = (v) => v ? new Date(v).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtDayHeading = (v) => {
+    if (!v) return '—';
+    const s = new Date(v).toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+// Día local (consistente con lo que ve el usuario) para agrupar.
+const dayKey = (v) => {
+    const d = new Date(v);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Agrupa los gastos de la página por día. El total y el conteo del día vienen
+// del backend (dailyTotals), por lo que son exactos aunque un día quede partido
+// entre varias páginas. Si faltara la clave, cae al cálculo de la página visible.
+// Los datos llegan ordenados por expense_at DESC, así que cada día queda contiguo.
+const groupedDays = computed(() => {
+    const groups = [];
+    let current = null;
+    for (const e of props.expenses.data) {
+        const key = dayKey(e.expense_at);
+        if (!current || current.key !== key) {
+            const stats = props.dailyTotals?.[key] ?? null;
+            current = {
+                key,
+                date: e.expense_at,
+                items: [],
+                exact: !!stats,
+                total: stats ? stats.total : 0,
+                count: stats ? stats.count : 0,
+            };
+            groups.push(current);
+        }
+        current.items.push(e);
+        if (!current.exact) {
+            current.total += Number(e.amount ?? 0);
+            current.count = current.items.length;
+        }
+    }
+    return groups;
+});
 </script>
 
 <template>
@@ -119,6 +162,26 @@ const fmtTime = (v) => v ? new Date(v).toLocaleTimeString('es-MX', { hour: '2-di
                 <p class="text-xs text-amber-800">
                     Los gastos en efectivo <strong>salen del cajón</strong> y se descuentan del efectivo esperado en tu <strong>corte de turno</strong>. Solo ves los gastos que tú registraste.
                 </p>
+            </div>
+
+            <!-- Gastos del turno abierto (lo que se descuenta del cajón en el corte) -->
+            <div v-if="currentShift"
+                class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-4 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-bold uppercase tracking-wider text-red-500">Gastos de tu turno</p>
+                        <p class="mt-0.5 text-xs text-gray-500">
+                            Abierto {{ fmtDateTime(currentShift.opened_at) }} · {{ currentShift.count }} {{ currentShift.count === 1 ? 'gasto' : 'gastos' }}
+                        </p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-2xl font-bold tabular-nums text-red-600">{{ money(currentShift.total) }}</p>
+                    <p class="text-[11px] font-medium text-gray-400">se descuentan del cajón</p>
+                </div>
             </div>
 
             <!-- Resumen + acciones -->
@@ -166,20 +229,28 @@ const fmtTime = (v) => v ? new Date(v).toLocaleTimeString('es-MX', { hour: '2-di
                     <p class="mt-3 text-sm font-medium text-gray-500">Aún no has registrado gastos.</p>
                     <p class="mt-1 text-xs text-gray-400">Usa “Registrar gasto” cuando tengas tu turno abierto.</p>
                 </div>
-                <table v-else class="min-w-full divide-y divide-gray-100">
+                <table v-else class="min-w-full">
                     <thead class="bg-gray-50/60"><tr>
-                        <th class="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">Fecha</th>
+                        <th class="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">Hora</th>
                         <th class="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">Concepto</th>
                         <th class="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">Subcategoría</th>
                         <th class="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500">Monto</th>
                     </tr></thead>
-                    <tbody class="divide-y divide-gray-50 bg-white">
-                        <tr v-for="e in expenses.data" :key="e.id" @click="openDetail(e)"
-                            class="cursor-pointer transition hover:bg-red-50/30">
-                            <td class="px-5 py-3 text-sm text-gray-700">
-                                <div class="font-semibold">{{ fmtDate(e.expense_at) }}</div>
-                                <div class="text-xs text-gray-400">{{ fmtTime(e.expense_at) }}</div>
+                    <tbody v-for="g in groupedDays" :key="g.key" class="divide-y divide-gray-50 border-t border-gray-100 bg-white">
+                        <!-- Encabezado del día: fecha + nº de gastos + subtotal -->
+                        <tr class="bg-gray-50/70">
+                            <td colspan="2" class="px-5 py-2.5">
+                                <span class="text-xs font-bold uppercase tracking-wide text-gray-600">{{ fmtDayHeading(g.date) }}</span>
+                                <span class="ml-2 text-[11px] font-medium text-gray-400">{{ g.count }} {{ g.count === 1 ? 'gasto' : 'gastos' }}</span>
                             </td>
+                            <td colspan="2" class="px-5 py-2.5 text-right">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total del día&nbsp;</span>
+                                <span class="text-sm font-bold tabular-nums text-gray-700">{{ money(g.total) }}</span>
+                            </td>
+                        </tr>
+                        <tr v-for="e in g.items" :key="e.id" @click="openDetail(e)"
+                            class="cursor-pointer transition hover:bg-red-50/30">
+                            <td class="px-5 py-3 text-sm tabular-nums text-gray-500">{{ fmtTime(e.expense_at) }}</td>
                             <td class="px-5 py-3 text-sm font-bold text-gray-900">
                                 {{ e.concept }}
                                 <span v-if="e.attachments?.length" class="ml-1 inline-flex items-center gap-0.5 align-middle text-[11px] font-semibold text-blue-600">
