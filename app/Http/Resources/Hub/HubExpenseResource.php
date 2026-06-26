@@ -23,6 +23,12 @@ class HubExpenseResource extends JsonResource
                     ? ['id' => $this->subcategory->category->id, 'name' => $this->subcategory->category->name]
                     : null,
             ] : null),
+            'attachments' => $this->whenLoaded('attachments', fn () => $this->attachments->map(fn ($a) => [
+                'id' => $a->id,
+                'original_name' => $a->original_name,
+                'mime_type' => $a->mime_type,
+                'size_bytes' => $a->size_bytes,
+            ])->values()),
         ];
     }
 }
