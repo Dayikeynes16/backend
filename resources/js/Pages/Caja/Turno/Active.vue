@@ -2,6 +2,7 @@
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import CierreTurnoPanel from '@/Components/Turno/CierreTurnoPanel.vue';
+import WithdrawalsPanel from '@/Components/Turno/WithdrawalsPanel.vue';
 import { Head } from '@inertiajs/vue3';
 
 defineProps({
@@ -24,7 +25,15 @@ defineProps({
             :totals="totals"
             :tenant="tenant"
             :payment-methods="paymentMethods"
-            close-route-name="caja.turno.close" />
+            close-route-name="caja.turno.close">
+            <template #extra>
+                <WithdrawalsPanel
+                    :withdrawals="shift.withdrawals"
+                    store-route-name="caja.turno.withdrawal.store"
+                    destroy-route-name="caja.turno.withdrawal.destroy"
+                    :tenant-slug="tenant.slug" />
+            </template>
+        </CierreTurnoPanel>
 
         <FlashToast />
     </CajeroLayout>
