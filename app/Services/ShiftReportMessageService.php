@@ -16,15 +16,21 @@ class ShiftReportMessageService
 {
     private const MAX_TEXT_BYTES = 3500;
 
+    public function __construct(private ShiftVerdictService $verdictService) {}
+
     public function buildShiftCloseText(CashRegisterShift $shift): string
     {
         $shift->loadMissing(['branch:id,tenant_id,name', 'user:id,name', 'withdrawals', 'tenant:id,name']);
+
+        $verdict = $this->verdictService->build($shift);
 
         $cancelled = $this->cancelledSalesFor($shift);
         $cancelledCount = $cancelled->count();
         $cancelledAmount = (float) $cancelled->sum('total');
 
         $withdrawalsTotal = (float) $shift->withdrawals->sum('amount');
+        $cashExpenses = (float) $shift->total_cash_expenses;
+        $cashProviderPayments = (float) $shift->total_cash_provider_payments;
         $totalCollected = (float) $shift->total_cash + (float) $shift->total_card + (float) $shift->total_transfer;
         $fromToday = (float) $shift->collections_from_today_amount;
         $fromPrevious = (float) $shift->collections_from_previous_amount;
@@ -40,8 +46,11 @@ class ShiftReportMessageService
         }
         $lines[] = '';
 
-        // Veredicto del arqueo — lo primero que se ve.
-        $lines[] = $this->verdictLine($shift);
+        // Veredicto NETO — lo primero que se ve.
+        $lines[] = $verdict['headline'];
+        if ($verdict['detail'] !== null) {
+            $lines[] = '_'.$verdict['detail'].'_';
+        }
         $lines[] = '';
 
         $lines[] = 'Cierre: '.($shift->closed_at?->format('d/m/Y H:i') ?? '—');
@@ -51,33 +60,57 @@ class ShiftReportMessageService
         $lines[] = '━━━━━━━━━━━━━━━━━━';
         $lines[] = '';
 
-        // ── Ventas del turno (lo que se vendió) ────────────────────
+        // ── Resumen del turno (vendido → cobrado → esperado vs declarado) ──
         $count = (int) $shift->sales_generated_count;
-        $lines[] = '🛒 *VENTAS DEL TURNO*  _lo que se vendió_';
-        $lines[] = '• '.$count.' '.($count === 1 ? 'venta' : 'ventas').' · *'.$this->money($shift->sales_generated_amount).'*';
+        $lines[] = '📊 *RESUMEN DEL TURNO*';
+        $lines[] = '• Vendido: '.$count.' '.($count === 1 ? 'venta' : 'ventas').' · *'.$this->money($shift->sales_generated_amount).'*';
         if ($cancelledCount > 0) {
             $lines[] = '• Canceladas: '.$cancelledCount.' ('.$this->money($cancelledAmount).') — no cuentan en el total';
         }
-        $lines[] = '';
-
-        // ── Dinero cobrado (lo que entró al cajón) ─────────────────
-        $lines[] = '💰 *DINERO COBRADO EN EL TURNO*  _lo que entró al cajón_';
-        $lines[] = '• Efectivo: '.$this->money($shift->total_cash);
-        $lines[] = '• Tarjeta: '.$this->money($shift->total_card);
-        $lines[] = '• Transferencia: '.$this->money($shift->total_transfer);
-        $lines[] = '• *Total cobrado: '.$this->money($totalCollected).'*';
+        $lines[] = '• Cobrado en el turno: '.$this->money($totalCollected);
         if ($fromPrevious > 0.0) {
             $lines[] = '   ↳ De ventas del turno: '.$this->money($fromToday);
             $lines[] = '   ↳ Abonos a fiados anteriores: '.$this->money($fromPrevious);
         }
+        $lines[] = '• Esperado total (todos los métodos): '.$this->money($verdict['expected_total']);
+        if ($verdict['status'] === 'undeclared') {
+            $lines[] = '• Declarado por el cajero: no declarado';
+        } else {
+            $lines[] = '• Declarado por el cajero: '.$this->money($verdict['declared_total']);
+            $lines[] = (float) $verdict['total_diff'] === 0.0
+                ? '• *Diferencia total: '.$this->money(0).'* ✅'
+                : '• *Diferencia total: '.$this->signedMoney($verdict['total_diff']).'* ⚠️';
+        }
         $lines[] = '';
 
-        // ── Arqueo de efectivo (con la cuenta explícita) ───────────
+        // ── Desglose por método (esperado → declarado) ──
+        $lines[] = '💳 *DESGLOSE POR MÉTODO*  _esperado → declarado_';
+        foreach ($verdict['by_method'] as $m) {
+            $label = ucfirst($m['label']);
+            if ($m['declared_is_null']) {
+                $lines[] = '• '.$label.': '.$this->money($m['expected']).' _(no declarado)_';
+
+                continue;
+            }
+            $tail = (float) $m['diff'] === 0.0
+                ? '✅'
+                : '('.$this->signedMoney($m['diff']).' '.($m['diff'] < 0.0 ? 'faltante' : 'sobrante').')';
+            $lines[] = '• '.$label.': '.$this->money($m['expected']).' → '.$this->money($m['declared']).' '.$tail;
+        }
+        $lines[] = '';
+
+        // ── Arqueo de efectivo (cuenta explícita, ahora con gastos y compras) ──
         $lines[] = '🧾 *ARQUEO DE EFECTIVO*';
         $lines[] = '• Fondo inicial: '.$this->money($shift->opening_amount);
         $lines[] = '• + Efectivo cobrado: '.$this->money($shift->total_cash);
         if ($withdrawalsTotal > 0.0) {
             $lines[] = '• − Retiros: '.$this->money($withdrawalsTotal);
+        }
+        if ($cashExpenses > 0.0) {
+            $lines[] = '• − Gastos en efectivo: '.$this->money($cashExpenses);
+        }
+        if ($cashProviderPayments > 0.0) {
+            $lines[] = '• − Compras en efectivo: '.$this->money($cashProviderPayments);
         }
         $lines[] = '• = Esperado en cajón: *'.$this->money($shift->expected_amount).'*';
         if ($shift->declared_amount !== null) {
@@ -87,17 +120,6 @@ class ShiftReportMessageService
                 : '• *Diferencia: '.$this->signedMoney($shift->difference).'* '.$this->diffMarker($shift->difference);
         } else {
             $lines[] = '• Conteo de efectivo no declarado por el cajero';
-        }
-
-        // ── Descuadres en otros métodos (solo si los hay) ─────────
-        foreach ([
-            ['tarjeta', $shift->declared_card, $shift->total_card, $shift->difference_card],
-            ['transferencia', $shift->declared_transfer, $shift->total_transfer, $shift->difference_transfer],
-        ] as [$name, $declared, $registered, $diff]) {
-            if ($declared !== null && (float) $diff !== 0.0) {
-                $lines[] = '';
-                $lines[] = '⚠️ *Descuadre en '.$name.':* declarado '.$this->money($declared).' vs registrado '.$this->money($registered).' ('.$this->signedMoney($diff).')';
-            }
         }
 
         // ── Notas ──────────────────────────────────────────────────
@@ -111,33 +133,6 @@ class ShiftReportMessageService
         $lines[] = '_Reporte automático del corte_';
 
         return $this->truncateIfNeeded(implode("\n", $lines));
-    }
-
-    /**
-     * Línea de veredicto que va arriba del todo: si la caja cuadró o si hay
-     * faltante/sobrante de efectivo (lo que el dueño quiere ver de inmediato).
-     */
-    private function verdictLine(CashRegisterShift $shift): string
-    {
-        if ($shift->declared_amount === null) {
-            return '📋 _Cierre sin conteo de efectivo declarado._';
-        }
-
-        $diff = (float) $shift->difference;
-        $diffCard = (float) $shift->difference_card;
-        $diffTransfer = (float) $shift->difference_transfer;
-
-        if ($diff === 0.0 && $diffCard === 0.0 && $diffTransfer === 0.0) {
-            return '✅ *Caja cuadrada* — sin diferencias.';
-        }
-        if ($diff < 0.0) {
-            return '⚠️ *Faltante de '.$this->money(abs($diff)).' en efectivo.*';
-        }
-        if ($diff > 0.0) {
-            return '⚠️ *Sobrante de '.$this->money($diff).' en efectivo.*';
-        }
-
-        return '⚠️ *El efectivo cuadra; hay un descuadre en otro método (ver abajo).*';
     }
 
     private function shiftRange(CashRegisterShift $shift): string
