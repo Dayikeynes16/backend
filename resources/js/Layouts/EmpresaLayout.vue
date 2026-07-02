@@ -14,9 +14,7 @@ const navLinks = [
     { label: 'Sucursales', route: 'empresa.sucursales.index', match: 'empresa.sucursales', icon: 'sucursales' },
     { label: 'Usuarios', route: 'empresa.usuarios.index', match: 'empresa.usuarios', icon: 'usuarios' },
     { label: 'Tickets', route: 'empresa.tickets', icon: 'ticket' },
-    { label: 'Proveedores', route: 'empresa.proveedores.index', match: 'empresa.proveedores', icon: 'proveedores' },
-    { label: 'Compras', route: 'empresa.compras.index', match: 'empresa.compras', icon: 'compras' },
-    { label: 'Productos de compra', route: 'empresa.productos-compra.index', match: 'empresa.productos-compra', icon: 'proveedores' },
+    { label: 'Compras', route: 'empresa.compras.index', matches: ['empresa.compras', 'empresa.proveedores', 'empresa.productos-compra'], icon: 'compras' },
     { label: 'Gastos', route: 'empresa.gastos.index', match: 'empresa.gastos', icon: 'gastos' },
     { label: 'Métricas', route: 'empresa.metricas.index', match: 'empresa.metricas', icon: 'metricas' },
     // Asistente oculto del navbar (la función sigue disponible por URL/ruta).
@@ -26,6 +24,7 @@ const navLinks = [
 ];
 
 const isActive = (link) => {
+    if (link.matches) return link.matches.some((m) => route().current(m + '*'));
     if (link.match) return route().current(link.match + '*') || route().current(link.route);
     return route().current(link.route);
 };
