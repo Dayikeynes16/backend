@@ -1,5 +1,6 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
+import ComprasTabs from '@/Components/Compras/ComprasTabs.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import ProveedorFormModal from '@/Components/Proveedores/ProveedorFormModal.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
@@ -54,6 +55,8 @@ const typeBadgeColor = (type) => ({
         <template #header>
             <h1 class="text-lg font-bold text-gray-900">Proveedores</h1>
         </template>
+
+        <ComprasTabs prefix="sucursal" class="mb-5" />
 
         <div class="space-y-5">
             <div v-if="!canManage" class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
