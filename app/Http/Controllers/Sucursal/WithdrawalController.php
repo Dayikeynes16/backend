@@ -39,11 +39,9 @@ class WithdrawalController extends Controller
     {
         $user = Auth::user();
 
-        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('admin-empresa') && ! $user->hasRole('superadmin')) {
-            abort(403);
-        }
-
-        // Validate ownership: withdrawal → shift → branch must match current user
+        // Aislamiento tenant/sucursal primero (aplica a todos los roles).
+        // Para un retiro de otro tenant, TenantScope hace que $withdrawal->shift
+        // resuelva a null y cae en la primera guarda.
         $shift = $withdrawal->shift;
 
         if (! $shift || $shift->branch_id !== $user->branch_id) {
@@ -52,6 +50,18 @@ class WithdrawalController extends Controller
 
         if ($shift->tenant_id !== $user->tenant_id) {
             abort(403, 'Este retiro no pertenece a tu empresa.');
+        }
+
+        $isManager = $user->hasRole('admin-sucursal')
+            || $user->hasRole('admin-empresa')
+            || $user->hasRole('superadmin');
+
+        // El cajero dueño puede borrar SOLO en su propio turno abierto.
+        $isOwnerOnOpenShift = $shift->user_id === $user->id
+            && $shift->closed_at === null;
+
+        if (! $isManager && ! $isOwnerOnOpenShift) {
+            abort(403);
         }
 
         $withdrawal->delete();
