@@ -7,6 +7,7 @@ import { ref, computed, onMounted } from 'vue';
 const props = defineProps({
     shift: Object,
     tenant: Object,
+    verdict: { type: Object, default: null },
     whatsappUrl: { type: String, default: null },
     hasOwnerWhatsapp: { type: Boolean, default: false },
     autoOpenWhatsapp: { type: Boolean, default: false },
@@ -14,6 +15,14 @@ const props = defineProps({
 
 const formatDT = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const money = (v) => '$' + Number(v ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const verdictTone = {
+    ok: { box: 'bg-emerald-50 ring-emerald-200', title: 'text-emerald-800', body: 'text-emerald-700' },
+    warn: { box: 'bg-amber-50 ring-amber-200', title: 'text-amber-800', body: 'text-amber-700' },
+    bad: { box: 'bg-rose-50 ring-rose-200', title: 'text-rose-800', body: 'text-rose-700' },
+    neutral: { box: 'bg-gray-50 ring-gray-200', title: 'text-gray-700', body: 'text-gray-500' },
+};
+const toneOf = (v) => verdictTone[v?.tone] ?? verdictTone.neutral;
 
 // Auto-open WhatsApp si venimos del cierre reciente. Los navegadores bloquean
 // window.open si no hay gesto del usuario; por eso banner fallback.
@@ -86,6 +95,28 @@ const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.v
                 </div>
             </div>
 
+            <!-- Veredicto neto del turno -->
+            <div v-if="verdict" class="rounded-xl px-5 py-4 ring-1" :class="toneOf(verdict).box">
+                <p class="text-sm font-bold" :class="toneOf(verdict).title">{{ verdict.headline }}</p>
+                <p v-if="verdict.detail" class="mt-1 text-xs" :class="toneOf(verdict).body">{{ verdict.detail }}</p>
+                <div v-if="verdict.status !== 'undeclared'" class="mt-3 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-gray-400">Esperado total</p>
+                        <p class="font-mono text-sm font-bold tabular-nums text-gray-700">{{ money(verdict.expected_total) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-gray-400">Declarado total</p>
+                        <p class="font-mono text-sm font-bold tabular-nums text-gray-900">{{ money(verdict.declared_total) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-gray-400">Diferencia total</p>
+                        <p class="font-mono text-sm font-bold tabular-nums" :class="diffColor(verdict.total_diff)">
+                            {{ verdict.total_diff > 0 ? '+' : '' }}{{ money(verdict.total_diff) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <!-- WhatsApp report to owner -->
             <div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="flex items-center gap-4 px-6 py-4">
@@ -135,7 +166,10 @@ const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.v
                 </div>
                 <div class="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
                     <span class="text-xs text-gray-400">Fondo inicial: <span class="font-semibold text-gray-600">{{ money(shift.opening_amount) }}</span></span>
-                    <p class="text-sm font-bold text-gray-900">Total cobrado: <span class="font-mono tabular-nums">{{ money(shift.total_sales) }}</span></p>
+                    <div class="flex items-center gap-4">
+                        <p class="text-xs text-gray-400">Vendido: <span class="font-mono font-semibold tabular-nums text-gray-700">{{ money(shift.sales_generated_amount) }}</span></p>
+                        <p class="text-sm font-bold text-gray-900">Cobrado: <span class="font-mono tabular-nums">{{ money(shift.total_sales) }}</span></p>
+                    </div>
                 </div>
             </div>
 
