@@ -9,6 +9,7 @@ const props = defineProps({
     shift: Object,
     tenant: Object,
     isAdmin: Boolean,
+    verdict: { type: Object, default: null },
     paymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
     whatsappUrl: { type: String, default: null },
     hasOwnerWhatsapp: { type: Boolean, default: false },
@@ -98,6 +99,13 @@ const cashExpensesTotal = computed(() => (props.shift.cash_expenses || []).reduc
 const providerPaymentsTotal = computed(() => (props.shift.cash_provider_payments || []).reduce((s, p) => s + Number(p.amount), 0));
 const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.value + providerPaymentsTotal.value);
 const money = (v) => '$' + Number(v ?? 0).toFixed(2);
+const verdictTone = {
+    ok: { box: 'bg-emerald-50 ring-emerald-200', title: 'text-emerald-800', body: 'text-emerald-700' },
+    warn: { box: 'bg-amber-50 ring-amber-200', title: 'text-amber-800', body: 'text-amber-700' },
+    bad: { box: 'bg-rose-50 ring-rose-200', title: 'text-rose-800', body: 'text-rose-700' },
+    neutral: { box: 'bg-gray-50 ring-gray-200', title: 'text-gray-700', body: 'text-gray-500' },
+};
+const toneOf = (v) => verdictTone[v?.tone] ?? verdictTone.neutral;
 </script>
 
 <template>
@@ -124,6 +132,28 @@ const money = (v) => '$' + Number(v ?? 0).toFixed(2);
         </template>
 
         <div class="mx-auto max-w-3xl space-y-6">
+            <!-- Veredicto neto del turno -->
+            <div v-if="verdict" class="rounded-xl px-5 py-4 ring-1" :class="toneOf(verdict).box">
+                <p class="text-sm font-bold" :class="toneOf(verdict).title">{{ verdict.headline }}</p>
+                <p v-if="verdict.detail" class="mt-1 text-xs" :class="toneOf(verdict).body">{{ verdict.detail }}</p>
+                <div v-if="verdict.status !== 'undeclared'" class="mt-3 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-gray-400">Esperado total</p>
+                        <p class="font-mono text-sm font-bold tabular-nums text-gray-700">{{ money(verdict.expected_total) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-gray-400">Declarado total</p>
+                        <p class="font-mono text-sm font-bold tabular-nums text-gray-900">{{ money(verdict.declared_total) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-gray-400">Diferencia total</p>
+                        <p class="font-mono text-sm font-bold tabular-nums" :class="diffColor(verdict.total_diff)">
+                            {{ verdict.total_diff > 0 ? '+' : '' }}{{ money(verdict.total_diff) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <!-- WhatsApp report to owner -->
             <div v-if="shift.closed_at" class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="flex items-center gap-4 px-6 py-4">
