@@ -1,5 +1,6 @@
 <script setup>
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
+import ComprasTabs from '@/Components/Compras/ComprasTabs.vue';
 import ProveedorFormModal from '@/Components/Proveedores/ProveedorFormModal.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
@@ -67,6 +68,8 @@ const flash = computed(() => page.props.flash || {});
         <template #header>
             <h1 class="text-lg font-bold text-gray-900">Proveedores</h1>
         </template>
+
+        <ComprasTabs prefix="empresa" class="mb-5" />
 
         <div class="space-y-5">
             <!-- KPIs -->

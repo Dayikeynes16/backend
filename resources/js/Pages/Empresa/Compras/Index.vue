@@ -1,5 +1,6 @@
 <script setup>
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
+import ComprasTabs from '@/Components/Compras/ComprasTabs.vue';
 import CompraFormModal from '@/Components/Compras/CompraFormModal.vue';
 import CompraDetailModal from '@/Components/Compras/CompraDetailModal.vue';
 import CompraCapturaIAModal from '@/Components/Compras/CompraCapturaIAModal.vue';
@@ -98,6 +99,8 @@ const iaRoutes = { iaStore: 'empresa.compras.ia.store' };
         <template #header>
             <h1 class="text-lg font-bold text-gray-900">Compras</h1>
         </template>
+
+        <ComprasTabs prefix="empresa" class="mb-5" />
 
         <div class="space-y-5">
             <!-- KPIs -->
