@@ -522,6 +522,8 @@ Route::prefix('{tenant}')
                 Route::post('turno/abrir', [CajaTurnoController::class, 'open'])->name('turno.open');
                 Route::post('turno/cerrar', [CajaTurnoController::class, 'close'])->name('turno.close');
                 Route::get('turno/corte/{shift}', [CajaTurnoController::class, 'showCorte'])->name('turno.corte');
+                Route::post('turno/retiros', [WithdrawalController::class, 'store'])->name('turno.withdrawal.store');
+                Route::delete('turno/retiros/{withdrawal}', [WithdrawalController::class, 'destroy'])->name('turno.withdrawal.destroy');
                 Route::get('gastos', [CajaGastoController::class, 'index'])->name('gastos.index');
                 Route::post('gastos', [CajaGastoController::class, 'store'])->name('gastos.store');
                 Route::post('gastos/ia/borrador', [AiExpenseDraftController::class, 'store'])->name('gastos.ia.store');
