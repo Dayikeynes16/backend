@@ -7,12 +7,21 @@ const props = defineProps({
     prefix: { type: String, required: true },
 });
 
-const slug = computed(() => usePage().props.auth.tenant_slug);
+const page = usePage();
+const slug = computed(() => page.props.auth.tenant_slug);
+
+// En Sucursal, el catálogo de productos de compra está gateado por el toggle
+// branch_admin_purchase_products_enabled (middleware branch.feature).
+const showProductos = computed(
+    () => props.prefix !== 'sucursal' || Boolean(page.props.auth.branch?.branch_admin_purchase_products_enabled),
+);
 
 const tabs = computed(() => [
     { label: 'Compras', route: `${props.prefix}.compras.index`, match: `${props.prefix}.compras` },
     { label: 'Proveedores', route: `${props.prefix}.proveedores.index`, match: `${props.prefix}.proveedores` },
-    { label: 'Productos', route: `${props.prefix}.productos-compra.index`, match: `${props.prefix}.productos-compra` },
+    ...(showProductos.value
+        ? [{ label: 'Productos', route: `${props.prefix}.productos-compra.index`, match: `${props.prefix}.productos-compra` }]
+        : []),
 ]);
 
 const isActive = (tab) => route().current(tab.match + '*');

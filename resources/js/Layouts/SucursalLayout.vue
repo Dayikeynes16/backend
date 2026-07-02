@@ -10,7 +10,7 @@ const sidebarOpen = ref(false);
 const notaRapidaOpen = ref(false);
 const slug = computed(() => page.props.auth.tenant_slug);
 
-const baseNavLinks = [
+const navLinks = [
     { label: 'Dashboard', route: 'sucursal.dashboard', icon: 'dashboard' },
     { label: 'Agenda', route: 'agenda.index', match: 'agenda', icon: 'agenda' },
     // Categorías ya no es item del sidebar — vive como tab dentro de Productos.
@@ -24,8 +24,7 @@ const baseNavLinks = [
     { label: 'Mi Turno', route: 'sucursal.turno.active', icon: 'turno' },
     { label: 'Clientes', route: 'sucursal.clientes.index', icon: 'clientes' },
     { label: 'Cancelaciones', route: 'sucursal.cancelaciones.index', icon: 'cancelaciones' },
-    { label: 'Proveedores', route: 'sucursal.proveedores.index', match: 'sucursal.proveedores', icon: 'proveedores' },
-    { label: 'Compras', route: 'sucursal.compras.index', match: 'sucursal.compras', icon: 'compras' },
+    { label: 'Compras', route: 'sucursal.compras.index', matches: ['sucursal.compras', 'sucursal.proveedores', 'sucursal.productos-compra'], icon: 'compras' },
     { label: 'Gastos', route: 'sucursal.gastos.index', match: 'sucursal.gastos', icon: 'gastos' },
     { label: 'Cortes', route: 'sucursal.cortes.index', match: 'sucursal.cortes', icon: 'cortes' },
     { label: 'Métricas', route: 'sucursal.metricas.index', match: 'sucursal.metricas', icon: 'metricas' },
@@ -34,20 +33,8 @@ const baseNavLinks = [
     { label: 'Configuracion', route: 'sucursal.configuracion', icon: 'config' },
 ];
 
-// "Productos de compra" solo aparece si la empresa habilitó el toggle de la
-// sucursal (catálogo tenant-wide compartido). Se inserta junto a Compras.
-const navLinks = computed(() => {
-    const links = [...baseNavLinks];
-    if (page.props.auth.branch?.branch_admin_purchase_products_enabled) {
-        const idx = links.findIndex(l => l.route === 'sucursal.compras.index');
-        links.splice(idx >= 0 ? idx + 1 : links.length, 0, {
-            label: 'Productos de compra', route: 'sucursal.productos-compra.index', match: 'sucursal.productos-compra', icon: 'productoscompra',
-        });
-    }
-    return links;
-});
-
 const isActive = (link) => {
+    if (link.matches) return link.matches.some((m) => route().current(m + '*'));
     if (link.match) {
         if (route().current(link.match + '*') || route().current(link.route)) return true;
         if (link.extraMatch && route().current(link.extraMatch + '*')) return true;
