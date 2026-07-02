@@ -11,6 +11,7 @@ use App\Services\ShiftCashOutCalculator;
 use App\Services\ShiftReportMessageService;
 use App\Services\ShiftService;
 use App\Services\ShiftTotalsCalculator;
+use App\Services\ShiftVerdictService;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -204,6 +205,7 @@ class TurnoController extends Controller
         CashRegisterShift $shift,
         ShiftReportMessageService $reportService,
         WhatsappMessageService $whatsappService,
+        ShiftVerdictService $verdictService,
     ): Response {
         $user = Auth::user();
 
@@ -235,6 +237,7 @@ class TurnoController extends Controller
         return Inertia::render('Caja/Turno/Corte', [
             'shift' => $shift,
             'tenant' => $tenant,
+            'verdict' => $verdictService->build($shift),
             'whatsappUrl' => $whatsappUrl,
             'hasOwnerWhatsapp' => $hasOwnerWhatsapp,
             'autoOpenWhatsapp' => (bool) session('auto_open_whatsapp', false),
