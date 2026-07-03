@@ -30,8 +30,7 @@ const baseNavLinks = [
     { label: 'Gastos', route: 'sucursal.gastos.index', match: 'sucursal.gastos', icon: 'gastos' },
     { label: 'Cortes', route: 'sucursal.cortes.index', match: 'sucursal.cortes', icon: 'cortes' },
     { label: 'Métricas', route: 'sucursal.metricas.index', match: 'sucursal.metricas', icon: 'metricas' },
-    // Asistente oculto del navbar (la función sigue disponible por URL/ruta).
-    // { label: 'Asistente', route: 'sucursal.asistente', match: 'sucursal.asistente', icon: 'asistente' },
+    { label: 'Asistente', route: 'sucursal.asistente', match: 'sucursal.asistente', icon: 'asistente' },
     { label: 'Menú online', route: 'sucursal.menu-online', icon: 'menuqr' },
     { label: 'Configuracion', route: 'sucursal.configuracion', icon: 'config' },
 ];
