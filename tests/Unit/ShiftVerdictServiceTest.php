@@ -67,6 +67,19 @@ class ShiftVerdictServiceTest extends TestCase
         $this->assertNull($v['detail']);
     }
 
+    public function test_simple_cash_surplus(): void
+    {
+        // Rama positiva (sobrante): declarado > esperado en efectivo.
+        $v = $this->svc->build($this->shift([
+            'declared_amount' => 8750, 'difference' => 50,
+        ]));
+
+        $this->assertSame('net_off', $v['status']);
+        $this->assertSame(50.0, $v['total_diff']);
+        $this->assertStringContainsString('Sobrante total de $50.00', $v['headline']);
+        $this->assertNull($v['detail']);
+    }
+
     public function test_full_compensation_between_methods(): void
     {
         // Falta $50 en efectivo, sobra $50 en tarjeta → el neto cuadra.

@@ -244,4 +244,56 @@ class ShiftReportMessageServiceTest extends TestCase
 
         $this->assertLessThanOrEqual(3500, strlen($text));
     }
+
+    public function test_verdict_sobrante_total_when_positive_net(): void
+    {
+        // Sobra $50 en efectivo, el resto cuadra → sobrante neto de $50.
+        $text = $this->svc->buildShiftCloseText($this->makeClosedShift([
+            'declared_amount' => 8750, 'difference' => 50,
+        ]));
+
+        $this->assertStringContainsString('Sobrante total de $50.00', $text);
+        $this->assertStringContainsString('*Diferencia total: +$50.00* ⚠️', $text);
+    }
+
+    public function test_desglose_shows_per_method_lines(): void
+    {
+        // Fixture base: efectivo −$20 (faltante), tarjeta y transferencia cuadran.
+        $text = $this->svc->buildShiftCloseText($this->makeClosedShift());
+
+        $this->assertStringContainsString('Efectivo: $8,700.00 → $8,680.00 (-$20.00 faltante)', $text);
+        $this->assertStringContainsString('Tarjeta: $3,200.00 → $3,200.00 ✅', $text);
+    }
+
+    public function test_desglose_marks_method_as_no_declarado(): void
+    {
+        // Tarjeta con movimiento pero sin declarar → se marca "(no declarado)".
+        $text = $this->svc->buildShiftCloseText($this->makeClosedShift([
+            'declared_card' => null, 'difference_card' => 0,
+        ]));
+
+        $this->assertStringContainsString('Tarjeta: $3,200.00 _(no declarado)_', $text);
+    }
+
+    public function test_arqueo_shows_cash_difference_line(): void
+    {
+        // Fixture base: efectivo declarado 8680 vs esperado 8700 → −$20 en el arqueo.
+        $text = $this->svc->buildShiftCloseText($this->makeClosedShift());
+
+        $this->assertStringContainsString('Contado por el cajero: $8,680.00', $text);
+        $this->assertStringContainsString('Diferencia: -$20.00', $text);
+    }
+
+    public function test_cross_balanced_total_line_uses_scale_not_check(): void
+    {
+        // Neto en cero pero con descuadres cruzados: la "Diferencia total" no debe
+        // marcarse con ✅ (contradiría el encabezado ⚖️); se usa ⚖️.
+        $text = $this->svc->buildShiftCloseText($this->makeClosedShift([
+            'declared_amount' => 8650, 'difference' => -50,
+            'declared_card' => 3250, 'difference_card' => 50,
+        ]));
+
+        $this->assertStringContainsString('*Diferencia total: $0.00* ⚖️', $text);
+        $this->assertStringNotContainsString('$0.00* ✅', $text);
+    }
 }
