@@ -87,11 +87,25 @@ class ExpenseAttachmentService
      */
     public function attachFromDraft(Expense $expense, AiExpenseDraft $draft, ?int $uploadedBy): array
     {
+        return $this->attachFromDraftPaths($expense, $draft->attachment_paths ?? [], $uploadedBy);
+    }
+
+    /**
+     * Mueve archivos ya guardados en disco privado (por su metadata de path) al
+     * directorio del gasto y crea los ExpenseAttachment. Comparte el mecanismo
+     * entre los borradores de gasto (ai_expense_drafts) y los del asistente
+     * (assistant_drafts) — ambos viven en el mismo disco privado.
+     *
+     * @param  array<int, array<string, mixed>>  $attachmentPaths
+     * @return array<int, ExpenseAttachment>
+     */
+    public function attachFromDraftPaths(Expense $expense, array $attachmentPaths, ?int $uploadedBy): array
+    {
         $disk = self::disk();
         $storage = Storage::disk($disk);
         $created = [];
 
-        foreach ($draft->attachment_paths ?? [] as $entry) {
+        foreach ($attachmentPaths as $entry) {
             $srcPath = $entry['path'] ?? null;
             if (! is_string($srcPath) || ! $storage->exists($srcPath)) {
                 continue;

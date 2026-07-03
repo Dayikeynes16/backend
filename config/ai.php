@@ -97,6 +97,10 @@ return [
         'max_history_turns' => 8,
         'max_tool_iterations' => 5,
 
+        // TTL de los borradores creados por el asistente (assistant_drafts).
+        // Vencido esto, el job ai:expire-drafts borra archivos y marca expired.
+        'draft_ttl_hours' => (int) env('AI_ASSISTANT_DRAFT_TTL_HOURS', 6),
+
         // Rate limits. Quien rebasa recibe 429 y un mensaje amable.
         'rate_limit_per_user_per_hour' => (int) env('AI_ASSISTANT_RATE_USER_HOUR', 60),
         'rate_limit_per_tenant_per_day' => (int) env('AI_ASSISTANT_RATE_TENANT_DAY', 1000),

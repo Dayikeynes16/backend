@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Enums\ProviderType;
 use App\Models\Provider;
+use App\Services\Providers\ProviderWriter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,11 +24,7 @@ trait HandlesProviderWrites
 
         $validated = $this->validatedProviderRequest($request, $tenant->id);
 
-        Provider::create(array_merge($validated, [
-            'tenant_id' => $tenant->id,
-            'status' => 'active',
-            'created_by' => Auth::id(),
-        ]));
+        app(ProviderWriter::class)->create($tenant, Auth::user(), $validated);
 
         return back()->with('success', 'Proveedor creado.');
     }

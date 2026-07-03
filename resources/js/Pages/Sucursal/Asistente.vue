@@ -15,6 +15,8 @@ const routes = {
     createSession: 'sucursal.asistente.sesiones.store',
     sendMessage: 'sucursal.asistente.mensajes.store',
     transcribe: 'sucursal.asistente.transcribir',
+    draftConfirm: 'sucursal.asistente.drafts.confirm',
+    draftCancel: 'sucursal.asistente.drafts.cancel',
     // TTS (ElevenLabs) deshabilitado 2026-05-18 — voz no satisfactoria.
     // Re-habilitar agregando: speak: 'sucursal.asistente.mensajes.voz',
 };

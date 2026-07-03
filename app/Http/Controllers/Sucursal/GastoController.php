@@ -13,12 +13,12 @@ use App\Models\ExpenseCategory;
 use App\Services\Ai\AiExpenseDraftService;
 use App\Services\AuditLogger;
 use App\Services\ExpenseAttachmentService;
+use App\Services\Expenses\ExpenseWriter;
 use App\Services\RecalculateClosedShifts;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -28,6 +28,7 @@ class GastoController extends Controller
     public function __construct(
         private readonly ExpenseAttachmentService $attachments,
         private readonly AiExpenseDraftService $aiDrafts,
+        private readonly ExpenseWriter $expenseWriter,
     ) {}
 
     public function index(Request $request): Response
@@ -141,36 +142,28 @@ class GastoController extends Controller
 
         $draft = $this->resolveAiDraft($validated['ai_draft_id'] ?? null, $tenant->id);
 
-        $expense = DB::transaction(function () use ($tenant, $user, $validated, $request, $draft) {
-            $expense = Expense::create([
-                'tenant_id' => $tenant->id,
+        $this->expenseWriter->create(
+            $tenant,
+            $user,
+            [
                 'branch_id' => $user->branch_id,
                 'expense_subcategory_id' => $validated['expense_subcategory_id'],
-                'user_id' => $user->id,
                 'concept' => $validated['concept'],
                 'amount' => $validated['amount'],
                 'payment_method' => $validated['payment_method'] ?? null,
-                'expense_at' => $this->buildExpenseAt($validated['expense_date']),
+                'expense_at' => ExpenseWriter::buildExpenseAt($validated['expense_date']),
                 'description' => $validated['description'] ?? null,
-            ]);
-
-            if ($request->hasFile('attachments')) {
-                $this->attachments->attach($expense, $request->file('attachments'), $user->id);
-            }
-
-            if ($draft) {
-                $this->attachments->attachFromDraft($expense, $draft, $user->id);
+            ],
+            uploadedFiles: $request->file('attachments') ?? [],
+            draftAttachmentPaths: $draft?->attachment_paths ?? [],
+            afterCreate: $draft ? function (Expense $expense) use ($draft) {
                 $draft->update([
                     'status' => AiDraftStatus::Consumed->value,
                     'expense_id' => $expense->id,
                     'consumed_at' => now(),
                 ]);
-            }
-
-            return $expense;
-        });
-
-        app(AuditLogger::class)->logCreated($expense);
+            } : null,
+        );
 
         return back()->with('success', 'Gasto registrado.');
     }

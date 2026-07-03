@@ -8,5 +8,6 @@ enum AiDraftStatus: string
     case Ready = 'ready';
     case Failed = 'failed';
     case Consumed = 'consumed';
+    case Cancelled = 'cancelled';
     case Expired = 'expired';
 }

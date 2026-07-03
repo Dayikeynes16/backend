@@ -98,10 +98,15 @@ class AsistenteController extends Controller
 
         $validated = $request->validate([
             'content' => [
-                'required', 'string',
+                'nullable', 'string',
                 'max:'.config('ai.assistant.max_input_text_length', 2000),
             ],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
+
+        if (blank($validated['content'] ?? null) && ! $request->hasFile('attachment')) {
+            return response()->json(['message' => 'Escribe un mensaje o adjunta un recibo.'], 422);
+        }
 
         $userKey = 'ai-assistant:user:'.$user->id;
         $tenantKey = 'ai-assistant:tenant:'.$tenant->id;
@@ -138,7 +143,8 @@ class AsistenteController extends Controller
                 $tenant,
                 $user,
                 $session,
-                $validated['content'],
+                (string) ($validated['content'] ?? ''),
+                $request->hasFile('attachment') ? [$request->file('attachment')] : [],
             );
         } catch (Throwable $e) {
             report($e);
