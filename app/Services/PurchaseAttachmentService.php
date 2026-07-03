@@ -83,11 +83,24 @@ class PurchaseAttachmentService
      */
     public function attachFromDraft(Purchase $purchase, AiPurchaseDraft $draft, ?int $uploadedBy): array
     {
+        return $this->attachFromDraftPaths($purchase, $draft->attachment_paths ?? [], $uploadedBy);
+    }
+
+    /**
+     * Mueve archivos ya guardados en disco privado (por su metadata de path) al
+     * directorio de la compra. Compartido entre los borradores de compra
+     * (ai_purchase_drafts) y los del asistente (assistant_drafts).
+     *
+     * @param  array<int, array<string, mixed>>  $attachmentPaths
+     * @return array<int, PurchaseAttachment>
+     */
+    public function attachFromDraftPaths(Purchase $purchase, array $attachmentPaths, ?int $uploadedBy): array
+    {
         $disk = self::disk();
         $storage = Storage::disk($disk);
         $created = [];
 
-        foreach ($draft->attachment_paths ?? [] as $entry) {
+        foreach ($attachmentPaths as $entry) {
             $srcPath = $entry['path'] ?? null;
             if (! is_string($srcPath) || ! $storage->exists($srcPath)) {
                 continue;

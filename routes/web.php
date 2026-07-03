@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
 use App\Http\Controllers\Agenda\AgendaController;
 use App\Http\Controllers\Ai\AgendaDraftController as AiAgendaDraftController;
+use App\Http\Controllers\Ai\AssistantDraftController;
 use App\Http\Controllers\Ai\CategoryDraftController as AiCategoryDraftController;
 use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
 use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController;
@@ -177,6 +178,9 @@ Route::prefix('{tenant}')
                 Route::post('asistente/sesiones/{session}/mensajes', [EmpresaAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
                 Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [EmpresaAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
                 Route::post('asistente/transcribir', [EmpresaAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
+                // Confirmación/cancelación de borradores del asistente (2ª petición HTTP, botón UI).
+                Route::post('asistente/drafts/{draft}/confirmar', [AssistantDraftController::class, 'confirm'])->name('asistente.drafts.confirm');
+                Route::post('asistente/drafts/{draft}/cancelar', [AssistantDraftController::class, 'cancel'])->name('asistente.drafts.cancel');
 
                 // Proveedores (F1 de Compras).
                 Route::resource('proveedores', EmpresaProviderController::class)
@@ -394,6 +398,9 @@ Route::prefix('{tenant}')
                 Route::post('asistente/sesiones/{session}/mensajes', [SucursalAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
                 Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [SucursalAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
                 Route::post('asistente/transcribir', [SucursalAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
+                // Confirmación/cancelación de borradores del asistente (2ª petición HTTP, botón UI).
+                Route::post('asistente/drafts/{draft}/confirmar', [AssistantDraftController::class, 'confirm'])->name('asistente.drafts.confirm');
+                Route::post('asistente/drafts/{draft}/cancelar', [AssistantDraftController::class, 'cancel'])->name('asistente.drafts.cancel');
 
                 // Proveedores: lectura siempre; crear/editar solo si la empresa
                 // habilitó el toggle de la sucursal (catálogo tenant-wide compartido).

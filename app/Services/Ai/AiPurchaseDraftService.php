@@ -94,7 +94,6 @@ class AiPurchaseDraftService
 
         try {
             $client = OpenAiClient::fromConfig();
-            $started = microtime(true);
 
             $transcription = null;
             if ($audioPath !== null) {
@@ -109,26 +108,15 @@ class AiPurchaseDraftService
             }
 
             $combinedText = $this->combineInputText($inputText, $transcription);
-            $context = $this->contextBuilder->build($tenant, $user);
-            $payload = $this->buildOpenAiPayload($context, $combinedText, $storedPaths);
-            $response = $client->chatCompletions($payload);
 
-            $elapsedMs = (int) round((microtime(true) - $started) * 1000);
-
-            $proposalRaw = $this->extractJsonFromResponse($response);
-            $proposal = $this->parser->parse($proposalRaw, $tenant);
+            $extracted = $this->extractProposal($tenant, $user, $combinedText, $storedPaths);
+            $proposal = $extracted['proposal'];
             $proposal['audio_transcription'] = $transcription;
 
-            $draft->update([
+            $draft->update(array_merge([
                 'status' => AiDraftStatus::Ready->value,
-                'ai_provider' => 'openai',
-                'ai_model' => $response['model'] ?? config('ai.expenses.model'),
-                'prompt_tokens' => $response['usage']['prompt_tokens'] ?? null,
-                'completion_tokens' => $response['usage']['completion_tokens'] ?? null,
-                'latency_ms' => $elapsedMs,
-                'raw_response' => $response,
                 'parsed_proposal' => $proposal,
-            ]);
+            ], $extracted['telemetry']));
         } catch (Throwable $e) {
             Log::warning('AiPurchaseDraftService falló', [
                 'draft_id' => $draft->id,
@@ -142,6 +130,41 @@ class AiPurchaseDraftService
         }
 
         return $draft->fresh();
+    }
+
+    /**
+     * Extrae y normaliza una propuesta de compra a partir de texto y/o imágenes
+     * (facturas) ya guardadas en disco — SIN persistir ningún draft. Reutilizable
+     * por el asistente conversacional (que administra su propio borrador general).
+     *
+     * @param  array<int, array<string, mixed>>  $storedImagePaths  metadata {path, mime_type, ...}
+     * @return array{proposal: array<string, mixed>, telemetry: array<string, mixed>}
+     */
+    public function extractProposal(Tenant $tenant, User $user, ?string $combinedText, array $storedImagePaths): array
+    {
+        $client = OpenAiClient::fromConfig();
+        $started = microtime(true);
+
+        $context = $this->contextBuilder->build($tenant, $user);
+        $payload = $this->buildOpenAiPayload($context, $combinedText, $storedImagePaths);
+        $response = $client->chatCompletions($payload);
+
+        $elapsedMs = (int) round((microtime(true) - $started) * 1000);
+
+        $proposalRaw = $this->extractJsonFromResponse($response);
+        $proposal = $this->parser->parse($proposalRaw, $tenant);
+
+        return [
+            'proposal' => $proposal,
+            'telemetry' => [
+                'ai_provider' => 'openai',
+                'ai_model' => $response['model'] ?? config('ai.expenses.model'),
+                'prompt_tokens' => $response['usage']['prompt_tokens'] ?? null,
+                'completion_tokens' => $response['usage']['completion_tokens'] ?? null,
+                'latency_ms' => $elapsedMs,
+                'raw_response' => $response,
+            ],
+        ];
     }
 
     /**

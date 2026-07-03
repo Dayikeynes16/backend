@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\ExpireAiDraftsCommand;
 use App\Http\Middleware\AuthenticateApiKey;
 use App\Http\Middleware\EnsureBranchFeature;
 use App\Http\Middleware\EnsureHubRole;
@@ -8,6 +9,7 @@ use App\Http\Middleware\ForcePasswordChange;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolvePublicTenant;
 use App\Http\Middleware\ResolveTenant;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
@@ -30,6 +32,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withBroadcasting(__DIR__.'/../routes/channels.php')
+    ->withSchedule(function (Schedule $schedule): void {
+        // Limpia borradores de IA vencidos (asistente + tablas heredadas) y sus
+        // archivos privados. Requiere cron `php artisan schedule:run` cada minuto.
+        $schedule->command(ExpireAiDraftsCommand::class)->hourly();
+    })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             HandleInertiaRequests::class,

@@ -90,14 +90,11 @@ class AiExpenseDraftService
         ]);
 
         try {
-            $client = OpenAiClient::fromConfig();
-            $started = microtime(true);
-
             // Si hay audio, transcribimos primero y combinamos con el texto del
             // usuario. Whisper es barato (~$0.006/min) y rápido (1–3s típico).
             $transcription = null;
             if ($audioPath !== null) {
-                $transcription = $client->transcribeAudio(
+                $transcription = OpenAiClient::fromConfig()->transcribeAudio(
                     audioBytes: (string) Storage::disk($disk)->get($audioPath),
                     filename: basename($audioPath),
                     mimeType: (string) ($audio->getMimeType() ?: 'audio/webm'),
@@ -109,28 +106,16 @@ class AiExpenseDraftService
 
             $combinedText = $this->combineInputText($inputText, $transcription);
 
-            $context = $this->contextBuilder->build($tenant, $user);
-            $payload = $this->buildOpenAiPayload($context, $combinedText, $storedPaths);
-            $response = $client->chatCompletions($payload);
-
-            $elapsedMs = (int) round((microtime(true) - $started) * 1000);
-
-            $proposalRaw = $this->extractJsonFromResponse($response);
-            $proposal = $this->parser->parse($proposalRaw, $tenant);
+            $extracted = $this->extractProposal($tenant, $user, $combinedText, $storedPaths);
+            $proposal = $extracted['proposal'];
             // Exponemos la transcripción en la propuesta para que el frontend
             // la muestre (informativo) — no afecta validación.
             $proposal['audio_transcription'] = $transcription;
 
-            $draft->update([
+            $draft->update(array_merge([
                 'status' => AiDraftStatus::Ready->value,
-                'ai_provider' => 'openai',
-                'ai_model' => $response['model'] ?? config('ai.expenses.model'),
-                'prompt_tokens' => $response['usage']['prompt_tokens'] ?? null,
-                'completion_tokens' => $response['usage']['completion_tokens'] ?? null,
-                'latency_ms' => $elapsedMs,
-                'raw_response' => $response,
                 'parsed_proposal' => $proposal,
-            ]);
+            ], $extracted['telemetry']));
         } catch (Throwable $e) {
             Log::warning('AiExpenseDraftService falló', [
                 'draft_id' => $draft->id,
@@ -144,6 +129,41 @@ class AiExpenseDraftService
         }
 
         return $draft->fresh();
+    }
+
+    /**
+     * Extrae y normaliza una propuesta de gasto a partir de texto y/o imágenes
+     * ya guardadas en disco — SIN persistir ningún draft. Reutilizable por el
+     * asistente conversacional (que administra su propio borrador general).
+     *
+     * @param  array<int, array<string, mixed>>  $storedImagePaths  metadata {path, mime_type, ...}
+     * @return array{proposal: array<string, mixed>, telemetry: array<string, mixed>}
+     */
+    public function extractProposal(Tenant $tenant, User $user, ?string $combinedText, array $storedImagePaths): array
+    {
+        $client = OpenAiClient::fromConfig();
+        $started = microtime(true);
+
+        $context = $this->contextBuilder->build($tenant, $user);
+        $payload = $this->buildOpenAiPayload($context, $combinedText, $storedImagePaths);
+        $response = $client->chatCompletions($payload);
+
+        $elapsedMs = (int) round((microtime(true) - $started) * 1000);
+
+        $proposalRaw = $this->extractJsonFromResponse($response);
+        $proposal = $this->parser->parse($proposalRaw, $tenant);
+
+        return [
+            'proposal' => $proposal,
+            'telemetry' => [
+                'ai_provider' => 'openai',
+                'ai_model' => $response['model'] ?? config('ai.expenses.model'),
+                'prompt_tokens' => $response['usage']['prompt_tokens'] ?? null,
+                'completion_tokens' => $response['usage']['completion_tokens'] ?? null,
+                'latency_ms' => $elapsedMs,
+                'raw_response' => $response,
+            ],
+        ];
     }
 
     private function combineInputText(?string $userText, ?string $transcription): ?string

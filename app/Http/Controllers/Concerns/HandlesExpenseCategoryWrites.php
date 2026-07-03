@@ -6,6 +6,7 @@ use App\Enums\AiDraftStatus;
 use App\Models\AiCategoryDraft;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseSubcategory;
+use App\Services\Expenses\ExpenseCategoryWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,16 +47,7 @@ trait HandlesExpenseCategoryWrites
             'name.unique' => 'Ya existe una categoría de gastos con ese nombre.',
         ]);
 
-        ExpenseCategory::create([
-            'tenant_id' => $tenant->id,
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
-            'aliases' => $this->normalizeStringList($validated['aliases'] ?? null),
-            'includes' => $this->normalizeStringList($validated['includes'] ?? null),
-            'excludes' => $this->normalizeStringList($validated['excludes'] ?? null),
-            'status' => 'active',
-            'created_by' => Auth::id(),
-        ]);
+        app(ExpenseCategoryWriter::class)->createCategory($tenant, Auth::user(), $validated);
 
         return back()->with('success', 'Categoría creada.');
     }
@@ -297,18 +289,7 @@ trait HandlesExpenseCategoryWrites
      */
     private function normalizeStringList(?array $list): ?array
     {
-        if (! $list) {
-            return null;
-        }
-
-        $cleaned = collect($list)
-            ->map(fn ($a) => trim((string) $a))
-            ->filter()
-            ->unique(fn ($a) => mb_strtolower($a))
-            ->values()
-            ->all();
-
-        return $cleaned === [] ? null : $cleaned;
+        return ExpenseCategoryWriter::normalizeList($list);
     }
 
     /**

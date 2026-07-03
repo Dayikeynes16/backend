@@ -8,8 +8,11 @@ use App\Models\Branch;
 use App\Models\ExpenseCategory;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Ai\Assistant\Drafts\PreparesDraft;
+use App\Services\Ai\Assistant\Drafts\ToolContext;
 use App\Services\Ai\OpenAiClient;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -39,14 +42,18 @@ final class AssistantOrchestrator
      *     budget_remaining_cents: int,
      * }
      */
+    /**
+     * @param  array<int, UploadedFile>  $attachments  archivos del turno (p.ej. recibo)
+     */
     public function handleUserMessage(
         Tenant $tenant,
         User $user,
         AiAssistantSession $session,
         string $userText,
+        array $attachments = [],
     ): array {
         $userText = trim($userText);
-        if ($userText === '') {
+        if ($userText === '' && $attachments === []) {
             throw new \InvalidArgumentException('El mensaje no puede estar vacío.');
         }
 
@@ -55,13 +62,26 @@ final class AssistantOrchestrator
             $userText = mb_substr($userText, 0, $maxLen);
         }
 
+        // Si sólo vino un recibo (sin texto), dejamos una marca legible.
+        $persistText = ($userText === '' && $attachments !== []) ? '[Recibo adjunto]' : $userText;
+
         $userMsg = AiAssistantMessage::create([
             'session_id' => $session->id,
             'tenant_id' => $tenant->id,
             'user_id' => $user->id,
             'role' => 'user',
-            'content' => $userText,
+            'content' => $persistText,
         ]);
+
+        $context = new ToolContext($session, $userMsg, $attachments);
+
+        // El router (texto) no ve las imágenes; se lo avisamos para que sepa
+        // que puede preparar un gasto a partir del recibo adjunto.
+        $modelText = $persistText;
+        if ($attachments !== []) {
+            $modelText .= "\n\n(El usuario adjuntó ".count($attachments).' archivo(s) de imagen en este turno. '
+                .'Si es un recibo de gasto usa preparar_borrador_gasto; si es una factura o nota de compra a un proveedor usa preparar_borrador_compra.)';
+        }
 
         $cards = [];
         $assistantMsg = null;
@@ -70,7 +90,7 @@ final class AssistantOrchestrator
             $tools = $this->registry->forUser($user);
             $toolsSchema = ToolRegistry::toOpenAiSchema($tools);
 
-            $messages = $this->buildBaseMessages($tenant, $user, $session, $userText);
+            $messages = $this->buildBaseMessages($tenant, $user, $session, $modelText);
 
             $maxIter = (int) config('ai.assistant.max_tool_iterations', 5);
             $client = OpenAiClient::fromConfig();
@@ -127,7 +147,7 @@ final class AssistantOrchestrator
                 }
 
                 foreach ($toolCalls as $call) {
-                    $toolMessage = $this->executeToolCall($tenant, $user, $session, $call);
+                    $toolMessage = $this->executeToolCall($tenant, $user, $session, $call, $context);
                     $messages[] = [
                         'role' => 'tool',
                         'tool_call_id' => $call['id'] ?? null,
@@ -179,7 +199,7 @@ final class AssistantOrchestrator
      * @param  array<string, mixed>  $call
      * @return array{model_payload: array<string, mixed>, card: array<string, mixed>|null}
      */
-    private function executeToolCall(Tenant $tenant, User $user, AiAssistantSession $session, array $call): array
+    private function executeToolCall(Tenant $tenant, User $user, AiAssistantSession $session, array $call, ToolContext $context): array
     {
         $toolName = $call['function']['name'] ?? '';
         $rawArgs = $call['function']['arguments'] ?? '{}';
@@ -233,7 +253,11 @@ final class AssistantOrchestrator
         try {
             $started = microtime(true);
             $validated = $tool->validate($user, $params);
-            $result = $tool->execute($user, $validated);
+            // Las tools de escritura PREPARAN un borrador (no ejecutan la
+            // escritura final); las de lectura ejecutan directo.
+            $result = $tool instanceof PreparesDraft
+                ? $tool->prepareDraft($user, $validated, $context)
+                : $tool->execute($user, $validated);
             $elapsedMs = (int) round((microtime(true) - $started) * 1000);
 
             AiAssistantMessage::create([
@@ -332,6 +356,7 @@ Reglas inviolables:
 5. Si el usuario pide algo que no puedes hacer (borrar, cancelar masivo, modificar precios, datos de otra empresa), responde brevemente que esa acción no está disponible desde el asistente.
 6. Responde en español, claro y breve. Si una herramienta ya devuelve cifras, no las repitas en exceso — el frontend ya las muestra en una tarjeta.
 7. Si te falta información para decidir parámetros (ej. fecha exacta), pregunta de forma corta antes de llamar a la herramienta.
+8. Para REGISTRAR un gasto usa preparar_borrador_gasto: sólo PREPARAS un borrador que el usuario debe confirmar pulsando un botón. NUNCA afirmes que el gasto quedó registrado ni digas "listo/hecho"; di que dejaste el borrador listo para su revisión y confirmación. Tú no puedes confirmar ni crear nada por tu cuenta.
 
 Cuando llames a una herramienta, usa SIEMPRE los parámetros enum cuando estén disponibles (no inventes valores). Si el usuario no especifica una sucursal y eres admin-empresa, deja branch_name en null (= todas las sucursales).
 TXT;

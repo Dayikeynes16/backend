@@ -7,6 +7,8 @@ import CustomerStatsCard from './CustomerStatsCard.vue';
 import ProductDetailsCard from './ProductDetailsCard.vue';
 import PurchaseSummaryCard from './PurchaseSummaryCard.vue';
 import AccountsPayableCard from './AccountsPayableCard.vue';
+import ExpenseCategoriesCard from './ExpenseCategoriesCard.vue';
+import AssistantDraftCard from './AssistantDraftCard.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import axios from 'axios';
@@ -38,6 +40,7 @@ const cardComponents = {
     product_details: ProductDetailsCard,
     purchase_summary: PurchaseSummaryCard,
     accounts_payable: AccountsPayableCard,
+    expense_categories: ExpenseCategoriesCard,
 };
 
 const messages = ref([...props.messages]);
@@ -46,6 +49,28 @@ const sending = ref(false);
 const errorBanner = ref(null);
 const threadRef = ref(null);
 const inputRef = ref(null);
+
+// Adjunto de recibo (imagen) para preparar un gasto desde el chat.
+const pendingImage = ref(null);
+const imageInputRef = ref(null);
+
+function onImageSelected(e) {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+        errorBanner.value = 'Solo se permiten imágenes (jpg, png, webp).';
+    } else if (file.size > 5 * 1024 * 1024) {
+        errorBanner.value = 'La imagen no puede superar 5 MB.';
+    } else {
+        errorBanner.value = null;
+        pendingImage.value = file;
+    }
+    if (imageInputRef.value) imageInputRef.value.value = '';
+}
+
+function clearImage() {
+    pendingImage.value = null;
+}
 
 // Textarea auto-grow: se ajusta entre 3 y 8 líneas según contenido.
 const MIN_INPUT_HEIGHT = 84;   // ~3 líneas con text-base
@@ -243,6 +268,13 @@ function guessKindFromToolName(name) {
         consultar_productos: 'product_details',
         consultar_compras: 'purchase_summary',
         consultar_cuentas_por_pagar: 'accounts_payable',
+        consultar_categorias_gasto: 'expense_categories',
+        preparar_borrador_gasto: 'assistant_draft',
+        preparar_borrador_proveedor: 'assistant_draft',
+        preparar_borrador_compra: 'assistant_draft',
+        preparar_borrador_abono: 'assistant_draft',
+        preparar_borrador_categoria_gasto: 'assistant_draft',
+        editar_categoria_gasto: 'assistant_draft',
     })[name] || 'unknown';
 }
 
@@ -337,7 +369,8 @@ const budgetText = computed(() => {
 
 async function send() {
     const text = inputText.value.trim();
-    if (!text || sending.value) return;
+    const image = pendingImage.value;
+    if ((!text && !image) || sending.value) return;
     if (!props.activeSessionId) {
         errorBanner.value = 'Crea una sesión primero.';
         return;
@@ -353,17 +386,26 @@ async function send() {
     messages.value.push({
         id: tempId,
         role: 'user',
-        content: text,
+        content: text || '📎 Recibo adjunto',
         created_at: new Date().toISOString(),
     });
     inputText.value = '';
+    pendingImage.value = null;
 
     try {
         const url = route(props.routes.sendMessage, {
             tenant: slug.value,
             session: props.activeSessionId,
         });
-        const { data } = await axios.post(url, { content: text });
+        let data;
+        if (image) {
+            const fd = new FormData();
+            if (text) fd.append('content', text);
+            fd.append('attachment', image);
+            ({ data } = await axios.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } }));
+        } else {
+            ({ data } = await axios.post(url, { content: text }));
+        }
 
         // Reemplazo atómico: construimos el array final y lo asignamos UNA vez.
         // Si lo hacíamos en pasos (filter → push N veces), el DOM se encogía
@@ -502,7 +544,8 @@ const examplePrompts = [
                             </button>
                         </div>
                         <template v-for="c in item.cards" :key="c.id">
-                            <component :is="cardComponents[c.kind]" v-if="cardComponents[c.kind]" :data="c.data" />
+                            <AssistantDraftCard v-if="c.kind === 'assistant_draft'" :data="c.data" :routes="routes" />
+                            <component v-else-if="cardComponents[c.kind]" :is="cardComponents[c.kind]" :data="c.data" />
                             <div v-else class="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
                                 <div class="mb-1 font-semibold">Resultado de {{ c.tool_name }}</div>
                                 <pre class="overflow-x-auto whitespace-pre-wrap font-mono">{{ JSON.stringify(c.data, null, 2) }}</pre>
@@ -512,7 +555,8 @@ const examplePrompts = [
 
                     <div v-else-if="item.kind === 'orphan_cards'" class="space-y-3">
                         <template v-for="c in item.cards" :key="c.id">
-                            <component :is="cardComponents[c.kind]" v-if="cardComponents[c.kind]" :data="c.data" />
+                            <AssistantDraftCard v-if="c.kind === 'assistant_draft'" :data="c.data" :routes="routes" />
+                            <component v-else-if="cardComponents[c.kind]" :is="cardComponents[c.kind]" :data="c.data" />
                         </template>
                     </div>
 
@@ -556,18 +600,39 @@ const examplePrompts = [
                     Transcribiendo audio…
                 </div>
 
+                <!-- Recibo adjunto seleccionado -->
+                <div v-if="pendingImage" class="mb-2 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+                    <span class="flex min-w-0 items-center gap-2 truncate">📎 {{ pendingImage.name }}</span>
+                    <button type="button" @click="clearImage" class="shrink-0 font-semibold text-orange-700 underline hover:text-orange-900">Quitar</button>
+                </div>
+
                 <form @submit.prevent="send" class="flex items-end gap-2">
+                    <input ref="imageInputRef" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onImageSelected" />
+
                     <textarea
                         ref="inputRef"
                         v-model="inputText"
                         :disabled="!activeSessionId || sending || isRecording || transcribing"
                         rows="3"
-                        placeholder="Escribe tu pregunta…"
+                        placeholder="Escribe o adjunta un recibo…"
                         class="flex-1 resize-none rounded-xl border-gray-300 px-4 py-3 text-base leading-relaxed focus:border-orange-500 focus:ring-orange-500 disabled:bg-gray-50"
                         style="min-height: 84px;"
                         @keydown.enter.exact.prevent="send"
                         @input="resizeInput"
                     />
+
+                    <!-- Adjuntar recibo (imagen) para preparar un gasto. -->
+                    <button
+                        type="button"
+                        @click="imageInputRef?.click()"
+                        :disabled="!activeSessionId || sending || isRecording || transcribing"
+                        title="Adjuntar recibo"
+                        class="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-600 transition hover:border-orange-400 hover:bg-orange-50 hover:text-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                        </svg>
+                    </button>
 
                     <!-- Botón micrófono. Sólo si el navegador soporta MediaRecorder y la ruta de transcripción está disponible. -->
                     <button
@@ -593,7 +658,7 @@ const examplePrompts = [
 
                     <button
                         type="submit"
-                        :disabled="!activeSessionId || sending || !inputText.trim() || isRecording || transcribing"
+                        :disabled="!activeSessionId || sending || (!inputText.trim() && !pendingImage) || isRecording || transcribing"
                         class="rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-orange-600 hover:to-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         Enviar

@@ -16,6 +16,7 @@ use App\Services\AuditLogger;
 use App\Services\PurchaseAttachmentService;
 use App\Services\PurchaseFolioGenerator;
 use App\Services\PurchasePaymentService;
+use App\Services\Purchases\PurchaseWriter;
 use App\Services\RecalculateClosedShifts;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -99,80 +100,20 @@ trait HandlesPurchases
      */
     private function resolvePurchaseProduct(int $tenantId, ?int $id, string $name, string $unit): PurchaseProduct
     {
-        if ($id) {
-            $found = PurchaseProduct::where('tenant_id', $tenantId)->whereKey($id)->first();
-            if ($found) {
-                return $found;
-            }
-        }
-
-        $name = trim($name);
-        $byName = PurchaseProduct::where('tenant_id', $tenantId)
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
-            ->first();
-        if ($byName) {
-            return $byName;
-        }
-
-        return PurchaseProduct::create([
-            'tenant_id' => $tenantId,
-            'name' => $name,
-            'unit' => $unit ?: 'kg',
-            'status' => 'active',
-            'created_by' => Auth::id(),
-        ]);
+        return app(PurchaseWriter::class)->resolvePurchaseProduct($tenantId, $id, $name, $unit, Auth::user());
     }
 
     /**
      * Crea la Purchase + sus PurchaseItem (resolviendo el catálogo) en una
      * transacción. `$extra` permite sellar atributos adicionales (p. ej.
-     * cash_register_shift_id desde la caja).
+     * cash_register_shift_id desde la caja). Delega en {@see PurchaseWriter}.
      *
      * @param  array<string, mixed>  $validated
      * @param  array<string, mixed>  $extra
      */
     protected function createPurchaseWithItems(array $validated, int $branchId, Tenant $tenant, PurchaseFolioGenerator $folios, array $extra = []): Purchase
     {
-        return DB::transaction(function () use ($validated, $branchId, $tenant, $folios, $extra) {
-            $subtotal = 0.0;
-            foreach ($validated['items'] as $line) {
-                $subtotal += (float) $line['quantity'] * (float) $line['unit_price'];
-            }
-            $subtotal = round($subtotal, 2);
-
-            $purchase = Purchase::create(array_merge([
-                'tenant_id' => $tenant->id,
-                'branch_id' => $branchId,
-                'provider_id' => $validated['provider_id'],
-                'folio' => $folios->nextFolio($tenant->id),
-                'invoice_number' => $validated['invoice_number'] ?? null,
-                'purchased_at' => CarbonImmutable::parse($validated['purchased_at']),
-                'status' => PurchaseStatus::Received,
-                'subtotal' => $subtotal,
-                'total' => $subtotal,
-                'amount_paid' => 0,
-                'amount_pending' => $subtotal,
-                'notes' => $validated['notes'] ?? null,
-                'created_by' => Auth::id(),
-            ], $extra));
-
-            foreach ($validated['items'] as $line) {
-                $lineSubtotal = round((float) $line['quantity'] * (float) $line['unit_price'], 2);
-                $product = $this->resolvePurchaseProduct($tenant->id, $line['purchase_product_id'] ?? null, $line['concept'], $line['unit']);
-                PurchaseItem::create([
-                    'purchase_id' => $purchase->id,
-                    'purchase_product_id' => $product->id,
-                    'concept' => $product->name,
-                    'quantity' => $line['quantity'],
-                    'unit' => $line['unit'],
-                    'unit_price' => $line['unit_price'],
-                    'subtotal' => $lineSubtotal,
-                    'notes' => $line['notes'] ?? null,
-                ]);
-            }
-
-            return $purchase;
-        });
+        return app(PurchaseWriter::class)->buildPurchaseWithItems($tenant, Auth::user(), $validated, $branchId, $extra);
     }
 
     // ─── Store ───────────────────────────────────────────────────────────
