@@ -8,9 +8,17 @@ use App\Models\Sale;
 
 /**
  * Construye el texto del reporte de cierre de turno que se envía por WhatsApp
- * al dueño. Pensado para leerse rápido en el teléfono: arriba el veredicto del
- * arqueo, luego "lo que se vendió" vs "lo que entró al cajón", y al final el
- * arqueo de efectivo con la cuenta explícita (fondo + cobrado − retiros).
+ * al dueño. Pensado para leerse rápido en el teléfono, en este orden:
+ *
+ * 1. Veredicto NETO del turno (de {@see ShiftVerdictService}): si la caja
+ *    cuadra, si hay un faltante/sobrante total, o si el neto cuadra pero con
+ *    diferencias cruzadas entre métodos (p. ej. falta efectivo pero sobra la
+ *    misma cantidad en tarjeta).
+ * 2. Resumen del turno: vendido → cobrado → esperado total vs declarado total
+ *    → diferencia total.
+ * 3. Desglose por método (esperado → declarado, con faltante/sobrante).
+ * 4. Arqueo de efectivo con la cuenta explícita, que descuenta retiros, gastos
+ *    y compras en efectivo (fondo + cobrado − retiros − gastos − compras).
  */
 class ShiftReportMessageService
 {
@@ -77,9 +85,15 @@ class ShiftReportMessageService
             $lines[] = '• Declarado por el cajero: no declarado';
         } else {
             $lines[] = '• Declarado por el cajero: '.$this->money($verdict['declared_total']);
-            $lines[] = (float) $verdict['total_diff'] === 0.0
-                ? '• *Diferencia total: '.$this->money(0).'* ✅'
-                : '• *Diferencia total: '.$this->signedMoney($verdict['total_diff']).'* ⚠️';
+            if ((float) $verdict['total_diff'] !== 0.0) {
+                $lines[] = '• *Diferencia total: '.$this->signedMoney($verdict['total_diff']).'* ⚠️';
+            } elseif ($verdict['status'] === 'cross_balanced') {
+                // El neto es 0 pero hay descuadres cruzados: no marcamos ✅ para
+                // no contradecir el encabezado ⚖️ de arriba.
+                $lines[] = '• *Diferencia total: '.$this->money(0).'* ⚖️';
+            } else {
+                $lines[] = '• *Diferencia total: '.$this->money(0).'* ✅';
+            }
         }
         $lines[] = '';
 
