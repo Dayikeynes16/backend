@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Services\ShiftCashOutCalculator;
 use App\Services\ShiftReportMessageService;
 use App\Services\ShiftTotalsCalculator;
+use App\Services\ShiftVerdictService;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -352,6 +353,7 @@ class CashShiftController extends Controller
         CashRegisterShift $shift,
         ShiftReportMessageService $reportService,
         WhatsappMessageService $whatsappService,
+        ShiftVerdictService $verdictService,
     ): Response {
         $user = Auth::user();
 
@@ -391,6 +393,7 @@ class CashShiftController extends Controller
 
         return Inertia::render('Sucursal/Cortes/Show', [
             'shift' => $shift,
+            'verdict' => $verdictService->build($shift),
             'paymentMethods' => $this->enabledMethodsFor($shift->branch_id),
             'tenant' => $tenant,
             'isAdmin' => $isAdmin,
