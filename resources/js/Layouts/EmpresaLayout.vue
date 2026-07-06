@@ -19,7 +19,8 @@ const navLinks = [
     { label: 'Productos de compra', route: 'empresa.productos-compra.index', match: 'empresa.productos-compra', icon: 'proveedores' },
     { label: 'Gastos', route: 'empresa.gastos.index', match: 'empresa.gastos', icon: 'gastos' },
     { label: 'Métricas', route: 'empresa.metricas.index', match: 'empresa.metricas', icon: 'metricas' },
-    { label: 'Asistente', route: 'empresa.asistente', match: 'empresa.asistente', icon: 'asistente' },
+    { label: 'Asistente', route: 'asistente.index', match: 'asistente.', icon: 'asistente' },
+    { label: 'Asistente clásico', route: 'empresa.asistente', match: 'empresa.asistente', icon: 'asistente' },
     { label: 'Personalizacion', route: 'empresa.personalizacion', icon: 'paint' },
     { label: 'Configuracion', route: 'empresa.configuracion', icon: 'config' },
 ];

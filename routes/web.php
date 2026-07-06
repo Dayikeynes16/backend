@@ -9,6 +9,7 @@ use App\Http\Controllers\Ai\AssistantDraftController;
 use App\Http\Controllers\Ai\CategoryDraftController as AiCategoryDraftController;
 use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
 use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController;
+use App\Http\Controllers\Asistente\AssistantAppController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\GastoController as CajaGastoController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
@@ -540,6 +541,21 @@ Route::prefix('{tenant}')
                 Route::delete('gastos/{gasto}', [CajaGastoController::class, 'destroy'])->whereNumber('gasto')->name('gastos.destroy');
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
+            });
+
+        // Mini-app del asistente (compartida empresa+sucursal bajo /{tenant}/asistente).
+        // Cajero excluido a propósito (decisión D1 del spec 2026-07-06-asistente-mini-app).
+        Route::middleware('role:admin-empresa|admin-sucursal|superadmin')
+            ->prefix('asistente')
+            ->name('asistente.')
+            ->group(function () {
+                Route::get('/', [AssistantAppController::class, 'index'])->name('index');
+                Route::post('sesiones', [AssistantAppController::class, 'createSession'])->name('sesiones.store');
+                Route::post('sesiones/{session}/mensajes', [AssistantAppController::class, 'sendMessage'])->name('mensajes.store');
+                Route::post('transcribir', [AssistantAppController::class, 'transcribe'])->name('transcribir');
+                // Confirmación/cancelación de borradores (2ª petición HTTP, botón UI).
+                Route::post('drafts/{draft}/confirmar', [AssistantDraftController::class, 'confirm'])->name('drafts.confirm');
+                Route::post('drafts/{draft}/cancelar', [AssistantDraftController::class, 'cancel'])->name('drafts.cancel');
             });
 
         // Agenda (compartida por los 4 roles bajo /{tenant}/agenda)
