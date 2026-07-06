@@ -122,8 +122,19 @@ Cada tool declara `jsonSchema()` con `additionalProperties: false`. `ToolResult`
 ## Rutas y frontend
 
 - Rutas por rol en `routes/web.php`: `/{tenant}/empresa/asistente` y `/{tenant}/sucursal/asistente` (index, sesiones, mensajes, transcribir, voz, drafts confirmar/cancelar).
-- Controladores: `Empresa/AsistenteController`, `Sucursal/AsistenteController` (idénticos salvo página/rutas), `Ai/AssistantDraftController` (confirm/cancel).
-- Frontend: `Pages/{Empresa,Sucursal}/Asistente.vue` (wrappers de ~30 líneas que pasan `routes` como prop) → `Components/Asistente/AsistenteChat.vue` (sidebar de sesiones + hilo), data cards por tool y `AssistantDraftCard.vue`. Comunicación por HTTP normal (axios), sin SSE ni polling; UI optimista al enviar.
+- Rutas neutras de la **mini-app**: `/{tenant}/asistente` (`asistente.*`), grupo multi-rol `role:admin-empresa|admin-sucursal|superadmin` (cajero excluido por decisión D1). Mismos sufijos salvo `voz` (TTS no expuesto en la mini-app).
+- Controladores: `Empresa/AsistenteController`, `Sucursal/AsistenteController` y `Asistente/AssistantAppController` — los tres son wrappers delgados del trait `Concerns/HandlesAssistantChat` (index, createSession, sendMessage, serialización); solo definen página Inertia y ruta de redirect. `Ai/AssistantDraftController` (confirm/cancel) es compartido.
+- Frontend: `Pages/{Empresa,Sucursal}/Asistente.vue` (wrappers que pasan `routes` como prop) → `Components/Asistente/AsistenteChat.vue`, que desde 2026-07-06 **compone** las piezas compartidas: composable `useAssistantChat` (estado, envío optimista, transcripción, TTS, renderItems) + `Components/Asistente/chat/{MessageThread,ChatInputBar,SessionsPanel,ToolResultCard}.vue`. Data cards por tool y `AssistantDraftCard.vue` sin cambios. Comunicación por HTTP normal (axios), sin SSE ni polling; UI optimista al enviar.
+
+### Mini-app móvil (`/{tenant}/asistente`)
+
+Experiencia a pantalla completa, mobile-first, para dueños/encargados (spec
+[`2026-07-06-asistente-mini-app-design.md`](../superpowers/specs/2026-07-06-asistente-mini-app-design.md)):
+
+- `Pages/Asistente/App.vue` con layout dedicado `Layouts/AssistantAppLayout.vue`: **sin sidebar administrativo**, header compacto (logo + negocio/sucursal) y botón permanente "Salir al panel" → `route('dashboard')` (redirige según rol). Altura `100dvh` con safe-areas.
+- Móvil (<lg): chat ocupa toda la pantalla; las sesiones viven en un bottom-sheet abierto desde el header. Desktop (≥lg): columna de sesiones a la izquierda, chat centrado.
+- Usa exactamente las mismas piezas que el asistente clásico (decisión D3: mientras convivan, todo cambio aplica a ambas superficies). El clásico sigue disponible como "Asistente clásico" en el sidebar.
+- Pendiente (fases del spec): F2 cobro FIFO a clientes, F3 pago a cuenta FIFO a proveedores, F4 modo simple + quick actions.
 
 ## Persistencia
 
@@ -151,4 +162,4 @@ Pendientes opcionales anotados: pago "a cuenta" FIFO desde el chat, merge de ali
 
 ## Tests
 
-`tests/Feature/Ai/` (22 archivos): sesiones y persistencia, IDOR entre usuarios y tenants, ejecución de tools y cards, `unknown_tool`, budget 402, scoping de sucursal (admin-sucursal no puede ver otra sucursal aunque lo pida explícitamente), transcripción, TTS, cada Prepare*DraftTool y cada confirmador, expiración de drafts.
+`tests/Feature/Ai/` (23 archivos): sesiones y persistencia, IDOR entre usuarios y tenants, ejecución de tools y cards, `unknown_tool`, budget 402, scoping de sucursal (admin-sucursal no puede ver otra sucursal aunque lo pida explícitamente), transcripción, TTS, cada Prepare*DraftTool y cada confirmador, expiración de drafts, y `AssistantAppControllerTest` (mini-app: acceso empresa/sucursal, 403 cajero, redirect de sesión, envío por rutas neutras, IDOR de sesión).

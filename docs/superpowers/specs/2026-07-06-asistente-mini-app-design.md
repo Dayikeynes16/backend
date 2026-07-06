@@ -1,7 +1,7 @@
 # Asistente IA — Mini-app móvil conversacional — Diseño
 
 **Fecha:** 2026-07-06
-**Estado:** Aprobado (decisiones D1–D4 resueltas el 2026-07-06, ver §15) — pendiente de implementación
+**Estado:** F0 y F1 implementados (2026-07-06) — ver [doc vivo](../../modulos/asistente-ia.md); F2–F5 pendientes (plan F0+F1: `../plans/2026-07-06-asistente-mini-app-f0-f1.md`)
 **Autor:** colaboración con Claude (exploración de código + propuesta)
 
 ## En palabras simples (léelo primero)
