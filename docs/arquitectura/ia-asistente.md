@@ -2,7 +2,9 @@
 
 Propuesta de arquitectura y seguridad para un asistente conversacional interno (texto + voz) para `admin-empresa` y `admin-sucursal`. Documenta decisiones tomadas antes de implementar.
 
-> **Estado:** propuesta. No implementado. Auditoría hecha 2026-05-17.
+> **Estado:** implementado — F0–F4 completas (chat texto+voz, 9 read tools, 6 write tools con draft+confirm). Este documento es la propuesta de diseño original y se conserva como referencia de decisiones; la documentación viva del módulo está en [`docs/modulos/asistente-ia.md`](../modulos/asistente-ia.md).
+>
+> Pendiente: F5 (configuración asistida) y parte de F6 (purga de mensajes >90 días, suite adversarial, panel de observabilidad). El TTS de salida (ElevenLabs) está implementado en backend pero deshabilitado en la UI desde 2026-05-18. Actualizado 2026-07-06.
 >
 > **Infraestructura existente reutilizable:** `OpenAiClient`, `AiExpenseDraftService`, `AiCategoryDraftService`, `ExpenseContextBuilder`, `useAudioRecorder`, Whisper transcripción, `TenantScope` global, patrón draft + confirmación.
 

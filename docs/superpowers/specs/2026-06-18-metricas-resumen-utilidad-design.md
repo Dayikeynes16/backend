@@ -1,7 +1,7 @@
 # Métricas: pantalla «Resumen» con Utilidad real, comparativas y alertas
 
 **Fecha:** 2026-06-18
-**Estado:** Aprobado — pendiente de plan de implementación
+**Estado:** Implementado (pantalla Resumen con utilidad, comparativas y alertas en el código; actualizado 2026-07-06)
 **Alcance:** Fase 1 de la mejora de Métricas (UX + métricas que faltan).
 
 ## Problema
