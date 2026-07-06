@@ -33,7 +33,7 @@
 - Create: `resources/js/composables/useAssistantChat.js`
 - (Referencia de origen: `resources/js/Components/Asistente/AsistenteChat.vue:46-439`)
 
-- [ ] **Step 1: Crear el composable con TODA la lógica no-DOM del monolito**
+- [x] **Step 1: Crear el composable con TODA la lógica no-DOM del monolito**
 
 El único cambio semántico respecto al monolito: `wasAtBottom = true` (scroll) se sustituye por un contador `stickRequest` que los componentes observan, y `onImageSelected(event)` se convierte en `selectImage(file)` (el reset del `<input>` queda en `ChatInputBar`).
 
@@ -417,12 +417,12 @@ export function useAssistantChat(props, routes) {
 }
 ```
 
-- [ ] **Step 2: Verificar que el build no rompe (el archivo aún no se importa)**
+- [x] **Step 2: Verificar que el build no rompe (el archivo aún no se importa)**
 
 Run: `vendor/bin/sail npm run build`
 Expected: build exitoso.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add resources/js/composables/useAssistantChat.js
@@ -436,7 +436,7 @@ git commit -m "refactor(asistente): extraer useAssistantChat del monolito Asiste
 **Files:**
 - Create: `resources/js/Components/Asistente/chat/ToolResultCard.vue`
 
-- [ ] **Step 1: Crear el componente**
+- [x] **Step 1: Crear el componente**
 
 Nota: el fallback `<pre>` ahora aplica también a cards huérfanas de kind desconocido (antes las huérfanas desconocidas no se pintaban); es una mejora deliberada, no una regresión.
 
@@ -483,7 +483,7 @@ const cardComponents = {
 </template>
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add resources/js/Components/Asistente/chat/ToolResultCard.vue
@@ -497,7 +497,7 @@ git commit -m "refactor(asistente): extraer ToolResultCard (dispatcher kind->car
 **Files:**
 - Create: `resources/js/Components/Asistente/chat/MessageThread.vue`
 
-- [ ] **Step 1: Crear el componente**
+- [x] **Step 1: Crear el componente**
 
 ```vue
 <script setup>
@@ -631,7 +631,7 @@ const onThreadScroll = () => {
 </template>
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add resources/js/Components/Asistente/chat/MessageThread.vue
@@ -645,7 +645,7 @@ git commit -m "refactor(asistente): extraer MessageThread (hilo + stick-to-botto
 **Files:**
 - Create: `resources/js/Components/Asistente/chat/ChatInputBar.vue`
 
-- [ ] **Step 1: Crear el componente**
+- [x] **Step 1: Crear el componente**
 
 ```vue
 <script setup>
@@ -769,7 +769,7 @@ function onImageSelected(e) {
 </template>
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add resources/js/Components/Asistente/chat/ChatInputBar.vue
@@ -783,7 +783,7 @@ git commit -m "refactor(asistente): extraer ChatInputBar (texto + voz + adjunto)
 **Files:**
 - Create: `resources/js/Components/Asistente/chat/SessionsPanel.vue`
 
-- [ ] **Step 1: Crear el componente**
+- [x] **Step 1: Crear el componente**
 
 Emite `navigate` al crear/cambiar sesión para que la mini-app cierre el bottom-sheet; la página clásica simplemente ignora el evento.
 
@@ -850,7 +850,7 @@ function open(id) {
 </template>
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add resources/js/Components/Asistente/chat/SessionsPanel.vue
@@ -864,7 +864,7 @@ git commit -m "refactor(asistente): extraer SessionsPanel"
 **Files:**
 - Modify: `resources/js/Components/Asistente/AsistenteChat.vue` (reemplazo completo del archivo)
 
-- [ ] **Step 1: Reemplazar el contenido COMPLETO del archivo por la composición**
+- [x] **Step 1: Reemplazar el contenido COMPLETO del archivo por la composición**
 
 Las props no cambian: `Pages/Empresa/Asistente.vue` y `Pages/Sucursal/Asistente.vue` no se tocan.
 
@@ -905,12 +905,12 @@ const chat = useAssistantChat(props, props.routes);
 </template>
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `vendor/bin/sail npm run build`
 Expected: build exitoso, sin warnings de imports rotos.
 
-- [ ] **Step 3: Verificación de regresión backend (nada debió cambiar)**
+- [x] **Step 3: Verificación de regresión backend (nada debió cambiar)**
 
 Run: `vendor/bin/sail artisan test --compact tests/Feature/Ai/AssistantControllerTest.php tests/Feature/Ai/SucursalAsistenteControllerTest.php`
 Expected: PASS (el refactor es solo frontend).
@@ -925,7 +925,7 @@ Como `admin@eltoro.test` / `password` en `/el-toro/empresa/asistente`:
 5. Adjuntar una imagen → chip "📎", enviar → draft de gasto con card confirmable.
 6. Estando scrolleado arriba, recibir respuesta → el scroll NO salta; estando al fondo → se pega al fondo.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add resources/js/Components/Asistente/AsistenteChat.vue
@@ -941,7 +941,7 @@ git commit -m "refactor(asistente): AsistenteChat compone las piezas extraidas (
 - Modify: `app/Http/Controllers/Empresa/AsistenteController.php` (reemplazo completo)
 - Modify: `app/Http/Controllers/Sucursal/AsistenteController.php` (reemplazo completo)
 
-- [ ] **Step 1: Crear el trait con la lógica compartida**
+- [x] **Step 1: Crear el trait con la lógica compartida**
 
 Es el cuerpo actual de `Empresa\AsistenteController` (idéntico al de Sucursal) parametrizado por dos métodos abstractos. El constructor con `AssistantOrchestrator $orchestrator` queda en cada controller.
 
@@ -1138,7 +1138,7 @@ trait HandlesAssistantChat
 }
 ```
 
-- [ ] **Step 2: Reemplazar `app/Http/Controllers/Empresa/AsistenteController.php` completo**
+- [x] **Step 2: Reemplazar `app/Http/Controllers/Empresa/AsistenteController.php` completo**
 
 ```php
 <?php
@@ -1171,7 +1171,7 @@ class AsistenteController extends Controller
 }
 ```
 
-- [ ] **Step 3: Reemplazar `app/Http/Controllers/Sucursal/AsistenteController.php` completo**
+- [x] **Step 3: Reemplazar `app/Http/Controllers/Sucursal/AsistenteController.php` completo**
 
 ```php
 <?php
@@ -1210,12 +1210,12 @@ class AsistenteController extends Controller
 }
 ```
 
-- [ ] **Step 4: Correr los tests existentes del asistente (regresión pura)**
+- [x] **Step 4: Correr los tests existentes del asistente (regresión pura)**
 
 Run: `vendor/bin/sail artisan test --compact tests/Feature/Ai/AssistantControllerTest.php tests/Feature/Ai/SucursalAsistenteControllerTest.php tests/Feature/Ai/AssistantTranscribeTest.php tests/Feature/Ai/AssistantSpeakTest.php`
 Expected: PASS todos.
 
-- [ ] **Step 5: Formato + commit**
+- [x] **Step 5: Formato + commit**
 
 ```bash
 vendor/bin/sail bin pint --dirty --format agent
@@ -1230,7 +1230,7 @@ git commit -m "refactor(asistente): unificar controllers gemelos en trait Handle
 **Files:**
 - Test: `tests/Feature/Ai/AssistantAppControllerTest.php`
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 ```php
 <?php
@@ -1359,7 +1359,7 @@ class AssistantAppControllerTest extends TestCase
 }
 ```
 
-- [ ] **Step 2: Verificar que falla**
+- [x] **Step 2: Verificar que falla**
 
 Run: `vendor/bin/sail artisan test --compact tests/Feature/Ai/AssistantAppControllerTest.php`
 Expected: FAIL con `Route [asistente.index] not defined`.
@@ -1372,7 +1372,7 @@ Expected: FAIL con `Route [asistente.index] not defined`.
 - Create: `app/Http/Controllers/Asistente/AssistantAppController.php`
 - Modify: `routes/web.php` (import + grupo nuevo antes del grupo agenda, `routes/web.php:545`)
 
-- [ ] **Step 1: Crear el controller**
+- [x] **Step 1: Crear el controller**
 
 Sin `SynthesizesAssistantSpeech`: la mini-app no expone TTS (deshabilitado en UI desde 2026-05-18); si se reactiva, se agrega el trait y la ruta.
 
@@ -1411,7 +1411,7 @@ class AssistantAppController extends Controller
 }
 ```
 
-- [ ] **Step 2: Agregar el import en `routes/web.php`**
+- [x] **Step 2: Agregar el import en `routes/web.php`**
 
 Junto al import existente de la línea 8 (`use App\Http\Controllers\Ai\AssistantDraftController;`), agregar:
 
@@ -1419,7 +1419,7 @@ Junto al import existente de la línea 8 (`use App\Http\Controllers\Ai\Assistant
 use App\Http\Controllers\Asistente\AssistantAppController;
 ```
 
-- [ ] **Step 3: Agregar el grupo de rutas**
+- [x] **Step 3: Agregar el grupo de rutas**
 
 En `routes/web.php`, dentro del grupo `{tenant}`, inmediatamente ANTES del comentario `// Agenda (compartida por los 4 roles bajo /{tenant}/agenda)` (línea 545):
 
@@ -1440,12 +1440,12 @@ En `routes/web.php`, dentro del grupo `{tenant}`, inmediatamente ANTES del comen
             });
 ```
 
-- [ ] **Step 4: Verificar que el test pasa**
+- [x] **Step 4: Verificar que el test pasa**
 
 Run: `vendor/bin/sail artisan test --compact tests/Feature/Ai/AssistantAppControllerTest.php`
 Expected: PASS (6 tests). Nota: `test_admin_empresa_can_view_mini_app` fallará en `assertInertia` con "page not found" solo si Vite valida páginas — la página Vue se crea en la Task 11; `assertInertia` no requiere que el archivo exista, así que debe pasar ya.
 
-- [ ] **Step 5: Formato + commit**
+- [x] **Step 5: Formato + commit**
 
 ```bash
 vendor/bin/sail bin pint --dirty --format agent
@@ -1460,7 +1460,7 @@ git commit -m "feat(asistente): grupo de rutas /{tenant}/asistente para la mini-
 **Files:**
 - Create: `resources/js/Layouts/AssistantAppLayout.vue`
 
-- [ ] **Step 1: Crear el layout**
+- [x] **Step 1: Crear el layout**
 
 Sin sidebar; header compacto con identidad del negocio y botón permanente "Salir" → `route('dashboard')` (redirige por rol). Altura `100dvh` con safe-areas para móvil.
 
@@ -1517,7 +1517,7 @@ const branchName = computed(() => page.props.auth.branch?.name || null);
 </template>
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add resources/js/Layouts/AssistantAppLayout.vue
@@ -1531,7 +1531,7 @@ git commit -m "feat(asistente): layout AssistantAppLayout (pantalla completa, si
 **Files:**
 - Create: `resources/js/Pages/Asistente/App.vue`
 
-- [ ] **Step 1: Crear la página**
+- [x] **Step 1: Crear la página**
 
 Móvil (<lg): chat a pantalla completa, sesiones en bottom-sheet abierto desde el header. Desktop (≥lg): columna de sesiones a la izquierda, chat centrado. La barra de input queda pegada abajo con safe-area.
 
@@ -1624,12 +1624,12 @@ const sessionsOpen = ref(false);
 </template>
 ```
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `vendor/bin/sail npm run build`
 Expected: build exitoso (la página entra al manifest de Vite).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add resources/js/Pages/Asistente/App.vue
@@ -1644,7 +1644,7 @@ git commit -m "feat(asistente): pagina mobile-first de la mini-app (Asistente/Ap
 - Modify: `resources/js/Layouts/EmpresaLayout.vue:22`
 - Modify: `resources/js/Layouts/SucursalLayout.vue:33`
 
-- [ ] **Step 1: En `EmpresaLayout.vue`, reemplazar el item del asistente**
+- [x] **Step 1: En `EmpresaLayout.vue`, reemplazar el item del asistente**
 
 Antes (línea 22):
 ```js
@@ -1656,7 +1656,7 @@ Después (el item nuevo apunta a la mini-app; el clásico queda accesible durant
     { label: 'Asistente clásico', route: 'empresa.asistente', match: 'empresa.asistente', icon: 'asistente' },
 ```
 
-- [ ] **Step 2: En `SucursalLayout.vue`, reemplazar el item del asistente**
+- [x] **Step 2: En `SucursalLayout.vue`, reemplazar el item del asistente**
 
 Antes (línea 33):
 ```js
@@ -1670,7 +1670,7 @@ Después:
 
 Nota: `isActive` concatena `match + '*'` → `'asistente.*'` matchea `asistente.index` sin colisionar con `empresa.asistente*` ni `sucursal.asistente*`.
 
-- [ ] **Step 3: Build + commit**
+- [x] **Step 3: Build + commit**
 
 Run: `vendor/bin/sail npm run build` — Expected: exitoso.
 
@@ -1688,7 +1688,7 @@ git commit -m "feat(asistente): items de sidebar hacia la mini-app (empresa y su
 - Modify: `carniceria-saas/docs/README.md`
 - Modify: `carniceria-saas/docs/superpowers/specs/2026-07-06-asistente-mini-app-design.md` (header `Estado:`)
 
-- [ ] **Step 1: Agregar a `docs/modulos/asistente-ia.md` una sección "Mini-app móvil"**
+- [x] **Step 1: Agregar a `docs/modulos/asistente-ia.md` una sección "Mini-app móvil"**
 
 Contenido mínimo a cubrir (redactar siguiendo el estilo del doc):
 - Ruta `/{tenant}/asistente` (grupo multi-rol `role:admin-empresa|admin-sucursal|superadmin`, nombres `asistente.*`), controller `Asistente\AssistantAppController`, página `Pages/Asistente/App.vue`, layout `AssistantAppLayout` (sin sidebar, botón "Salir al panel" → `route('dashboard')`).
@@ -1696,11 +1696,11 @@ Contenido mínimo a cubrir (redactar siguiendo el estilo del doc):
 - Cajero excluido (D1). TTS sin exponer en la mini-app.
 - Actualizar la sección de rutas del doc con el grupo nuevo.
 
-- [ ] **Step 2: Actualizar `docs/README.md`**
+- [x] **Step 2: Actualizar `docs/README.md`**
 
 En la tabla "Estado del sistema", en la fila del asistente IA, reflejar "mini-app móvil F1 implementada (F2 cobros FIFO pendiente)".
 
-- [ ] **Step 3: Flip del `Estado:` del spec**
+- [x] **Step 3: Flip del `Estado:` del spec**
 
 En `docs/superpowers/specs/2026-07-06-asistente-mini-app-design.md` cambiar:
 ```
@@ -1711,7 +1711,7 @@ por:
 **Estado:** F0 y F1 implementados (fecha real) — ver docs/modulos/asistente-ia.md; F2–F5 pendientes
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/modulos/asistente-ia.md docs/README.md docs/superpowers/specs/2026-07-06-asistente-mini-app-design.md
@@ -1722,7 +1722,7 @@ git commit -m "docs(asistente): documentar mini-app F0+F1 y actualizar estados"
 
 ### Task 14: Verificación final
 
-- [ ] **Step 1: Suite completa del asistente**
+- [x] **Step 1: Suite completa del asistente**
 
 Run: `vendor/bin/sail artisan test --compact tests/Feature/Ai/`
 Expected: PASS todos (incluye los 22 archivos existentes + el nuevo).
@@ -1739,7 +1739,7 @@ Como `admin@eltoro.test` (empresa) y luego `sucursal@eltoro.test` (sucursal), en
 7. En ≥1024px: columna de sesiones visible a la izquierda, sheet desaparece.
 8. El asistente clásico (`/el-toro/empresa/asistente`) se ve y comporta EXACTAMENTE igual que antes del refactor.
 
-- [ ] **Step 3: (Opcional, recomendado) suite completa**
+- [x] **Step 3: (Opcional, recomendado) suite completa**
 
 Run: `vendor/bin/sail composer run test`
 Expected: PASS — confirma que el refactor de controllers/rutas no rompió nada más.
