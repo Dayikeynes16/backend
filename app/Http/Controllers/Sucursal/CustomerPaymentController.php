@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Sucursal;
 
-use App\Enums\SaleStatus;
-use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterCustomerPaymentRequest;
 use App\Models\CashRegisterShift;
@@ -11,6 +9,7 @@ use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\CustomerGlobalPaymentService;
 use App\Services\RecalculateClosedShifts;
 use App\Services\SalePaymentService;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -18,15 +17,19 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerPaymentController extends Controller
 {
-    public function __construct(private SalePaymentService $salePaymentService) {}
+    public function __construct(
+        private SalePaymentService $salePaymentService,
+        private CustomerGlobalPaymentService $globalPayments,
+    ) {}
 
     /**
      * Register a global customer payment distributed FIFO across pending sales.
+     * La distribución vive en CustomerGlobalPaymentService (compartida con el
+     * hub y el asistente IA); aquí solo autorización, turno y formato Inertia.
      */
     public function store(RegisterCustomerPaymentRequest $request, Customer $customer): JsonResponse
     {
@@ -47,112 +50,14 @@ class CustomerPaymentController extends Controller
         }
 
         $validated = $request->validated();
-        $amountReceived = round((float) $validated['amount_received'], 2);
-        $method = $validated['method'];
-        $excludedSaleIds = $validated['excluded_sale_ids'] ?? [];
-        $notes = $validated['notes'] ?? null;
-
-        $result = null;
 
         try {
-            $result = DB::transaction(function () use (
-                $customer, $user, $amountReceived, $method, $excludedSaleIds, $notes
-            ) {
-                DB::statement('SELECT pg_advisory_xact_lock(?)', [$customer->branch_id]);
-
-                $sales = Sale::where('customer_id', $customer->id)
-                    ->where('branch_id', $customer->branch_id)
-                    ->where('status', '!=', SaleStatus::Cancelled->value)
-                    ->accountable()
-                    ->where('amount_pending', '>', 0)
-                    ->when(! empty($excludedSaleIds), fn ($q) => $q->whereNotIn('id', $excludedSaleIds))
-                    ->orderBy('created_at', 'asc')
-                    ->lockForUpdate()
-                    ->get();
-
-                $totalPending = round((float) $sales->sum('amount_pending'), 2);
-
-                if ($totalPending <= 0) {
-                    abort(422, 'No hay ventas con saldo seleccionadas.');
-                }
-
-                if ($method !== 'cash' && $amountReceived > $totalPending) {
-                    abort(422, "Con {$method} no hay cambio — el monto debe ser menor o igual a \${$totalPending}.");
-                }
-
-                $amountToApply = min($amountReceived, $totalPending);
-                $changeGiven = round($amountReceived - $amountToApply, 2);
-
-                // Folio monotónico: withTrashed() garantiza que cancelaciones
-                // futuras (fase 2) no reutilicen números.
-                $count = CustomerPayment::withTrashed()
-                    ->withoutGlobalScopes()
-                    ->where('branch_id', $customer->branch_id)
-                    ->count();
-                $folio = 'CG-'.str_pad($count + 1, 5, '0', STR_PAD_LEFT);
-
-                $customerPayment = CustomerPayment::create([
-                    'tenant_id' => $customer->tenant_id,
-                    'branch_id' => $customer->branch_id,
-                    'customer_id' => $customer->id,
-                    'user_id' => $user->id,
-                    'folio' => $folio,
-                    'method' => $method,
-                    'amount_received' => $amountReceived,
-                    'amount_applied' => $amountToApply,
-                    'change_given' => $changeGiven,
-                    'sales_affected_count' => 0,
-                    'notes' => $notes,
-                ]);
-
-                $remaining = $amountToApply;
-                $applied = [];
-
-                foreach ($sales as $sale) {
-                    if ($remaining <= 0) {
-                        break;
-                    }
-
-                    $currentPending = (float) $sale->fresh()->amount_pending;
-                    if ($currentPending <= 0) {
-                        continue;
-                    }
-
-                    $portion = round(min($remaining, $currentPending), 2);
-                    if ($portion <= 0) {
-                        continue;
-                    }
-
-                    Payment::create([
-                        'sale_id' => $sale->id,
-                        'customer_payment_id' => $customerPayment->id,
-                        'user_id' => $user->id,
-                        'method' => $method,
-                        'amount' => $portion,
-                    ]);
-
-                    $this->salePaymentService->recalculate($sale, $user);
-
-                    $fresh = $sale->fresh();
-                    $applied[] = [
-                        'sale_id' => $sale->id,
-                        'folio' => $sale->folio,
-                        'amount' => $portion,
-                        'completed' => $fresh->status === SaleStatus::Completed,
-                        'new_pending' => (float) $fresh->amount_pending,
-                    ];
-
-                    $remaining = round($remaining - $portion, 2);
-                }
-
-                $customerPayment->update(['sales_affected_count' => count($applied)]);
-
-                return [
-                    'customer_payment' => $customerPayment->fresh(),
-                    'applied' => $applied,
-                    'affected_sale_ids' => collect($applied)->pluck('sale_id')->all(),
-                ];
-            });
+            $result = $this->globalPayments->apply($customer, $user, [
+                'amount_received' => (float) $validated['amount_received'],
+                'method' => $validated['method'],
+                'excluded_sale_ids' => $validated['excluded_sale_ids'] ?? [],
+                'notes' => $validated['notes'] ?? null,
+            ]);
         } catch (HttpResponseException $e) {
             throw $e;
         } catch (HttpException $e) {
@@ -160,19 +65,7 @@ class CustomerPaymentController extends Controller
         }
 
         // Post-commit: broadcast sale updates
-        foreach ($result['affected_sale_ids'] as $saleId) {
-            $sale = Sale::find($saleId);
-            if ($sale) {
-                try {
-                    SaleUpdated::dispatch($sale);
-                } catch (\Throwable $e) {
-                    Log::warning('SaleUpdated broadcast failed', [
-                        'sale_id' => $saleId,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-        }
+        $this->globalPayments->broadcastSaleUpdates($result['affected_sale_ids']);
 
         $cp = $result['customer_payment'];
 
@@ -255,16 +148,8 @@ class CustomerPaymentController extends Controller
             }
 
             $this->recalculateAffectedShifts($sale);
-
-            try {
-                SaleUpdated::dispatch($sale);
-            } catch (\Throwable $e) {
-                Log::warning('SaleUpdated broadcast failed', [
-                    'sale_id' => $sale->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
         }
+        $this->globalPayments->broadcastSaleUpdates($affectedSaleIds);
 
         return response()->json([
             'message' => "Cobro {$customerPayment->folio} cancelado.",
