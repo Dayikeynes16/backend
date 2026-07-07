@@ -9,12 +9,12 @@
 ### Task 1: Auto-sesión en la mini-app (backend, TDD)
 - Test en `tests/Feature/Ai/AssistantAppControllerTest.php`: `test_index_auto_creates_first_session` (usuario sin sesiones → GET asistente.index → 1 sesión creada y activa) y `test_index_does_not_duplicate_sessions` (con sesión existente → sigue habiendo 1).
 - `AssistantAppController`: alias del trait (`index as renderChatIndex`) y override que crea `AiAssistantSession` si el usuario no tiene ninguna.
-- [ ] Test rojo → implementar → verde → pint + commit.
+- [x] Test rojo → implementar → verde → pint + commit.
 
 ### Task 2: `QuickActions.vue` + integración en `MessageThread`
 - `resources/js/Components/Asistente/app/QuickActions.vue`: mapa `kind → [{label, prompt}]` (sales_summary, expense_summary, top_products, customer_debt, accounts_payable, purchase_summary, shift_status); chips táctiles que hacen `chat.inputText = prompt; chat.send()`; deshabilitados mientras `chat.sending`.
 - `MessageThread.vue`: `lastAssistantId` computed; tras las cards del último item assistant, `<QuickActions :kind="primer kind no-draft" :chat="chat" />`.
-- [ ] Implementar + build + commit.
+- [x] Implementar + build + commit.
 
 ### Task 3: `SimpleHome.vue` + integración en `App.vue`
 - `resources/js/Components/Asistente/app/SimpleHome.vue`: 5 acciones grandes —
@@ -24,8 +24,8 @@
   4. "Pagar a proveedor" → mini-diálogo equivalente ("Págale $Y al proveedor X por Z.").
   5. "Hablar con el asistente" → emite `dismiss` (persiste `assistant-simple-home=0`).
 - `Pages/Asistente/App.vue`: `showSimpleHome = pref && !chat.messages.length && !chat.sending`; `<SimpleHome v-if>` en lugar de `MessageThread`; `ChatInputBar` siempre visible; botón "inicio" (casa) en header-actions que re-activa el modo simple (y abre sesión nueva si el hilo tiene mensajes).
-- [ ] Implementar + build + commit.
+- [x] Implementar + build + commit.
 
 ### Task 4: Docs + verificación
 - `docs/modulos/asistente-ia.md` (sección mini-app: modo simple + quick actions + auto-sesión; F4 implementada), `docs/README.md`, spec Estado F4.
-- [ ] Suites Ai + build + suite completa → PASS; commit.
+- [x] Suites Ai + build + suite completa → PASS; commit.

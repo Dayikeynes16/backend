@@ -79,6 +79,6 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 | Compras + Proveedores + CxP (con captura IA) | ✅ Completo (sin inventario activo, por diseño) |
 | Métricas (9 ejes + Resumen con utilidad) | ✅ Completo |
 | Agenda | ✅ Completo |
-| Asistente IA conversacional | ✅ F0–F4 · ✅ mini-app móvil `/{tenant}/asistente` (spec 2026-07-06: F0–F3 — incluye cobro FIFO a clientes y pago a cuenta FIFO a proveedores; pendiente F4 modo simple) · pendiente F5 (config asistida) y F6 parcial (purga >90 días, suite adversarial, observabilidad) · TTS off en UI |
+| Asistente IA conversacional | ✅ F0–F4 · ✅ mini-app móvil `/{tenant}/asistente` completa (spec 2026-07-06: F0–F4 — cobro FIFO a clientes, pago a cuenta FIFO a proveedores, modo simple + quick actions; F5 extensiones con spec aparte) · pendiente F5 (config asistida) y F6 parcial (purga >90 días, suite adversarial, observabilidad) · TTS off en UI |
 | API del Hub (Electron, Sanctum, idempotencia) | ✅ Fase 1 backend · offline con cola en el cliente pendiente (repo `carniceria-hub`) |
 | Inventario / stock | ❌ No iniciado (fase futura F-Inv1+) |

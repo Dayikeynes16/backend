@@ -136,7 +136,9 @@ Experiencia a pantalla completa, mobile-first, para dueños/encargados (spec
 - `Pages/Asistente/App.vue` con layout dedicado `Layouts/AssistantAppLayout.vue`: **sin sidebar administrativo**, header compacto (logo + negocio/sucursal) y botón permanente "Salir al panel" → `route('dashboard')` (redirige según rol). Altura `100dvh` con safe-areas.
 - Móvil (<lg): chat ocupa toda la pantalla; las sesiones viven en un bottom-sheet abierto desde el header. Desktop (≥lg): columna de sesiones a la izquierda, chat centrado.
 - Usa exactamente las mismas piezas que el asistente clásico (decisión D3: mientras convivan, todo cambio aplica a ambas superficies). El clásico sigue disponible como "Asistente clásico" en el sidebar.
-- F2 (cobro FIFO a clientes) y F3 (pago a cuenta FIFO a proveedores) implementadas 2026-07-07. Pendiente (fases del spec): F4 modo simple + quick actions, F5 extensiones.
+- **Modo simple (F4):** con el hilo vacío, la mini-app muestra `SimpleHome` — 5 acciones grandes ("¿Cómo va el negocio?", "Registrar algo", "Cobrar una deuda" y "Pagar a proveedor" con mini-diálogo guiado nombre+monto+método, "Hablar con el asistente") que componen una frase y la envían por el pipeline normal del chat (misma seguridad, mismos borradores). Preferencia en localStorage (`assistant-simple-home`); botón de inicio en el header la restaura. `AssistantAppController@index` auto-crea la primera sesión del usuario para que el primer tap nunca falle.
+- **Quick actions (F4):** chips de acción sugerida (`app/QuickActions.vue`) bajo la última card de resultados — envían prompts predefinidos ("Productos más vendidos", "Cobrar una deuda", "Pagar a un proveedor", …). Aplican también al asistente clásico (D3, `MessageThread` compartido).
+- F2 (cobro FIFO a clientes), F3 (pago a cuenta FIFO a proveedores) y F4 (modo simple + quick actions) implementadas 2026-07-07. Pendiente: F5 extensiones (cajero, retiros, precios — spec aparte, decisión D4).
 
 ## Persistencia
 

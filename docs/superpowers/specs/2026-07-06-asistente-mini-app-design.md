@@ -1,7 +1,7 @@
 # Asistente IA — Mini-app móvil conversacional — Diseño
 
 **Fecha:** 2026-07-06
-**Estado:** F0–F1 (2026-07-06), F2 y F3 (2026-07-07) implementados — ver [doc vivo](../../modulos/asistente-ia.md); F4–F5 pendientes (planes: `../plans/2026-07-06-asistente-mini-app-f0-f1.md`, `../plans/2026-07-06-asistente-cobro-fifo-f2.md`, `../plans/2026-07-07-asistente-pago-proveedor-f3.md`)
+**Estado:** F0–F4 implementados (F0–F1 el 2026-07-06; F2, F3 y F4 el 2026-07-07) — ver [doc vivo](../../modulos/asistente-ia.md). Solo F5 (extensiones: cajero, retiros, precios) pendiente con spec aparte (D4). Planes: `../plans/2026-07-06-asistente-mini-app-f0-f1.md`, `../plans/2026-07-06-asistente-cobro-fifo-f2.md`, `../plans/2026-07-07-asistente-pago-proveedor-f3.md`, `../plans/2026-07-07-asistente-modo-simple-f4.md`
 **Autor:** colaboración con Claude (exploración de código + propuesta)
 
 ## En palabras simples (léelo primero)
