@@ -54,6 +54,33 @@ class AssistantAppControllerTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_index_auto_creates_first_session(): void
+    {
+        $this->actingAs($this->adminEmpresa);
+
+        $response = $this->get(route('asistente.index', $this->tenant->slug));
+
+        $response->assertOk();
+        $this->assertSame(1, AiAssistantSession::count());
+        $session = AiAssistantSession::firstOrFail();
+        $this->assertSame($this->adminEmpresa->id, $session->user_id);
+        $response->assertInertia(fn ($p) => $p->where('activeSessionId', $session->id));
+    }
+
+    public function test_index_does_not_duplicate_sessions(): void
+    {
+        AiAssistantSession::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->adminEmpresa->id,
+            'message_count' => 0,
+        ]);
+
+        $this->actingAs($this->adminEmpresa);
+        $this->get(route('asistente.index', $this->tenant->slug))->assertOk();
+
+        $this->assertSame(1, AiAssistantSession::count());
+    }
+
     public function test_creating_a_session_redirects_to_mini_app(): void
     {
         $this->actingAs($this->adminEmpresa);
