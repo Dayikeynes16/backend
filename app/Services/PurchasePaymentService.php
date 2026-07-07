@@ -153,6 +153,56 @@ final class PurchasePaymentService
     }
 
     /**
+     * Desglose FIFO de un pago "a cuenta" SIN persistir nada: misma query que
+     * applyAccountPayment (sin lock) para mostrar al usuario cómo se repartirá
+     * el monto antes de confirmar (asistente IA). El excedente que quedaría a
+     * favor del proveedor se reporta como `surplus`.
+     *
+     * @return array{purchases: array<int, array<string, mixed>>, total_pending: float, amount_to_apply: float, surplus: float}
+     */
+    public function previewAccountPayment(Provider $provider, float $amount, ?int $branchId = null): array
+    {
+        $amount = round($amount, 2);
+
+        $pending = Purchase::query()
+            ->where('provider_id', $provider->id)
+            ->where('status', '!=', PurchaseStatus::Cancelled)
+            ->where('amount_pending', '>', 0)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->orderBy('purchased_at')
+            ->orderBy('id')
+            ->get();
+
+        $totalPending = round((float) $pending->sum('amount_pending'), 2);
+
+        $remaining = $amount;
+        $rows = [];
+        foreach ($pending as $purchase) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $pendingAmount = round((float) $purchase->amount_pending, 2);
+            $toApply = round(min($remaining, $pendingAmount), 2);
+            $rows[] = [
+                'purchase_id' => $purchase->id,
+                'folio' => $purchase->folio,
+                'date' => $purchase->purchased_at?->toDateString(),
+                'amount_pending' => $pendingAmount,
+                'amount_to_apply' => $toApply,
+                'remaining_after' => round($pendingAmount - $toApply, 2),
+            ];
+            $remaining = round($remaining - $toApply, 2);
+        }
+
+        return [
+            'purchases' => $rows,
+            'total_pending' => $totalPending,
+            'amount_to_apply' => round(min($amount, $totalPending), 2),
+            'surplus' => round(max(0, $amount - $totalPending), 2),
+        ];
+    }
+
+    /**
      * Pago "a cuenta" del proveedor: distribuye el monto en FIFO sobre las
      * compras con saldo pendiente (más antigua primero, por purchased_at).
      * Devuelve la lista de ProviderPayments creados (uno por compra cubierta).

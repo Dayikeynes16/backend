@@ -2,7 +2,9 @@
 
 Propuesta de arquitectura para registrar mercancía/materia prima que ingresa al tenant, quién la vendió, cuánto costó y si ya se pagó. Documenta decisiones tomadas antes de implementar.
 
-> **Estado:** propuesta. No implementado. Auditoría del estado actual hecha 2026-05-19 — el sistema no tiene nada relacionado con proveedores, compras, pagos a proveedores ni inventario (greenfield total).
+> **Estado:** implementado — módulo completo F0–F6 (proveedores, compras, pagos, catálogo de insumos, captura IA, integración con cortes). Este documento es la propuesta de diseño original y se conserva como referencia de decisiones; la documentación viva del módulo está en [`docs/modulos/compras.md`](../modulos/compras.md).
+>
+> Sigue fuera de alcance (por diseño): inventario/stock activo, derivar `Product.cost_price` desde compras, BOM canal→cortes, transferencias entre sucursales. Actualizado 2026-07-06.
 >
 > **Infraestructura existente reutilizable:** `BelongsToTenant` trait, `ExpenseAttachmentService` (patrón adjuntos), `AiExpenseDraftService` (patrón draft + confirm IA), `OpenAiClient` + `AssistantTranscriber` (Whisper + GPT-4o), enum `PaymentMethod`, role gating Empresa/Sucursal, soft-delete con motivo.
 

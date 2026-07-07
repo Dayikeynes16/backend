@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\CustomerGlobalPaymentService;
 use App\Services\RecalculateClosedShifts;
 use App\Services\SalePaymentService;
 use Illuminate\Http\JsonResponse;
@@ -27,7 +28,10 @@ use Illuminate\Validation\Rule;
  */
 class CustomerPaymentController extends Controller
 {
-    public function __construct(private SalePaymentService $salePaymentService) {}
+    public function __construct(
+        private SalePaymentService $salePaymentService,
+        private CustomerGlobalPaymentService $globalPayments,
+    ) {}
 
     /** Ledger del cliente: ventas pendientes + cobros globales recientes + deuda. */
     public function index(Request $request, int $customer): JsonResponse
@@ -95,102 +99,19 @@ class CustomerPaymentController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        $amountReceived = round((float) $validated['amount_received'], 2);
-        $method = $validated['method'];
-        $excluded = $validated['excluded_sale_ids'] ?? [];
-        $notes = $validated['notes'] ?? null;
-
-        $result = DB::transaction(function () use ($found, $user, $amountReceived, $method, $excluded, $notes) {
-            DB::statement('SELECT pg_advisory_xact_lock(?)', [$found->branch_id]);
-
-            $sales = Sale::withoutGlobalScopes()
-                ->where('customer_id', $found->id)
-                ->where('branch_id', $found->branch_id)
-                ->where('status', '!=', SaleStatus::Cancelled->value)
-                ->accountable()
-                ->where('amount_pending', '>', 0)
-                ->when(! empty($excluded), fn ($q) => $q->whereNotIn('id', $excluded))
-                ->orderBy('created_at')
-                ->lockForUpdate()
-                ->get();
-
-            $totalPending = round((float) $sales->sum('amount_pending'), 2);
-            if ($totalPending <= 0) {
-                abort(422, 'No hay ventas con saldo seleccionadas.');
-            }
-            if ($method !== 'cash' && $amountReceived > $totalPending) {
-                abort(422, "Con {$method} no hay cambio — el monto debe ser menor o igual a \${$totalPending}.");
-            }
-
-            $amountToApply = min($amountReceived, $totalPending);
-            $changeGiven = round($amountReceived - $amountToApply, 2);
-
-            $count = CustomerPayment::withTrashed()->withoutGlobalScopes()
-                ->where('branch_id', $found->branch_id)->count();
-            $folio = 'CG-'.str_pad($count + 1, 5, '0', STR_PAD_LEFT);
-
-            $customerPayment = CustomerPayment::create([
-                'tenant_id' => $found->tenant_id,
-                'branch_id' => $found->branch_id,
-                'customer_id' => $found->id,
-                'user_id' => $user->id,
-                'folio' => $folio,
-                'method' => $method,
-                'amount_received' => $amountReceived,
-                'amount_applied' => $amountToApply,
-                'change_given' => $changeGiven,
-                'sales_affected_count' => 0,
-                'notes' => $notes,
-            ]);
-
-            $remaining = $amountToApply;
-            $applied = [];
-            foreach ($sales as $sale) {
-                if ($remaining <= 0) {
-                    break;
-                }
-                $currentPending = (float) $sale->fresh()->amount_pending;
-                if ($currentPending <= 0) {
-                    continue;
-                }
-                $portion = round(min($remaining, $currentPending), 2);
-                if ($portion <= 0) {
-                    continue;
-                }
-
-                Payment::create([
-                    'sale_id' => $sale->id,
-                    'customer_payment_id' => $customerPayment->id,
-                    'user_id' => $user->id,
-                    'method' => $method,
-                    'amount' => $portion,
-                ]);
-
-                $this->salePaymentService->recalculate($sale, $user);
-
-                $fresh = $sale->fresh();
-                $applied[] = [
-                    'sale_id' => $sale->id,
-                    'folio' => $sale->folio,
-                    'amount' => $portion,
-                    'completed' => $fresh->status === SaleStatus::Completed,
-                    'new_pending' => (float) $fresh->amount_pending,
-                ];
-                $remaining = round($remaining - $portion, 2);
-            }
-
-            $customerPayment->update(['sales_affected_count' => count($applied)]);
-
-            return [
-                'payment' => $customerPayment->fresh(),
-                'applied' => $applied,
-                'affected_sale_ids' => collect($applied)->pluck('sale_id')->all(),
-            ];
-        });
+        // La distribución FIFO vive en CustomerGlobalPaymentService (compartida
+        // con la web y el asistente IA). abort(422) del servicio sale como JSON
+        // por el exception handler de la API.
+        $result = $this->globalPayments->apply($found, $user, [
+            'amount_received' => (float) $validated['amount_received'],
+            'method' => $validated['method'],
+            'excluded_sale_ids' => $validated['excluded_sale_ids'] ?? [],
+            'notes' => $validated['notes'] ?? null,
+        ]);
 
         $this->broadcast($result['affected_sale_ids']);
 
-        $cp = $result['payment'];
+        $cp = $result['customer_payment'];
 
         return response()->json([
             'customer_payment' => [

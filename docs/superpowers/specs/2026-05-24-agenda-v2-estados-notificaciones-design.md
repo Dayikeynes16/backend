@@ -1,7 +1,7 @@
 # Agenda v2 — Estados, historial y notificaciones globales — Diseño congelado (MVP)
 
 **Fecha:** 2026-05-24
-**Estado:** Aprobado para implementación
+**Estado:** Implementado (doc vivo: [docs/modulos/agenda.md](../../modulos/agenda.md))
 **Autor:** colaboración con Claude (auditoría + propuesta)
 **Base:** extiende `2026-05-24-agenda-recordatorios-design.md` (Agenda v1 ya implementada).
 

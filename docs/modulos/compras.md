@@ -252,6 +252,7 @@ status = cancelled        → "cancelled"
 | `applyPayment(Purchase, payload)` | `lockForUpdate`, valida que no exceda saldo (422 si excede), crea `ProviderPayment`, recalcula. |
 | `cancelPayment(ProviderPayment, by, reason)` | Idempotente. Marca cancelled_at, recalcula la compra ligada. |
 | `applyAccountPayment(Provider, payload)` | FIFO sobre compras pendientes (más antigua primero). Si sobra dinero después de saldar todas, crea un pago a-favor con `purchase_id=null`. |
+| `previewAccountPayment(Provider, amount, branchId?)` | Desglose FIFO de solo lectura (misma query que `applyAccountPayment`, sin lock ni persistencia) con `surplus`. Lo usa el asistente IA (tool `preparar_pago_proveedor_cuenta`, ver [asistente-ia.md](asistente-ia.md)) para mostrar el reparto antes de confirmar. |
 
 ### Reglas
 

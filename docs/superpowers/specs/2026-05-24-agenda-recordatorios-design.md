@@ -1,7 +1,7 @@
 # Agenda y recordatorios — Diseño congelado (v1)
 
 **Fecha:** 2026-05-24
-**Estado:** Aprobado para implementación
+**Estado:** Implementado (doc vivo: [docs/modulos/agenda.md](../../modulos/agenda.md))
 **Autor:** colaboración con Claude (brainstorming + propuesta)
 
 ## Objetivo

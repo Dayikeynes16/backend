@@ -1,7 +1,7 @@
 # Productos de compra: acceso del admin-sucursal, historial e interfaz renovada
 
 **Fecha:** 2026-06-17
-**Estado:** Aprobado — pendiente de plan de implementación
+**Estado:** Implementado (migraciones, controladores y páginas Vue en el código; actualizado 2026-07-06)
 
 ## Problema
 

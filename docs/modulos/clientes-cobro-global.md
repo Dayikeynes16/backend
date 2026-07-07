@@ -9,6 +9,23 @@ Esto preserva la trazabilidad (en historial aparece un cobro agrupado, no N pago
 
 ## Arquitectura
 
+### Servicio compartido (desde 2026-07-07)
+
+La distribución FIFO vive en **`App\Services\CustomerGlobalPaymentService`**
+(`preview()` de solo lectura + `apply()` transaccional con advisory lock +
+`broadcastSaleUpdates()`), extraída del código que antes estaba duplicado
+inline en los dos controllers. Tres consumidores:
+
+| Consumidor | Turno abierto | Notas |
+|---|---|---|
+| `Sucursal\CustomerPaymentController@store` (web) | 403 si no | check de branch + `RegisterCustomerPaymentRequest` |
+| `Api\Hub\CustomerPaymentController@store` (hub) | 409 si no | validación inline con métodos habilitados de la sucursal |
+| `CustomerGlobalPaymentDraftConfirmer` (asistente IA, tool `preparar_cobro_cliente`) | 403 si no | el cliente debe ser de la sucursal del turno; `apply()` re-calcula al confirmar. Ver [asistente-ia.md](asistente-ia.md) |
+
+El servicio usa `withoutGlobalScopes` + filtros explícitos de tenant/cliente/
+sucursal para comportarse igual con y sin tenant resuelto (hub). `amount_paid`
+de las ventas solo se muta vía `SalePaymentService::recalculate`, como siempre.
+
 ### Schema
 
 ```
