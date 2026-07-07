@@ -13,6 +13,7 @@ enum AssistantDraftType: string
     case Provider = 'provider';
     case Purchase = 'purchase';
     case PayablePayment = 'payable_payment';
+    case CustomerGlobalPayment = 'customer_global_payment';
     case ExpenseCategory = 'expense_category';
     case ExpenseCategoryEdit = 'expense_category_edit';
 
@@ -23,6 +24,7 @@ enum AssistantDraftType: string
             self::Provider => 'Proveedor',
             self::Purchase => 'Compra',
             self::PayablePayment => 'Abono a proveedor',
+            self::CustomerGlobalPayment => 'Cobro a cliente',
             self::ExpenseCategory => 'Categoría de gasto',
             self::ExpenseCategoryEdit => 'Editar categoría de gasto',
         };

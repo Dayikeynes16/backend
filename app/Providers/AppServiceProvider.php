@@ -18,6 +18,7 @@ use App\Services\Ai\Assistant\Tools\AccountsPayableTool;
 use App\Services\Ai\Assistant\Tools\CustomerStatsTool;
 use App\Services\Ai\Assistant\Tools\ExpenseCategoriesTool;
 use App\Services\Ai\Assistant\Tools\ExpenseSummaryTool;
+use App\Services\Ai\Assistant\Tools\PrepareCustomerPaymentDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseCategoryDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseCategoryEditDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseDraftTool;
@@ -55,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(PrepareProviderDraftTool::class),
             $app->make(PreparePurchaseDraftTool::class),
             $app->make(PreparePayablePaymentDraftTool::class),
+            $app->make(PrepareCustomerPaymentDraftTool::class),
             $app->make(PrepareExpenseCategoryDraftTool::class),
             $app->make(PrepareExpenseCategoryEditDraftTool::class),
         ]));
