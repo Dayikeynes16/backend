@@ -70,7 +70,7 @@ Piezas backend en `app/Services/Ai/`:
 | `consultar_cuentas_por_pagar` | `AccountsPayableTool` | Saldo a proveedores + top adeudos |
 | `consultar_categorias_gasto` | `ExpenseCategoriesTool` | Catálogo de categorías/subcategorías con conteos |
 
-### Escritura (6) — solo preparan borrador, nunca persisten el registro final
+### Escritura (7) — solo preparan borrador, nunca persisten el registro final
 
 | Función | Clase | Borrador de | Notas |
 |---|---|---|---|
@@ -78,6 +78,7 @@ Piezas backend en `app/Services/Ai/`:
 | `preparar_borrador_proveedor` | `PrepareProviderDraftTool` | Proveedor | Detecta duplicados (nombre/RFC) y los muestra antes de confirmar |
 | `preparar_borrador_compra` | `PreparePurchaseDraftTool` | Compra | Texto multi-línea o foto de factura; empareja proveedor por nombre, no inventa |
 | `preparar_borrador_abono` | `PreparePayablePaymentDraftTool` | Pago a compra | Resuelve por folio o proveedor; avisa si excede el saldo |
+| `preparar_cobro_cliente` | `PrepareCustomerPaymentDraftTool` | Cobro global a cliente (FIFO) | Resuelve cliente por nombre (candidatos explícitos si es ambiguo); el desglose FIFO lo calcula `CustomerGlobalPaymentService::preview()`. **Confirmar exige turno abierto** y que el cliente sea de la sucursal del turno (D2); `apply()` re-calcula la distribución al confirmar |
 | `preparar_borrador_categoria_gasto` | `PrepareExpenseCategoryDraftTool` | Categoría/subcategoría | Avisa colisiones de nombre |
 | `editar_categoria_gasto` | `PrepareExpenseCategoryEditDraftTool` | Edición de categoría | Renombrar, descripción, activar/inactivar |
 
@@ -91,7 +92,7 @@ Cada tool declara `jsonSchema()` con `additionalProperties: false`. `ToolResult`
    - anti-IDOR (`user_id` + `tenant_id`),
    - `DraftConfirmerRegistry` despacha al confirmador del tipo, que `authorize()` (gates de sucursal como `branch_admin_expense_categories_enabled`) y **re-valida todo el payload editado** server-side,
    - `DB::transaction` + `lockForUpdate` + filtro `status=ready && expires_at>now` → consumo **single-use e idempotente** (anti doble-clic),
-   - el confirmador delega en los Writers de dominio (`ExpenseWriter`, `ProviderWriter`, `PurchaseWriter`, `PurchasePaymentService`, `ExpenseCategoryWriter`) y audita.
+   - el confirmador delega en los Writers de dominio (`ExpenseWriter`, `ProviderWriter`, `PurchaseWriter`, `PurchasePaymentService`, `CustomerGlobalPaymentService`, `ExpenseCategoryWriter`) y audita.
 4. Cancelar marca `cancelled` y purga archivos. TTL: 6 horas; `php artisan ai:expire-drafts` (programado cada hora) expira y limpia.
 
 ## Voz
@@ -134,7 +135,7 @@ Experiencia a pantalla completa, mobile-first, para dueños/encargados (spec
 - `Pages/Asistente/App.vue` con layout dedicado `Layouts/AssistantAppLayout.vue`: **sin sidebar administrativo**, header compacto (logo + negocio/sucursal) y botón permanente "Salir al panel" → `route('dashboard')` (redirige según rol). Altura `100dvh` con safe-areas.
 - Móvil (<lg): chat ocupa toda la pantalla; las sesiones viven en un bottom-sheet abierto desde el header. Desktop (≥lg): columna de sesiones a la izquierda, chat centrado.
 - Usa exactamente las mismas piezas que el asistente clásico (decisión D3: mientras convivan, todo cambio aplica a ambas superficies). El clásico sigue disponible como "Asistente clásico" en el sidebar.
-- Pendiente (fases del spec): F2 cobro FIFO a clientes, F3 pago a cuenta FIFO a proveedores, F4 modo simple + quick actions.
+- F2 (cobro FIFO a clientes desde el chat) implementada 2026-07-07. Pendiente (fases del spec): F3 pago a cuenta FIFO a proveedores, F4 modo simple + quick actions.
 
 ## Persistencia
 

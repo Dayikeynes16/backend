@@ -1,7 +1,7 @@
 # Asistente IA — Mini-app móvil conversacional — Diseño
 
 **Fecha:** 2026-07-06
-**Estado:** F0 y F1 implementados (2026-07-06) — ver [doc vivo](../../modulos/asistente-ia.md); F2–F5 pendientes (plan F0+F1: `../plans/2026-07-06-asistente-mini-app-f0-f1.md`)
+**Estado:** F0, F1 (2026-07-06) y F2 (2026-07-07) implementados — ver [doc vivo](../../modulos/asistente-ia.md); F3–F5 pendientes (planes: `../plans/2026-07-06-asistente-mini-app-f0-f1.md`, `../plans/2026-07-06-asistente-cobro-fifo-f2.md`)
 **Autor:** colaboración con Claude (exploración de código + propuesta)
 
 ## En palabras simples (léelo primero)
@@ -265,9 +265,14 @@ p. ej. "Ver por sucursal", "Productos más vendidos").
 4. **Confirmer** `CustomerGlobalPaymentDraftConfirmer`: re-valida rol/branch/
    turno abierto, **re-calcula la distribución al confirmar** (la deuda pudo
    cambiar) y ejecuta `CustomerGlobalPaymentService::apply()` en
-   `DB::transaction` con el advisory lock existente. Si la distribución cambió
-   de forma material respecto al preview → 409 con el desglose nuevo para
-   re-confirmar. Draft single-use (mecanismo existente) cubre el doble-submit.
+   `DB::transaction` con el advisory lock existente. Draft single-use
+   (mecanismo existente) cubre el doble-submit.
+   *(Nota de implementación 2026-07-07: se descartó el 409 por "distribución
+   materialmente distinta" que proponía este punto — creaba un callejón sin
+   salida en la card porque el snapshot no se actualiza. En su lugar, `apply()`
+   es autoritativo: el sobrepago con método ≠ efectivo se rechaza 422 con la
+   card aún editable, y en efectivo el excedente es cambio, como en una caja
+   real; el mensaje de confirmación devuelve los montos reales aplicados.)*
 5. Post-commit: mismos eventos `SaleUpdated` que el flujo actual.
 
 Prerequisito: extraer `CustomerGlobalPaymentService` de los dos controllers

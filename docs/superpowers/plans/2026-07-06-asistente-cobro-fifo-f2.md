@@ -26,18 +26,18 @@ Métodos del servicio (final class, constructor con `SalePaymentService`):
 - `broadcastSaleUpdates(array $saleIds): void` — `SaleUpdated::dispatch` con try/catch+log por venta.
 - privado `pendingSales(Customer, array $excluded)` — `Sale::withoutGlobalScopes()` + `tenant_id/customer_id/branch_id` explícitos + `accountable()` + `amount_pending>0` + orden `created_at asc`.
 
-- [ ] Step 1: crear el servicio (código completo arriba descrito, extraído verbatim de `Sucursal/CustomerPaymentController.php:58-155`).
-- [ ] Step 2: `Sucursal\CustomerPaymentController@store` conserva check de branch (403), turno abierto (403) y `RegisterCustomerPaymentRequest`; delega en `apply()` dentro del mismo try/catch `HttpException→json`; broadcast post-commit vía servicio; respuesta 201 idéntica.
-- [ ] Step 3: `Api\Hub\CustomerPaymentController@store` conserva validación inline y turno (409); delega en `apply()`; broadcast con su helper; respuesta idéntica.
-- [ ] Step 4: `sail artisan test --compact tests/Feature/Api/Hub/CustomerPaymentApiTest.php` → 7 PASS (regresión pura).
-- [ ] Step 5: pint + commit `refactor(clientes): extraer CustomerGlobalPaymentService del FIFO duplicado web/hub`.
+- [x] Step 1: crear el servicio (código completo arriba descrito, extraído verbatim de `Sucursal/CustomerPaymentController.php:58-155`).
+- [x] Step 2: `Sucursal\CustomerPaymentController@store` conserva check de branch (403), turno abierto (403) y `RegisterCustomerPaymentRequest`; delega en `apply()` dentro del mismo try/catch `HttpException→json`; broadcast post-commit vía servicio; respuesta 201 idéntica.
+- [x] Step 3: `Api\Hub\CustomerPaymentController@store` conserva validación inline y turno (409); delega en `apply()`; broadcast con su helper; respuesta idéntica.
+- [x] Step 4: `sail artisan test --compact tests/Feature/Api/Hub/CustomerPaymentApiTest.php` → 7 PASS (regresión pura).
+- [x] Step 5: pint + commit `refactor(clientes): extraer CustomerGlobalPaymentService del FIFO duplicado web/hub`.
 
 ### Task 2: Test del servicio (preview + equivalencia)
 
 **Files:** Create `tests/Feature/Services/CustomerGlobalPaymentServiceTest.php`
 
-- [ ] Tests: `preview_distributes_fifo_oldest_first` (2 ventas, monto parcial → primera saldada, segunda parcial), `preview_returns_change_only_for_cash`, `apply_matches_preview_distribution` (mismos montos por venta), `apply_rejects_non_cash_overpayment` (422), `apply_aborts_without_pending_sales` (422). Usa `SeedsMetricsData` + `makeCompletedSale(['amount_paid'=>0,'amount_pending'=>X])` con `created_at` escalonados.
-- [ ] Correr → PASS; commit `test(clientes): cobertura de CustomerGlobalPaymentService`.
+- [x] Tests: `preview_distributes_fifo_oldest_first` (2 ventas, monto parcial → primera saldada, segunda parcial), `preview_returns_change_only_for_cash`, `apply_matches_preview_distribution` (mismos montos por venta), `apply_rejects_non_cash_overpayment` (422), `apply_aborts_without_pending_sales` (422). Usa `SeedsMetricsData` + `makeCompletedSale(['amount_paid'=>0,'amount_pending'=>X])` con `created_at` escalonados.
+- [x] Correr → PASS; commit `test(clientes): cobertura de CustomerGlobalPaymentService`.
 
 ### Task 3: Enum + tool `preparar_cobro_cliente`
 
@@ -49,7 +49,7 @@ Métodos del servicio (final class, constructor con `SalePaymentService`):
 
 Tool: schema `{customer_name, amount, payment_method(cash|card|transfer), notes}` (todos nullable, required-all, `additionalProperties:false`); `validate()` resuelve cliente por nombre (exacto → ILIKE parcial; 1 match = resuelto, >1 = candidatos con deuda c/u); `prepareDraft()` crea draft, calcula `distribution` vía `preview()` cuando hay cliente+monto+método, arma warnings (sin deuda / cambio en efectivo / sobrepago no-cash) y card con `options.customers` (clientes con deuda del scope, para el select) y `options.payment_methods`. Branch forzado para admin-sucursal en la búsqueda.
 
-- [ ] Tests primero (tool resuelve cliente exacto, candidatos ambiguos, missing fields, admin-sucursal no ve clientes de otra sucursal, distribution presente) → FAIL → implementar → PASS → commit.
+- [x] Tests primero (tool resuelve cliente exacto, candidatos ambiguos, missing fields, admin-sucursal no ve clientes de otra sucursal, distribution presente) → FAIL → implementar → PASS → commit.
 
 ### Task 4: Confirmer + registro
 
@@ -60,7 +60,7 @@ Tool: schema `{customer_name, amount, payment_method(cash|card|transfer), notes}
 
 Confirmer: `rules()` = customer_id exists (tenant + branch para admin-sucursal), amount_received gt:0, method in cash/card/transfer, notes max 500. `confirm()`: turno abierto del usuario (403 si no — D2), cliente en la sucursal del turno (403), método habilitado en la sucursal (`ValidationException`), `apply()` re-calcula autoritativo (HttpException 422 del servicio → `ValidationException` en `amount_received`), `markConsumed`, broadcast con `DB::afterCommit` (estamos dentro de la transacción del draft controller), mensaje con montos reales (aplicado, ventas, cambio).
 
-- [ ] Tests primero: happy path FIFO (2 ventas → Payments hijos correctos + CustomerPayment + draft consumed), sin turno 403, cliente de otra sucursal que el turno 403, sobrepago transfer 422 (draft sigue Ready), doble confirmación 409, método no habilitado en branch 422 → FAIL → implementar → PASS → pint + commit.
+- [x] Tests primero: happy path FIFO (2 ventas → Payments hijos correctos + CustomerPayment + draft consumed), sin turno 403, cliente de otra sucursal que el turno 403, sobrepago transfer 422 (draft sigue Ready), doble confirmación 409, método no habilitado en branch 422 → FAIL → implementar → PASS → pint + commit.
 
 ### Task 5: Frontend
 
@@ -69,9 +69,9 @@ Confirmer: `rules()` = customer_id exists (tenant + branch para admin-sucursal),
 - Modify: `resources/js/Components/Asistente/AssistantDraftCard.vue` (buildForm + meta + bodyComponent + canConfirm para `customer_global_payment`; pasar `:preview` al body; mostrar `data.message` del confirm como texto de éxito)
 - Modify: `resources/js/composables/useAssistantChat.js` (`preparar_cobro_cliente → 'assistant_draft'` en guessKindFromToolName)
 
-- [ ] Implementar, `sail npm run build`, commit.
+- [x] Implementar, `sail npm run build`, commit.
 
 ### Task 6: Docs + verificación final
 
-- [ ] `docs/modulos/asistente-ia.md`: tool nueva en la tabla de write tools, draft type, invariante D2; `docs/modulos/clientes-cobro-global.md`: sección del servicio compartido y el nuevo consumidor asistente; `docs/README.md` estado; spec §8 anotar la desviación (re-cálculo autoritativo en vez de 409) y estado F2 implementado.
-- [ ] `sail artisan test --compact tests/Feature/Ai/ tests/Feature/Api/Hub/CustomerPaymentApiTest.php tests/Feature/Services/` → PASS; suite completa → PASS; commit docs.
+- [x] `docs/modulos/asistente-ia.md`: tool nueva en la tabla de write tools, draft type, invariante D2; `docs/modulos/clientes-cobro-global.md`: sección del servicio compartido y el nuevo consumidor asistente; `docs/README.md` estado; spec §8 anotar la desviación (re-cálculo autoritativo en vez de 409) y estado F2 implementado.
+- [x] `sail artisan test --compact tests/Feature/Ai/ tests/Feature/Api/Hub/CustomerPaymentApiTest.php tests/Feature/Services/` → PASS; suite completa → PASS; commit docs.
