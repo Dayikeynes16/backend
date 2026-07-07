@@ -1,10 +1,23 @@
 <script setup>
-import { nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import ToolResultCard from './ToolResultCard.vue';
+import QuickActions from '../app/QuickActions.vue';
 
 const props = defineProps({
     chat: { type: Object, required: true }, // instancia de useAssistantChat
 });
+
+// Quick actions solo bajo la ÚLTIMA respuesta del asistente (no en el historial).
+const lastAssistantId = computed(() => {
+    const items = props.chat.renderItems;
+    for (let i = items.length - 1; i >= 0; i--) {
+        if (items[i].kind === 'assistant') return items[i].id;
+    }
+    return null;
+});
+
+const quickKindFor = (item) =>
+    item.cards?.find((c) => c.kind !== 'assistant_draft' && c.kind !== 'unknown')?.kind || null;
 
 const threadRef = ref(null);
 
@@ -108,6 +121,11 @@ const onThreadScroll = () => {
                     </button>
                 </div>
                 <ToolResultCard v-for="c in item.cards" :key="c.id" :card="c" :routes="chat.routes" />
+                <QuickActions
+                    v-if="item.id === lastAssistantId && quickKindFor(item)"
+                    :kind="quickKindFor(item)"
+                    :chat="chat"
+                />
             </div>
 
             <div v-else-if="item.kind === 'orphan_cards'" class="space-y-3">
