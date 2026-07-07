@@ -11,6 +11,7 @@ use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseCategoryDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseCategoryEditDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\PayablePaymentDraftConfirmer;
+use App\Services\Ai\Assistant\Drafts\Confirmers\ProviderAccountPaymentDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ProviderDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\PurchaseDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\DraftConfirmerRegistry;
@@ -24,6 +25,7 @@ use App\Services\Ai\Assistant\Tools\PrepareExpenseCategoryDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseCategoryEditDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseDraftTool;
 use App\Services\Ai\Assistant\Tools\PreparePayablePaymentDraftTool;
+use App\Services\Ai\Assistant\Tools\PrepareProviderAccountPaymentDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareProviderDraftTool;
 use App\Services\Ai\Assistant\Tools\PreparePurchaseDraftTool;
 use App\Services\Ai\Assistant\Tools\ProductDetailsTool;
@@ -58,6 +60,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(PreparePurchaseDraftTool::class),
             $app->make(PreparePayablePaymentDraftTool::class),
             $app->make(PrepareCustomerPaymentDraftTool::class),
+            $app->make(PrepareProviderAccountPaymentDraftTool::class),
             $app->make(PrepareExpenseCategoryDraftTool::class),
             $app->make(PrepareExpenseCategoryEditDraftTool::class),
         ]));
@@ -69,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(PurchaseDraftConfirmer::class),
             $app->make(PayablePaymentDraftConfirmer::class),
             $app->make(CustomerGlobalPaymentDraftConfirmer::class),
+            $app->make(ProviderAccountPaymentDraftConfirmer::class),
             $app->make(ExpenseCategoryDraftConfirmer::class),
             $app->make(ExpenseCategoryEditDraftConfirmer::class),
         ]));
