@@ -70,7 +70,7 @@ Piezas backend en `app/Services/Ai/`:
 | `consultar_cuentas_por_pagar` | `AccountsPayableTool` | Saldo a proveedores + top adeudos |
 | `consultar_categorias_gasto` | `ExpenseCategoriesTool` | Catálogo de categorías/subcategorías con conteos |
 
-### Escritura (7) — solo preparan borrador, nunca persisten el registro final
+### Escritura (8) — solo preparan borrador, nunca persisten el registro final
 
 | Función | Clase | Borrador de | Notas |
 |---|---|---|---|
@@ -79,6 +79,7 @@ Piezas backend en `app/Services/Ai/`:
 | `preparar_borrador_compra` | `PreparePurchaseDraftTool` | Compra | Texto multi-línea o foto de factura; empareja proveedor por nombre, no inventa |
 | `preparar_borrador_abono` | `PreparePayablePaymentDraftTool` | Pago a compra | Resuelve por folio o proveedor; avisa si excede el saldo |
 | `preparar_cobro_cliente` | `PrepareCustomerPaymentDraftTool` | Cobro global a cliente (FIFO) | Resuelve cliente por nombre (candidatos explícitos si es ambiguo); el desglose FIFO lo calcula `CustomerGlobalPaymentService::preview()`. **Confirmar exige turno abierto** y que el cliente sea de la sucursal del turno (D2); `apply()` re-calcula la distribución al confirmar |
+| `preparar_pago_proveedor_cuenta` | `PrepareProviderAccountPaymentDraftTool` | Pago a cuenta a proveedor (FIFO) | Sin folio de compra ("págale 5000 a X"); desglose vía `PurchasePaymentService::previewAccountPayment()` con excedente a favor. Sin turno requerido (como el flujo web); branch forzado para admin-sucursal. Si hay folio concreto, la IA usa `preparar_borrador_abono` |
 | `preparar_borrador_categoria_gasto` | `PrepareExpenseCategoryDraftTool` | Categoría/subcategoría | Avisa colisiones de nombre |
 | `editar_categoria_gasto` | `PrepareExpenseCategoryEditDraftTool` | Edición de categoría | Renombrar, descripción, activar/inactivar |
 
@@ -135,7 +136,7 @@ Experiencia a pantalla completa, mobile-first, para dueños/encargados (spec
 - `Pages/Asistente/App.vue` con layout dedicado `Layouts/AssistantAppLayout.vue`: **sin sidebar administrativo**, header compacto (logo + negocio/sucursal) y botón permanente "Salir al panel" → `route('dashboard')` (redirige según rol). Altura `100dvh` con safe-areas.
 - Móvil (<lg): chat ocupa toda la pantalla; las sesiones viven en un bottom-sheet abierto desde el header. Desktop (≥lg): columna de sesiones a la izquierda, chat centrado.
 - Usa exactamente las mismas piezas que el asistente clásico (decisión D3: mientras convivan, todo cambio aplica a ambas superficies). El clásico sigue disponible como "Asistente clásico" en el sidebar.
-- F2 (cobro FIFO a clientes desde el chat) implementada 2026-07-07. Pendiente (fases del spec): F3 pago a cuenta FIFO a proveedores, F4 modo simple + quick actions.
+- F2 (cobro FIFO a clientes) y F3 (pago a cuenta FIFO a proveedores) implementadas 2026-07-07. Pendiente (fases del spec): F4 modo simple + quick actions, F5 extensiones.
 
 ## Persistencia
 
