@@ -5,15 +5,15 @@ const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractio
 </script>
 
 <template>
-    <div class="overflow-hidden rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-5 shadow-sm">
-        <div class="mb-3 flex items-center gap-2">
-            <span class="rounded-full bg-red-200/60 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-red-900">Gastos</span>
+    <div class="rounded-xl border border-gray-200/80 bg-white px-4 py-3">
+        <div class="mb-2.5 flex items-center gap-2">
+            <span class="rounded-md bg-red-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-red-900">Gastos</span>
             <span class="text-xs text-gray-500">{{ data.date_from }} → {{ data.date_to }}</span>
-            <span v-if="data.branch_name" class="ml-auto rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700 shadow-sm">{{ data.branch_name }}</span>
+            <span v-if="data.branch_name" class="ml-auto rounded-full border border-gray-100 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ data.branch_name }}</span>
             <span v-else class="ml-auto text-xs italic text-gray-500">todas las sucursales</span>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 gap-3">
             <div>
                 <div class="text-xs font-medium uppercase text-gray-500">Total</div>
                 <div class="text-2xl font-bold text-gray-900">{{ fmt(data.total) }}</div>
@@ -30,8 +30,8 @@ const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractio
             </div>
         </div>
 
-        <div v-if="data.by_payment_method?.length" class="mt-3 flex flex-wrap gap-2 border-t border-red-100 pt-3">
-            <span v-for="m in data.by_payment_method" :key="m.method" class="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm">
+        <div v-if="data.by_payment_method?.length" class="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-2.5">
+            <span v-for="m in data.by_payment_method" :key="m.method" class="rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600">
                 {{ m.method }}: {{ fmt(m.total) }}
             </span>
         </div>

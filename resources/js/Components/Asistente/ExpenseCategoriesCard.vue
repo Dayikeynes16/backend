@@ -6,7 +6,7 @@ defineProps({
 </script>
 
 <template>
-    <div class="rounded-xl border border-gray-200 bg-white p-4 text-sm shadow-sm">
+    <div class="rounded-xl border border-gray-200/80 bg-white px-4 py-3 text-sm">
         <div class="mb-3 flex items-center justify-between">
             <div class="font-semibold text-gray-800">Categorías de gasto</div>
             <div class="text-xs text-gray-500">

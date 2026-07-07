@@ -5,22 +5,22 @@ const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractio
 </script>
 
 <template>
-    <div class="overflow-hidden rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
-        <div class="mb-3 flex items-center gap-2">
-            <span class="rounded-full bg-rose-200/60 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-rose-900">Cuentas por pagar</span>
-            <span v-if="data.branch_name" class="ml-auto rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700 shadow-sm">{{ data.branch_name }}</span>
+    <div class="rounded-xl border border-gray-200/80 bg-white px-4 py-3">
+        <div class="mb-2.5 flex items-center gap-2">
+            <span class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-rose-900">Cuentas por pagar</span>
+            <span v-if="data.branch_name" class="ml-auto rounded-full border border-gray-100 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ data.branch_name }}</span>
             <span v-else class="ml-auto text-xs italic text-gray-500">todas las sucursales</span>
         </div>
 
         <div class="mb-3">
             <div class="text-xs font-medium uppercase text-gray-500">Total adeudado</div>
-            <div class="text-3xl font-bold" :class="data.total_debt > 0 ? 'text-rose-700' : 'text-gray-400'">
+            <div class="text-2xl font-bold" :class="data.total_debt > 0 ? 'text-rose-700' : 'text-gray-400'">
                 {{ data.total_debt > 0 ? fmt(data.total_debt) : '$0.00' }}
             </div>
             <div class="text-xs text-gray-500">{{ data.purchase_count }} compras pendientes</div>
         </div>
 
-        <div v-if="data.top_providers?.length" class="border-t border-rose-100 pt-3">
+        <div v-if="data.top_providers?.length" class="border-t border-gray-100 pt-2.5">
             <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Proveedores con saldo</h4>
             <ul class="space-y-1">
                 <li v-for="(p, i) in data.top_providers" :key="i" class="flex items-center justify-between text-sm">

@@ -5,12 +5,12 @@ const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractio
 </script>
 
 <template>
-    <div class="overflow-hidden rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
-        <div class="mb-3 flex items-center gap-2">
-            <span class="rounded-full bg-amber-200/60 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-amber-900">
+    <div class="rounded-xl border border-gray-200/80 bg-white px-4 py-3">
+        <div class="mb-2.5 flex items-center gap-2">
+            <span class="rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-900">
                 {{ data.metric === 'outstanding_debt' ? 'Saldo por cobrar' : 'Top clientes' }}
             </span>
-            <span v-if="data.branch_name" class="ml-auto rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700 shadow-sm">{{ data.branch_name }}</span>
+            <span v-if="data.branch_name" class="ml-auto rounded-full border border-gray-100 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ data.branch_name }}</span>
         </div>
 
         <div v-if="data.metric === 'outstanding_debt'">

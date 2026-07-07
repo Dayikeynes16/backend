@@ -244,7 +244,7 @@ async function cancelDraft() {
 </script>
 
 <template>
-    <div class="rounded-xl border border-orange-200 bg-orange-50/40 p-4 text-sm shadow-sm">
+    <div class="rounded-xl border border-orange-200/70 bg-white p-4 text-sm">
         <div class="mb-3 flex items-center justify-between">
             <div class="flex items-center gap-2 font-semibold text-orange-900">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
