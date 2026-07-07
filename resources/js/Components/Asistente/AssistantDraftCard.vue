@@ -7,6 +7,7 @@ import ProviderDraftCardBody from './ProviderDraftCardBody.vue';
 import PurchaseDraftCardBody from './PurchaseDraftCardBody.vue';
 import PayablePaymentDraftCardBody from './PayablePaymentDraftCardBody.vue';
 import CustomerPaymentDraftCardBody from './CustomerPaymentDraftCardBody.vue';
+import ProviderAccountPaymentDraftCardBody from './ProviderAccountPaymentDraftCardBody.vue';
 import ExpenseCategoryDraftCardBody from './ExpenseCategoryDraftCardBody.vue';
 import ExpenseCategoryEditDraftCardBody from './ExpenseCategoryEditDraftCardBody.vue';
 
@@ -82,6 +83,17 @@ function buildForm() {
         };
     }
 
+    if (draftType.value === 'provider_account_payment') {
+        return {
+            provider_id: preview.provider_id ?? null,
+            amount: preview.amount ?? null,
+            payment_method: preview.payment_method ?? null,
+            reference: preview.reference ?? '',
+            notes: preview.notes ?? '',
+            paid_at: preview.paid_at ?? '',
+        };
+    }
+
     if (draftType.value === 'expense_category') {
         return {
             tipo: preview.tipo ?? 'categoria',
@@ -134,6 +146,7 @@ const meta = computed(() => ({
     purchase: { title: 'Borrador de compra', done: 'Compra registrada correctamente.', confirm: 'Registrar compra' },
     payable_payment: { title: 'Borrador de abono', done: 'Abono registrado correctamente.', confirm: 'Registrar abono' },
     customer_global_payment: { title: 'Borrador de cobro a cliente', done: 'Cobro registrado correctamente.', confirm: 'Registrar cobro' },
+    provider_account_payment: { title: 'Borrador de pago a proveedor', done: 'Pago registrado correctamente.', confirm: 'Registrar pago' },
     expense_category: { title: 'Borrador de categoría', done: 'Categoría creada correctamente.', confirm: 'Crear categoría' },
     expense_category_edit: { title: 'Editar categoría', done: 'Cambios guardados correctamente.', confirm: 'Guardar cambios' },
     expense: { title: 'Borrador de gasto', done: 'Gasto registrado correctamente.', confirm: 'Confirmar gasto' },
@@ -144,6 +157,7 @@ const bodyComponent = computed(() => ({
     purchase: PurchaseDraftCardBody,
     payable_payment: PayablePaymentDraftCardBody,
     customer_global_payment: CustomerPaymentDraftCardBody,
+    provider_account_payment: ProviderAccountPaymentDraftCardBody,
     expense_category: ExpenseCategoryDraftCardBody,
     expense_category_edit: ExpenseCategoryEditDraftCardBody,
 })[draftType.value] || ExpenseDraftCardBody);
@@ -165,6 +179,9 @@ const canConfirm = computed(() => {
     }
     if (draftType.value === 'customer_global_payment') {
         return !!form.customer_id && Number(form.amount_received) > 0 && !!form.method;
+    }
+    if (draftType.value === 'provider_account_payment') {
+        return !!form.provider_id && Number(form.amount) > 0 && !!form.payment_method;
     }
     if (draftType.value === 'expense_category') {
         return !!form.nombre && !!form.tipo && (form.tipo === 'categoria' || !!form.existing_category_id);
