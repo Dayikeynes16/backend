@@ -141,16 +141,18 @@ Route::prefix('v1/hub')
     });
 
 // Public endpoints for online ordering SPA. No auth. Rate-limited.
-Route::prefix('public/{tenantSlug}')
-    ->where(['tenantSlug' => '[a-z0-9-]+'])
-    ->middleware(['resolve.public.tenant', 'throttle:60,1'])
-    ->group(function () {
-        Route::get('/', [PublicTenantController::class, 'show'])->name('api.public.tenant.show');
-        Route::get('branches/{branch}/menu', [PublicMenuController::class, 'show'])->name('api.public.menu');
-        Route::post('branches/{branch}/delivery/quote', [PublicDeliveryController::class, 'quote'])
-            ->middleware('throttle:20,1')
-            ->name('api.public.delivery.quote');
-        Route::post('branches/{branch}/orders', [PublicOrderController::class, 'store'])
-            ->middleware('throttle:10,1')
-            ->name('api.public.orders.store');
-    });
+if (config('features.web_orders')) {
+    Route::prefix('public/{tenantSlug}')
+        ->where(['tenantSlug' => '[a-z0-9-]+'])
+        ->middleware(['resolve.public.tenant', 'throttle:60,1'])
+        ->group(function () {
+            Route::get('/', [PublicTenantController::class, 'show'])->name('api.public.tenant.show');
+            Route::get('branches/{branch}/menu', [PublicMenuController::class, 'show'])->name('api.public.menu');
+            Route::post('branches/{branch}/delivery/quote', [PublicDeliveryController::class, 'quote'])
+                ->middleware('throttle:20,1')
+                ->name('api.public.delivery.quote');
+            Route::post('branches/{branch}/orders', [PublicOrderController::class, 'store'])
+                ->middleware('throttle:10,1')
+                ->name('api.public.orders.store');
+        });
+}

@@ -96,10 +96,12 @@ Route::get('/', function () {
 });
 
 // Public SPA for online ordering. Reserved '/menu' prefix — no collision with tenant routes.
-Route::get('/menu/{tenantSlug}/{any?}', fn () => view('public-spa'))
-    ->where('tenantSlug', '[a-z0-9-]+')
-    ->where('any', '.*')
-    ->name('public.menu');
+if (config('features.web_orders')) {
+    Route::get('/menu/{tenantSlug}/{any?}', fn () => view('public-spa'))
+        ->where('tenantSlug', '[a-z0-9-]+')
+        ->where('any', '.*')
+        ->name('public.menu');
+}
 
 Route::get('/dashboard', function () {
     $user = Auth::user();
