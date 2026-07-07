@@ -28,16 +28,60 @@ export function useAssistantChat(props, routes) {
     // Adjunto de recibo (imagen) para preparar un gasto desde el chat.
     const pendingImage = ref(null);
 
-    function selectImage(file) {
+    const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+    const IMAGE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+    async function selectImage(file) {
         if (!file) return;
         if (!file.type.startsWith('image/')) {
             errorBanner.value = 'Solo se permiten imágenes (jpg, png, webp).';
-        } else if (file.size > 5 * 1024 * 1024) {
+            return;
+        }
+
+        // Fotos de cámara de teléfono: suelen exceder 5 MB o venir en formatos
+        // que el backend no acepta (HEIC). Se re-escalan a JPEG en el cliente.
+        if (file.size > IMAGE_MAX_BYTES || ! IMAGE_ALLOWED_TYPES.includes(file.type)) {
+            try {
+                file = await downscaleImage(file);
+            } catch {
+                // Si no se pudo convertir, seguimos con el archivo original y
+                // dejamos que las validaciones de abajo decidan.
+            }
+        }
+
+        if (file.size > IMAGE_MAX_BYTES) {
             errorBanner.value = 'La imagen no puede superar 5 MB.';
+        } else if (! IMAGE_ALLOWED_TYPES.includes(file.type)) {
+            errorBanner.value = 'Formato de imagen no soportado (usa jpg, png o webp).';
         } else {
             errorBanner.value = null;
             pendingImage.value = file;
         }
+    }
+
+    function downscaleImage(file, maxDim = 2000, quality = 0.85) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => {
+                const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(img.width * scale));
+                canvas.height = Math.max(1, Math.round(img.height * scale));
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(url);
+                canvas.toBlob((blob) => {
+                    if (!blob) return reject(new Error('compress failed'));
+                    const name = (file.name || 'foto').replace(/\.\w+$/, '') + '.jpg';
+                    resolve(new File([blob], name, { type: 'image/jpeg' }));
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(url);
+                reject(new Error('load failed'));
+            };
+            img.src = url;
+        });
     }
 
     function clearImage() {
