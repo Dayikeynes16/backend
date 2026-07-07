@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\User;
 use App\Observers\BranchObserver;
 use App\Policies\UserPolicy;
+use App\Services\Ai\Assistant\Drafts\Confirmers\CustomerGlobalPaymentDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseCategoryDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseCategoryEditDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseDraftConfirmer;
@@ -67,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(ProviderDraftConfirmer::class),
             $app->make(PurchaseDraftConfirmer::class),
             $app->make(PayablePaymentDraftConfirmer::class),
+            $app->make(CustomerGlobalPaymentDraftConfirmer::class),
             $app->make(ExpenseCategoryDraftConfirmer::class),
             $app->make(ExpenseCategoryEditDraftConfirmer::class),
         ]));
