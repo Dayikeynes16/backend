@@ -1,12 +1,45 @@
 <script setup>
 import { ref, watch } from 'vue';
+import CameraCaptureModal from '@/Components/CameraCaptureModal.vue';
+import { isMobileDevice } from '@/utils/device';
 
 const props = defineProps({
     chat: { type: Object, required: true }, // instancia de useAssistantChat
 });
 
 const inputRef = ref(null);
-const imageInputRef = ref(null);
+const imageInputRef = ref(null);   // galería / archivos
+const cameraInputRef = ref(null);  // cámara nativa (móvil, capture=environment)
+
+// Menú del clip: Tomar foto / Subir imagen. En móvil "tomar foto" usa el input
+// nativo con capture; en desktop abre CameraCaptureModal (getUserMedia), el
+// mismo patrón de los modales de captura IA de Gastos/Compras.
+const attachMenuOpen = ref(false);
+const cameraModalOpen = ref(false);
+
+function takePhoto() {
+    attachMenuOpen.value = false;
+    if (isMobileDevice()) {
+        cameraInputRef.value?.click();
+    } else {
+        cameraModalOpen.value = true;
+    }
+}
+
+function pickImage() {
+    attachMenuOpen.value = false;
+    imageInputRef.value?.click();
+}
+
+function onImageSelected(e) {
+    props.chat.selectImage(e.target?.files?.[0]);
+    if (e.target) e.target.value = '';
+}
+
+function onCameraCapture(file) {
+    cameraModalOpen.value = false;
+    props.chat.selectImage(file);
+}
 
 // Compositor compacto: arranca en una línea y crece hasta ~5; después scroll interno.
 const MIN_INPUT_HEIGHT = 44;
@@ -22,11 +55,6 @@ const resizeInput = () => {
 };
 
 watch(() => props.chat.inputText, resizeInput);
-
-function onImageSelected(e) {
-    props.chat.selectImage(e.target?.files?.[0]);
-    if (imageInputRef.value) imageInputRef.value.value = '';
-}
 </script>
 
 <template>
@@ -62,18 +90,44 @@ function onImageSelected(e) {
                 class="flex items-end gap-1.5 rounded-3xl border border-gray-200 bg-white p-1.5 transition-colors duration-150 focus-within:border-orange-300"
             >
                 <input ref="imageInputRef" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onImageSelected" />
+                <input ref="cameraInputRef" type="file" accept="image/*" capture="environment" class="hidden" @change="onImageSelected" />
 
-                <!-- Adjuntar recibo -->
-                <button
-                    type="button"
-                    @click="imageInputRef?.click()"
-                    :disabled="!chat.activeSessionId || chat.sending || chat.isRecording || chat.transcribing"
-                    title="Adjuntar recibo"
-                    aria-label="Adjuntar recibo"
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors duration-150 hover:bg-orange-50 hover:text-orange-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg>
-                </button>
+                <!-- Adjuntar: menú Tomar foto / Subir imagen -->
+                <div class="relative">
+                    <button
+                        type="button"
+                        @click="attachMenuOpen = !attachMenuOpen"
+                        :disabled="!chat.activeSessionId || chat.sending || chat.isRecording || chat.transcribing"
+                        title="Adjuntar foto de recibo o factura"
+                        aria-label="Adjuntar foto de recibo o factura"
+                        :aria-expanded="attachMenuOpen"
+                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors duration-150 hover:bg-orange-50 hover:text-orange-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        :class="attachMenuOpen ? 'bg-orange-50 text-orange-700' : ''"
+                    >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg>
+                    </button>
+
+                    <!-- Cerrar al tocar fuera -->
+                    <div v-if="attachMenuOpen" class="fixed inset-0 z-30" @click="attachMenuOpen = false" aria-hidden="true"></div>
+
+                    <Transition
+                        enter-active-class="transition duration-150 ease-out"
+                        leave-active-class="transition duration-100 ease-in"
+                        enter-from-class="translate-y-1 opacity-0"
+                        leave-to-class="translate-y-1 opacity-0"
+                    >
+                        <div v-if="attachMenuOpen" class="absolute bottom-11 left-0 z-40 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                            <button type="button" @click="takePhoto" class="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-gray-700 transition-colors duration-150 hover:bg-orange-50 hover:text-orange-900">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" /></svg>
+                                Tomar foto
+                            </button>
+                            <button type="button" @click="pickImage" class="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-gray-700 transition-colors duration-150 hover:bg-orange-50 hover:text-orange-900">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
+                                Subir imagen
+                            </button>
+                        </div>
+                    </Transition>
+                </div>
 
                 <textarea
                     ref="inputRef"
@@ -119,5 +173,8 @@ function onImageSelected(e) {
                 </button>
             </form>
         </div>
+
+        <!-- Webcam para desktop (mismo modal que la captura IA de Gastos/Compras) -->
+        <CameraCaptureModal v-model:open="cameraModalOpen" @capture="onCameraCapture" />
     </div>
 </template>
