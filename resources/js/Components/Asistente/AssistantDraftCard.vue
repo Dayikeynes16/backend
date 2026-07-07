@@ -6,6 +6,7 @@ import ExpenseDraftCardBody from './ExpenseDraftCardBody.vue';
 import ProviderDraftCardBody from './ProviderDraftCardBody.vue';
 import PurchaseDraftCardBody from './PurchaseDraftCardBody.vue';
 import PayablePaymentDraftCardBody from './PayablePaymentDraftCardBody.vue';
+import CustomerPaymentDraftCardBody from './CustomerPaymentDraftCardBody.vue';
 import ExpenseCategoryDraftCardBody from './ExpenseCategoryDraftCardBody.vue';
 import ExpenseCategoryEditDraftCardBody from './ExpenseCategoryEditDraftCardBody.vue';
 
@@ -72,6 +73,15 @@ function buildForm() {
         };
     }
 
+    if (draftType.value === 'customer_global_payment') {
+        return {
+            customer_id: preview.customer_id ?? null,
+            amount_received: preview.amount_received ?? null,
+            method: preview.method ?? null,
+            notes: preview.notes ?? '',
+        };
+    }
+
     if (draftType.value === 'expense_category') {
         return {
             tipo: preview.tipo ?? 'categoria',
@@ -115,11 +125,15 @@ const processing = ref(false);
 const errorMsg = ref(null);
 const fieldErrors = ref({});
 const resultId = ref(props.data.result_id ?? null);
+// Mensaje real del backend al confirmar (p.ej. montos aplicados y cambio);
+// si no viene, se usa el texto genérico del tipo.
+const confirmedMessage = ref(null);
 
 const meta = computed(() => ({
     provider: { title: 'Borrador de proveedor', done: 'Proveedor creado correctamente.', confirm: 'Crear proveedor' },
     purchase: { title: 'Borrador de compra', done: 'Compra registrada correctamente.', confirm: 'Registrar compra' },
     payable_payment: { title: 'Borrador de abono', done: 'Abono registrado correctamente.', confirm: 'Registrar abono' },
+    customer_global_payment: { title: 'Borrador de cobro a cliente', done: 'Cobro registrado correctamente.', confirm: 'Registrar cobro' },
     expense_category: { title: 'Borrador de categoría', done: 'Categoría creada correctamente.', confirm: 'Crear categoría' },
     expense_category_edit: { title: 'Editar categoría', done: 'Cambios guardados correctamente.', confirm: 'Guardar cambios' },
     expense: { title: 'Borrador de gasto', done: 'Gasto registrado correctamente.', confirm: 'Confirmar gasto' },
@@ -129,6 +143,7 @@ const bodyComponent = computed(() => ({
     provider: ProviderDraftCardBody,
     purchase: PurchaseDraftCardBody,
     payable_payment: PayablePaymentDraftCardBody,
+    customer_global_payment: CustomerPaymentDraftCardBody,
     expense_category: ExpenseCategoryDraftCardBody,
     expense_category_edit: ExpenseCategoryEditDraftCardBody,
 })[draftType.value] || ExpenseDraftCardBody);
@@ -147,6 +162,9 @@ const canConfirm = computed(() => {
     }
     if (draftType.value === 'payable_payment') {
         return !!form.purchase_id && Number(form.amount) > 0 && !!form.payment_method;
+    }
+    if (draftType.value === 'customer_global_payment') {
+        return !!form.customer_id && Number(form.amount_received) > 0 && !!form.method;
     }
     if (draftType.value === 'expense_category') {
         return !!form.nombre && !!form.tipo && (form.tipo === 'categoria' || !!form.existing_category_id);
@@ -175,6 +193,7 @@ async function confirm() {
         const { data } = await axios.post(url, { ...form });
         status.value = 'confirmed';
         resultId.value = data.result_id ?? null;
+        confirmedMessage.value = data.message ?? null;
     } catch (err) {
         const s = err.response?.status;
         if (s === 422) {
@@ -232,7 +251,7 @@ async function cancelDraft() {
         <!-- Confirmado -->
         <div v-if="status === 'confirmed'" class="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800">
             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M20.7 6.3a1 1 0 0 1 0 1.4l-10 10a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4l3.3 3.29 9.3-9.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd" /></svg>
-            {{ meta.done }}
+            {{ confirmedMessage || meta.done }}
         </div>
 
         <!-- Cancelado / no disponible -->
@@ -242,7 +261,7 @@ async function cancelDraft() {
 
         <!-- Editable + confirmación -->
         <template v-else>
-            <component :is="bodyComponent" :form="form" :options="options" :errors="fieldErrors" :disabled="processing" />
+            <component :is="bodyComponent" :form="form" :options="options" :errors="fieldErrors" :disabled="processing" :preview="preview" />
 
             <!-- Posibles duplicados (proveedor) -->
             <div v-if="data.duplicates && data.duplicates.length" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
