@@ -238,7 +238,10 @@ export function useAssistantChat(props, routes) {
     // con contenido — así una card sólo aparece una vez, junto a la respuesta que
     // la usó, y nunca se repinta en turnos posteriores.
     const renderItems = computed(() => {
-        const sorted = [...messages.value].sort((a, b) => a.id - b.id);
+        // Los ids negativos son mensajes optimistas en vuelo: van AL FINAL del
+        // hilo (con a.id - b.id crudo se iban al principio).
+        const sortKey = (m) => (m.id < 0 ? Number.MAX_SAFE_INTEGER : m.id);
+        const sorted = [...messages.value].sort((a, b) => sortKey(a) - sortKey(b));
         const items = [];
         let pendingCards = [];
 

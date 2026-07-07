@@ -10,12 +10,12 @@ const margin = (price, cost) => {
 </script>
 
 <template>
-    <div class="overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
-        <div class="mb-3 flex items-center gap-2">
-            <span class="rounded-full bg-indigo-200/60 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-indigo-900">Productos</span>
+    <div class="rounded-xl border border-gray-200/80 bg-white px-4 py-3">
+        <div class="mb-2.5 flex items-center gap-2">
+            <span class="rounded-md bg-indigo-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-indigo-900">Productos</span>
             <span v-if="data.name_query" class="text-xs text-gray-600">buscando "{{ data.name_query }}"</span>
             <span v-if="data.category_name" class="text-xs text-gray-600">en categoría "{{ data.category_name }}"</span>
-            <span v-if="data.branch_name" class="ml-auto rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700 shadow-sm">{{ data.branch_name }}</span>
+            <span v-if="data.branch_name" class="ml-auto rounded-full border border-gray-100 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ data.branch_name }}</span>
             <span v-else class="ml-auto text-xs italic text-gray-500">todas las sucursales</span>
         </div>
 
@@ -44,7 +44,7 @@ const margin = (price, cost) => {
                     <div class="text-sm font-semibold text-gray-900">{{ data.products[0].sale_mode || data.products[0].unit_type }}</div>
                 </div>
             </div>
-            <div v-if="data.products[0].presentations?.length" class="border-t border-indigo-100 pt-3">
+            <div v-if="data.products[0].presentations?.length" class="border-t border-gray-100 pt-2.5">
                 <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Presentaciones</div>
                 <ul class="space-y-1">
                     <li v-for="(p, i) in data.products[0].presentations" :key="i" class="flex items-center justify-between text-sm">

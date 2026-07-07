@@ -26,7 +26,16 @@ const routes = {
 };
 
 const chat = useAssistantChat(props, routes);
-const sessionsOpen = ref(false);
+const sessionsOpen = ref(false); // drawer móvil
+
+// Sidebar de escritorio colapsable (preferencia persistida).
+const SIDEBAR_PREF_KEY = 'assistant-sidebar-open';
+const sidebarOpen = ref((localStorage.getItem(SIDEBAR_PREF_KEY) ?? '1') === '1');
+
+function toggleSidebar() {
+    sidebarOpen.value = !sidebarOpen.value;
+    localStorage.setItem(SIDEBAR_PREF_KEY, sidebarOpen.value ? '1' : '0');
+}
 
 // Modo simple (F4): pantalla de acciones grandes cuando el hilo está vacío.
 // Preferencia persistida; "Hablar con el asistente" la apaga y el botón de
@@ -54,10 +63,21 @@ function goHome() {
     <AssistantAppLayout>
         <template #header-actions>
             <button
+                @click="toggleSidebar"
+                class="hidden h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-700 lg:flex"
+                :title="sidebarOpen ? 'Ocultar conversaciones' : 'Mostrar conversaciones'"
+                :aria-label="sidebarOpen ? 'Ocultar conversaciones' : 'Mostrar conversaciones'"
+            >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25h16.5m-16.5 6.75h16.5m-16.5 6.75h16.5" />
+                </svg>
+            </button>
+            <button
                 v-if="!showSimpleHome"
                 @click="goHome"
-                class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+                class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-700"
                 title="Inicio"
+                aria-label="Inicio del asistente"
             >
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
@@ -65,8 +85,9 @@ function goHome() {
             </button>
             <button
                 @click="sessionsOpen = true"
-                class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 lg:hidden"
+                class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
                 title="Conversaciones"
+                aria-label="Conversaciones anteriores"
             >
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -74,14 +95,19 @@ function goHome() {
             </button>
         </template>
 
-        <div class="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col lg:max-w-6xl lg:flex-row lg:gap-6 lg:p-6">
-            <!-- Columna de sesiones (solo desktop) -->
-            <aside class="hidden lg:block lg:w-[260px] lg:shrink-0 lg:overflow-y-auto">
-                <SessionsPanel :chat="chat" />
+        <div class="flex min-h-0 w-full flex-1">
+            <!-- Sidebar de conversaciones (desktop, colapsable) -->
+            <aside
+                class="hidden shrink-0 overflow-hidden border-r border-gray-100 bg-white transition-[width] duration-200 ease-out lg:block"
+                :class="sidebarOpen ? 'lg:w-[264px]' : 'lg:w-0 lg:border-r-0'"
+            >
+                <div class="h-full w-[264px] overflow-y-auto p-3">
+                    <SessionsPanel :chat="chat" />
+                </div>
             </aside>
 
-            <!-- Chat -->
-            <section class="flex min-h-0 flex-1 flex-col bg-white lg:rounded-2xl lg:border lg:border-gray-200 lg:shadow-sm">
+            <!-- Chat: protagonista, centrado con ancho de lectura -->
+            <section class="flex min-h-0 flex-1 flex-col bg-white">
                 <SimpleHome v-if="showSimpleHome" :chat="chat" @dismiss="dismissSimpleHome" />
                 <MessageThread v-else :chat="chat" />
                 <div style="padding-bottom: env(safe-area-inset-bottom);">

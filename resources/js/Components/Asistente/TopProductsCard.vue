@@ -6,11 +6,11 @@ const fmtQty = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDi
 </script>
 
 <template>
-    <div class="overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
-        <div class="mb-3 flex items-center gap-2">
-            <span class="rounded-full bg-emerald-200/60 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-900">Top productos</span>
+    <div class="rounded-xl border border-gray-200/80 bg-white px-4 py-3">
+        <div class="mb-2.5 flex items-center gap-2">
+            <span class="rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-900">Top productos</span>
             <span class="text-xs text-gray-500">{{ data.date_from }} → {{ data.date_to }}</span>
-            <span v-if="data.branch_name" class="ml-auto rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700 shadow-sm">{{ data.branch_name }}</span>
+            <span v-if="data.branch_name" class="ml-auto rounded-full border border-gray-100 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ data.branch_name }}</span>
             <span v-else class="ml-auto text-xs italic text-gray-500">todas las sucursales</span>
         </div>
 

@@ -60,7 +60,7 @@ Piezas backend en `app/Services/Ai/`:
 
 | Función | Clase | Consulta |
 |---|---|---|
-| `consultar_ventas` | `SalesSummaryTool` | Ventas netas/brutas, tickets, promedio, canceladas, delta vs periodo previo (reutiliza `SalesMetrics`) |
+| `consultar_ventas` | `SalesSummaryTool` | Ventas netas/brutas, tickets, promedio, canceladas, delta vs periodo previo (reutiliza `SalesMetrics`) + cobranza del periodo con abonos a ventas de días anteriores (misma semántica que el dashboard) |
 | `consultar_gastos` | `ExpenseSummaryTool` | Total, conteo, top subcategorías, por método; filtra por categoría/subcategoría |
 | `consultar_productos_top` | `TopProductsTool` | Más vendidos por ingreso |
 | `consultar_turnos` | `ShiftStatusTool` | Turnos abiertos + cortes recientes |
