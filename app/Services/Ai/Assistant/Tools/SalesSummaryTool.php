@@ -8,6 +8,7 @@ use App\Services\Ai\Assistant\ToolResult;
 use App\Services\Metrics\DateRange;
 use App\Services\Metrics\SalesMetrics;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Resume las ventas de un periodo. Reutiliza SalesMetrics para que las cifras
@@ -90,6 +91,27 @@ class SalesSummaryTool extends AbstractAssistantTool
         $prevNet = (float) ($previous['net_sales'] ?? 0);
         $deltaPct = $prevNet > 0 ? round((($net - $prevNet) / $prevNet) * 100, 1) : null;
 
+        // Cobranza del periodo (pagos RECIBIDOS en el rango), misma semántica
+        // que el dashboard (DailySummaryService::collections): un pago cuya
+        // venta se CREÓ un día anterior al del pago es un abono a una venta de
+        // días anteriores. Sin este dato el modelo inventaba la respuesta.
+        $collections = DB::table('payments as p')
+            ->join('sales as s', 's.id', '=', 'p.sale_id')
+            ->where('s.tenant_id', $tenant->id)
+            ->when($params['branch_id'], fn ($q) => $q->where('s.branch_id', $params['branch_id']))
+            ->whereNull('p.deleted_at')
+            ->whereNull('s.deleted_at')
+            ->whereBetween('p.created_at', [$range->start, $range->end])
+            ->selectRaw('
+                COALESCE(SUM(p.amount), 0) as total,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) >= DATE(p.created_at) THEN p.amount END), 0) as from_same_day,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) <  DATE(p.created_at) THEN p.amount END), 0) as from_previous
+            ')
+            ->first();
+
+        $collectedTotal = round((float) ($collections->total ?? 0), 2);
+        $collectedFromPrevious = round((float) ($collections->from_previous ?? 0), 2);
+
         $data = [
             'date_from' => $params['date_from'],
             'date_to' => $params['date_to'],
@@ -102,18 +124,27 @@ class SalesSummaryTool extends AbstractAssistantTool
             'cancelled_count' => (int) ($current['cancelled_count'] ?? 0),
             'previous_net_sales' => $prevNet,
             'delta_pct' => $deltaPct,
+            'collected_total' => $collectedTotal,
+            'collected_from_same_day' => round((float) ($collections->from_same_day ?? 0), 2),
+            'collected_from_previous_days' => $collectedFromPrevious,
         ];
 
         $branchLabel = $params['branch_name'] ?? 'todas las sucursales';
         $periodLabel = $this->periodLabel($params['scope'], $params['date_from'], $params['date_to']);
 
         $summaryText = sprintf(
-            'Ventas netas %s para %s: $%s en %d tickets (ticket promedio $%s).',
+            'Ventas netas %s para %s: $%s en %d tickets (ticket promedio $%s). '
+            .'Cobranza del periodo (pagos recibidos): $%s, de los cuales $%s son abonos a ventas creadas en días anteriores. '
+            .'NOTA de semántica: las ventas netas se miden por fecha de cierre de la venta — una venta a crédito de días '
+            .'anteriores que se terminó de cobrar en este periodo SÍ cuenta en las ventas netas del periodo. Si el usuario '
+            .'pregunta por el desglose ventas-de-hoy vs abonos, usa estas cifras de cobranza; no afirmes nada que no esté aquí.',
             $periodLabel,
             $branchLabel,
             number_format($net, 2),
             $data['ticket_count'],
             number_format($data['avg_ticket'], 2),
+            number_format($collectedTotal, 2),
+            number_format($collectedFromPrevious, 2),
         );
 
         return new ToolResult('sales_summary', $data, $summaryText, $params);
