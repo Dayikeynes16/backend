@@ -18,8 +18,13 @@ class WebOrdersFeatureFlagDisabledTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        putenv('FEATURE_WEB_ORDERS');
-        unset($_ENV['FEATURE_WEB_ORDERS'], $_SERVER['FEATURE_WEB_ORDERS']);
+        // putenv() persiste en el proceso de PHPUnit: hay que RESTAURAR el
+        // valor de phpunit.xml (true), no des-definir la variable — si queda
+        // sin definir, las suites que corren después ven el flag apagado y
+        // fallan (p. ej. WebOrdersFeatureFlagEnabledTest).
+        putenv('FEATURE_WEB_ORDERS=true');
+        $_ENV['FEATURE_WEB_ORDERS'] = 'true';
+        $_SERVER['FEATURE_WEB_ORDERS'] = 'true';
     }
 
     public function test_public_menu_spa_returns_404(): void
