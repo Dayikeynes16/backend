@@ -110,6 +110,28 @@ class PrepareCustomerPaymentDraftToolTest extends TestCase
         $this->assertEqualsWithDelta(500.0, $distribution['sales'][1]['amount_to_apply'], 0.001);
     }
 
+    public function test_resolves_customer_with_accents_and_extra_words(): void
+    {
+        // Caso real de producción: el usuario dictó "rincón del taco" y el
+        // cliente guardado se llama "Rincon" (sin acento, nombre más corto).
+        $rincon = $this->makeCustomer('Rincon');
+        $this->pendingSale($rincon, 2731, '2026-06-01 10:00:00');
+
+        $params = $this->tool()->validate($this->adminSucursal, $this->baseParams(['customer_name' => 'rincón del taco']));
+
+        $this->assertSame($rincon->id, $params['customer_id']);
+    }
+
+    public function test_fuzzy_prefers_strong_match_over_weak_token_hit(): void
+    {
+        $rincon = $this->makeCustomer('Rincon');
+        $this->makeCustomer('Tacos El Güero'); // comparte el token "taco(s)"
+
+        $params = $this->tool()->validate($this->adminSucursal, $this->baseParams(['customer_name' => 'rincón del taco']));
+
+        $this->assertSame($rincon->id, $params['customer_id']);
+    }
+
     public function test_ambiguous_name_leaves_customer_unresolved_with_candidates(): void
     {
         $a = $this->makeCustomer('Juan Pérez');

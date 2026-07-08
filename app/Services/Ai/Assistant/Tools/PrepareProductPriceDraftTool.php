@@ -147,33 +147,18 @@ class PrepareProductPriceDraftTool extends AbstractPrepareDraftTool
             return ['product_id' => null, 'product' => null, 'candidates' => []];
         }
 
-        $exact = $this->productBase($user)
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
-            ->get();
+        $pool = $this->productBase($user)->orderBy('name')->limit(500)->get();
 
-        if ($exact->count() === 1) {
-            $p = $exact->first();
+        $result = $this->fuzzyMatchByName($pool, $name, fn (Product $p) => $p->name);
 
-            return ['product_id' => $p->id, 'product' => $this->productInfo($p), 'candidates' => []];
-        }
-
-        $matches = $exact->count() > 1
-            ? $exact
-            : $this->productBase($user)
-                ->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($name).'%'])
-                ->limit(8)
-                ->get();
-
-        if ($matches->count() === 1) {
-            $p = $matches->first();
-
-            return ['product_id' => $p->id, 'product' => $this->productInfo($p), 'candidates' => []];
+        if ($result['match']) {
+            return ['product_id' => $result['match']->id, 'product' => $this->productInfo($result['match']), 'candidates' => []];
         }
 
         return [
             'product_id' => null,
             'product' => null,
-            'candidates' => $matches->map(fn (Product $p) => $this->productInfo($p))->all(),
+            'candidates' => array_map(fn (Product $p) => $this->productInfo($p), $result['candidates']),
         ];
     }
 
