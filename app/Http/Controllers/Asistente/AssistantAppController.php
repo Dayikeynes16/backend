@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Asistente;
 
 use App\Http\Controllers\Concerns\HandlesAssistantChat;
+use App\Http\Controllers\Concerns\SynthesizesAssistantSpeech;
 use App\Http\Controllers\Concerns\TranscribesAssistantAudio;
 use App\Http\Controllers\Controller;
 use App\Models\AiAssistantSession;
@@ -22,6 +23,7 @@ class AssistantAppController extends Controller
     use HandlesAssistantChat {
         HandlesAssistantChat::index as private renderChatIndex;
     }
+    use SynthesizesAssistantSpeech;
     use TranscribesAssistantAudio;
 
     public function __construct(private readonly AssistantOrchestrator $orchestrator) {}

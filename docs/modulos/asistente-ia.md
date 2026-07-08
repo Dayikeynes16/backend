@@ -50,7 +50,7 @@ Piezas backend en `app/Services/Ai/`:
 | Orquestador | `Assistant/AssistantOrchestrator.php` | Loop de function calling, contexto, costos, persistencia |
 | Registro de tools | `Assistant/ToolRegistry.php` (singleton en `AppServiceProvider`) | Expone al modelo solo las tools del rol |
 | Cliente OpenAI | `OpenAiClient.php` | `chatWithTools()`, `transcribeAudio()` (HTTP propio, sin SDK) |
-| Cliente TTS | `ElevenLabsClient.php` + `Assistant/AssistantSpeechSynthesizer.php` | Voz de salida (deshabilitada en UI) |
+| Cliente TTS | `OpenAiClient::synthesizeSpeech()` + `Assistant/AssistantSpeechSynthesizer.php` | Voz de salida con OpenAI (`gpt-4o-mini-tts`, voz `nova`), ACTIVA en la UI desde 2026-07-07; `ElevenLabsClient` queda en el repo sin uso |
 | Transcripción | `Assistant/AssistantTranscriber.php` | Whisper `whisper-1`, español |
 | Borradores | `Assistant/Drafts/` (AssistantDraftService, DraftConfirmerRegistry, Confirmers) | Ciclo pending → ready → consumed/cancelled/expired |
 

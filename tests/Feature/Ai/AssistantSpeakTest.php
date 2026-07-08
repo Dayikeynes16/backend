@@ -19,8 +19,7 @@ class AssistantSpeakTest extends TestCase
         parent::setUp();
         $this->seedTenant();
         app()->instance('tenant', $this->tenant);
-        config()->set('ai.elevenlabs.api_key', 'sk_test');
-        config()->set('ai.elevenlabs.voice_id', 'voice_abc');
+        config()->set('ai.openai.api_key', 'sk-test');
         RateLimiter::clear('ai-assistant-speak:user:'.$this->adminEmpresa->id);
         RateLimiter::clear('ai-assistant-speak:user:'.$this->adminSucursal->id);
         RateLimiter::clear('ai-assistant-speak:user:'.$this->cajero->id);
@@ -29,7 +28,7 @@ class AssistantSpeakTest extends TestCase
     public function test_admin_empresa_can_synthesize_own_assistant_message(): void
     {
         Http::fake([
-            '*/text-to-speech/*' => Http::response('FAKE_MP3_BYTES', 200, ['Content-Type' => 'audio/mpeg']),
+            '*/audio/speech' => Http::response('FAKE_MP3_BYTES', 200, ['Content-Type' => 'audio/mpeg']),
         ]);
 
         $session = $this->makeSession($this->adminEmpresa->id);
@@ -46,13 +45,13 @@ class AssistantSpeakTest extends TestCase
         $this->assertSame('audio/mpeg', $response->headers->get('Content-Type'));
         $this->assertSame('FAKE_MP3_BYTES', $response->streamedContent());
 
-        Http::assertSent(fn ($req) => str_contains($req->url(), '/text-to-speech/voice_abc'));
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/audio/speech'));
     }
 
     public function test_admin_sucursal_can_synthesize_own_assistant_message(): void
     {
         Http::fake([
-            '*/text-to-speech/*' => Http::response('SUCURSAL_MP3', 200),
+            '*/audio/speech' => Http::response('SUCURSAL_MP3', 200),
         ]);
 
         $session = $this->makeSession($this->adminSucursal->id);
@@ -67,6 +66,26 @@ class AssistantSpeakTest extends TestCase
 
         $response->assertOk();
         $this->assertSame('SUCURSAL_MP3', $response->streamedContent());
+    }
+
+    public function test_mini_app_route_synthesizes_speech(): void
+    {
+        Http::fake([
+            '*/audio/speech' => Http::response('MINIAPP_MP3', 200),
+        ]);
+
+        $session = $this->makeSession($this->adminEmpresa->id);
+        $message = $this->makeAssistantMessage($session, 'Hoy vendiste $500.');
+
+        $this->actingAs($this->adminEmpresa);
+        $response = $this->post(route('asistente.mensajes.voz', [
+            'tenant' => $this->tenant->slug,
+            'session' => $session->id,
+            'message' => $message->id,
+        ]));
+
+        $response->assertOk();
+        $this->assertSame('MINIAPP_MP3', $response->streamedContent());
     }
 
     public function test_user_cannot_speak_message_from_another_users_session(): void
@@ -131,7 +150,7 @@ class AssistantSpeakTest extends TestCase
     public function test_speak_returns_502_when_elevenlabs_fails(): void
     {
         Http::fake([
-            '*/text-to-speech/*' => Http::response(['detail' => 'voice_not_found'], 404),
+            '*/audio/speech' => Http::response(['detail' => 'voice_not_found'], 404),
         ]);
 
         $session = $this->makeSession($this->adminEmpresa->id);
@@ -151,7 +170,7 @@ class AssistantSpeakTest extends TestCase
     {
         config()->set('ai.assistant.rate_limit_per_user_per_hour', 2);
         Http::fake([
-            '*/text-to-speech/*' => Http::response('ok', 200),
+            '*/audio/speech' => Http::response('ok', 200),
         ]);
 
         $session = $this->makeSession($this->adminEmpresa->id);

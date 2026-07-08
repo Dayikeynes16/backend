@@ -63,6 +63,12 @@ return [
         'max_images' => 5,
 
         // Máximo del texto libre que aporta el usuario.
+        // TTS de las respuestas (OpenAI). Voz activa en la UI desde 2026-07-07.
+        'tts_model' => env('AI_ASSISTANT_TTS_MODEL', 'gpt-4o-mini-tts'),
+        'tts_voice' => env('AI_ASSISTANT_TTS_VOICE', 'nova'),
+        'tts_instructions' => env('AI_ASSISTANT_TTS_INSTRUCTIONS', 'Habla en español mexicano, con tono cálido, natural y breve, como un asistente del negocio.'),
+        'tts_max_chars' => 1200,
+
         'max_input_text_length' => 2000,
 
         // Temperature: baja para forzar respuestas más deterministas.
@@ -92,6 +98,12 @@ return [
         'model' => env('AI_ASSISTANT_MODEL', 'gpt-4o-mini'),
         'model_vision' => env('AI_ASSISTANT_MODEL_VISION', 'gpt-4o'),
         'temperature' => (float) env('AI_ASSISTANT_TEMPERATURE', 0),
+
+        // TTS de las respuestas (OpenAI). Voz activa en la UI desde 2026-07-07.
+        'tts_model' => env('AI_ASSISTANT_TTS_MODEL', 'gpt-4o-mini-tts'),
+        'tts_voice' => env('AI_ASSISTANT_TTS_VOICE', 'nova'),
+        'tts_instructions' => env('AI_ASSISTANT_TTS_INSTRUCTIONS', 'Habla en español mexicano, con tono cálido, natural y breve, como un asistente del negocio.'),
+        'tts_max_chars' => 1200,
 
         'max_input_text_length' => 2000,
         'max_history_turns' => 8,
