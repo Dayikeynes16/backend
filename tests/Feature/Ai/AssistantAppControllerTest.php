@@ -2,8 +2,11 @@
 
 namespace Tests\Feature\Ai;
 
+use App\Enums\AiDraftStatus;
+use App\Enums\AssistantDraftType;
 use App\Models\AiAssistantMessage;
 use App\Models\AiAssistantSession;
+use App\Models\AssistantDraft;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
@@ -81,6 +84,49 @@ class AssistantAppControllerTest extends TestCase
         $this->get(route('asistente.index', $this->tenant->slug))->assertOk();
 
         $this->assertSame(1, AiAssistantSession::count());
+    }
+
+    public function test_reloaded_draft_cards_reflect_current_draft_status(): void
+    {
+        $session = AiAssistantSession::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->adminEmpresa->id,
+            'message_count' => 0,
+        ]);
+        $userMsg = AiAssistantMessage::create([
+            'session_id' => $session->id,
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->adminEmpresa->id,
+            'role' => 'user',
+            'content' => 'registra un gasto',
+        ]);
+        $draft = AssistantDraft::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => null,
+            'user_id' => $this->adminEmpresa->id,
+            'session_id' => $session->id,
+            'message_id' => $userMsg->id,
+            'type' => AssistantDraftType::Expense->value,
+            'status' => AiDraftStatus::Consumed->value,
+            'payload' => [],
+            'expires_at' => now()->addHours(6),
+        ]);
+        // Card congelada con status "ready" en el momento de prepararse.
+        AiAssistantMessage::create([
+            'session_id' => $session->id,
+            'tenant_id' => $this->tenant->id,
+            'role' => 'tool',
+            'tool_name' => 'preparar_borrador_gasto',
+            'tool_status' => 'success',
+            'tool_result' => ['draft_id' => $draft->id, 'draft_type' => 'expense', 'status' => 'ready'],
+        ]);
+
+        $this->actingAs($this->adminEmpresa);
+        $response = $this->get(route('asistente.index', ['tenant' => $this->tenant->slug, 'session' => $session->id]));
+
+        // Al recargar, la card debe reflejar el estado ACTUAL (consumed), no el congelado.
+        $response->assertInertia(fn ($page) => $page
+            ->where('messages.1.tool_result.status', 'consumed'));
     }
 
     public function test_creating_a_session_redirects_to_mini_app(): void
