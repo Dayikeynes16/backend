@@ -148,7 +148,15 @@ function buildForm() {
     return f;
 }
 
-const status = ref(props.data.status === 'consumed' ? 'confirmed' : 'ready');
+// El backend refresca `status` con el estado real del draft al recargar el
+// hilo: un borrador confirmado se muestra como registrado, no como pendiente.
+const INITIAL_STATUS = {
+    consumed: 'confirmed',
+    cancelled: 'cancelled',
+    expired: 'expired',
+    failed: 'expired',
+};
+const status = ref(INITIAL_STATUS[props.data.status] || 'ready');
 const processing = ref(false);
 const errorMsg = ref(null);
 const fieldErrors = ref({});
@@ -344,11 +352,11 @@ async function cancelDraft() {
                 :class="[
                     'rounded-full px-2 py-0.5 text-xs font-semibold',
                     status === 'confirmed' ? 'bg-emerald-100 text-emerald-800'
-                        : status === 'cancelled' ? 'bg-gray-200 text-gray-600'
+                        : status === 'cancelled' || status === 'expired' ? 'bg-gray-200 text-gray-600'
                         : 'bg-red-100 text-red-800',
                 ]"
             >
-                {{ status === 'confirmed' ? 'Confirmado' : status === 'cancelled' ? 'Cancelado' : 'No disponible' }}
+                {{ status === 'confirmed' ? 'Confirmado' : status === 'cancelled' ? 'Cancelado' : status === 'expired' ? 'Expirado' : 'No disponible' }}
             </span>
         </div>
 
@@ -358,9 +366,11 @@ async function cancelDraft() {
             {{ confirmedMessage || meta.done }}
         </div>
 
-        <!-- Cancelado / no disponible -->
-        <div v-else-if="status === 'cancelled' || status === 'unavailable'" class="rounded-lg bg-gray-50 px-3 py-2 text-gray-600">
-            {{ status === 'cancelled' ? 'Descartaste este borrador.' : (errorMsg || 'Este borrador ya no está disponible.') }}
+        <!-- Cancelado / expirado / no disponible -->
+        <div v-else-if="status === 'cancelled' || status === 'unavailable' || status === 'expired'" class="rounded-lg bg-gray-50 px-3 py-2 text-gray-600">
+            {{ status === 'cancelled' ? 'Descartaste este borrador.'
+                : status === 'expired' ? 'Este borrador expiró sin confirmarse — pídeme prepararlo de nuevo si aún lo necesitas.'
+                : (errorMsg || 'Este borrador ya no está disponible.') }}
         </div>
 
         <!-- Editable + confirmación -->

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Enums\AiDraftStatus;
 use App\Models\AiAssistantMessage;
 use App\Models\AiAssistantSession;
+use App\Models\AssistantDraft;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -188,13 +190,29 @@ trait HandlesAssistantChat
      */
     private function serializeMessage(AiAssistantMessage $m): array
     {
+        $toolResult = $m->role === 'tool' ? $m->tool_result : null;
+
+        // Las cards de borrador se guardan congeladas al prepararse; al
+        // recargar el hilo se refleja el estado ACTUAL del draft para que un
+        // borrador ya confirmado se vea como "registrado" (y uno cancelado o
+        // expirado no vuelva a ofrecer el botón de confirmar).
+        if (is_array($toolResult) && isset($toolResult['draft_id'], $toolResult['draft_type'])) {
+            $draft = AssistantDraft::query()->find($toolResult['draft_id']);
+            $status = $draft?->status ?? AiDraftStatus::Expired;
+            if ($status === AiDraftStatus::Ready && $draft?->expires_at?->isPast()) {
+                $status = AiDraftStatus::Expired;
+            }
+            $toolResult['status'] = $status->value;
+            $toolResult['result_id'] = $draft?->result_id;
+        }
+
         return [
             'id' => $m->id,
             'role' => $m->role,
             'content' => $m->content,
             'tool_name' => $m->tool_name,
             'tool_status' => $m->tool_status,
-            'tool_result' => $m->role === 'tool' ? $m->tool_result : null,
+            'tool_result' => $toolResult,
             'created_at' => $m->created_at?->toIso8601String(),
         ];
     }
