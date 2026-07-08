@@ -55,7 +55,7 @@ class AssistantExpenseCategoryEditConfirmTest extends TestCase
 
     private function url(string $prefix, AssistantDraft $draft): string
     {
-        return route("{$prefix}.asistente.drafts.confirm", ['tenant' => $this->tenant->slug, 'draft' => $draft->id]);
+        return route('asistente.drafts.confirm', ['tenant' => $this->tenant->slug, 'draft' => $draft->id]);
     }
 
     public function test_confirm_renames_category(): void

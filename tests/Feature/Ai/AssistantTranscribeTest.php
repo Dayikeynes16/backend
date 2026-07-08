@@ -36,7 +36,7 @@ class AssistantTranscribeTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.transcribir', $this->tenant->slug),
+            route('asistente.transcribir', $this->tenant->slug),
             ['audio' => $audio],
         );
 
@@ -56,31 +56,32 @@ class AssistantTranscribeTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->postJson(
-            route('sucursal.asistente.transcribir', $this->tenant->slug),
+            route('asistente.transcribir', $this->tenant->slug),
             ['audio' => $audio],
         );
 
         $response->assertOk()->assertJsonPath('text', 'Top productos esta semana');
     }
 
-    public function test_cajero_cannot_transcribe_in_empresa_or_sucursal(): void
+    public function test_cajero_can_transcribe_via_unified_route(): void
     {
+        Http::fake(['*/audio/transcriptions' => Http::response(['text' => 'cobrar al rincon'])]);
+
         $audio = UploadedFile::fake()->createWithContent('audio.webm', str_repeat('a', 1024));
 
         $this->actingAs($this->cajero);
-        $this->postJson(route('empresa.asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
-            ->assertForbidden();
-        $this->postJson(route('sucursal.asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
-            ->assertForbidden();
+        $response = $this->postJson(route('asistente.transcribir', $this->tenant->slug), ['audio' => $audio]);
+
+        $response->assertOk()->assertJsonPath('text', 'cobrar al rincon');
     }
 
-    public function test_admin_empresa_cannot_use_sucursal_transcribe(): void
+    public function test_guest_cannot_transcribe(): void
     {
-        $audio = UploadedFile::fake()->createWithContent('audio.webm', str_repeat('a', 1024));
+        Http::fake();
 
-        $this->actingAs($this->adminEmpresa);
-        $this->postJson(route('sucursal.asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
-            ->assertForbidden();
+        $this->post(route('asistente.transcribir', $this->tenant->slug), [])
+            ->assertRedirect(); // al login: la ruta exige auth
+        Http::assertNothingSent();
     }
 
     public function test_transcribe_rejects_unsupported_audio_format(): void
@@ -89,7 +90,7 @@ class AssistantTranscribeTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.transcribir', $this->tenant->slug),
+            route('asistente.transcribir', $this->tenant->slug),
             ['audio' => $audio],
         );
 
@@ -101,7 +102,7 @@ class AssistantTranscribeTest extends TestCase
     {
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.transcribir', $this->tenant->slug),
+            route('asistente.transcribir', $this->tenant->slug),
             [],
         );
 
@@ -119,7 +120,7 @@ class AssistantTranscribeTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.transcribir', $this->tenant->slug),
+            route('asistente.transcribir', $this->tenant->slug),
             ['audio' => $audio],
         );
 
@@ -137,11 +138,11 @@ class AssistantTranscribeTest extends TestCase
         $audio = UploadedFile::fake()->createWithContent('audio.webm', str_repeat('a', 1024));
 
         $this->actingAs($this->adminEmpresa);
-        $this->postJson(route('empresa.asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
+        $this->postJson(route('asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
             ->assertOk();
-        $this->postJson(route('empresa.asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
+        $this->postJson(route('asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
             ->assertOk();
-        $this->postJson(route('empresa.asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
+        $this->postJson(route('asistente.transcribir', $this->tenant->slug), ['audio' => $audio])
             ->assertStatus(429);
     }
 }

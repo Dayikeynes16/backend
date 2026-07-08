@@ -1,6 +1,6 @@
 # Asistente Conversacional con IA
 
-Asistente interno de texto + voz para `admin-empresa`, `admin-sucursal` y (con toolset operativo) `cajero`. Interpreta lenguaje natural y lo traduce a **herramientas (tools) predefinidas en PHP — nunca SQL libre** — para consultar el negocio y preparar registros. Toda escritura pasa por borrador + confirmación humana. Página dedicada "Asistente" (badge Beta) en la navegación de Empresa y Sucursal.
+Asistente interno de texto + voz para `admin-empresa`, `admin-sucursal` y (con toolset operativo) `cajero`. Interpreta lenguaje natural y lo traduce a **herramientas (tools) predefinidas en PHP — nunca SQL libre** — para consultar el negocio y preparar registros. Toda escritura pasa por borrador + confirmación humana. Experiencia única en `/{tenant}/asistente` (mini-app), con item "Asistente" en la navegación de Empresa, Sucursal y Caja.
 
 > Diseño original y decisiones: [`docs/arquitectura/ia-asistente.md`](../arquitectura/ia-asistente.md). Este documento describe lo implementado (F0–F4).
 
@@ -23,10 +23,10 @@ Asistente interno de texto + voz para `admin-empresa`, `admin-sucursal` y (con t
 ## Arquitectura
 
 ```
-AsistenteChat.vue (Empresa/Sucursal comparten componente)
+Pages/Asistente/App.vue (experiencia única, todos los roles)
   │  POST /{tenant}/{rol}/asistente/sesiones/{s}/mensajes  (HTTP síncrono, sin streaming)
   ▼
-AsistenteController (Empresa | Sucursal — idénticos salvo página y rutas)
+Asistente\AssistantAppController (único; trait HandlesAssistantChat)
   │  rate limit (60/h/user, 1000/día/tenant) + budget cap mensual (402 si se agota)
   ▼
 AssistantOrchestrator
@@ -125,10 +125,10 @@ Cada tool declara `jsonSchema()` con `additionalProperties: false`. `ToolResult`
 
 ## Rutas y frontend
 
-- Rutas por rol en `routes/web.php`: `/{tenant}/empresa/asistente` y `/{tenant}/sucursal/asistente` (index, sesiones, mensajes, transcribir, voz, drafts confirmar/cancelar).
+- **Unificación (2026-07-08):** una sola experiencia. Las URLs clásicas `/{tenant}/empresa/asistente` y `/{tenant}/sucursal/asistente` solo **redirigen** a `/{tenant}/asistente`; sus endpoints, controllers, páginas y `AsistenteChat.vue` fueron eliminados.
 - Rutas neutras de la **mini-app**: `/{tenant}/asistente` (`asistente.*`), grupo multi-rol `role:admin-empresa|admin-sucursal|superadmin` (cajero excluido por decisión D1). Mismos sufijos salvo `voz` (TTS no expuesto en la mini-app).
-- Controladores: `Empresa/AsistenteController`, `Sucursal/AsistenteController` y `Asistente/AssistantAppController` — los tres son wrappers delgados del trait `Concerns/HandlesAssistantChat` (index, createSession, sendMessage, serialización); solo definen página Inertia y ruta de redirect. `Ai/AssistantDraftController` (confirm/cancel) es compartido.
-- Frontend: `Pages/{Empresa,Sucursal}/Asistente.vue` (wrappers que pasan `routes` como prop) → `Components/Asistente/AsistenteChat.vue`, que desde 2026-07-06 **compone** las piezas compartidas: composable `useAssistantChat` (estado, envío optimista, transcripción, TTS, renderItems) + `Components/Asistente/chat/{MessageThread,ChatInputBar,SessionsPanel,ToolResultCard}.vue`. Data cards por tool y `AssistantDraftCard.vue` sin cambios. Comunicación por HTTP normal (axios), sin SSE ni polling; UI optimista al enviar.
+- Controlador único: `Asistente/AssistantAppController` (trait `Concerns/HandlesAssistantChat`). `Ai/AssistantDraftController` (confirm/cancel) sin cambios.
+- Frontend: `Pages/Asistente/App.vue` compone `useAssistantChat` + `Components/Asistente/chat/{MessageThread,ChatInputBar,SessionsPanel,ToolResultCard}.vue`; data cards por tool y `AssistantDraftCard.vue`. Comunicación por HTTP normal (axios), sin SSE ni polling; UI optimista al enviar.
 
 ### Mini-app móvil (`/{tenant}/asistente`)
 
@@ -137,9 +137,9 @@ Experiencia a pantalla completa, mobile-first, para dueños/encargados (spec
 
 - `Pages/Asistente/App.vue` con layout dedicado `Layouts/AssistantAppLayout.vue`: **sin sidebar administrativo**, header compacto (logo + negocio/sucursal) y botón permanente "Salir al panel" → `route('dashboard')` (redirige según rol). Altura `100dvh` con safe-areas.
 - Móvil (<lg): chat ocupa toda la pantalla; las sesiones viven en un bottom-sheet abierto desde el header. Desktop (≥lg): columna de sesiones a la izquierda, chat centrado.
-- Usa exactamente las mismas piezas que el asistente clásico (decisión D3: mientras convivan, todo cambio aplica a ambas superficies). El clásico sigue disponible como "Asistente clásico" en el sidebar.
+- Es la **experiencia única** del asistente desde 2026-07-08 (D3 cumplida: el clásico fue absorbido y sus URLs redirigen aquí).
 - **Modo simple (F4):** con el hilo vacío, la mini-app muestra `SimpleHome` — 5 acciones grandes ("¿Cómo va el negocio?", "Registrar algo", "Cobrar una deuda" y "Pagar a proveedor" con mini-diálogo guiado nombre+monto+método, "Hablar con el asistente") que componen una frase y la envían por el pipeline normal del chat (misma seguridad, mismos borradores). Preferencia en localStorage (`assistant-simple-home`); botón de inicio en el header la restaura. `AssistantAppController@index` auto-crea la primera sesión del usuario para que el primer tap nunca falle.
-- **Quick actions (F4):** chips de acción sugerida (`app/QuickActions.vue`) bajo la última card de resultados — envían prompts predefinidos ("Productos más vendidos", "Cobrar una deuda", "Pagar a un proveedor", …). Aplican también al asistente clásico (D3, `MessageThread` compartido).
+- **Quick actions (F4):** chips de acción sugerida (`app/QuickActions.vue`) bajo la última card de resultados — envían prompts predefinidos ("Productos más vendidos", "Cobrar una deuda", "Pagar a un proveedor", …). Viven en `MessageThread` compartido.
 - F2 (cobro FIFO a clientes), F3 (pago a cuenta FIFO a proveedores), F4 (modo simple + quick actions) y F5 (cajero + retiros + precios, spec `2026-07-07-asistente-f5-extensiones-design.md`) implementadas 2026-07-07. El modo simple se adapta por rol (cajero sin resumen de negocio ni pagos a proveedor; roles con turno ven "Retirar efectivo").
 
 ## Persistencia

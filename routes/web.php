@@ -17,7 +17,6 @@ use App\Http\Controllers\Caja\PagosController as CajaPagosController;
 use App\Http\Controllers\Caja\PurchaseController as CajaPurchaseController;
 use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
-use App\Http\Controllers\Empresa\AsistenteController as EmpresaAsistenteController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
 use App\Http\Controllers\Empresa\ExpenseCategoryController as EmpresaExpenseCategoryController;
@@ -45,7 +44,6 @@ use App\Http\Controllers\ExpenseAttachmentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseAttachmentController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
-use App\Http\Controllers\Sucursal\AsistenteController as SucursalAsistenteController;
 use App\Http\Controllers\Sucursal\CancelRequestController;
 use App\Http\Controllers\Sucursal\CashShiftController;
 use App\Http\Controllers\Sucursal\CategoryController;
@@ -177,15 +175,9 @@ Route::prefix('{tenant}')
                     Route::post('personalizacion/reset', [PersonalizacionController::class, 'reset'])->name('personalizacion.reset');
                 }
 
-                // Asistente conversacional (F0 + F1 + F4 voz).
-                Route::get('asistente', [EmpresaAsistenteController::class, 'index'])->name('asistente');
-                Route::post('asistente/sesiones', [EmpresaAsistenteController::class, 'createSession'])->name('asistente.sesiones.store');
-                Route::post('asistente/sesiones/{session}/mensajes', [EmpresaAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
-                Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [EmpresaAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
-                Route::post('asistente/transcribir', [EmpresaAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
-                // Confirmación/cancelación de borradores del asistente (2ª petición HTTP, botón UI).
-                Route::post('asistente/drafts/{draft}/confirmar', [AssistantDraftController::class, 'confirm'])->name('asistente.drafts.confirm');
-                Route::post('asistente/drafts/{draft}/cancelar', [AssistantDraftController::class, 'cancel'])->name('asistente.drafts.cancel');
+                // Asistente unificado (2026-07-08): la experiencia oficial vive en
+                // /{tenant}/asistente; la URL clásica solo redirige.
+                Route::get('asistente', fn () => redirect()->route('asistente.index', app('tenant')->slug))->name('asistente');
 
                 // Proveedores (F1 de Compras).
                 Route::resource('proveedores', EmpresaProviderController::class)
@@ -405,15 +397,8 @@ Route::prefix('{tenant}')
                 Route::get('configuracion', [SucursalConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [SucursalConfiguracionController::class, 'update'])->name('configuracion.update');
 
-                // Asistente conversacional (F2 + F4 voz).
-                Route::get('asistente', [SucursalAsistenteController::class, 'index'])->name('asistente');
-                Route::post('asistente/sesiones', [SucursalAsistenteController::class, 'createSession'])->name('asistente.sesiones.store');
-                Route::post('asistente/sesiones/{session}/mensajes', [SucursalAsistenteController::class, 'sendMessage'])->name('asistente.mensajes.store');
-                Route::post('asistente/sesiones/{session}/mensajes/{message}/voz', [SucursalAsistenteController::class, 'speak'])->name('asistente.mensajes.voz');
-                Route::post('asistente/transcribir', [SucursalAsistenteController::class, 'transcribe'])->name('asistente.transcribir');
-                // Confirmación/cancelación de borradores del asistente (2ª petición HTTP, botón UI).
-                Route::post('asistente/drafts/{draft}/confirmar', [AssistantDraftController::class, 'confirm'])->name('asistente.drafts.confirm');
-                Route::post('asistente/drafts/{draft}/cancelar', [AssistantDraftController::class, 'cancel'])->name('asistente.drafts.cancel');
+                // Asistente unificado (2026-07-08): redirect a la experiencia oficial.
+                Route::get('asistente', fn () => redirect()->route('asistente.index', app('tenant')->slug))->name('asistente');
 
                 // Proveedores: lectura siempre; crear/editar solo si la empresa
                 // habilitó el toggle de la sucursal (catálogo tenant-wide compartido).
