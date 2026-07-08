@@ -85,12 +85,12 @@ class AssistantExpenseDraftConfirmTest extends TestCase
 
     private function confirmUrl(string $prefix, AssistantDraft $draft): string
     {
-        return route("{$prefix}.asistente.drafts.confirm", ['tenant' => $this->tenant->slug, 'draft' => $draft->id]);
+        return route('asistente.drafts.confirm', ['tenant' => $this->tenant->slug, 'draft' => $draft->id]);
     }
 
     private function cancelUrl(string $prefix, AssistantDraft $draft): string
     {
-        return route("{$prefix}.asistente.drafts.cancel", ['tenant' => $this->tenant->slug, 'draft' => $draft->id]);
+        return route('asistente.drafts.cancel', ['tenant' => $this->tenant->slug, 'draft' => $draft->id]);
     }
 
     public function test_confirm_creates_expense_consumes_draft_and_audits(): void
@@ -165,15 +165,16 @@ class AssistantExpenseDraftConfirmTest extends TestCase
         $this->assertSame(0, Expense::count());
     }
 
-    public function test_cajero_cannot_reach_confirm_route(): void
+    public function test_cajero_confirm_gated_by_branch_toggle(): void
     {
-        $draft = $this->makeDraft($this->adminEmpresa);
+        // Unificación: la ruta es compartida; el gate vive en el confirmer
+        // (cashier_expenses_enabled), no en el routing.
+        $this->branch->update(['cashier_expenses_enabled' => false]);
+        $draft = $this->makeDraft($this->cajero);
 
         $this->actingAs($this->cajero)
-            ->postJson($this->confirmUrl('empresa', $draft), $this->payload())
+            ->postJson(route('asistente.drafts.confirm', ['tenant' => $this->tenant->slug, 'draft' => $draft->id]), [])
             ->assertForbidden();
-
-        $this->assertSame(0, Expense::count());
     }
 
     public function test_user_cannot_confirm_another_users_draft(): void

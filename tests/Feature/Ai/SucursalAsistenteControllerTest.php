@@ -28,28 +28,26 @@ class SucursalAsistenteControllerTest extends TestCase
     {
         $this->actingAs($this->adminSucursal);
 
-        $response = $this->get(route('sucursal.asistente', $this->tenant->slug));
+        $response = $this->get(route('asistente.index', $this->tenant->slug));
 
         $response->assertOk();
-        $response->assertInertia(fn ($p) => $p->component('Sucursal/Asistente'));
+        $response->assertInertia(fn ($p) => $p->component('Asistente/App'));
     }
 
-    public function test_admin_empresa_cannot_view_sucursal_asistente(): void
+    public function test_classic_sucursal_url_redirects_to_unified_assistant(): void
     {
-        $this->actingAs($this->adminEmpresa);
+        $this->actingAs($this->adminSucursal);
 
-        $response = $this->get(route('sucursal.asistente', $this->tenant->slug));
-
-        $response->assertForbidden();
+        $this->get(route('sucursal.asistente', $this->tenant->slug))
+            ->assertRedirect(route('asistente.index', $this->tenant->slug));
     }
 
-    public function test_cajero_cannot_view_sucursal_asistente(): void
+    public function test_cajero_can_view_unified_assistant(): void
     {
+        // F5 (D5): el cajero accede a la experiencia unificada con su toolset.
         $this->actingAs($this->cajero);
 
-        $response = $this->get(route('sucursal.asistente', $this->tenant->slug));
-
-        $response->assertForbidden();
+        $this->get(route('asistente.index', $this->tenant->slug))->assertOk();
     }
 
     public function test_admin_sucursal_can_create_session_and_send_message(): void
@@ -65,11 +63,11 @@ class SucursalAsistenteControllerTest extends TestCase
         ]);
 
         $this->actingAs($this->adminSucursal);
-        $this->post(route('sucursal.asistente.sesiones.store', $this->tenant->slug));
+        $this->post(route('asistente.sesiones.store', $this->tenant->slug));
         $session = AiAssistantSession::firstOrFail();
 
         $response = $this->postJson(
-            route('sucursal.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
             ['content' => 'hola'],
         );
 
@@ -89,7 +87,7 @@ class SucursalAsistenteControllerTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->postJson(
-            route('sucursal.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $strangerSession->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $strangerSession->id]),
             ['content' => 'fuga intersesión'],
         );
 
@@ -156,7 +154,7 @@ class SucursalAsistenteControllerTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->postJson(
-            route('sucursal.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
             ['content' => 'cuánto vendió la sucursal 2 hoy'],
         );
 
@@ -180,7 +178,7 @@ class SucursalAsistenteControllerTest extends TestCase
         ]);
 
         $this->actingAs($this->adminEmpresa);
-        $response = $this->get(route('empresa.asistente', $this->tenant->slug));
+        $response = $this->get(route('asistente.index', $this->tenant->slug));
 
         $response->assertOk();
         $response->assertInertia(fn ($p) => $p->where(

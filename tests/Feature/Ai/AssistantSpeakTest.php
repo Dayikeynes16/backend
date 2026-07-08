@@ -35,7 +35,7 @@ class AssistantSpeakTest extends TestCase
         $message = $this->makeAssistantMessage($session, 'Hola, ¿en qué ayudo?');
 
         $this->actingAs($this->adminEmpresa);
-        $response = $this->post(route('empresa.asistente.mensajes.voz', [
+        $response = $this->post(route('asistente.mensajes.voz', [
             'tenant' => $this->tenant->slug,
             'session' => $session->id,
             'message' => $message->id,
@@ -58,7 +58,7 @@ class AssistantSpeakTest extends TestCase
         $message = $this->makeAssistantMessage($session, 'Vendiste $500 hoy.');
 
         $this->actingAs($this->adminSucursal);
-        $response = $this->post(route('sucursal.asistente.mensajes.voz', [
+        $response = $this->post(route('asistente.mensajes.voz', [
             'tenant' => $this->tenant->slug,
             'session' => $session->id,
             'message' => $message->id,
@@ -95,7 +95,7 @@ class AssistantSpeakTest extends TestCase
 
         Http::fake();
         $this->actingAs($this->adminEmpresa);
-        $response = $this->post(route('empresa.asistente.mensajes.voz', [
+        $response = $this->post(route('asistente.mensajes.voz', [
             'tenant' => $this->tenant->slug,
             'session' => $strangerSession->id,
             'message' => $strangerMessage->id,
@@ -118,7 +118,7 @@ class AssistantSpeakTest extends TestCase
         ]);
 
         $this->actingAs($this->adminEmpresa);
-        $response = $this->post(route('empresa.asistente.mensajes.voz', [
+        $response = $this->post(route('asistente.mensajes.voz', [
             'tenant' => $this->tenant->slug,
             'session' => $session->id,
             'message' => $userMsg->id,
@@ -137,7 +137,7 @@ class AssistantSpeakTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         // Pedir el mensaje de sesión B usando ID de sesión A.
-        $response = $this->post(route('empresa.asistente.mensajes.voz', [
+        $response = $this->post(route('asistente.mensajes.voz', [
             'tenant' => $this->tenant->slug,
             'session' => $sessionA->id,
             'message' => $messageB->id,
@@ -157,7 +157,7 @@ class AssistantSpeakTest extends TestCase
         $message = $this->makeAssistantMessage($session, 'algo');
 
         $this->actingAs($this->adminEmpresa);
-        $response = $this->post(route('empresa.asistente.mensajes.voz', [
+        $response = $this->post(route('asistente.mensajes.voz', [
             'tenant' => $this->tenant->slug,
             'session' => $session->id,
             'message' => $message->id,
@@ -177,7 +177,7 @@ class AssistantSpeakTest extends TestCase
         $message = $this->makeAssistantMessage($session, 'algo');
 
         $this->actingAs($this->adminEmpresa);
-        $url = route('empresa.asistente.mensajes.voz', [
+        $url = route('asistente.mensajes.voz', [
             'tenant' => $this->tenant->slug,
             'session' => $session->id,
             'message' => $message->id,
@@ -187,22 +187,19 @@ class AssistantSpeakTest extends TestCase
         $this->post($url)->assertStatus(429);
     }
 
-    public function test_cajero_cannot_speak_in_empresa_or_sucursal(): void
+    public function test_cajero_can_speak_via_unified_route(): void
     {
-        $session = $this->makeSession($this->adminSucursal->id);
-        $message = $this->makeAssistantMessage($session, 'x');
+        Http::fake(['*/audio/speech' => Http::response('CAJERO_MP3', 200)]);
+
+        $session = $this->makeSession($this->cajero->id);
+        $message = $this->makeAssistantMessage($session, 'Tu turno va bien.');
 
         $this->actingAs($this->cajero);
-        $this->post(route('empresa.asistente.mensajes.voz', [
+        $this->post(route('asistente.mensajes.voz', [
             'tenant' => $this->tenant->slug,
             'session' => $session->id,
             'message' => $message->id,
-        ]))->assertForbidden();
-        $this->post(route('sucursal.asistente.mensajes.voz', [
-            'tenant' => $this->tenant->slug,
-            'session' => $session->id,
-            'message' => $message->id,
-        ]))->assertForbidden();
+        ]))->assertOk();
     }
 
     private function makeSession(int $userId): AiAssistantSession

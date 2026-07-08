@@ -31,7 +31,6 @@ const baseNavLinks = [
     { label: 'Cortes', route: 'sucursal.cortes.index', match: 'sucursal.cortes', icon: 'cortes' },
     { label: 'Métricas', route: 'sucursal.metricas.index', match: 'sucursal.metricas', icon: 'metricas' },
     { label: 'Asistente', route: 'asistente.index', match: 'asistente.', icon: 'asistente' },
-    { label: 'Asistente clásico', route: 'sucursal.asistente', match: 'sucursal.asistente', icon: 'asistente' },
     { label: 'Menú online', route: 'sucursal.menu-online', icon: 'menuqr' },
     { label: 'Configuracion', route: 'sucursal.configuracion', icon: 'config' },
 ];

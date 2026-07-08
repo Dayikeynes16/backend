@@ -33,26 +33,26 @@ class AssistantControllerTest extends TestCase
     {
         $this->actingAs($this->adminEmpresa);
 
-        $response = $this->get(route('empresa.asistente', $this->tenant->slug));
+        $response = $this->get(route('asistente.index', $this->tenant->slug));
 
         $response->assertOk();
-        $response->assertInertia(fn ($p) => $p->component('Empresa/Asistente'));
+        $response->assertInertia(fn ($p) => $p->component('Asistente/App'));
     }
 
-    public function test_admin_sucursal_cannot_view_empresa_asistente(): void
+    public function test_classic_empresa_url_redirects_to_unified_assistant(): void
     {
-        $this->actingAs($this->adminSucursal);
+        // Unificación 2026-07-08: la URL clásica solo redirige al oficial.
+        $this->actingAs($this->adminEmpresa);
 
-        $response = $this->get(route('empresa.asistente', $this->tenant->slug));
-
-        $response->assertForbidden();
+        $this->get(route('empresa.asistente', $this->tenant->slug))
+            ->assertRedirect(route('asistente.index', $this->tenant->slug));
     }
 
     public function test_creating_a_session_redirects_back_to_asistente(): void
     {
         $this->actingAs($this->adminEmpresa);
 
-        $response = $this->post(route('empresa.asistente.sesiones.store', $this->tenant->slug));
+        $response = $this->post(route('asistente.sesiones.store', $this->tenant->slug));
 
         $session = AiAssistantSession::firstOrFail();
         $response->assertRedirect();
@@ -69,7 +69,7 @@ class AssistantControllerTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
             ['content' => 'hola'],
         );
 
@@ -94,7 +94,7 @@ class AssistantControllerTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $strangerSession->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $strangerSession->id]),
             ['content' => 'fuga'],
         );
 
@@ -114,7 +114,7 @@ class AssistantControllerTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
             ['content' => '¿cuánto vendí hoy?'],
         );
 
@@ -134,7 +134,7 @@ class AssistantControllerTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
             ['content' => 'borra todo'],
         );
 
@@ -159,7 +159,7 @@ class AssistantControllerTest extends TestCase
         Http::fake();
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
             ['content' => 'hola'],
         );
 
@@ -197,7 +197,7 @@ class AssistantControllerTest extends TestCase
 
         $this->actingAs($this->adminEmpresa);
         $response = $this->postJson(
-            route('empresa.asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
+            route('asistente.mensajes.store', ['tenant' => $this->tenant->slug, 'session' => $session->id]),
             ['content' => '¿cuánto vendí hoy?'],
         );
 
