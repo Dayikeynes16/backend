@@ -35,7 +35,7 @@ AssistantOrchestrator
   │  texto del usuario envuelto en delimitadores <<< >>> (anti prompt-injection)
   ▼
 ToolRegistry (singleton, filtrado por rol)
-  ├─ 9 read tools  → execute() → ToolResult → data card en la UI
+  ├─ 11 read tools → execute() → ToolResult → data card en la UI
   └─ 10 write tools → prepareDraft() → assistant_drafts → AssistantDraftCard
                                           │ Confirmar (2ª petición HTTP)
                                           ▼
@@ -56,7 +56,7 @@ Piezas backend en `app/Services/Ai/`:
 
 ## Tools disponibles
 
-### Lectura (9) — se auto-ejecutan y pintan una data card
+### Lectura (11) — se auto-ejecutan y pintan una data card
 
 | Función | Clase | Consulta |
 |---|---|---|
@@ -65,7 +65,9 @@ Piezas backend en `app/Services/Ai/`:
 | `consultar_productos_top` | `TopProductsTool` | Más vendidos por ingreso |
 | `consultar_turnos` | `ShiftStatusTool` | Turnos abiertos + cortes recientes |
 | `consultar_clientes` | `CustomerStatsTool` | Deuda pendiente (fiado) o top compradores |
+| `consultar_cliente_detalle` | `CustomerDetailTool` | Detalle de UN cliente: ventas recientes con artículos (qué llevó y a qué precio), deuda y últimos abonos. Incluye cajero. Resolución difusa de nombre |
 | `consultar_productos` | `ProductDetailsTool` | Precio, costo, unidad, categoría, presentaciones |
+| `consultar_ventas_producto` | `ProductSalesTool` | Ventas de UN producto en un periodo con desglose por precio de venta (detecta precios preferenciales/distintos). Fecha canónica de Métricas |
 | `consultar_compras` | `PurchaseSummaryTool` | Total comprado (CMV), top proveedores, saldo pendiente |
 | `consultar_cuentas_por_pagar` | `AccountsPayableTool` | Saldo a proveedores + top adeudos |
 | `consultar_categorias_gasto` | `ExpenseCategoriesTool` | Catálogo de categorías/subcategorías con conteos |
