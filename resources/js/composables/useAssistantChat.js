@@ -115,10 +115,14 @@ export function useAssistantChat(props, routes) {
             if (!text) {
                 errorBanner.value = 'No escuché nada. Intenta de nuevo.';
             } else {
-                // Concatena al input por si el usuario ya estaba escribiendo.
+                // Dictado = envío directo: el usuario habla y el asistente actúa,
+                // sin paso intermedio de revisión (concatenando lo que ya hubiera
+                // escrito). Es seguro: toda escritura sigue pasando por borrador
+                // + confirmación explícita en la tarjeta.
                 inputText.value = inputText.value
                     ? inputText.value.trimEnd() + ' ' + text
                     : text;
+                send();
             }
         } catch (err) {
             errorBanner.value = err.response?.data?.message || 'No pude transcribir el audio.';
