@@ -22,7 +22,7 @@ const routes = {
     transcribe: 'asistente.transcribir',
     draftConfirm: 'asistente.drafts.confirm',
     draftCancel: 'asistente.drafts.cancel',
-    // TTS (ElevenLabs) deshabilitado — si se reactiva, agregar speak + trait en el controller.
+    speak: 'asistente.mensajes.voz', // TTS con OpenAI (2026-07-07)
 };
 
 const chat = useAssistantChat(props, routes);

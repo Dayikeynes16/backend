@@ -17,8 +17,7 @@ const routes = {
     transcribe: 'sucursal.asistente.transcribir',
     draftConfirm: 'sucursal.asistente.drafts.confirm',
     draftCancel: 'sucursal.asistente.drafts.cancel',
-    // TTS (ElevenLabs) deshabilitado 2026-05-18 — voz no satisfactoria.
-    // Re-habilitar agregando: speak: 'sucursal.asistente.mensajes.voz',
+    speak: 'sucursal.asistente.mensajes.voz', // TTS con OpenAI (2026-07-07)
 };
 </script>
 

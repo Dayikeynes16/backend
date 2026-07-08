@@ -101,6 +101,41 @@ class OpenAiClient
      * El endpoint /audio/transcriptions usa multipart (no JSON), por eso no
      * reutiliza el helper http().
      */
+    /**
+     * Sintetiza voz con la API de TTS de OpenAI y devuelve los bytes de audio.
+     * `instructions` solo aplica a los modelos gpt-4o-*-tts (tono, idioma).
+     */
+    public function synthesizeSpeech(
+        string $text,
+        string $model = 'gpt-4o-mini-tts',
+        string $voice = 'nova',
+        string $responseFormat = 'mp3',
+        ?string $instructions = null,
+    ): string {
+        $payload = [
+            'model' => $model,
+            'voice' => $voice,
+            'input' => $text,
+            'response_format' => $responseFormat,
+        ];
+        if ($instructions !== null && $instructions !== '') {
+            $payload['instructions'] = $instructions;
+        }
+
+        $response = Http::withToken($this->apiKey)
+            ->baseUrl($this->baseUrl)
+            ->timeout($this->timeoutSeconds)
+            ->post('/audio/speech', $payload);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                'OpenAI TTS respondió con error HTTP '.$response->status().': '.$response->body(),
+            );
+        }
+
+        return $response->body();
+    }
+
     public function transcribeAudio(
         string $audioBytes,
         string $filename,

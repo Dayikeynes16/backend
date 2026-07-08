@@ -554,6 +554,7 @@ Route::prefix('{tenant}')
                 Route::get('/', [AssistantAppController::class, 'index'])->name('index');
                 Route::post('sesiones', [AssistantAppController::class, 'createSession'])->name('sesiones.store');
                 Route::post('sesiones/{session}/mensajes', [AssistantAppController::class, 'sendMessage'])->name('mensajes.store');
+                Route::post('sesiones/{session}/mensajes/{message}/voz', [AssistantAppController::class, 'speak'])->name('mensajes.voz');
                 Route::post('transcribir', [AssistantAppController::class, 'transcribe'])->name('transcribir');
                 // Confirmación/cancelación de borradores (2ª petición HTTP, botón UI).
                 Route::post('drafts/{draft}/confirmar', [AssistantDraftController::class, 'confirm'])->name('drafts.confirm');
