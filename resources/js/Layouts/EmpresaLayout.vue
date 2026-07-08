@@ -8,7 +8,9 @@ const page = usePage();
 const sidebarOpen = ref(false);
 const slug = computed(() => page.props.auth.tenant_slug);
 
-const navLinks = [
+const webOrders = computed(() => page.props.features?.webOrders ?? false);
+
+const baseNavLinks = [
     { label: 'Dashboard', route: 'empresa.dashboard', icon: 'dashboard' },
     { label: 'Agenda', route: 'agenda.index', match: 'agenda', icon: 'agenda' },
     { label: 'Sucursales', route: 'empresa.sucursales.index', match: 'empresa.sucursales', icon: 'sucursales' },
@@ -24,6 +26,10 @@ const navLinks = [
     { label: 'Personalizacion', route: 'empresa.personalizacion', icon: 'paint' },
     { label: 'Configuracion', route: 'empresa.configuracion', icon: 'config' },
 ];
+
+const navLinks = computed(() =>
+    webOrders.value ? baseNavLinks : baseNavLinks.filter(link => link.route !== 'empresa.personalizacion')
+);
 
 const isActive = (link) => {
     if (link.match) return route().current(link.match + '*') || route().current(link.route);

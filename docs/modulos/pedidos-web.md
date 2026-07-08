@@ -1,5 +1,9 @@
 # Pedidos Web / Menú Online
 
+> **Oculto tras `FEATURE_WEB_ORDERS=false` desde 2026-07-08** (spec `../superpowers/specs/2026-07-06-ocultar-pedidos-web-design.md`). El código y los datos siguen intactos; las ventas web históricas conservan sus badges informativos.
+>
+> **Cómo re-activar:** `FEATURE_WEB_ORDERS=true` en `.env` + `php artisan config:clear && php artisan route:clear` (+ rebuild de assets no es necesario: la UI lee la prop `features.webOrders`).
+
 Canal de venta público por tenant: una SPA sin login donde el cliente final ve el menú de una sucursal, arma un carrito, cotiza el envío y confirma su pedido por WhatsApp. El pedido se persiste como `Sale` con `origin='web'` y `status=pending` **antes** de abrir WhatsApp (cero pedidos fantasma) y aparece en tiempo real en el Workbench de la sucursal.
 
 > **Importante:** el pedido web **NO es una venta contable**. Es una comanda/referencia que después se empareja con la venta real que crea la báscula (peso pedido ≠ peso cortado). Ver [emparejar-pedido-venta.md](emparejar-pedido-venta.md) y el scope `Sale::accountable()`.

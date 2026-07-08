@@ -2,8 +2,10 @@
 // Modal de detalle de producto, estilo iOS sheet (mobile) / dialog (desktop).
 // Solo lectura + acciones rápidas (toggle status, toggle visible_online).
 // Edición compleja sigue viviendo en /productos/{id}/edit (la pantalla full).
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+
+const webOrders = computed(() => usePage().props.features?.webOrders ?? false);
 import PriceBreakdownSection from '@/Components/Productos/PriceBreakdownSection.vue';
 
 const props = defineProps({
@@ -296,7 +298,7 @@ const deleteProduct = () => {
                                     </button>
 
                                     <!-- Online -->
-                                    <button type="button" @click="toggleOnline" :disabled="togglingOnline"
+                                    <button v-if="webOrders" type="button" @click="toggleOnline" :disabled="togglingOnline"
                                         class="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-gray-200 transition hover:bg-gray-50 active:bg-gray-100 disabled:cursor-wait disabled:opacity-60">
                                         <div class="flex items-center gap-3">
                                             <div :class="['flex h-9 w-9 items-center justify-center rounded-xl', p.visible_online ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400']">

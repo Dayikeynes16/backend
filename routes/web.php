@@ -171,9 +171,11 @@ Route::prefix('{tenant}')
                 Route::get('configuracion', [ConfiguracionController::class, 'edit'])->name('configuracion');
                 Route::put('configuracion', [ConfiguracionController::class, 'update'])->name('configuracion.update');
 
-                Route::get('personalizacion', [PersonalizacionController::class, 'edit'])->name('personalizacion');
-                Route::post('personalizacion', [PersonalizacionController::class, 'update'])->name('personalizacion.update');
-                Route::post('personalizacion/reset', [PersonalizacionController::class, 'reset'])->name('personalizacion.reset');
+                if (config('features.web_orders')) {
+                    Route::get('personalizacion', [PersonalizacionController::class, 'edit'])->name('personalizacion');
+                    Route::post('personalizacion', [PersonalizacionController::class, 'update'])->name('personalizacion.update');
+                    Route::post('personalizacion/reset', [PersonalizacionController::class, 'reset'])->name('personalizacion.reset');
+                }
 
                 // Asistente conversacional (F0 + F1 + F4 voz).
                 Route::get('asistente', [EmpresaAsistenteController::class, 'index'])->name('asistente');
@@ -327,15 +329,23 @@ Route::prefix('{tenant}')
 
                 // Workbench
                 Route::get('mesa-de-trabajo', [WorkbenchController::class, 'index'])->name('workbench');
-                Route::get('mesa-de-trabajo/pedidos-pendientes', [WorkbenchController::class, 'pendingWebOrders'])->name('workbench.pending-web-orders');
-                Route::get('mesa-de-trabajo/ventas-vinculables', [WorkbenchController::class, 'linkableSales'])->name('workbench.linkable-sales');
+                if (config('features.web_orders')) {
+                    Route::get('mesa-de-trabajo/pedidos-pendientes', [WorkbenchController::class, 'pendingWebOrders'])->name('workbench.pending-web-orders');
+                }
+                if (config('features.web_orders')) {
+                    Route::get('mesa-de-trabajo/ventas-vinculables', [WorkbenchController::class, 'linkableSales'])->name('workbench.linkable-sales');
+                }
                 Route::post('mesa-de-trabajo/ventas', [WorkbenchController::class, 'store'])->name('workbench.store');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/cancelar', [WorkbenchController::class, 'cancel'])->name('workbench.cancel');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/reabrir', [WorkbenchController::class, 'reopen'])->name('workbench.reopen');
                 Route::patch('mesa-de-trabajo/ventas/{sale}/estado', [WorkbenchController::class, 'updateStatus'])->name('workbench.update-status');
                 Route::post('mesa-de-trabajo/ventas/{sale}/solicitar-cancelacion', [WorkbenchController::class, 'requestCancel'])->name('workbench.request-cancel');
-                Route::post('mesa-de-trabajo/ventas/{sale}/vincular-pedido', [WorkbenchController::class, 'linkOrder'])->name('workbench.link-order');
-                Route::delete('mesa-de-trabajo/ventas/{sale}/vincular-pedido', [WorkbenchController::class, 'unlinkOrder'])->name('workbench.unlink-order');
+                if (config('features.web_orders')) {
+                    Route::post('mesa-de-trabajo/ventas/{sale}/vincular-pedido', [WorkbenchController::class, 'linkOrder'])->name('workbench.link-order');
+                }
+                if (config('features.web_orders')) {
+                    Route::delete('mesa-de-trabajo/ventas/{sale}/vincular-pedido', [WorkbenchController::class, 'unlinkOrder'])->name('workbench.unlink-order');
+                }
 
                 // Sale locking
                 Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
@@ -454,7 +464,9 @@ Route::prefix('{tenant}')
                 Route::put('productos-compra/categorias/{categoria}', [SucursalPurchaseProductController::class, 'updateCategory'])->whereNumber('categoria')->name('productos-compra.categorias.update');
 
                 // Menú online (QR + link público)
-                Route::get('menu-online', [MenuQrController::class, 'show'])->name('menu-online');
+                if (config('features.web_orders')) {
+                    Route::get('menu-online', [MenuQrController::class, 'show'])->name('menu-online');
+                }
 
                 // Métricas (una sucursal)
                 Route::prefix('metricas')->name('metricas.')->group(function () {
@@ -507,16 +519,24 @@ Route::prefix('{tenant}')
             ->name('caja.')
             ->group(function () {
                 Route::get('/', [CajaWorkbenchController::class, 'index'])->name('workbench');
-                Route::get('pedidos-pendientes', [CajaWorkbenchController::class, 'pendingWebOrders'])->name('pending-web-orders');
-                Route::get('ventas-vinculables', [CajaWorkbenchController::class, 'linkableSales'])->name('linkable-sales');
+                if (config('features.web_orders')) {
+                    Route::get('pedidos-pendientes', [CajaWorkbenchController::class, 'pendingWebOrders'])->name('pending-web-orders');
+                }
+                if (config('features.web_orders')) {
+                    Route::get('ventas-vinculables', [CajaWorkbenchController::class, 'linkableSales'])->name('linkable-sales');
+                }
                 Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
                 Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
                 Route::post('ventas/{sale}/unlock', [SaleLockController::class, 'unlock'])->name('sale.unlock');
                 Route::post('ventas/{sale}/heartbeat', [SaleLockController::class, 'heartbeat'])->name('sale.heartbeat');
                 Route::patch('ventas/{sale}/estado', [CajaWorkbenchController::class, 'updateStatus'])->name('update-status');
                 Route::post('ventas/{sale}/solicitar-cancelacion', [CajaWorkbenchController::class, 'requestCancel'])->name('request-cancel');
-                Route::post('ventas/{sale}/vincular-pedido', [CajaWorkbenchController::class, 'linkOrder'])->name('link-order');
-                Route::delete('ventas/{sale}/vincular-pedido', [CajaWorkbenchController::class, 'unlinkOrder'])->name('unlink-order');
+                if (config('features.web_orders')) {
+                    Route::post('ventas/{sale}/vincular-pedido', [CajaWorkbenchController::class, 'linkOrder'])->name('link-order');
+                }
+                if (config('features.web_orders')) {
+                    Route::delete('ventas/{sale}/vincular-pedido', [CajaWorkbenchController::class, 'unlinkOrder'])->name('unlink-order');
+                }
                 Route::patch('ventas/{sale}/cliente', [CajaWorkbenchController::class, 'assignCustomer'])->name('assign-customer');
                 Route::get('ventas/{sale}/whatsapp-link', [CajaWorkbenchController::class, 'whatsappLink'])->name('whatsapp-link');
                 Route::post('ventas/{sale}/whatsapp-phone', [CajaWorkbenchController::class, 'storeWhatsappPhone'])->name('whatsapp-phone');

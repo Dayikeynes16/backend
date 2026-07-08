@@ -1,7 +1,9 @@
 # Carnicería Hub — Módulo Proveedores (Fase 4: admin-sucursal) — Diseño
 
+> ⚠️ **NOTA DE DIRECCIÓN (2026-07-07):** donde este spec dice "Vue + Material Design 3", léase **Tailwind** — MD3 fue abandonado en favor de **paridad visual con la web** (fuente de verdad). Dirección vigente: `carniceria-hub/docs/direccion-visual.md`.
+
 **Fecha:** 2026-06-16
-**Estado:** En implementación
+**Estado:** Implementado (UI en Tailwind, no MD3)
 **Patrón:** sigue la receta de `2026-06-01-hub-migracion-modulos-fase1-design.md`
 
 ## En palabras simples

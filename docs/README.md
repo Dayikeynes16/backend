@@ -73,7 +73,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 | Área | Estado |
 |------|--------|
 | Núcleo (auth, roles, tenancy, CRUD, API básculas, tiempo real, cajero, paneles) | ✅ Completo (fases 1–7 originales) |
-| Pedidos web + emparejamiento con venta de báscula | ✅ Completo |
+| Pedidos web / Menú online | ✅ Completo · **oculto tras `FEATURE_WEB_ORDERS` (off por default)** desde 2026-07-08 |
 | Clientes (fiado, precios preferenciales, cobro global FIFO) | ✅ Completo |
 | Gastos (con captura IA) | ✅ Completo |
 | Compras + Proveedores + CxP (con captura IA) | ✅ Completo (sin inventario activo, por diseño) |

@@ -8,10 +8,12 @@ import HoursEditor from '@/Components/HoursEditor.vue';
 import PhoneFields from '@/Components/PhoneFields.vue';
 import DeliveryTiersEditor from '@/Components/DeliveryTiersEditor.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage, router } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const props = defineProps({ sucursal: Object, tenant: Object });
+
+const webOrders = computed(() => usePage().props.features?.webOrders ?? false);
 
 // Hours: el modelo en BD admite null por día. El componente HoursEditor
 // también, así que pasamos el objeto tal cual viene (o {} si null).
@@ -171,7 +173,7 @@ const copyMenuUrl = async () => {
             </section>
 
             <!-- Horarios -->
-            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+            <section v-if="webOrders" class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-6 py-5">
                     <h2 class="text-base font-bold text-gray-900">Horarios de atención</h2>
                     <p class="mt-1 text-sm text-gray-500">Define los días y horas en que la sucursal opera.</p>
@@ -184,7 +186,7 @@ const copyMenuUrl = async () => {
             </section>
 
             <!-- Pedidos online -->
-            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+            <section v-if="webOrders" class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
                     <div>
                         <h2 class="text-base font-bold text-gray-900">Pedidos en línea</h2>

@@ -1,5 +1,7 @@
 # Hub Fase 1 · Plan C — Renderer: pantallas de caja (Material Design 3)
 
+> ⚠️ **HISTÓRICO / DIRECCIÓN SUPERADA (2026-07-07).** Material Design 3 y `@material/web` **fueron abandonados** como dirección del hub. La UI del hub ya se migró a **Tailwind** para tener **paridad visual con la web `carniceria-saas`** (fuente de verdad). Este plan queda como referencia histórica de cómo se construyó la Fase 1; **no lo sigas para MD3**. Dirección vigente: `carniceria-hub/docs/direccion-visual.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans. Steps use `- [ ]`. Usar skills `material-3`, electron (`.agents/skills/electron`), `vue-best-practices`.
 
 **Goal:** Pantallas del núcleo de caja en el hub (Turno, Caja/ventas con polling, Detalle+cobro) con Material Design 3 (`@material/web`), integradas al shell por rol, consumiendo `window.hub.api.*` (Plan B).

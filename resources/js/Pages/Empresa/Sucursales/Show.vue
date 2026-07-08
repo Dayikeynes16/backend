@@ -1,10 +1,12 @@
 <script setup>
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const props = defineProps({ sucursal: Object, tenant: Object });
+
+const webOrders = computed(() => usePage().props.features?.webOrders ?? false);
 
 const DAY_LABELS = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -126,7 +128,7 @@ const avatarInitials = computed(() => {
                                     <span :class="['h-1.5 w-1.5 rounded-full', isActive ? 'bg-emerald-500' : 'bg-gray-400']" />
                                     {{ isActive ? 'Activa' : 'Inactiva' }}
                                 </span>
-                                <span :class="['inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ring-inset',
+                                <span v-if="webOrders" :class="['inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ring-inset',
                                     onlineEnabled ? 'bg-blue-50 text-blue-700 ring-blue-600/20' : 'bg-gray-100 text-gray-500 ring-gray-200']">
                                     <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" /></svg>
                                     Menú online {{ onlineEnabled ? 'activo' : 'apagado' }}
@@ -169,7 +171,7 @@ const avatarInitials = computed(() => {
                             <span v-else class="italic text-gray-400">Sin configurar</span>
                         </dd>
                     </div>
-                    <div class="grid grid-cols-3 gap-3 px-6 py-3.5">
+                    <div v-if="webOrders" class="grid grid-cols-3 gap-3 px-6 py-3.5">
                         <dt class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400">
                             <svg class="h-3.5 w-3.5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347M12.05 21.785h-.004a9.87 9.87 0 0 1-5.03-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.002-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.892 6.994c-.003 5.45-4.437 9.884-9.885 9.884" /></svg>
                             WhatsApp pedidos
@@ -211,7 +213,7 @@ const avatarInitials = computed(() => {
             </section>
 
             <!-- Horarios -->
-            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+            <section v-if="webOrders" class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
                 <header class="border-b border-gray-100 px-6 py-4">
                     <h2 class="text-base font-bold text-gray-900">Horarios</h2>
                 </header>
@@ -236,7 +238,7 @@ const avatarInitials = computed(() => {
             </section>
 
             <!-- Pedidos en línea -->
-            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+            <section v-if="webOrders" class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
                 <header class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
                     <h2 class="text-base font-bold text-gray-900">Pedidos en línea</h2>
                     <span :class="['inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ring-inset',

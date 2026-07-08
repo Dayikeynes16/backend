@@ -12,6 +12,10 @@
 //     :online-enabled="form.online_ordering_enabled" />
 
 import InputError from '@/Components/InputError.vue';
+import { usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
+
+const webOrders = computed(() => usePage().props.features?.webOrders ?? false);
 
 defineProps({
     phone: { type: String, default: '' },
@@ -52,7 +56,7 @@ defineEmits(['update:phone', 'update:publicPhone']);
         </div>
 
         <!-- WhatsApp público -->
-        <div :class="['rounded-2xl bg-white p-4 ring-1 transition',
+        <div v-if="webOrders" :class="['rounded-2xl bg-white p-4 ring-1 transition',
             onlineEnabled
                 ? 'ring-emerald-200 hover:ring-emerald-300'
                 : 'ring-gray-100 opacity-75 hover:opacity-100']">
