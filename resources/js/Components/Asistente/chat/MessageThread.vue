@@ -139,7 +139,7 @@ const showScrollButton = computed(() => !atBottom.value && props.chat.messages.l
                         <div class="min-w-0 flex-1 space-y-2.5">
                             <div class="flex items-end gap-2">
                                 <div
-                                    class="max-w-[90%] whitespace-pre-wrap text-[15px] leading-relaxed text-gray-800 [&_strong]:font-semibold [&_strong]:text-gray-900"
+                                    class="max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-tl-md bg-gray-100/80 px-3.5 py-2.5 text-[15px] leading-relaxed text-gray-800 [&_strong]:font-semibold [&_strong]:text-gray-900"
                                     v-html="formatContent(item.message.content)"
                                 />
                                 <button
