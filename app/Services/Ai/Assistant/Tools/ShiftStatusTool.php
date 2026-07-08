@@ -21,7 +21,7 @@ class ShiftStatusTool extends AbstractAssistantTool
 
     public function rolesAllowed(): array
     {
-        return ['admin-empresa', 'admin-sucursal'];
+        return ['admin-empresa', 'admin-sucursal', 'cajero'];
     }
 
     public function jsonSchema(): array
@@ -57,8 +57,10 @@ class ShiftStatusTool extends AbstractAssistantTool
 
     public function execute(User $user, array $params): ToolResult
     {
+        // El cajero solo ve SUS turnos y SUS cortes (no los totales de otros).
         $base = fn () => CashRegisterShift::query()
             ->when($params['branch_id'], fn ($q) => $q->where('branch_id', $params['branch_id']))
+            ->when($user->hasRole('cajero'), fn ($q) => $q->where('user_id', $user->id))
             ->with(['user:id,name', 'branch:id,name']);
 
         $open = $base()

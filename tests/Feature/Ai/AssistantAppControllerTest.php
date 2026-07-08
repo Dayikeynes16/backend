@@ -45,13 +45,15 @@ class AssistantAppControllerTest extends TestCase
         $response->assertInertia(fn ($p) => $p->component('Asistente/App'));
     }
 
-    public function test_cajero_cannot_view_mini_app(): void
+    public function test_cajero_can_view_mini_app(): void
     {
+        // F5 (D5): el cajero entra con toolset operativo de caja.
         $this->actingAs($this->cajero);
 
         $response = $this->get(route('asistente.index', $this->tenant->slug));
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $response->assertInertia(fn ($p) => $p->component('Asistente/App'));
     }
 
     public function test_index_auto_creates_first_session(): void

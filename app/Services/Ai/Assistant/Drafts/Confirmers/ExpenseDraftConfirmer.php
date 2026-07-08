@@ -5,6 +5,7 @@ namespace App\Services\Ai\Assistant\Drafts\Confirmers;
 use App\Enums\AssistantDraftType;
 use App\Enums\PaymentMethod;
 use App\Models\AssistantDraft;
+use App\Models\Branch;
 use App\Models\User;
 use App\Services\Ai\Assistant\Drafts\AssistantDraftService;
 use App\Services\Ai\Assistant\Drafts\DraftConfirmationResult;
@@ -31,7 +32,11 @@ final class ExpenseDraftConfirmer implements DraftConfirmer
 
     public function authorize(User $user, AssistantDraft $draft): bool
     {
-        // El rol de la ruta ya restringe a admin-empresa/admin-sucursal.
+        // Cajero: su sucursal debe tener habilitado el toggle de gastos.
+        if ($user->hasRole('cajero')) {
+            return (bool) Branch::query()->find($user->branch_id)?->cashier_expenses_enabled;
+        }
+
         return true;
     }
 
@@ -52,8 +57,8 @@ final class ExpenseDraftConfirmer implements DraftConfirmer
             'description' => 'nullable|string|max:1000',
         ];
 
-        // admin-sucursal no elige sucursal: se fuerza la suya. admin-empresa sí.
-        if (! $user->hasRole('admin-sucursal')) {
+        // admin-sucursal y cajero no eligen sucursal: se fuerza la suya. admin-empresa sí.
+        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('cajero')) {
             $rules['branch_id'] = [
                 'required',
                 Rule::exists('branches', 'id')->where(fn ($q) => $q->where('tenant_id', $tenantId)),
@@ -83,7 +88,7 @@ final class ExpenseDraftConfirmer implements DraftConfirmer
         $tenant = app('tenant');
 
         // La sucursal nunca se confía al cliente para admin-sucursal.
-        $branchId = $user->hasRole('admin-sucursal')
+        $branchId = ($user->hasRole('admin-sucursal') || $user->hasRole('cajero'))
             ? $user->branch_id
             : (int) $validated['branch_id'];
 

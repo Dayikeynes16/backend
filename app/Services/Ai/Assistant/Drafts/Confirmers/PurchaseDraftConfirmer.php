@@ -4,6 +4,7 @@ namespace App\Services\Ai\Assistant\Drafts\Confirmers;
 
 use App\Enums\AssistantDraftType;
 use App\Models\AssistantDraft;
+use App\Models\Branch;
 use App\Models\User;
 use App\Services\Ai\Assistant\Drafts\AssistantDraftService;
 use App\Services\Ai\Assistant\Drafts\DraftConfirmationResult;
@@ -33,8 +34,11 @@ final class PurchaseDraftConfirmer implements DraftConfirmer
 
     public function authorize(User $user, AssistantDraft $draft): bool
     {
-        // El rol de la ruta ya restringe a admin-empresa/admin-sucursal; la
-        // sucursal se fuerza en confirm().
+        // Cajero: su sucursal debe tener habilitado el toggle de compras.
+        if ($user->hasRole('cajero')) {
+            return (bool) Branch::query()->find($user->branch_id)?->cashier_purchases_enabled;
+        }
+
         return true;
     }
 
@@ -62,7 +66,7 @@ final class PurchaseDraftConfirmer implements DraftConfirmer
             'items.*.notes' => 'nullable|string|max:500',
         ];
 
-        if (! $user->hasRole('admin-sucursal')) {
+        if (! $user->hasRole('admin-sucursal') && ! $user->hasRole('cajero')) {
             $rules['branch_id'] = [
                 'required', 'integer',
                 Rule::exists('branches', 'id')->where(fn ($q) => $q->where('tenant_id', $tenantId)),
@@ -85,7 +89,7 @@ final class PurchaseDraftConfirmer implements DraftConfirmer
 
     public function confirm(AssistantDraft $draft, User $user, array $validated): DraftConfirmationResult
     {
-        $branchId = $user->hasRole('admin-sucursal')
+        $branchId = ($user->hasRole('admin-sucursal') || $user->hasRole('cajero'))
             ? (int) $user->branch_id
             : (int) $validated['branch_id'];
 

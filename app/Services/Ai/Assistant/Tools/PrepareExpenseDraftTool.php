@@ -4,6 +4,7 @@ namespace App\Services\Ai\Assistant\Tools;
 
 use App\Enums\AssistantDraftType;
 use App\Models\AssistantDraft;
+use App\Models\Branch;
 use App\Models\ExpenseSubcategory;
 use App\Models\User;
 use App\Services\Ai\AiExpenseDraftService;
@@ -46,7 +47,23 @@ class PrepareExpenseDraftTool extends AbstractPrepareDraftTool
 
     public function rolesAllowed(): array
     {
-        return ['admin-empresa', 'admin-sucursal'];
+        return ['admin-empresa', 'admin-sucursal', 'cajero'];
+    }
+
+    /**
+     * Cajero: además del rol, su sucursal debe tener habilitado el toggle de
+     * gastos de cajero (mismo gate que Caja\GastoController en la web).
+     */
+    public function authorize(User $user, array $params): bool
+    {
+        if (! parent::authorize($user, $params)) {
+            return false;
+        }
+        if ($user->hasRole('cajero')) {
+            return (bool) Branch::query()->find($user->branch_id)?->cashier_expenses_enabled;
+        }
+
+        return true;
     }
 
     public function jsonSchema(): array

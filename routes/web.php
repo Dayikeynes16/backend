@@ -545,9 +545,9 @@ Route::prefix('{tenant}')
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
             });
 
-        // Mini-app del asistente (compartida empresa+sucursal bajo /{tenant}/asistente).
-        // Cajero excluido a propósito (decisión D1 del spec 2026-07-06-asistente-mini-app).
-        Route::middleware('role:admin-empresa|admin-sucursal|superadmin')
+        // Mini-app del asistente (compartida por empresa, sucursal y cajero
+        // bajo /{tenant}/asistente — cajero habilitado en F5, decisión D5).
+        Route::middleware('role:admin-empresa|admin-sucursal|cajero|superadmin')
             ->prefix('asistente')
             ->name('asistente.')
             ->group(function () {

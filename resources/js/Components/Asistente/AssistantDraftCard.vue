@@ -8,6 +8,8 @@ import PurchaseDraftCardBody from './PurchaseDraftCardBody.vue';
 import PayablePaymentDraftCardBody from './PayablePaymentDraftCardBody.vue';
 import CustomerPaymentDraftCardBody from './CustomerPaymentDraftCardBody.vue';
 import ProviderAccountPaymentDraftCardBody from './ProviderAccountPaymentDraftCardBody.vue';
+import CashWithdrawalDraftCardBody from './CashWithdrawalDraftCardBody.vue';
+import PriceChangeDraftCardBody from './PriceChangeDraftCardBody.vue';
 import ExpenseCategoryDraftCardBody from './ExpenseCategoryDraftCardBody.vue';
 import ExpenseCategoryEditDraftCardBody from './ExpenseCategoryEditDraftCardBody.vue';
 
@@ -94,6 +96,20 @@ function buildForm() {
         };
     }
 
+    if (draftType.value === 'cash_withdrawal') {
+        return {
+            amount: preview.amount ?? null,
+            reason: preview.reason ?? '',
+        };
+    }
+
+    if (draftType.value === 'price_change') {
+        return {
+            product_id: preview.product_id ?? null,
+            new_price: preview.new_price ?? null,
+        };
+    }
+
     if (draftType.value === 'expense_category') {
         return {
             tipo: preview.tipo ?? 'categoria',
@@ -147,6 +163,8 @@ const meta = computed(() => ({
     payable_payment: { title: 'Borrador de abono', done: 'Abono registrado correctamente.', confirm: 'Registrar abono' },
     customer_global_payment: { title: 'Borrador de cobro a cliente', done: 'Cobro registrado correctamente.', confirm: 'Registrar cobro' },
     provider_account_payment: { title: 'Borrador de pago a proveedor', done: 'Pago registrado correctamente.', confirm: 'Registrar pago' },
+    cash_withdrawal: { title: 'Borrador de retiro de caja', done: 'Retiro registrado correctamente.', confirm: 'Registrar retiro' },
+    price_change: { title: 'Borrador de cambio de precio', done: 'Precio actualizado correctamente.', confirm: 'Aplicar precio' },
     expense_category: { title: 'Borrador de categoría', done: 'Categoría creada correctamente.', confirm: 'Crear categoría' },
     expense_category_edit: { title: 'Editar categoría', done: 'Cambios guardados correctamente.', confirm: 'Guardar cambios' },
     expense: { title: 'Borrador de gasto', done: 'Gasto registrado correctamente.', confirm: 'Confirmar gasto' },
@@ -158,6 +176,8 @@ const bodyComponent = computed(() => ({
     payable_payment: PayablePaymentDraftCardBody,
     customer_global_payment: CustomerPaymentDraftCardBody,
     provider_account_payment: ProviderAccountPaymentDraftCardBody,
+    cash_withdrawal: CashWithdrawalDraftCardBody,
+    price_change: PriceChangeDraftCardBody,
     expense_category: ExpenseCategoryDraftCardBody,
     expense_category_edit: ExpenseCategoryEditDraftCardBody,
 })[draftType.value] || ExpenseDraftCardBody);
@@ -182,6 +202,12 @@ const canConfirm = computed(() => {
     }
     if (draftType.value === 'provider_account_payment') {
         return !!form.provider_id && Number(form.amount) > 0 && !!form.payment_method;
+    }
+    if (draftType.value === 'cash_withdrawal') {
+        return Number(form.amount) > 0 && !!form.reason?.trim();
+    }
+    if (draftType.value === 'price_change') {
+        return !!form.product_id && Number(form.new_price) > 0;
     }
     if (draftType.value === 'expense_category') {
         return !!form.nombre && !!form.tipo && (form.tipo === 'categoria' || !!form.existing_category_id);

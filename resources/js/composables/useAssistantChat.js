@@ -272,6 +272,8 @@ export function useAssistantChat(props, routes) {
             preparar_borrador_abono: 'assistant_draft',
             preparar_cobro_cliente: 'assistant_draft',
             preparar_pago_proveedor_cuenta: 'assistant_draft',
+            preparar_retiro_caja: 'assistant_draft',
+            preparar_cambio_precio: 'assistant_draft',
             preparar_borrador_categoria_gasto: 'assistant_draft',
             editar_categoria_gasto: 'assistant_draft',
         })[name] || 'unknown';
