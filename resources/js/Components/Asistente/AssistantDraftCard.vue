@@ -226,6 +226,67 @@ const canConfirm = computed(() => {
 
 const confirmRouteAvailable = computed(() => !!props.routes.draftConfirm && !!props.routes.draftCancel);
 
+// ── Modo resumen-primero: si el borrador viene completo, se muestra un
+// resumen limpio (como una confirmación de caja) con "Confirmar" grande y
+// "Corregir" para abrir el formulario. Con campos faltantes, directo a editar.
+const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const methodLabel = (v) => (options.payment_methods || []).find((m) => m.value === v)?.label || v || '—';
+
+const summaryRows = computed(() => {
+    const t = draftType.value;
+    if (t === 'customer_global_payment') {
+        const c = (options.customers || []).find((x) => x.id === form.customer_id);
+        const d = preview.distribution;
+        const rows = [
+            ['Cliente', c?.name || '—'],
+            ['Monto recibido', money(form.amount_received)],
+            ['Método', methodLabel(form.method)],
+        ];
+        if (d && form.customer_id === preview.customer_id) {
+            rows.push(['Se aplica a', `${d.sales.length} venta(s) · ${money(d.amount_to_apply)}`]);
+            if (d.change_given > 0) rows.push(['Cambio', money(d.change_given)]);
+        }
+        return rows;
+    }
+    if (t === 'provider_account_payment') {
+        const p = (options.providers || []).find((x) => x.id === form.provider_id);
+        return [
+            ['Proveedor', p?.name || '—'],
+            ['Monto', money(form.amount)],
+            ['Método', methodLabel(form.payment_method)],
+        ];
+    }
+    if (t === 'payable_payment') {
+        const p = (options.purchases || []).find((x) => x.id === form.purchase_id);
+        return [
+            ['Compra', p ? `${p.folio}` : '—'],
+            ['Monto', money(form.amount)],
+            ['Método', methodLabel(form.payment_method)],
+        ];
+    }
+    if (t === 'cash_withdrawal') {
+        return [['Monto a retirar', money(form.amount)], ['Motivo', form.reason || '—']];
+    }
+    if (t === 'price_change') {
+        const p = (options.products || []).find((x) => x.id === form.product_id);
+        return [
+            ['Producto', p?.name || '—'],
+            ['Precio actual', p ? money(p.current_price) : '—'],
+            ['Nuevo precio', money(form.new_price)],
+        ];
+    }
+    if (t === 'expense') {
+        return [['Concepto', form.concept || '—'], ['Monto', money(form.amount)], ['Fecha', form.expense_date || '—']];
+    }
+    if (t === 'purchase') {
+        const total = (form.items || []).reduce((sum, l) => sum + Number(l.quantity || 0) * Number(l.unit_price || 0), 0);
+        return [['Conceptos', String((form.items || []).length)], ['Total', money(total)]];
+    }
+    return null; // proveedores/categorías: siempre formulario
+});
+
+const editing = ref(!summaryRows.value || (props.data.missing_fields || []).length > 0);
+
 async function confirm() {
     if (processing.value || status.value !== 'ready' || !canConfirm.value) return;
     processing.value = true;
@@ -304,7 +365,13 @@ async function cancelDraft() {
 
         <!-- Editable + confirmación -->
         <template v-else>
-            <component :is="bodyComponent" :form="form" :options="options" :errors="fieldErrors" :disabled="processing" :preview="preview" />
+            <div v-if="!editing && summaryRows" class="divide-y divide-gray-100 rounded-xl bg-gray-50/70 px-3.5">
+                <div v-for="[label, value] in summaryRows" :key="label" class="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <span class="shrink-0 text-gray-500">{{ label }}</span>
+                    <span class="min-w-0 truncate text-right font-semibold text-gray-900">{{ value }}</span>
+                </div>
+            </div>
+            <component v-else :is="bodyComponent" :form="form" :options="options" :errors="fieldErrors" :disabled="processing" :preview="preview" />
 
             <!-- Posibles duplicados (proveedor) -->
             <div v-if="data.duplicates && data.duplicates.length" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -332,26 +399,37 @@ async function cancelDraft() {
             <div v-if="!confirmRouteAvailable" class="mt-3 text-xs italic text-gray-500">
                 La confirmación no está disponible en este contexto.
             </div>
-            <div v-else class="mt-4 flex items-center gap-2">
+            <div v-else class="mt-4 space-y-1">
                 <button
                     type="button"
                     :disabled="processing || !canConfirm"
                     @click="confirm"
-                    class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-orange-600 hover:to-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition-all duration-150 hover:from-orange-600 hover:to-red-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:saturate-50"
                 >
-                    <svg v-if="processing" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <svg v-if="processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                         <circle cx="12" cy="12" r="10" stroke-opacity="0.3" /><path d="M22 12a10 10 0 0 1-10 10" />
                     </svg>
                     {{ processing ? 'Guardando…' : meta.confirm }}
                 </button>
-                <button
-                    type="button"
-                    :disabled="processing"
-                    @click="cancelDraft"
-                    class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
-                >
-                    Cancelar
-                </button>
+                <div class="flex items-center justify-center gap-8 pt-1.5">
+                    <button
+                        v-if="summaryRows"
+                        type="button"
+                        :disabled="processing"
+                        @click="editing = !editing"
+                        class="text-sm font-semibold uppercase tracking-wide text-orange-700 transition-colors duration-150 hover:text-orange-900 disabled:opacity-50"
+                    >
+                        {{ editing ? 'Ver resumen' : 'Corregir' }}
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="processing"
+                        @click="cancelDraft"
+                        class="text-sm uppercase tracking-wide text-gray-400 transition-colors duration-150 hover:text-gray-600 disabled:opacity-50"
+                    >
+                        Cancelar
+                    </button>
+                </div>
             </div>
         </template>
     </div>
