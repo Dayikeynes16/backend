@@ -51,6 +51,9 @@ class HandleInertiaRequests extends Middleware
                     'ticket_width' => data_get($branch->ticket_config, 'width', '80mm'),
                 ] : null,
             ],
+            'features' => [
+                'webOrders' => (bool) config('features.web_orders'),
+            ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

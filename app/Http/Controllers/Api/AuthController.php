@@ -57,7 +57,7 @@ class AuthController extends Controller
     }
 
     /**
-     * @return array{id:int,name:string,email:string,role:?string,branch_id:?int,branch_name:?string,tenant_id:?int,tenant_slug:?string}
+     * @return array{id:int,name:string,email:string,role:?string,branch_id:?int,branch_name:?string,cashier_expenses_enabled:bool,cashier_purchases_enabled:bool,tenant_id:?int,tenant_slug:?string}
      */
     private function userPayload(User $user): array
     {
@@ -70,6 +70,10 @@ class AuthController extends Controller
             'role' => $user->getRoleNames()->first(),
             'branch_id' => $user->branch_id,
             'branch_name' => $user->branch?->name,
+            // Feature flags por sucursal — el hub los usa para mostrar/ocultar
+            // Gastos y Compras al cajero, con la misma regla que la web (CajeroLayout).
+            'cashier_expenses_enabled' => (bool) $user->branch?->cashier_expenses_enabled,
+            'cashier_purchases_enabled' => (bool) $user->branch?->cashier_purchases_enabled,
             'tenant_id' => $user->tenant_id,
             'tenant_slug' => $user->tenant?->slug,
         ];

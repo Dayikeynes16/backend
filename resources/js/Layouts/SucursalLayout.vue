@@ -36,7 +36,11 @@ const baseNavLinks = [
     { label: 'Configuracion', route: 'sucursal.configuracion', icon: 'config' },
 ];
 
-const navLinks = computed(() => baseNavLinks);
+const webOrders = computed(() => page.props.features?.webOrders ?? false);
+
+const navLinks = computed(() =>
+    webOrders.value ? baseNavLinks : baseNavLinks.filter(link => link.route !== 'sucursal.menu-online')
+);
 
 const isActive = (link) => {
     if (link.match) {

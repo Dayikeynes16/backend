@@ -4,10 +4,12 @@ import FlashToast from '@/Components/FlashToast.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
 const props = defineProps({ categories: Array, tenant: Object });
+
+const webOrders = computed(() => usePage().props.features?.webOrders ?? false);
 
 const form = useForm({
     name: '',
@@ -299,7 +301,7 @@ const submit = () => {
                 <InputError :message="form.errors.visibility" class="px-6 pb-4" />
 
                 <!-- Visibilidad online (menú web) -->
-                <div class="border-t border-gray-100 p-6">
+                <div v-if="webOrders" class="border-t border-gray-100 p-6">
                     <label class="flex cursor-pointer items-start gap-3">
                         <input type="checkbox" v-model="form.visible_online" class="mt-0.5 rounded text-red-600" />
                         <div>

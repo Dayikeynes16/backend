@@ -36,10 +36,13 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
     "user": {
         "id": 4, "name": "Cajero Demo", "email": "cajero@eltoro.test",
         "role": "cajero", "branch_id": 1, "branch_name": "Sucursal Centro",
+        "cashier_expenses_enabled": true, "cashier_purchases_enabled": true,
         "tenant_id": 1, "tenant_slug": "el-toro"
     }
 }
 ```
+
+> `cashier_expenses_enabled` / `cashier_purchases_enabled` son los feature-flags de la sucursal; el hub los usa para mostrar/ocultar Gastos y Compras al cajero en la navegación, con la misma regla que la web (`CajeroLayout`).
 
 **Errores:** `401` credenciales incorrectas · `403` el usuario no tiene rol de hub · `409` el usuario tiene `force_password_change` pendiente (debe cambiarla en la web).
 

@@ -4,8 +4,10 @@ import FlashToast from '@/Components/FlashToast.vue';
 import InputError from '@/Components/InputError.vue';
 import TextInput from '@/Components/TextInput.vue';
 import ProductDetailModal from '@/Components/Productos/ProductDetailModal.vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, watch, computed } from 'vue';
+
+const webOrders = computed(() => usePage().props.features?.webOrders ?? false);
 
 const props = defineProps({
     productos: Object,
@@ -288,7 +290,7 @@ const categoryCount = computed(() => props.categoriesForTab?.length ?? 0);
                                         {{ p.presentations_count }} presentación{{ p.presentations_count !== 1 ? 'es' : '' }}
                                     </span>
                                     <!-- Online -->
-                                    <span v-if="p.visible_online" class="inline-flex items-center gap-1 rounded-md bg-cyan-50 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-700">
+                                    <span v-if="webOrders && p.visible_online" class="inline-flex items-center gap-1 rounded-md bg-cyan-50 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-700">
                                         <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" /></svg>
                                         Online
                                     </span>

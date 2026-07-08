@@ -44,6 +44,19 @@ class AuthControllerTest extends TestCase
         $this->login('suc@test.local')->assertOk()->assertJsonPath('user.role', 'admin-sucursal');
     }
 
+    public function test_user_payload_includes_cashier_feature_flags(): void
+    {
+        $this->branch->forceFill([
+            'cashier_expenses_enabled' => true,
+            'cashier_purchases_enabled' => false,
+        ])->save();
+
+        $this->login('caja@test.local')
+            ->assertOk()
+            ->assertJsonPath('user.cashier_expenses_enabled', true)
+            ->assertJsonPath('user.cashier_purchases_enabled', false);
+    }
+
     public function test_admin_empresa_is_forbidden(): void
     {
         $this->login('admin@test.local')

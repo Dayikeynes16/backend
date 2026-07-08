@@ -1,7 +1,7 @@
 # Ocultar el módulo Pedidos Web / Menú Online tras un feature flag global
 
 **Fecha:** 2026-07-06
-**Estado:** Aprobado — pendiente de plan de implementación
+**Estado:** Implementado (2026-07-08) — ver header de docs/modulos/pedidos-web.md
 **Alcance:** apagado total y reversible (UI interna + acceso público). No se elimina código ni datos.
 
 ## Problema

@@ -1,7 +1,9 @@
 # Carnicería Hub — Migración de módulos web (Fase 1: núcleo de caja) — Diseño congelado
 
+> ⚠️ **NOTA DE DIRECCIÓN (2026-07-07):** el punto "UI = Material Design 3 (`@material/web`)" de este spec **quedó superado**. MD3 fue abandonado; la UI del hub se migró a **Tailwind** buscando **paridad visual con la web** (fuente de verdad). El resto del diseño (patrón API Hub, roles admin-sucursal/cajero, online-first) sigue vigente. Dirección visual vigente: `carniceria-hub/docs/direccion-visual.md`.
+
 **Fecha:** 2026-06-01
-**Estado:** Aprobado para Fase 1
+**Estado:** Implementado (Fase 1 completa) · dirección de UI actualizada 2026-07-07 (MD3 → Tailwind/paridad web)
 **Autor:** colaboración con Claude (brainstorming + propuesta)
 
 ## En palabras simples (léelo primero)
