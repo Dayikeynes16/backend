@@ -224,7 +224,7 @@ const showScrollButton = computed(() => !atBottom.value && props.chat.messages.l
     30% { opacity: 1; transform: translateY(-2px); }
 }
 
-.msg-in { animation: msg-in 0.22s ease-out both; }
+.msg-in { animation: msg-in 0.22s cubic-bezier(0.23, 1, 0.32, 1) both; }
 .dot { animation: dot-pulse 1.2s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {

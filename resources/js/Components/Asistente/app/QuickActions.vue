@@ -55,7 +55,7 @@ function run(action) {
             type="button"
             :disabled="chat.sending"
             @click="run(a)"
-            class="rounded-full border border-orange-200 bg-orange-50 px-3.5 py-2 text-xs font-semibold text-orange-800 transition hover:border-orange-400 hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+            class="rounded-full border border-orange-200 bg-orange-50 px-3.5 py-2 text-xs font-semibold text-orange-800 transition-[transform,background-color,border-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-orange-400 hover:bg-orange-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
         >
             {{ a.label }}
         </button>
