@@ -6,11 +6,13 @@ use App\Models\Branch;
 use App\Models\User;
 use App\Observers\BranchObserver;
 use App\Policies\UserPolicy;
+use App\Services\Ai\Assistant\Drafts\Confirmers\CashWithdrawalDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\CustomerGlobalPaymentDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseCategoryDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseCategoryEditDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\PayablePaymentDraftConfirmer;
+use App\Services\Ai\Assistant\Drafts\Confirmers\ProductPriceDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ProviderAccountPaymentDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ProviderDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\PurchaseDraftConfirmer;
@@ -20,11 +22,13 @@ use App\Services\Ai\Assistant\Tools\AccountsPayableTool;
 use App\Services\Ai\Assistant\Tools\CustomerStatsTool;
 use App\Services\Ai\Assistant\Tools\ExpenseCategoriesTool;
 use App\Services\Ai\Assistant\Tools\ExpenseSummaryTool;
+use App\Services\Ai\Assistant\Tools\PrepareCashWithdrawalDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareCustomerPaymentDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseCategoryDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseCategoryEditDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseDraftTool;
 use App\Services\Ai\Assistant\Tools\PreparePayablePaymentDraftTool;
+use App\Services\Ai\Assistant\Tools\PrepareProductPriceDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareProviderAccountPaymentDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareProviderDraftTool;
 use App\Services\Ai\Assistant\Tools\PreparePurchaseDraftTool;
@@ -61,6 +65,8 @@ class AppServiceProvider extends ServiceProvider
             $app->make(PreparePayablePaymentDraftTool::class),
             $app->make(PrepareCustomerPaymentDraftTool::class),
             $app->make(PrepareProviderAccountPaymentDraftTool::class),
+            $app->make(PrepareCashWithdrawalDraftTool::class),
+            $app->make(PrepareProductPriceDraftTool::class),
             $app->make(PrepareExpenseCategoryDraftTool::class),
             $app->make(PrepareExpenseCategoryEditDraftTool::class),
         ]));
@@ -73,6 +79,8 @@ class AppServiceProvider extends ServiceProvider
             $app->make(PayablePaymentDraftConfirmer::class),
             $app->make(CustomerGlobalPaymentDraftConfirmer::class),
             $app->make(ProviderAccountPaymentDraftConfirmer::class),
+            $app->make(CashWithdrawalDraftConfirmer::class),
+            $app->make(ProductPriceDraftConfirmer::class),
             $app->make(ExpenseCategoryDraftConfirmer::class),
             $app->make(ExpenseCategoryEditDraftConfirmer::class),
         ]));

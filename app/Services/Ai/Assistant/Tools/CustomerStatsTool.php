@@ -24,7 +24,7 @@ class CustomerStatsTool extends AbstractAssistantTool
 
     public function rolesAllowed(): array
     {
-        return ['admin-empresa', 'admin-sucursal'];
+        return ['admin-empresa', 'admin-sucursal', 'cajero'];
     }
 
     public function jsonSchema(): array

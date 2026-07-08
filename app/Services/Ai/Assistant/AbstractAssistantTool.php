@@ -40,8 +40,8 @@ abstract class AbstractAssistantTool implements AssistantTool
      */
     protected function resolveBranch(User $user, ?string $branchName): ?Branch
     {
-        // Admin-sucursal: ignorar lo que diga el modelo, usar su propia sucursal.
-        if ($user->hasRole('admin-sucursal')) {
+        // Admin-sucursal y cajero: ignorar lo que diga el modelo, usar su sucursal.
+        if ($user->hasRole('admin-sucursal') || $user->hasRole('cajero')) {
             return $user->branch_id ? Branch::find($user->branch_id) : null;
         }
 

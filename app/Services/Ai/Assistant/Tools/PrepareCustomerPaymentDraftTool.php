@@ -46,7 +46,7 @@ class PrepareCustomerPaymentDraftTool extends AbstractPrepareDraftTool
 
     public function rolesAllowed(): array
     {
-        return ['admin-empresa', 'admin-sucursal'];
+        return ['admin-empresa', 'admin-sucursal', 'cajero'];
     }
 
     public function jsonSchema(): array
@@ -199,7 +199,7 @@ class PrepareCustomerPaymentDraftTool extends AbstractPrepareDraftTool
     private function customerBase(User $user): Builder
     {
         $query = Customer::query();
-        if ($user->hasRole('admin-sucursal') && $user->branch_id) {
+        if (($user->hasRole('admin-sucursal') || $user->hasRole('cajero')) && $user->branch_id) {
             $query->where('branch_id', $user->branch_id);
         }
 
@@ -278,7 +278,7 @@ class PrepareCustomerPaymentDraftTool extends AbstractPrepareDraftTool
             ->where('amount_pending', '>', 0)
             ->whereNotNull('customer_id')
             ->when(
-                $user->hasRole('admin-sucursal') && $user->branch_id,
+                ($user->hasRole('admin-sucursal') || $user->hasRole('cajero')) && $user->branch_id,
                 fn ($q) => $q->where('branch_id', $user->branch_id),
             )
             ->selectRaw('customer_id, SUM(amount_pending) AS owed')

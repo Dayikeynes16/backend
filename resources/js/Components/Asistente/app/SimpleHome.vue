@@ -1,5 +1,6 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 
 // Modo simple (F4): punto de entrada con acciones grandes para usuarios con
 // poca experiencia. No limita nada — cada acción compone una frase y la envía
@@ -11,6 +12,13 @@ const props = defineProps({
 
 const emit = defineEmits(['dismiss']);
 
+// Acciones según el rol (D5): el cajero no ve resumen del negocio ni pagos a
+// proveedor; los roles con turno (cajero, admin-sucursal) ven "Retirar efectivo".
+const page = usePage();
+const role = computed(() => page.props.auth.role);
+const isCajero = computed(() => role.value === 'cajero');
+const hasShiftRole = computed(() => ['cajero', 'admin-sucursal'].includes(role.value));
+
 // Sección expandida: null | 'registrar' | 'cobrar' | 'pagar'
 const expanded = ref(null);
 
@@ -21,7 +29,7 @@ const METHOD_LABELS = { cash: 'efectivo', card: 'tarjeta', transfer: 'transferen
 
 function toggle(section) {
     expanded.value = expanded.value === section ? null : section;
-    guided.value = { name: '', amount: null, method: 'cash' };
+    guided.value = { name: '', amount: null, method: 'cash', reason: '' };
 }
 
 function sendPrompt(text) {
@@ -43,14 +51,23 @@ function sendPagoProveedor() {
     const { name, amount, method } = guided.value;
     sendPrompt(`Págale $${Number(amount).toFixed(2)} al proveedor ${name.trim()} por ${METHOD_LABELS[method]}.`);
 }
+
+const retiroReady = () => Number(guided.value.amount) > 0 && guided.value.reason.trim() !== '';
+
+function sendRetiro() {
+    if (!retiroReady()) return;
+    const { amount, reason } = guided.value;
+    sendPrompt(`Retira $${Number(amount).toFixed(2)} de la caja. Motivo: ${reason.trim()}.`);
+}
 </script>
 
 <template>
     <div class="flex-1 space-y-3 overflow-y-auto p-5">
         <p class="text-sm font-medium text-gray-700">¿Qué quieres hacer?</p>
 
-        <!-- 1. Resumen del negocio -->
+        <!-- 1. Resumen del negocio (no aplica al cajero) -->
         <button
+            v-if="!isCajero"
             type="button"
             :disabled="chat.sending"
             @click="sendPrompt('¿Cómo va el negocio hoy? Dame el resumen de ventas.')"
@@ -131,8 +148,8 @@ function sendPagoProveedor() {
             </div>
         </div>
 
-        <!-- 4. Pagar a proveedor -->
-        <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <!-- 4. Pagar a proveedor (no aplica al cajero) -->
+        <div v-if="!isCajero" class="rounded-2xl border border-gray-200 bg-white shadow-sm">
             <button
                 type="button"
                 :disabled="chat.sending"
@@ -167,6 +184,33 @@ function sendPagoProveedor() {
                         ¿Cuánto debo?
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- 4b. Retirar efectivo (roles con turno) -->
+        <div v-if="hasShiftRole" class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <button
+                type="button"
+                :disabled="chat.sending"
+                @click="toggle('retirar')"
+                class="flex w-full items-center gap-3 p-4 text-left transition hover:bg-orange-50 disabled:opacity-50"
+            >
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-600 text-white">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                </span>
+                <span class="flex-1">
+                    <span class="block text-base font-bold text-gray-900">Retirar efectivo</span>
+                    <span class="block text-xs text-gray-500">Sale de la caja de tu turno abierto</span>
+                </span>
+                <svg class="h-4 w-4 text-gray-400 transition" :class="expanded === 'retirar' ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+            </button>
+            <div v-if="expanded === 'retirar'" class="space-y-2 border-t border-gray-100 p-3">
+                <input v-model.number="guided.amount" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="¿Cuánto retiras?" class="w-full rounded-xl border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500" />
+                <input v-model="guided.reason" type="text" maxlength="255" placeholder="Motivo (gasolina, cambio…)" class="w-full rounded-xl border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500" />
+                <button type="button" :disabled="!retiroReady() || chat.sending" @click="sendRetiro"
+                    class="w-full rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-3 py-3 text-sm font-semibold text-white shadow-sm transition hover:from-orange-600 hover:to-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    Preparar retiro
+                </button>
             </div>
         </div>
 

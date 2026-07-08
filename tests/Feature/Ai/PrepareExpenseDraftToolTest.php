@@ -146,7 +146,8 @@ class PrepareExpenseDraftToolTest extends TestCase
 
         $this->assertFalse($tool->readOnly());
         $this->assertInstanceOf(PreparesDraft::class, $tool);
-        $this->assertSame(['admin-empresa', 'admin-sucursal'], $tool->rolesAllowed());
+        // F5 (D5): cajero incluido, gated por cashier_expenses_enabled en authorize().
+        $this->assertSame(['admin-empresa', 'admin-sucursal', 'cajero'], $tool->rolesAllowed());
     }
 
     public function test_execute_is_disabled_for_prepare_tools(): void

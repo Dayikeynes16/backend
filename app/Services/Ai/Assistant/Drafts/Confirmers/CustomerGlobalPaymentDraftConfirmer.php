@@ -49,7 +49,7 @@ final class CustomerGlobalPaymentDraftConfirmer implements DraftConfirmer
 
         $customerRule = Rule::exists('customers', 'id')->where(function ($q) use ($tenantId, $user) {
             $q->where('tenant_id', $tenantId);
-            if ($user->hasRole('admin-sucursal') && $user->branch_id) {
+            if (($user->hasRole('admin-sucursal') || $user->hasRole('cajero')) && $user->branch_id) {
                 $q->where('branch_id', $user->branch_id);
             }
         });

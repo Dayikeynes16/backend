@@ -1,6 +1,6 @@
 # Asistente Conversacional con IA
 
-Asistente interno de texto + voz para `admin-empresa` y `admin-sucursal`. Interpreta lenguaje natural y lo traduce a **herramientas (tools) predefinidas en PHP — nunca SQL libre** — para consultar el negocio y preparar registros. Toda escritura pasa por borrador + confirmación humana. Página dedicada "Asistente" (badge Beta) en la navegación de Empresa y Sucursal.
+Asistente interno de texto + voz para `admin-empresa`, `admin-sucursal` y (con toolset operativo) `cajero`. Interpreta lenguaje natural y lo traduce a **herramientas (tools) predefinidas en PHP — nunca SQL libre** — para consultar el negocio y preparar registros. Toda escritura pasa por borrador + confirmación humana. Página dedicada "Asistente" (badge Beta) en la navegación de Empresa y Sucursal.
 
 > Diseño original y decisiones: [`docs/arquitectura/ia-asistente.md`](../arquitectura/ia-asistente.md). Este documento describe lo implementado (F0–F4).
 
@@ -11,14 +11,14 @@ Asistente interno de texto + voz para `admin-empresa` y `admin-sucursal`. Interp
 - Aceptar dictado por voz (Whisper) y adjuntos de imagen (recibo/factura) con extracción por visión.
 - Mantener trazabilidad completa: sesiones, mensajes, tool ejecutado, parámetros, resultado, tokens, costo y latencia.
 
-**No hace:** no ejecuta SQL libre, no decide autorización (vive en PHP), no confirma escrituras (la confirmación es una petición HTTP separada del usuario), no realiza acciones destructivas (borrados/cancelaciones masivas, cambios de precios, refunds, reapertura de turnos), no está disponible para `cajero` ni tiene tools para `superadmin`.
+**No hace:** no ejecuta SQL libre, no decide autorización (vive en PHP), no confirma escrituras (la confirmación es una petición HTTP separada del usuario), no realiza acciones destructivas (borrados/cancelaciones masivas, refunds, reapertura de turnos) ni tiene tools para `superadmin`. Los cambios de precio SÍ existen desde F5 pero solo como borrador confirmable de admin-sucursal.
 
 ## Principios inviolables
 
 1. **La IA no decide autorización.** `ToolRegistry` filtra tools por rol antes de exponerlas al modelo, y cada tool re-valida con `authorize()` al ejecutarse.
 2. **La IA no genera cifras finales.** Los números vienen de queries (reutilizando `SalesMetrics` y los servicios de dominio); la UI los pinta desde el JSON del tool como "data cards".
 3. **Toda escritura pasa por draft + confirmación humana.** No existe ninguna tool de confirmación en el registry (invariante testeado).
-4. **`branch_id` se fuerza en el servidor.** Para `admin-sucursal`, `AbstractAssistantTool::resolveBranch()` ignora lo que pida el modelo y usa `$user->branch_id`.
+4. **`branch_id` se fuerza en el servidor.** Para `admin-sucursal` y `cajero`, `AbstractAssistantTool::resolveBranch()` ignora lo que pida el modelo y usa `$user->branch_id`.
 
 ## Arquitectura
 
@@ -36,7 +36,7 @@ AssistantOrchestrator
   ▼
 ToolRegistry (singleton, filtrado por rol)
   ├─ 9 read tools  → execute() → ToolResult → data card en la UI
-  └─ 6 write tools → prepareDraft() → assistant_drafts → AssistantDraftCard
+  └─ 10 write tools → prepareDraft() → assistant_drafts → AssistantDraftCard
                                           │ Confirmar (2ª petición HTTP)
                                           ▼
                       AssistantDraftController@confirm → DraftConfirmerRegistry
@@ -70,7 +70,7 @@ Piezas backend en `app/Services/Ai/`:
 | `consultar_cuentas_por_pagar` | `AccountsPayableTool` | Saldo a proveedores + top adeudos |
 | `consultar_categorias_gasto` | `ExpenseCategoriesTool` | Catálogo de categorías/subcategorías con conteos |
 
-### Escritura (8) — solo preparan borrador, nunca persisten el registro final
+### Escritura (10) — solo preparan borrador, nunca persisten el registro final
 
 | Función | Clase | Borrador de | Notas |
 |---|---|---|---|
@@ -80,6 +80,8 @@ Piezas backend en `app/Services/Ai/`:
 | `preparar_borrador_abono` | `PreparePayablePaymentDraftTool` | Pago a compra | Resuelve por folio o proveedor; avisa si excede el saldo |
 | `preparar_cobro_cliente` | `PrepareCustomerPaymentDraftTool` | Cobro global a cliente (FIFO) | Resuelve cliente por nombre (candidatos explícitos si es ambiguo); el desglose FIFO lo calcula `CustomerGlobalPaymentService::preview()`. **Confirmar exige turno abierto** y que el cliente sea de la sucursal del turno (D2); `apply()` re-calcula la distribución al confirmar |
 | `preparar_pago_proveedor_cuenta` | `PrepareProviderAccountPaymentDraftTool` | Pago a cuenta a proveedor (FIFO) | Sin folio de compra ("págale 5000 a X"); desglose vía `PurchasePaymentService::previewAccountPayment()` con excedente a favor. Sin turno requerido (como el flujo web); branch forzado para admin-sucursal. Si hay folio concreto, la IA usa `preparar_borrador_abono` |
+| `preparar_retiro_caja` | `PrepareCashWithdrawalDraftTool` | Retiro de caja | admin-sucursal y cajero (D6); confirmar exige turno abierto propio y cuelga el retiro de ese turno |
+| `preparar_cambio_precio` | `PrepareProductPriceDraftTool` | Cambio de precio base | Solo admin-sucursal, solo productos de SU sucursal, solo `price` (D7); warnings de bajo-costo y cambio >50% |
 | `preparar_borrador_categoria_gasto` | `PrepareExpenseCategoryDraftTool` | Categoría/subcategoría | Avisa colisiones de nombre |
 | `editar_categoria_gasto` | `PrepareExpenseCategoryEditDraftTool` | Edición de categoría | Renombrar, descripción, activar/inactivar |
 
@@ -138,7 +140,7 @@ Experiencia a pantalla completa, mobile-first, para dueños/encargados (spec
 - Usa exactamente las mismas piezas que el asistente clásico (decisión D3: mientras convivan, todo cambio aplica a ambas superficies). El clásico sigue disponible como "Asistente clásico" en el sidebar.
 - **Modo simple (F4):** con el hilo vacío, la mini-app muestra `SimpleHome` — 5 acciones grandes ("¿Cómo va el negocio?", "Registrar algo", "Cobrar una deuda" y "Pagar a proveedor" con mini-diálogo guiado nombre+monto+método, "Hablar con el asistente") que componen una frase y la envían por el pipeline normal del chat (misma seguridad, mismos borradores). Preferencia en localStorage (`assistant-simple-home`); botón de inicio en el header la restaura. `AssistantAppController@index` auto-crea la primera sesión del usuario para que el primer tap nunca falle.
 - **Quick actions (F4):** chips de acción sugerida (`app/QuickActions.vue`) bajo la última card de resultados — envían prompts predefinidos ("Productos más vendidos", "Cobrar una deuda", "Pagar a un proveedor", …). Aplican también al asistente clásico (D3, `MessageThread` compartido).
-- F2 (cobro FIFO a clientes), F3 (pago a cuenta FIFO a proveedores) y F4 (modo simple + quick actions) implementadas 2026-07-07. Pendiente: F5 extensiones (cajero, retiros, precios — spec aparte, decisión D4).
+- F2 (cobro FIFO a clientes), F3 (pago a cuenta FIFO a proveedores), F4 (modo simple + quick actions) y F5 (cajero + retiros + precios, spec `2026-07-07-asistente-f5-extensiones-design.md`) implementadas 2026-07-07. El modo simple se adapta por rol (cajero sin resumen de negocio ni pagos a proveedor; roles con turno ven "Retirar efectivo").
 
 ## Persistencia
 

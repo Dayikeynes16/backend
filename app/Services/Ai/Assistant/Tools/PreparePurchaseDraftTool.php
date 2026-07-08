@@ -45,7 +45,23 @@ class PreparePurchaseDraftTool extends AbstractPrepareDraftTool
 
     public function rolesAllowed(): array
     {
-        return ['admin-empresa', 'admin-sucursal'];
+        return ['admin-empresa', 'admin-sucursal', 'cajero'];
+    }
+
+    /**
+     * Cajero: además del rol, su sucursal debe tener habilitado el toggle de
+     * compras de cajero (mismo gate que Caja\PurchaseController en la web).
+     */
+    public function authorize(User $user, array $params): bool
+    {
+        if (! parent::authorize($user, $params)) {
+            return false;
+        }
+        if ($user->hasRole('cajero')) {
+            return (bool) Branch::query()->find($user->branch_id)?->cashier_purchases_enabled;
+        }
+
+        return true;
     }
 
     public function jsonSchema(): array
@@ -204,7 +220,7 @@ class PreparePurchaseDraftTool extends AbstractPrepareDraftTool
         }
 
         $branch = null;
-        if ($user->hasRole('admin-sucursal')) {
+        if ($user->hasRole('admin-sucursal') || $user->hasRole('cajero')) {
             $branch = $user->branch_id ? Branch::query()->find($user->branch_id) : null;
         } elseif (! empty($parsed['branch_id'])) {
             $branch = Branch::query()->find((int) $parsed['branch_id']);
@@ -356,7 +372,7 @@ class PreparePurchaseDraftTool extends AbstractPrepareDraftTool
     private function branchOptions(User $user): array
     {
         $query = Branch::query()->where('status', 'active')->orderBy('name');
-        if ($user->hasRole('admin-sucursal') && $user->branch_id) {
+        if (($user->hasRole('admin-sucursal') || $user->hasRole('cajero')) && $user->branch_id) {
             $query->where('id', $user->branch_id);
         }
 
