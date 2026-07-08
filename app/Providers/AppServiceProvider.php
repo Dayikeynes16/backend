@@ -19,6 +19,7 @@ use App\Services\Ai\Assistant\Drafts\Confirmers\PurchaseDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\DraftConfirmerRegistry;
 use App\Services\Ai\Assistant\ToolRegistry;
 use App\Services\Ai\Assistant\Tools\AccountsPayableTool;
+use App\Services\Ai\Assistant\Tools\CustomerDetailTool;
 use App\Services\Ai\Assistant\Tools\CustomerStatsTool;
 use App\Services\Ai\Assistant\Tools\ExpenseCategoriesTool;
 use App\Services\Ai\Assistant\Tools\ExpenseSummaryTool;
@@ -33,6 +34,7 @@ use App\Services\Ai\Assistant\Tools\PrepareProviderAccountPaymentDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareProviderDraftTool;
 use App\Services\Ai\Assistant\Tools\PreparePurchaseDraftTool;
 use App\Services\Ai\Assistant\Tools\ProductDetailsTool;
+use App\Services\Ai\Assistant\Tools\ProductSalesTool;
 use App\Services\Ai\Assistant\Tools\PurchaseSummaryTool;
 use App\Services\Ai\Assistant\Tools\SalesSummaryTool;
 use App\Services\Ai\Assistant\Tools\ShiftStatusTool;
@@ -55,7 +57,9 @@ class AppServiceProvider extends ServiceProvider
             $app->make(TopProductsTool::class),
             $app->make(ShiftStatusTool::class),
             $app->make(CustomerStatsTool::class),
+            $app->make(CustomerDetailTool::class),
             $app->make(ProductDetailsTool::class),
+            $app->make(ProductSalesTool::class),
             $app->make(PurchaseSummaryTool::class),
             $app->make(AccountsPayableTool::class),
             // Tools de escritura (preparan borrador; NUNCA confirman).

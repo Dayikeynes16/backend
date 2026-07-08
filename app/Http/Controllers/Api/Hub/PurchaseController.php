@@ -46,14 +46,18 @@ class PurchaseController extends Controller
             ->with(['provider:id,name', 'items'])
             ->orderByDesc('purchased_at')
             ->orderByDesc('id')
-            ->limit(50)
-            ->get();
+            ->paginate(20);
 
         $providers = Provider::where('status', 'active')->orderBy('name')->get(['id', 'name']);
         $branch = Branch::withoutGlobalScopes()->find($user->branch_id);
 
         return response()->json([
-            'data' => HubPurchaseResource::collection($purchases),
+            'data' => HubPurchaseResource::collection($purchases->items()),
+            'meta' => [
+                'current_page' => $purchases->currentPage(),
+                'last_page' => $purchases->lastPage(),
+                'total' => $purchases->total(),
+            ],
             'providers' => $providers->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'payment_methods' => $branch?->enabledPaymentMethods() ?? ['cash', 'card', 'transfer'],
         ]);

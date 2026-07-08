@@ -4,7 +4,9 @@ import ExpenseSummaryCard from '../ExpenseSummaryCard.vue';
 import TopProductsCard from '../TopProductsCard.vue';
 import ShiftStatusCard from '../ShiftStatusCard.vue';
 import CustomerStatsCard from '../CustomerStatsCard.vue';
+import CustomerDetailCard from '../CustomerDetailCard.vue';
 import ProductDetailsCard from '../ProductDetailsCard.vue';
+import ProductSalesCard from '../ProductSalesCard.vue';
 import PurchaseSummaryCard from '../PurchaseSummaryCard.vue';
 import AccountsPayableCard from '../AccountsPayableCard.vue';
 import ExpenseCategoriesCard from '../ExpenseCategoriesCard.vue';
@@ -23,7 +25,9 @@ const cardComponents = {
     shift_status: ShiftStatusCard,
     customer_debt: CustomerStatsCard,
     customer_top_buyers: CustomerStatsCard,
+    customer_detail: CustomerDetailCard,
     product_details: ProductDetailsCard,
+    product_sales: ProductSalesCard,
     purchase_summary: PurchaseSummaryCard,
     accounts_payable: AccountsPayableCard,
     expense_categories: ExpenseCategoriesCard,
