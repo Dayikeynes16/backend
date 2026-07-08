@@ -41,7 +41,7 @@ class PrepareProviderAccountPaymentDraftTool extends AbstractPrepareDraftTool
 
     public function description(): string
     {
-        return 'Prepara un BORRADOR de pago A CUENTA de un proveedor: el monto se reparte automáticamente entre sus compras pendientes más antiguas (no lo registra; el usuario debe confirmarlo). Úsala cuando el usuario quiere pagarle al proveedor SIN mencionar una compra específica. Ejemplos: "págale 5000 a Carnes del Norte", "abónale 2000 al proveedor San Juan por transferencia". Si menciona un folio de compra concreto usa preparar_borrador_abono.';
+        return 'Prepara un BORRADOR de pago A CUENTA de un proveedor: el monto se reparte automáticamente entre sus compras pendientes más antiguas (no lo registra; el usuario debe confirmarlo). Úsala EN CUANTO el usuario quiera pagarle al proveedor SIN mencionar una compra específica — con los datos que tenga, sin pedir confirmaciones previas (la tarjeta es editable). INFIERE payment_method del lenguaje: "transfirió/transferencia" → transfer; "efectivo" → cash; "tarjeta" → card. NO preguntes por referencia/notas. Ejemplos: "págale 5000 a Carnes del Norte", "abónale 2000 al proveedor San Juan por transferencia". Si menciona un folio de compra concreto usa preparar_borrador_abono.';
     }
 
     public function rolesAllowed(): array
@@ -171,33 +171,22 @@ class PrepareProviderAccountPaymentDraftTool extends AbstractPrepareDraftTool
             return ['provider_id' => null, 'provider' => null, 'candidates' => []];
         }
 
-        $exact = Provider::query()
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
-            ->get();
+        $pool = Provider::query()->orderByDesc('id')->limit(500)->get();
 
-        if ($exact->count() === 1) {
-            $p = $exact->first();
+        $result = $this->fuzzyMatchByName($pool, $name, fn (Provider $p) => $p->name);
 
-            return ['provider_id' => $p->id, 'provider' => $this->providerInfo($p, $user), 'candidates' => []];
-        }
-
-        $matches = $exact->count() > 1
-            ? $exact
-            : Provider::query()
-                ->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($name).'%'])
-                ->limit(8)
-                ->get();
-
-        if ($matches->count() === 1) {
-            $p = $matches->first();
-
-            return ['provider_id' => $p->id, 'provider' => $this->providerInfo($p, $user), 'candidates' => []];
+        if ($result['match']) {
+            return [
+                'provider_id' => $result['match']->id,
+                'provider' => $this->providerInfo($result['match'], $user),
+                'candidates' => [],
+            ];
         }
 
         return [
             'provider_id' => null,
             'provider' => null,
-            'candidates' => $matches->map(fn (Provider $p) => $this->providerInfo($p, $user))->all(),
+            'candidates' => array_map(fn (Provider $p) => $this->providerInfo($p, $user), $result['candidates']),
         ];
     }
 

@@ -41,7 +41,7 @@ class PrepareCustomerPaymentDraftTool extends AbstractPrepareDraftTool
 
     public function description(): string
     {
-        return 'Prepara un BORRADOR de cobro/abono de un CLIENTE con deuda (fiado); el monto se aplica automáticamente a sus ventas pendientes más antiguas (no lo registra, el usuario debe confirmarlo). Úsala cuando un cliente paga o abona a su deuda. Ejemplos: "Juan Pérez pagó $1,500 en efectivo", "cóbrale 200 a la señora María", "el cliente Pedro abonó 300 por transferencia".';
+        return 'Prepara un BORRADOR de cobro/abono de un CLIENTE con deuda (fiado); el monto se aplica automáticamente a sus ventas pendientes más antiguas (no lo registra, el usuario debe confirmarlo). Úsala EN CUANTO el usuario diga que un cliente pagó/abonó/transfirió — con los datos que tenga, sin pedir confirmaciones previas: la tarjeta es editable. INFIERE payment_method del lenguaje: "transfirió/depositó/transferencia" → transfer; "efectivo/cash/billetes" → cash; "tarjeta" → card. NO preguntes por notas ni campos opcionales. Ejemplos: "Juan Pérez pagó $1,500 en efectivo", "el Rincón transfirió $2,731".';
     }
 
     public function rolesAllowed(): array
@@ -144,7 +144,12 @@ class PrepareCustomerPaymentDraftTool extends AbstractPrepareDraftTool
                 'draft_type' => 'customer_global_payment',
                 'status' => 'prepared',
                 'missing_fields' => $missing,
-                'summary' => 'Borrador de cobro preparado. La distribución FIFO la calculó el sistema; espera a que el usuario lo confirme con el botón — tú no puedes registrarlo ni marcar deudas como pagadas.',
+                'resolved_customer' => $params['customer']['name'] ?? null,
+                'customer_candidates' => array_map(
+                    fn (array $c) => $c['name'].' (debe $'.number_format((float) $c['total_owed'], 2).')',
+                    array_slice($params['customer_candidates'], 0, 5),
+                ),
+                'summary' => 'Borrador de cobro preparado. Si customer_candidates trae opciones, pregunta al usuario a cuál se refiere (o dile que elija en la tarjeta). La distribución FIFO la calculó el sistema; espera a que el usuario confirme con el botón — tú no puedes registrarlo ni marcar deudas como pagadas.',
             ],
         );
     }
@@ -163,33 +168,28 @@ class PrepareCustomerPaymentDraftTool extends AbstractPrepareDraftTool
             return ['customer_id' => null, 'customer' => null, 'candidates' => []];
         }
 
-        $exact = $this->customerBase($user)
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
-            ->get();
+        // Búsqueda difusa en memoria sobre el scope del usuario: insensible a
+        // acentos y tolerante a palabras extra ("rincón del taco" → "Rincon").
+        // El catálogo de clientes de una sucursal es acotado; 500 cubre de sobra.
+        $pool = $this->customerBase($user)
+            ->orderByDesc('id')
+            ->limit(500)
+            ->get(['id', 'name', 'phone', 'branch_id', 'tenant_id']);
 
-        if ($exact->count() === 1) {
-            $c = $exact->first();
+        $result = $this->fuzzyMatchByName($pool, $name, fn (Customer $c) => $c->name);
 
-            return ['customer_id' => $c->id, 'customer' => $this->customerInfo($c), 'candidates' => []];
-        }
-
-        $matches = $exact->count() > 1
-            ? $exact
-            : $this->customerBase($user)
-                ->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($name).'%'])
-                ->limit(8)
-                ->get();
-
-        if ($matches->count() === 1) {
-            $c = $matches->first();
-
-            return ['customer_id' => $c->id, 'customer' => $this->customerInfo($c), 'candidates' => []];
+        if ($result['match']) {
+            return [
+                'customer_id' => $result['match']->id,
+                'customer' => $this->customerInfo($result['match']),
+                'candidates' => [],
+            ];
         }
 
         return [
             'customer_id' => null,
             'customer' => null,
-            'candidates' => $matches->map(fn (Customer $c) => $this->customerInfo($c))->all(),
+            'candidates' => array_map(fn (Customer $c) => $this->customerInfo($c), $result['candidates']),
         ];
     }
 
