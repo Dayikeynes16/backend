@@ -295,6 +295,12 @@ const summaryRows = computed(() => {
 
 const editing = ref(!summaryRows.value || (props.data.missing_fields || []).length > 0);
 
+// El monto es el protagonista de la confirmación: se separa como "hero" y el
+// resto queda como filas secundarias.
+const HERO_LABELS = ['Monto recibido', 'Monto', 'Monto a retirar', 'Nuevo precio', 'Total'];
+const heroRow = computed(() => (summaryRows.value || []).find(([label]) => HERO_LABELS.includes(label)) || null);
+const secondaryRows = computed(() => (summaryRows.value || []).filter((row) => row !== heroRow.value));
+
 async function confirm() {
     if (processing.value || status.value !== 'ready' || !canConfirm.value) return;
     processing.value = true;
@@ -375,10 +381,16 @@ async function cancelDraft() {
 
         <!-- Editable + confirmación -->
         <template v-else>
-            <div v-if="!editing && summaryRows" class="divide-y divide-gray-100 rounded-xl bg-gray-50/70 px-3.5">
-                <div v-for="[label, value] in summaryRows" :key="label" class="flex items-center justify-between gap-3 py-2.5 text-sm">
-                    <span class="shrink-0 text-gray-500">{{ label }}</span>
-                    <span class="min-w-0 truncate text-right font-semibold text-gray-900">{{ value }}</span>
+            <div v-if="!editing && summaryRows">
+                <div v-if="heroRow" class="mb-2 rounded-xl bg-gray-50/70 px-4 py-3 text-center">
+                    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{{ heroRow[0] }}</p>
+                    <p class="mt-0.5 text-3xl font-bold tabular-nums text-gray-900">{{ heroRow[1] }}</p>
+                </div>
+                <div class="divide-y divide-gray-100 rounded-xl bg-gray-50/70 px-4">
+                    <div v-for="[label, value] in secondaryRows" :key="label" class="flex items-center justify-between gap-3 py-3 text-[15px]">
+                        <span class="shrink-0 text-gray-500">{{ label }}</span>
+                        <span class="min-w-0 truncate text-right font-semibold text-gray-900">{{ value }}</span>
+                    </div>
                 </div>
             </div>
             <component v-else :is="bodyComponent" :form="form" :options="options" :errors="fieldErrors" :disabled="processing" :preview="preview" />
@@ -414,7 +426,7 @@ async function cancelDraft() {
                     type="button"
                     :disabled="processing || !canConfirm"
                     @click="confirm"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition-all duration-150 hover:from-orange-600 hover:to-red-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:saturate-50"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition-[transform,opacity,filter] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:from-orange-600 hover:to-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:saturate-50"
                 >
                     <svg v-if="processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                         <circle cx="12" cy="12" r="10" stroke-opacity="0.3" /><path d="M22 12a10 10 0 0 1-10 10" />

@@ -166,7 +166,7 @@ watch(() => props.chat.inputText, resizeInput);
                     type="submit"
                     :disabled="!chat.activeSessionId || chat.sending || (!chat.inputText.trim() && !chat.pendingImage) || chat.isRecording || chat.transcribing"
                     aria-label="Enviar mensaje"
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white transition-all duration-150 hover:from-orange-600 hover:to-red-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:saturate-50"
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white transition-[transform,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:from-orange-600 hover:to-red-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 disabled:saturate-50"
                 >
                     <svg v-if="chat.sending" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke-opacity="0.3" /><path d="M22 12a10 10 0 0 1-10 10" /></svg>
                     <svg v-else class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" /></svg>

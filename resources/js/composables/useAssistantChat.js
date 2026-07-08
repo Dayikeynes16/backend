@@ -440,6 +440,7 @@ export function useAssistantChat(props, routes) {
         playingMessageId,
         loadingVoiceFor,
         playMessage,
+        stopAudio,
         renderItems,
         budgetText,
         examplePrompts,

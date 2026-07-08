@@ -29,20 +29,30 @@ class AssistantAppController extends Controller
     public function __construct(private readonly AssistantOrchestrator $orchestrator) {}
 
     /**
-     * La mini-app garantiza una sesión activa: el modo simple (F4) envía
-     * prompts con un solo tap y no debe fallar con "crea una sesión primero".
+     * Al entrar sin ?session se abre una conversación NUEVA (reutilizando la
+     * vacía más reciente para no acumular sesiones huérfanas); las anteriores
+     * siguen disponibles en el panel. Las sesiones vacías tienen
+     * last_message_at NULL, que ordena primero en el index del trait, así que
+     * quedan activas sin redirect.
      */
     public function index(Request $request): Response
     {
         $user = Auth::user();
 
-        if (! AiAssistantSession::query()->where('user_id', $user->id)->exists()) {
-            AiAssistantSession::create([
-                'tenant_id' => app('tenant')->id,
-                'user_id' => $user->id,
-                'title' => null,
-                'message_count' => 0,
-            ]);
+        if (! $request->integer('session')) {
+            $empty = AiAssistantSession::query()
+                ->where('user_id', $user->id)
+                ->where('message_count', 0)
+                ->exists();
+
+            if (! $empty) {
+                AiAssistantSession::create([
+                    'tenant_id' => app('tenant')->id,
+                    'user_id' => $user->id,
+                    'title' => null,
+                    'message_count' => 0,
+                ]);
+            }
         }
 
         return $this->renderChatIndex($request);

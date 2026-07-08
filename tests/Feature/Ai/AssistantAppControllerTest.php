@@ -86,6 +86,30 @@ class AssistantAppControllerTest extends TestCase
         $this->assertSame(1, AiAssistantSession::count());
     }
 
+    public function test_index_opens_fresh_conversation_when_last_one_has_messages(): void
+    {
+        // UX 2026-07-08: entrar al asistente abre conversación nueva; las
+        // anteriores quedan en el panel (y con ?session=ID se abren directo).
+        $old = AiAssistantSession::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->adminEmpresa->id,
+            'message_count' => 3,
+            'last_message_at' => now()->subHour(),
+        ]);
+
+        $this->actingAs($this->adminEmpresa);
+        $response = $this->get(route('asistente.index', $this->tenant->slug));
+
+        $response->assertOk();
+        $this->assertSame(2, AiAssistantSession::count());
+        $fresh = AiAssistantSession::where('message_count', 0)->firstOrFail();
+        $response->assertInertia(fn ($p) => $p->where('activeSessionId', $fresh->id));
+
+        // Con ?session explícito sí se abre la conversación vieja.
+        $this->get(route('asistente.index', ['tenant' => $this->tenant->slug, 'session' => $old->id]))
+            ->assertInertia(fn ($p) => $p->where('activeSessionId', $old->id));
+    }
+
     public function test_reloaded_draft_cards_reflect_current_draft_status(): void
     {
         $session = AiAssistantSession::create([
