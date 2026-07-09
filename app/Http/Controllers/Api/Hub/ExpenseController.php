@@ -29,7 +29,11 @@ class ExpenseController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $request->validate(['search' => 'nullable|string|max:100']);
+        $request->validate([
+            'search' => 'nullable|string|max:100',
+            'from' => 'nullable|date',
+            'to' => 'nullable|date',
+        ]);
 
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
@@ -40,6 +44,8 @@ class ExpenseController extends Controller
         $baseQuery = Expense::where('branch_id', $user->branch_id)
             ->where('user_id', $user->id)
             ->whereNull('cancelled_by')
+            ->when($request->filled('from'), fn ($q) => $q->whereDate('expense_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($q) => $q->whereDate('expense_at', '<=', $request->date('to')))
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('concept', 'ilike', "%{$search}%")
                 ->orWhere('description', 'ilike', "%{$search}%")));
@@ -50,8 +56,7 @@ class ExpenseController extends Controller
         $expenses = (clone $baseQuery)
             ->with(['subcategory.category', 'attachments'])
             ->orderByDesc('expense_at')
-            ->limit(50)
-            ->get();
+            ->paginate(20);
 
         $categories = ExpenseCategory::with([
             'subcategories' => fn ($q) => $q->where('status', 'active')->orderBy('name'),
@@ -61,7 +66,12 @@ class ExpenseController extends Controller
         $shift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->first();
 
         return response()->json([
-            'data' => HubExpenseResource::collection($expenses),
+            'data' => HubExpenseResource::collection($expenses->items()),
+            'meta' => [
+                'current_page' => $expenses->currentPage(),
+                'last_page' => $expenses->lastPage(),
+                'total_count' => $expenses->total(),
+            ],
             'categories' => $categories->map(fn ($c) => [
                 'id' => $c->id,
                 'name' => $c->name,

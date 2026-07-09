@@ -140,6 +140,8 @@ class ProviderController extends Controller
 
     public function compras(Request $request, int $provider): JsonResponse
     {
+        $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date']);
+
         $user = $request->user();
         $this->ensureAdminSucursal($user);
         $found = $this->findProvider($user, $provider);
@@ -148,6 +150,8 @@ class ProviderController extends Controller
             ->where('provider_id', $found->id)
             ->where('branch_id', $user->branch_id)
             ->where('status', '!=', PurchaseStatus::Cancelled->value)
+            ->when($request->filled('from'), fn ($q) => $q->whereDate('purchased_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($q) => $q->whereDate('purchased_at', '<=', $request->date('to')))
             ->orderByDesc('purchased_at')
             ->orderByDesc('id')
             ->paginate(20);
@@ -167,6 +171,8 @@ class ProviderController extends Controller
 
     public function pagos(Request $request, int $provider): JsonResponse
     {
+        $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date']);
+
         $user = $request->user();
         $this->ensureAdminSucursal($user);
         $found = $this->findProvider($user, $provider);
@@ -175,6 +181,8 @@ class ProviderController extends Controller
             ->where('provider_id', $found->id)
             ->where('branch_id', $user->branch_id)
             ->with('purchase:id,folio')
+            ->when($request->filled('from'), fn ($q) => $q->whereDate('paid_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($q) => $q->whereDate('paid_at', '<=', $request->date('to')))
             ->orderByDesc('paid_at')
             ->orderByDesc('id')
             ->paginate(20);

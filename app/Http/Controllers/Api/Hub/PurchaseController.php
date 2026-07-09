@@ -36,6 +36,11 @@ class PurchaseController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'from' => 'nullable|date',
+            'to' => 'nullable|date',
+        ]);
+
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
         Auth::setUser($user);
@@ -43,6 +48,8 @@ class PurchaseController extends Controller
 
         $purchases = Purchase::where('branch_id', $user->branch_id)
             ->where('created_by', $user->id)
+            ->when($request->filled('from'), fn ($q) => $q->whereDate('purchased_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($q) => $q->whereDate('purchased_at', '<=', $request->date('to')))
             ->with(['provider:id,name', 'items'])
             ->orderByDesc('purchased_at')
             ->orderByDesc('id')

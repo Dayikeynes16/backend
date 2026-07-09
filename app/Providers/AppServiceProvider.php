@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Observers\BranchObserver;
 use App\Policies\UserPolicy;
 use App\Services\Ai\Assistant\Drafts\Confirmers\CashWithdrawalDraftConfirmer;
+use App\Services\Ai\Assistant\Drafts\Confirmers\CustomerDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\CustomerGlobalPaymentDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseCategoryDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\ExpenseCategoryEditDraftConfirmer;
@@ -24,6 +25,7 @@ use App\Services\Ai\Assistant\Tools\CustomerStatsTool;
 use App\Services\Ai\Assistant\Tools\ExpenseCategoriesTool;
 use App\Services\Ai\Assistant\Tools\ExpenseSummaryTool;
 use App\Services\Ai\Assistant\Tools\PrepareCashWithdrawalDraftTool;
+use App\Services\Ai\Assistant\Tools\PrepareCustomerDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareCustomerPaymentDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseCategoryDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseCategoryEditDraftTool;
@@ -65,6 +67,7 @@ class AppServiceProvider extends ServiceProvider
             // Tools de escritura (preparan borrador; NUNCA confirman).
             $app->make(PrepareExpenseDraftTool::class),
             $app->make(PrepareProviderDraftTool::class),
+            $app->make(PrepareCustomerDraftTool::class),
             $app->make(PreparePurchaseDraftTool::class),
             $app->make(PreparePayablePaymentDraftTool::class),
             $app->make(PrepareCustomerPaymentDraftTool::class),
@@ -79,6 +82,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(DraftConfirmerRegistry::class, fn ($app) => new DraftConfirmerRegistry([
             $app->make(ExpenseDraftConfirmer::class),
             $app->make(ProviderDraftConfirmer::class),
+            $app->make(CustomerDraftConfirmer::class),
             $app->make(PurchaseDraftConfirmer::class),
             $app->make(PayablePaymentDraftConfirmer::class),
             $app->make(CustomerGlobalPaymentDraftConfirmer::class),

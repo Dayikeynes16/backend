@@ -98,6 +98,22 @@ class PurchaseApiTest extends TestCase
         $this->assertSame('Proveedor X', $res->json('providers.0.name'));
     }
 
+    public function test_index_filters_by_date_range(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $this->withToken($token)->postJson('/api/v1/hub/purchases', $this->payload(['purchased_at' => '2026-06-01']))->assertCreated();
+        $this->withToken($token)->postJson('/api/v1/hub/purchases', $this->payload(['purchased_at' => '2026-06-15']))->assertCreated();
+
+        $res = $this->withToken($token)
+            ->getJson('/api/v1/hub/purchases?from=2026-06-10&to=2026-06-20')
+            ->assertOk();
+
+        $this->assertCount(1, $res->json('data'));
+        $this->assertSame(1, $res->json('meta.total'));
+        $this->assertStringStartsWith('2026-06-15', (string) $res->json('data.0.purchased_at'));
+    }
+
     public function test_admin_empresa_forbidden(): void
     {
         $this->withToken($this->adminEmpresa->createToken('hub')->plainTextToken)

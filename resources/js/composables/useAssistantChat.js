@@ -274,6 +274,7 @@ export function useAssistantChat(props, routes) {
             consultar_categorias_gasto: 'expense_categories',
             preparar_borrador_gasto: 'assistant_draft',
             preparar_borrador_proveedor: 'assistant_draft',
+            preparar_borrador_cliente: 'assistant_draft',
             preparar_borrador_compra: 'assistant_draft',
             preparar_borrador_abono: 'assistant_draft',
             preparar_cobro_cliente: 'assistant_draft',
