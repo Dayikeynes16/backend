@@ -11,6 +11,7 @@ enum AssistantDraftType: string
 {
     case Expense = 'expense';
     case Provider = 'provider';
+    case Customer = 'customer';
     case Purchase = 'purchase';
     case PayablePayment = 'payable_payment';
     case CustomerGlobalPayment = 'customer_global_payment';
@@ -25,6 +26,7 @@ enum AssistantDraftType: string
         return match ($this) {
             self::Expense => 'Gasto',
             self::Provider => 'Proveedor',
+            self::Customer => 'Cliente',
             self::Purchase => 'Compra',
             self::PayablePayment => 'Abono a proveedor',
             self::CustomerGlobalPayment => 'Cobro a cliente',

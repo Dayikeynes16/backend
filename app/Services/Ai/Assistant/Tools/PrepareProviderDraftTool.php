@@ -32,7 +32,8 @@ class PrepareProviderDraftTool extends AbstractPrepareDraftTool
 
     public function description(): string
     {
-        return 'Prepara un BORRADOR para dar de alta un proveedor (no lo crea) y muestra posibles duplicados existentes. Úsala cuando el usuario quiere registrar/agregar un proveedor nuevo. Ejemplos: "agrega al proveedor Distribuidora La Unión con teléfono 55...", "da de alta a Carnes del Norte".';
+        return 'SOLO para PROVEEDORES (a quienes TÚ les compras mercancía: ganaderos, mayoristas, insumos). Si el usuario habla de un CLIENTE (alguien que te compra o te debe), usa preparar_borrador_cliente. '
+            .'Prepara un BORRADOR para dar de alta un proveedor (no lo crea) y muestra posibles duplicados existentes. Úsala cuando el usuario quiere registrar/agregar un proveedor nuevo. Ejemplos: "agrega al proveedor Distribuidora La Unión con teléfono 55...", "da de alta a Carnes del Norte".';
     }
 
     public function rolesAllowed(): array

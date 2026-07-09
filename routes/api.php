@@ -73,6 +73,7 @@ Route::prefix('v1/hub')
         Route::post('shift/close', [HubShiftController::class, 'close'])->name('api.hub.shift.close');
 
         Route::get('history', [HubHistoryController::class, 'index'])->name('api.hub.history.index');
+        Route::get('payments', [HubPaymentController::class, 'index'])->name('api.hub.payments.index');
 
         Route::get('customers', [HubCustomerController::class, 'index'])->name('api.hub.customers.index');
         Route::post('customers', [HubCustomerController::class, 'store'])->name('api.hub.customers.store');

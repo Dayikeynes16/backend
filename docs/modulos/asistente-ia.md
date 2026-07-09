@@ -72,12 +72,13 @@ Piezas backend en `app/Services/Ai/`:
 | `consultar_cuentas_por_pagar` | `AccountsPayableTool` | Saldo a proveedores + top adeudos |
 | `consultar_categorias_gasto` | `ExpenseCategoriesTool` | Catálogo de categorías/subcategorías con conteos |
 
-### Escritura (10) — solo preparan borrador, nunca persisten el registro final
+### Escritura (11) — solo preparan borrador, nunca persisten el registro final
 
 | Función | Clase | Borrador de | Notas |
 |---|---|---|---|
 | `preparar_borrador_gasto` | `PrepareExpenseDraftTool` | Gasto | Texto o foto de recibo (visión vía `AiExpenseDraftService::extractProposal`) |
-| `preparar_borrador_proveedor` | `PrepareProviderDraftTool` | Proveedor | Detecta duplicados (nombre/RFC) y los muestra antes de confirmar |
+| `preparar_borrador_proveedor` | `PrepareProviderDraftTool` | Proveedor | Detecta duplicados (nombre/RFC); descripción afilada para NO absorber clientes |
+| `preparar_borrador_cliente` | `PrepareCustomerDraftTool` | Cliente | Alta de cliente (incluye cajero); branch forzado para sucursal/cajero, empresa elige sucursal; detecta duplicados por nombre difuso |
 | `preparar_borrador_compra` | `PreparePurchaseDraftTool` | Compra | Texto multi-línea o foto de factura; empareja proveedor por nombre, no inventa |
 | `preparar_borrador_abono` | `PreparePayablePaymentDraftTool` | Pago a compra | Resuelve por folio o proveedor; avisa si excede el saldo |
 | `preparar_cobro_cliente` | `PrepareCustomerPaymentDraftTool` | Cobro global a cliente (FIFO) | Resuelve cliente por nombre (candidatos explícitos si es ambiguo); el desglose FIFO lo calcula `CustomerGlobalPaymentService::preview()`. **Confirmar exige turno abierto** y que el cliente sea de la sucursal del turno (D2); `apply()` re-calcula la distribución al confirmar |

@@ -7,6 +7,7 @@ import ProviderDraftCardBody from './ProviderDraftCardBody.vue';
 import PurchaseDraftCardBody from './PurchaseDraftCardBody.vue';
 import PayablePaymentDraftCardBody from './PayablePaymentDraftCardBody.vue';
 import CustomerPaymentDraftCardBody from './CustomerPaymentDraftCardBody.vue';
+import CustomerDraftCardBody from './CustomerDraftCardBody.vue';
 import ProviderAccountPaymentDraftCardBody from './ProviderAccountPaymentDraftCardBody.vue';
 import CashWithdrawalDraftCardBody from './CashWithdrawalDraftCardBody.vue';
 import PriceChangeDraftCardBody from './PriceChangeDraftCardBody.vue';
@@ -32,6 +33,19 @@ const options = props.data.options || {};
 const form = reactive(buildForm());
 
 function buildForm() {
+    if (draftType.value === 'customer') {
+        const f = {
+            name: preview.name ?? '',
+            phone: preview.phone ?? '',
+            notes: preview.notes ?? '',
+            branch_id: preview.branch_id ?? null,
+        };
+        if (!f.branch_id && (options.branches || []).length === 1) {
+            f.branch_id = options.branches[0].id;
+        }
+        return f;
+    }
+
     if (draftType.value === 'provider') {
         return {
             name: preview.name ?? '',
@@ -167,6 +181,7 @@ const confirmedMessage = ref(null);
 
 const meta = computed(() => ({
     provider: { title: 'Borrador de proveedor', done: 'Proveedor creado correctamente.', confirm: 'Crear proveedor' },
+    customer: { title: 'Borrador de cliente', done: 'Cliente creado correctamente.', confirm: 'Crear cliente' },
     purchase: { title: 'Borrador de compra', done: 'Compra registrada correctamente.', confirm: 'Registrar compra' },
     payable_payment: { title: 'Borrador de abono', done: 'Abono registrado correctamente.', confirm: 'Registrar abono' },
     customer_global_payment: { title: 'Borrador de cobro a cliente', done: 'Cobro registrado correctamente.', confirm: 'Registrar cobro' },
@@ -180,6 +195,7 @@ const meta = computed(() => ({
 
 const bodyComponent = computed(() => ({
     provider: ProviderDraftCardBody,
+    customer: CustomerDraftCardBody,
     purchase: PurchaseDraftCardBody,
     payable_payment: PayablePaymentDraftCardBody,
     customer_global_payment: CustomerPaymentDraftCardBody,
@@ -193,6 +209,9 @@ const bodyComponent = computed(() => ({
 const canConfirm = computed(() => {
     if (draftType.value === 'provider') {
         return !!form.name && !!form.type;
+    }
+    if (draftType.value === 'customer') {
+        return !!form.name && !!form.branch_id;
     }
     if (draftType.value === 'purchase') {
         return (
