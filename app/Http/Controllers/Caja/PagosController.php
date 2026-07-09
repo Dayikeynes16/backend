@@ -43,12 +43,25 @@ class PagosController extends Controller
             "))
             ->first();
 
+        // Colapsa cada cobro global (FIFO) en un solo renglón (los pagos hijos
+        // comparten customer_payment_id); los totales de arriba ya sumaron todo.
         $payments = $baseQuery
+            ->where(function ($q) {
+                $q->whereNull('payments.customer_payment_id')
+                    ->orWhereIn('payments.id', function ($sub) {
+                        $sub->from('payments')->selectRaw('MIN(id)')
+                            ->whereNotNull('customer_payment_id')
+                            ->groupBy('customer_payment_id');
+                    });
+            })
             ->with([
                 'sale:id,folio,total,status,branch_id,amount_paid,amount_pending',
                 'sale.payments' => fn ($q) => $q->with('user:id,name')->orderBy('created_at'),
                 'user:id,name',
                 'updatedByUser:id,name',
+                'customerPayment:id,folio,customer_id,amount_applied,method,user_id,created_at',
+                'customerPayment.customer:id,name',
+                'customerPayment.user:id,name',
             ])
             ->orderByDesc('payments.created_at')
             ->orderByDesc('payments.id')
