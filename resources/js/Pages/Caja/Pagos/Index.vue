@@ -186,17 +186,34 @@ const paidPct = computed(() => {
                             </div>
                             <!-- Info -->
                             <div class="min-w-0 flex-1">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-sm font-bold text-gray-900">{{ payment.sale?.folio }}</span>
-                                        <span v-if="payment.updated_by" class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 ring-1 ring-inset ring-orange-500/20">Editado</span>
+                                <!-- Cobro global (FIFO): un solo renglón que reconstruye el pago grande -->
+                                <template v-if="payment.customer_payment">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex min-w-0 items-center gap-2">
+                                            <span class="truncate text-sm font-bold text-gray-900">{{ payment.customer_payment.customer?.name }}</span>
+                                            <span class="shrink-0 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20">Cobro global</span>
+                                        </div>
+                                        <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(payment.customer_payment.amount_applied).toFixed(2) }}</span>
                                     </div>
-                                    <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(payment.amount).toFixed(2) }}</span>
-                                </div>
-                                <div class="mt-1 flex items-center justify-between">
-                                    <span class="text-xs text-gray-400 truncate">{{ payment.user?.name }}</span>
-                                    <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
-                                </div>
+                                    <div class="mt-1 flex items-center justify-between">
+                                        <span class="truncate font-mono text-xs font-medium text-violet-600">{{ payment.customer_payment.folio }}</span>
+                                        <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                    </div>
+                                </template>
+                                <!-- Pago normal (venta individual) -->
+                                <template v-else>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-bold text-gray-900">{{ payment.sale?.folio }}</span>
+                                            <span v-if="payment.updated_by" class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 ring-1 ring-inset ring-orange-500/20">Editado</span>
+                                        </div>
+                                        <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(payment.amount).toFixed(2) }}</span>
+                                    </div>
+                                    <div class="mt-1 flex items-center justify-between">
+                                        <span class="text-xs text-gray-400 truncate">{{ payment.user?.name }}</span>
+                                        <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -235,8 +252,11 @@ const paidPct = computed(() => {
                                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" :d="methodMeta[selected.method]?.icon" /></svg>
                                 </div>
                                 <div>
-                                    <h2 class="text-lg font-bold text-gray-900">{{ selected.sale?.folio }}</h2>
-                                    <p class="text-xs text-gray-400">{{ formatFullDate(selected.created_at) }}</p>
+                                    <h2 class="text-lg font-bold text-gray-900">{{ selected.customer_payment ? selected.customer_payment.customer?.name : selected.sale?.folio }}</h2>
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-xs text-gray-400">{{ formatFullDate(selected.created_at) }}</p>
+                                        <span v-if="selected.customer_payment" class="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20">Cobro global · {{ selected.customer_payment.folio }}</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
@@ -256,7 +276,7 @@ const paidPct = computed(() => {
                                 <div class="space-y-3">
                                     <div>
                                         <p class="text-xs text-gray-400">Monto cobrado</p>
-                                        <p class="font-mono text-2xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(selected.amount).toFixed(2) }}</p>
+                                        <p class="font-mono text-2xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(selected.customer_payment ? selected.customer_payment.amount_applied : selected.amount).toFixed(2) }}</p>
                                     </div>
                                     <div class="flex gap-6">
                                         <div>
@@ -268,7 +288,11 @@ const paidPct = computed(() => {
                                         </div>
                                         <div>
                                             <p class="text-xs text-gray-400">Cobrado por</p>
-                                            <p class="mt-0.5 text-sm font-semibold text-gray-900">{{ selected.user?.name }}</p>
+                                            <p class="mt-0.5 text-sm font-semibold text-gray-900">{{ selected.customer_payment ? selected.customer_payment.user?.name : selected.user?.name }}</p>
+                                        </div>
+                                        <div v-if="selected.customer_payment">
+                                            <p class="text-xs text-gray-400">Folio</p>
+                                            <p class="mt-0.5 font-mono text-sm font-semibold text-violet-600">{{ selected.customer_payment.folio }}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -281,8 +305,8 @@ const paidPct = computed(() => {
                             </div>
                         </div>
 
-                        <!-- Section B: Venta asociada -->
-                        <div v-if="selected.sale" class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
+                        <!-- Section B: Venta asociada (oculta para cobros globales) -->
+                        <div v-if="selected.sale && !selected.customer_payment" class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
                             <div class="flex items-center justify-between bg-gray-50 px-5 py-3">
                                 <div class="flex items-center gap-2.5">
                                     <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">Venta</h3>
@@ -312,8 +336,8 @@ const paidPct = computed(() => {
                             </div>
                         </div>
 
-                        <!-- Section C: Timeline de pagos de la venta -->
-                        <div v-if="salePayments.length > 0">
+                        <!-- Section C: Timeline de pagos de la venta (oculto para cobros globales) -->
+                        <div v-if="salePayments.length > 0 && !selected.customer_payment">
                             <h3 class="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
                                 Pagos de esta venta
                                 <span class="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">{{ salePayments.length }}</span>

@@ -38,13 +38,27 @@ class PagosController extends Controller
             ->when($request->user_id, fn ($q, $id) => $q->where('user_id', $id))
             ->whereDate('payments.created_at', $date);
 
+        // Un cobro global (FIFO) reparte un pago grande en varios pagos hijos
+        // (mismo customer_payment_id). En la lista lo colapsamos a un solo
+        // renglón dejando un representante; los KPIs de arriba ya sumaron todo.
         $payments = $baseQuery
+            ->where(function ($q) {
+                $q->whereNull('payments.customer_payment_id')
+                    ->orWhereIn('payments.id', function ($sub) {
+                        $sub->from('payments')->selectRaw('MIN(id)')
+                            ->whereNotNull('customer_payment_id')
+                            ->groupBy('customer_payment_id');
+                    });
+            })
             ->with([
                 'sale:id,folio,total,status,branch_id,amount_paid,amount_pending,created_at,customer_id',
                 'sale.customer:id,name',
                 'sale.payments' => fn ($q) => $q->with('user:id,name')->orderBy('created_at'),
                 'user:id,name',
                 'updatedByUser:id,name',
+                'customerPayment:id,folio,customer_id,amount_applied,method,user_id,created_at',
+                'customerPayment.customer:id,name',
+                'customerPayment.user:id,name',
             ])
             ->orderByDesc('payments.created_at')
             ->orderByDesc('payments.id')

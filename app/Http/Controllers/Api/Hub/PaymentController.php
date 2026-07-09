@@ -62,31 +62,67 @@ class PaymentController extends Controller
             ")
             ->first();
 
+        // Un cobro global (FIFO) reparte UN pago grande en varios pagos hijos
+        // (mismo customer_payment_id). En la lista lo colapsamos a un solo
+        // renglón dejando un representante; los KPIs de arriba ya sumaron todo.
         $payments = $baseQuery
+            ->where(function ($q) {
+                $q->whereNull('payments.customer_payment_id')
+                    ->orWhereIn('payments.id', function ($sub) {
+                        $sub->from('payments')->selectRaw('MIN(id)')
+                            ->whereNotNull('customer_payment_id')
+                            ->groupBy('customer_payment_id');
+                    });
+            })
             ->with([
                 'sale:id,folio,total,status,branch_id,amount_pending,customer_id',
                 'sale.customer:id,name',
                 'user:id,name',
+                'customerPayment:id,folio,customer_id,amount_applied,method,user_id,created_at',
+                'customerPayment.customer:id,name',
+                'customerPayment.user:id,name',
             ])
             ->orderByDesc('payments.created_at')
             ->orderByDesc('payments.id')
             ->paginate(20);
 
-        $data = $payments->getCollection()->map(fn (Payment $p) => [
-            'id' => $p->id,
-            'amount' => (float) $p->amount,
-            'method' => $p->method,
-            'created_at' => $p->created_at?->toIso8601String(),
-            'user' => $p->user ? ['id' => $p->user->id, 'name' => $p->user->name] : null,
-            'sale' => $p->sale ? [
-                'id' => $p->sale->id,
-                'folio' => $p->sale->folio,
-                'total' => (float) $p->sale->total,
-                'status' => $p->sale->status instanceof \BackedEnum ? $p->sale->status->value : $p->sale->status,
-                'amount_pending' => (float) $p->sale->amount_pending,
-                'customer' => $p->sale->customer ? ['id' => $p->sale->customer->id, 'name' => $p->sale->customer->name] : null,
-            ] : null,
-        ])->values();
+        $data = $payments->getCollection()->map(function (Payment $p) {
+            // Renglón de cobro global reconstruido a partir del padre.
+            if ($p->customer_payment_id && $p->customerPayment) {
+                $cp = $p->customerPayment;
+
+                return [
+                    'id' => 'cg-'.$cp->id,
+                    'type' => 'global',
+                    'folio' => $cp->folio,
+                    'amount' => (float) $cp->amount_applied,
+                    'method' => $cp->method instanceof \BackedEnum ? $cp->method->value : $cp->method,
+                    'created_at' => $cp->created_at?->toIso8601String(),
+                    'user' => $cp->user ? ['id' => $cp->user->id, 'name' => $cp->user->name] : null,
+                    'customer' => $cp->customer ? ['id' => $cp->customer->id, 'name' => $cp->customer->name] : null,
+                    'sale' => null,
+                ];
+            }
+
+            return [
+                'id' => 'p-'.$p->id,
+                'type' => 'sale',
+                'folio' => null,
+                'amount' => (float) $p->amount,
+                'method' => $p->method,
+                'created_at' => $p->created_at?->toIso8601String(),
+                'user' => $p->user ? ['id' => $p->user->id, 'name' => $p->user->name] : null,
+                'customer' => null,
+                'sale' => $p->sale ? [
+                    'id' => $p->sale->id,
+                    'folio' => $p->sale->folio,
+                    'total' => (float) $p->sale->total,
+                    'status' => $p->sale->status instanceof \BackedEnum ? $p->sale->status->value : $p->sale->status,
+                    'amount_pending' => (float) $p->sale->amount_pending,
+                    'customer' => $p->sale->customer ? ['id' => $p->sale->customer->id, 'name' => $p->sale->customer->name] : null,
+                ] : null,
+            ];
+        })->values();
 
         $branch = Branch::withoutGlobalScopes()->find($branchId);
 

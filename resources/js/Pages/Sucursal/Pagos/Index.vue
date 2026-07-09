@@ -274,26 +274,46 @@ const doDeletePayment = () => {
                                 <svg class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" :d="methodMeta[payment.method]?.icon" /></svg>
                             </div>
                             <div class="min-w-0 flex-1">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-sm font-bold text-gray-900">{{ payment.sale?.folio }}</span>
-                                        <span v-if="saleDateChip(payment)"
-                                            class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/20"
-                                            :title="'Esta venta se generó antes del día del pago'">
-                                            {{ saleDateChip(payment) }}
-                                        </span>
-                                        <span v-if="payment.updated_by" class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 ring-1 ring-inset ring-orange-500/20">Editado</span>
+                                <!-- Cobro global (FIFO): un solo renglón que reconstruye el pago grande -->
+                                <template v-if="payment.customer_payment">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex min-w-0 items-center gap-2">
+                                            <span class="truncate text-sm font-bold text-gray-900">{{ payment.customer_payment.customer?.name }}</span>
+                                            <span class="shrink-0 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20">Cobro global</span>
+                                        </div>
+                                        <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(payment.customer_payment.amount_applied).toFixed(2) }}</span>
                                     </div>
-                                    <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(payment.amount).toFixed(2) }}</span>
-                                </div>
-                                <div class="mt-1 flex items-center justify-between gap-2">
-                                    <span class="min-w-0 truncate text-xs text-gray-400">
-                                        <span v-if="payment.sale?.customer" class="font-medium text-gray-500">{{ payment.sale.customer.name }}</span>
-                                        <span v-else class="italic text-gray-300">Mostrador</span>
-                                        <span class="text-gray-300"> · {{ payment.user?.name }}</span>
-                                    </span>
-                                    <span class="shrink-0 text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
-                                </div>
+                                    <div class="mt-1 flex items-center justify-between gap-2">
+                                        <span class="min-w-0 truncate text-xs text-gray-400">
+                                            <span class="font-mono font-medium text-violet-600">{{ payment.customer_payment.folio }}</span>
+                                            <span class="text-gray-300"> · {{ payment.customer_payment.user?.name }}</span>
+                                        </span>
+                                        <span class="shrink-0 text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                    </div>
+                                </template>
+                                <!-- Pago normal (venta individual) -->
+                                <template v-else>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-bold text-gray-900">{{ payment.sale?.folio }}</span>
+                                            <span v-if="saleDateChip(payment)"
+                                                class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/20"
+                                                :title="'Esta venta se generó antes del día del pago'">
+                                                {{ saleDateChip(payment) }}
+                                            </span>
+                                            <span v-if="payment.updated_by" class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 ring-1 ring-inset ring-orange-500/20">Editado</span>
+                                        </div>
+                                        <span class="font-mono text-sm font-bold tabular-nums text-gray-900">${{ parseFloat(payment.amount).toFixed(2) }}</span>
+                                    </div>
+                                    <div class="mt-1 flex items-center justify-between gap-2">
+                                        <span class="min-w-0 truncate text-xs text-gray-400">
+                                            <span v-if="payment.sale?.customer" class="font-medium text-gray-500">{{ payment.sale.customer.name }}</span>
+                                            <span v-else class="italic text-gray-300">Mostrador</span>
+                                            <span class="text-gray-300"> · {{ payment.user?.name }}</span>
+                                        </span>
+                                        <span class="shrink-0 text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -331,8 +351,11 @@ const doDeletePayment = () => {
                                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" :d="methodMeta[selected.method]?.icon" /></svg>
                                 </div>
                                 <div>
-                                    <h2 class="text-lg font-bold text-gray-900">{{ selected.sale?.folio }}</h2>
-                                    <p class="text-xs text-gray-400">{{ formatFullDate(selected.created_at) }}</p>
+                                    <h2 class="text-lg font-bold text-gray-900">{{ selected.customer_payment ? selected.customer_payment.customer?.name : selected.sale?.folio }}</h2>
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-xs text-gray-400">{{ formatFullDate(selected.created_at) }}</p>
+                                        <span v-if="selected.customer_payment" class="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20">Cobro global · {{ selected.customer_payment.folio }}</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
@@ -352,7 +375,7 @@ const doDeletePayment = () => {
                                 <div class="space-y-3">
                                     <div>
                                         <p class="text-xs text-gray-400">Monto cobrado</p>
-                                        <p class="font-mono text-2xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(selected.amount).toFixed(2) }}</p>
+                                        <p class="font-mono text-2xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(selected.customer_payment ? selected.customer_payment.amount_applied : selected.amount).toFixed(2) }}</p>
                                     </div>
                                     <div class="grid grid-cols-3 gap-4">
                                         <div>
@@ -364,9 +387,13 @@ const doDeletePayment = () => {
                                         </div>
                                         <div>
                                             <p class="text-xs text-gray-400">Cobrado por</p>
-                                            <p class="mt-0.5 text-sm font-semibold text-gray-900">{{ selected.user?.name }}</p>
+                                            <p class="mt-0.5 text-sm font-semibold text-gray-900">{{ selected.customer_payment ? selected.customer_payment.user?.name : selected.user?.name }}</p>
                                         </div>
-                                        <div v-if="selected.sale?.created_at">
+                                        <div v-if="selected.customer_payment">
+                                            <p class="text-xs text-gray-400">Folio</p>
+                                            <p class="mt-0.5 font-mono text-sm font-semibold text-violet-600">{{ selected.customer_payment.folio }}</p>
+                                        </div>
+                                        <div v-else-if="selected.sale?.created_at">
                                             <p class="text-xs text-gray-400">Fecha de venta</p>
                                             <p class="mt-0.5 text-sm font-semibold text-gray-900">{{ formatFullDate(selected.sale.created_at) }}</p>
                                         </div>
@@ -379,8 +406,8 @@ const doDeletePayment = () => {
                                 </div>
                             </div>
 
-                            <!-- Admin actions for this payment -->
-                            <div v-if="canEditPayments" class="mt-4 flex items-center gap-2 border-t border-gray-200/50 pt-3">
+                            <!-- Admin actions for this payment (no aplican a un cobro global) -->
+                            <div v-if="canEditPayments && !selected.customer_payment" class="mt-4 flex items-center gap-2 border-t border-gray-200/50 pt-3">
                                 <button @click="startEditPayment(selected)" class="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-orange-600 ring-1 ring-gray-200 transition hover:bg-orange-50 hover:ring-orange-300">
                                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                                     Editar pago
@@ -403,8 +430,8 @@ const doDeletePayment = () => {
                                 @cancel="editingPaymentId = null" />
                         </div>
 
-                        <!-- Section B: Venta asociada -->
-                        <div v-if="selected.sale" class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
+                        <!-- Section B: Venta asociada (oculta para cobros globales) -->
+                        <div v-if="selected.sale && !selected.customer_payment" class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
                             <div class="flex items-center justify-between gap-3 bg-gray-50 px-5 py-3">
                                 <div class="flex min-w-0 items-center gap-2.5">
                                     <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">Venta</h3>
@@ -439,8 +466,8 @@ const doDeletePayment = () => {
                             </div>
                         </div>
 
-                        <!-- Section C: Timeline de pagos de la venta -->
-                        <div v-if="salePayments.length > 0">
+                        <!-- Section C: Timeline de pagos de la venta (oculto para cobros globales) -->
+                        <div v-if="salePayments.length > 0 && !selected.customer_payment">
                             <h3 class="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
                                 Pagos de esta venta
                                 <span class="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">{{ salePayments.length }}</span>
