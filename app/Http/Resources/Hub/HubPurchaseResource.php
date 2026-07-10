@@ -25,6 +25,10 @@ class HubPurchaseResource extends JsonResource
             'amount_pending' => (float) $this->amount_pending,
             'invoice_number' => $this->invoice_number,
             'notes' => $this->notes,
+            // Quién la registró (el admin-sucursal ve las de toda la sucursal).
+            'created_by' => $this->whenLoaded('creator', fn () => $this->creator
+                ? ['id' => $this->creator->id, 'name' => $this->creator->name]
+                : null),
             'purchased_at' => $this->purchased_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($i) => [

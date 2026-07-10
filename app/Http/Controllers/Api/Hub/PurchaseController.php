@@ -46,11 +46,16 @@ class PurchaseController extends Controller
         Auth::setUser($user);
         $this->ensureModuleEnabled($user->branch_id);
 
+        // Espeja la web: el admin-sucursal ve TODAS las compras de su sucursal
+        // (Sucursal\PurchaseController scopea solo por branch_id); el cajero
+        // solo las suyas (Caja\PurchaseController añade created_by).
+        $isAdmin = $user->hasRole('admin-sucursal');
+
         $purchases = Purchase::where('branch_id', $user->branch_id)
-            ->where('created_by', $user->id)
+            ->when(! $isAdmin, fn ($q) => $q->where('created_by', $user->id))
             ->when($request->filled('from'), fn ($q) => $q->whereDate('purchased_at', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('purchased_at', '<=', $request->date('to')))
-            ->with(['provider:id,name', 'items'])
+            ->with(['provider:id,name', 'items', 'creator:id,name'])
             ->orderByDesc('purchased_at')
             ->orderByDesc('id')
             ->paginate(20);
@@ -67,6 +72,7 @@ class PurchaseController extends Controller
             ],
             'providers' => $providers->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'payment_methods' => $branch?->enabledPaymentMethods() ?? ['cash', 'card', 'transfer'],
+            'is_admin' => $isAdmin,
         ]);
     }
 

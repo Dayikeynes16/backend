@@ -41,8 +41,13 @@ class ExpenseController extends Controller
 
         $search = trim((string) $request->input('search', ''));
 
+        // Espeja la web: el admin-sucursal ve TODOS los gastos de su sucursal
+        // (Sucursal\GastoController scopea solo por branch_id); el cajero solo
+        // los suyos (Caja\GastoController añade user_id).
+        $isAdmin = $user->hasRole('admin-sucursal');
+
         $baseQuery = Expense::where('branch_id', $user->branch_id)
-            ->where('user_id', $user->id)
+            ->when(! $isAdmin, fn ($q) => $q->where('user_id', $user->id))
             ->whereNull('cancelled_by')
             ->when($request->filled('from'), fn ($q) => $q->whereDate('expense_at', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('expense_at', '<=', $request->date('to')))
@@ -54,7 +59,7 @@ class ExpenseController extends Controller
         $total = (float) (clone $baseQuery)->sum('amount');
 
         $expenses = (clone $baseQuery)
-            ->with(['subcategory.category', 'attachments'])
+            ->with(['subcategory.category', 'attachments', 'user:id,name'])
             ->orderByDesc('expense_at')
             ->paginate(20);
 
@@ -72,6 +77,7 @@ class ExpenseController extends Controller
                 'last_page' => $expenses->lastPage(),
                 'total_count' => $expenses->total(),
             ],
+            'is_admin' => $isAdmin,
             'categories' => $categories->map(fn ($c) => [
                 'id' => $c->id,
                 'name' => $c->name,
@@ -185,12 +191,18 @@ class ExpenseController extends Controller
         return response()->json(['data' => HubExpenseResource::make($found->refresh()->load(['subcategory.category', 'attachments']))]);
     }
 
+    /**
+     * Gasto sobre el que el usuario puede actuar. Espeja la web: el
+     * admin-sucursal puede editar/cancelar cualquier gasto de su sucursal
+     * (Sucursal\GastoController valida solo branch_id); el cajero, solo los
+     * suyos (Caja\GastoController valida además user_id).
+     */
     private function findOwnExpense(Request $request, int $expense): Expense
     {
         $user = $request->user();
 
         return Expense::where('branch_id', $user->branch_id)
-            ->where('user_id', $user->id)
+            ->when(! $user->hasRole('admin-sucursal'), fn ($q) => $q->where('user_id', $user->id))
             ->findOrFail($expense);
     }
 

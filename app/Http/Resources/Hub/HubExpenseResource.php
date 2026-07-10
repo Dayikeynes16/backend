@@ -16,6 +16,10 @@ class HubExpenseResource extends JsonResource
             'payment_method' => $this->payment_method,
             'expense_at' => $this->expense_at?->toIso8601String(),
             'description' => $this->description,
+            // Quién lo registró (el admin-sucursal ve los de toda la sucursal).
+            'user' => $this->whenLoaded('user', fn () => $this->user
+                ? ['id' => $this->user->id, 'name' => $this->user->name]
+                : null),
             'subcategory' => $this->whenLoaded('subcategory', fn () => $this->subcategory ? [
                 'id' => $this->subcategory->id,
                 'name' => $this->subcategory->name,
