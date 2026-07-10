@@ -150,12 +150,19 @@ class CustomerController extends Controller
 
     public function history(Request $request, int $customer): JsonResponse
     {
+        $request->validate([
+            'from' => 'nullable|date',
+            'to' => 'nullable|date',
+        ]);
+
         $found = $this->findCustomer($request, $customer);
 
         $sales = Sale::withoutGlobalScopes()
             ->where('customer_id', $found->id)
             ->where('status', '!=', SaleStatus::Cancelled->value)
             ->accountable()
+            ->when($request->filled('from'), fn ($q) => $q->whereDate('created_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($q) => $q->whereDate('created_at', '<=', $request->date('to')))
             ->with(['items', 'payments'])
             ->orderByDesc('created_at')
             ->orderByDesc('id')

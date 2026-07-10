@@ -114,6 +114,29 @@ class PurchaseApiTest extends TestCase
         $this->assertStringStartsWith('2026-06-15', (string) $res->json('data.0.purchased_at'));
     }
 
+    public function test_index_admin_sucursal_sees_all_branch_purchases(): void
+    {
+        // El cajero registra una compra.
+        $token = $this->token();
+        $this->openShift($token);
+        $this->withToken($token)->postJson('/api/v1/hub/purchases', $this->payload())->assertCreated();
+
+        // El cajero solo ve las suyas.
+        $own = $this->withToken($token)->getJson('/api/v1/hub/purchases')->assertOk();
+        $this->assertCount(1, $own->json('data'));
+        $this->assertFalse($own->json('is_admin'));
+
+        // El admin-sucursal ve la compra del cajero (toda la sucursal) y quién la creó.
+        // El guard de Sanctum cachea el usuario dentro del mismo test: hay que
+        // olvidarlo para que el siguiente request resuelva el token del admin.
+        $this->app['auth']->forgetGuards();
+        $adminToken = $this->adminSucursal->createToken('hub')->plainTextToken;
+        $res = $this->withToken($adminToken)->getJson('/api/v1/hub/purchases')->assertOk();
+        $this->assertCount(1, $res->json('data'));
+        $this->assertTrue($res->json('is_admin'));
+        $this->assertNotNull($res->json('data.0.created_by.name'));
+    }
+
     public function test_admin_empresa_forbidden(): void
     {
         $this->withToken($this->adminEmpresa->createToken('hub')->plainTextToken)
