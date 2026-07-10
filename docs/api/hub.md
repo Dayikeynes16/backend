@@ -144,9 +144,16 @@ Requiere turno abierto (`409` si no). `422` si la venta está `completed` o `can
 
 | Método | Ruta | Rol | Descripción |
 |--------|------|-----|-------------|
-| GET | `history` | ambos | Ventas donde el usuario del token registró al menos un pago |
+| GET | `history` | ambos | Historial de ventas de la sucursal (alcance por rol) |
 
-`Api\Hub\HistoryController`. Query params: `date` (default hoy), `product` (búsqueda en items), `min_total`, `max_total`. Paginado (20) + `summary` (`count`, `total`) sobre todo el conjunto filtrado. Misma semántica que el historial web de caja.
+`Api\Hub\HistoryController`. Query params: `date` (default hoy), `product` (búsqueda en el nombre de las partidas), `min_total`, `max_total`. Paginado (20) + `summary` (`count`, `total`) sobre todo el conjunto filtrado.
+
+**Alcance por rol (paridad con la web):**
+
+- **admin-sucursal** → TODAS las ventas de la sucursal del día (fecha canónica `COALESCE(completed_at, created_at)`; estados `Completed`/`Pending`/`Fulfilled`; excluye pedidos web pendientes). Espeja `Sucursal\SaleHistoryController`.
+- **cajero** → solo las ventas donde registró al menos un pago. Espeja `Caja\HistorialController`.
+
+Así la búsqueda por producto de la admin opera sobre todo el historial de la sucursal, no solo sobre las ventas que ella cobró.
 
 ## Clientes y fiado
 
