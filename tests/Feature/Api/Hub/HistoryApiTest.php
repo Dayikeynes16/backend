@@ -133,6 +133,29 @@ class HistoryApiTest extends TestCase
         $this->assertFalse($folios->contains($cheap->folio));
     }
 
+    public function test_admin_sucursal_sees_all_branch_sales_and_searches_by_product(): void
+    {
+        // Ventas cobradas por el CAJERO (no por la admin), con productos distintos.
+        $beef = $this->withItem($this->sale($this->branch->id), 'Pulpa de res');
+        $this->payBy($this->cajero->id, $beef);
+        $pork = $this->withItem($this->sale($this->branch->id), 'Costilla de cerdo');
+        $this->payBy($this->cajero->id, $pork);
+
+        $token = $this->adminSucursal->createToken('hub')->plainTextToken;
+
+        // La admin ve TODAS las ventas de la sucursal, aunque no las cobrara ella.
+        $all = $this->withToken($token)->getJson('/api/v1/hub/history')->assertOk();
+        $folios = collect($all->json('data'))->pluck('folio');
+        $this->assertTrue($folios->contains($beef->folio));
+        $this->assertTrue($folios->contains($pork->folio));
+
+        // Y la búsqueda por producto opera sobre ese conjunto completo.
+        $res = $this->withToken($token)->getJson('/api/v1/hub/history?product=res')->assertOk();
+        $found = collect($res->json('data'))->pluck('folio');
+        $this->assertTrue($found->contains($beef->folio));
+        $this->assertFalse($found->contains($pork->folio));
+    }
+
     public function test_returns_day_summary(): void
     {
         $a = $this->sale($this->branch->id, 120);
