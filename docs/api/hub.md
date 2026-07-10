@@ -59,7 +59,16 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
 |--------|------|-----|-------------|
 | GET | `dashboard` | ambos | KPIs del día de la sucursal |
 
-`Api\Hub\DashboardController` devuelve: `today` (ventas del día no canceladas: conteo, total, pendiente, gastos, cobrado), `by_method` (cobranza por cash/card/transfer), `recent_sales` (8 últimas), `top_products` (top 5 por importe) y `shift` (resumen de conciliación en vivo del turno abierto vía `ShiftService::summary`, o `null`).
+`Api\Hub\DashboardController` espeja la riqueza del dashboard web (admin-sucursal) para el panel de Inicio del hub. Devuelve:
+
+- **`today`** — ventas del día no canceladas (`sales_count`, `sales_total`, `avg_ticket`, `pending_total`/`pending_count`), comparativa vs. ayer (`sales_total_yesterday`, `sales_delta_pct`), gastos (`expenses_total`, `expenses_total_yesterday`, `expenses_delta_pct`, `expenses_count`), `collected_total`, `cancel_request_count` y `product_count` (activos).
+- **`by_method` / `by_method_count`** — cobranza del día por `cash`/`card`/`transfer` (importe y número de pagos).
+- **`hourly` / `hourly_yesterday`** — serie de ventas por hora (arrays de 24 con `{ h, sales, trx }`) para la gráfica hoy vs. ayer; **`expenses_hourly`** (24 × `{ h, amount }`) para el sparkline de gastos.
+- **`top_products`** (top 5 por importe) y **`top_expense_categories`** (top 5 categorías de gasto del día).
+- **`recent_sales`** (8 últimas), **`recent_expenses`** (5 últimos) y **`recent_shifts`** (5 cortes cerrados: `user`, `closed_at`, `total_sales`, `sale_count`).
+- **`shift`** — conciliación en vivo del turno abierto vía `ShiftService::summary`, o `null`.
+
+`sales_delta_pct` / `expenses_delta_pct` son la variación porcentual vs. ayer, o `null` si ayer no hubo base de comparación. Los importes por hora y comparativas se calculan en Postgres con `FILTER (WHERE …)` y `EXTRACT(HOUR FROM created_at)`.
 
 ## Configuración de sucursal (solo admin-sucursal)
 
