@@ -68,6 +68,36 @@ class DashboardApiTest extends TestCase
         $this->assertSame(0, $res->json('today.sales_count'));
     }
 
+    public function test_dashboard_reports_comparative_and_hourly_series(): void
+    {
+        // Venta de hoy (300) y de ayer (100) → delta +200%.
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'folio' => 'S-HOY', 'payment_method' => 'cash', 'total' => 300,
+            'amount_paid' => 300, 'amount_pending' => 0, 'origin' => 'api', 'status' => SaleStatus::Completed,
+        ]);
+        $ayer = Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'folio' => 'S-AYER', 'payment_method' => 'cash', 'total' => 100,
+            'amount_paid' => 100, 'amount_pending' => 0, 'origin' => 'api', 'status' => SaleStatus::Completed,
+        ]);
+        Sale::where('id', $ayer->id)->update(['created_at' => now()->subDay()]);
+
+        $res = $this->withToken($this->token())
+            ->getJson('/api/v1/hub/dashboard')
+            ->assertOk();
+
+        $this->assertEquals(300, $res->json('today.sales_total'));
+        $this->assertEquals(100, $res->json('today.sales_total_yesterday'));
+        $this->assertEquals(200.0, $res->json('today.sales_delta_pct'));
+        $this->assertEquals(300, $res->json('today.avg_ticket'));
+        $this->assertCount(24, $res->json('hourly'));
+        $this->assertCount(24, $res->json('hourly_yesterday'));
+        $this->assertIsArray($res->json('recent_shifts'));
+        $this->assertArrayHasKey('expenses_delta_pct', $res->json('today'));
+        $this->assertArrayHasKey('top_expense_categories', $res->json());
+    }
+
     public function test_requires_hub_role(): void
     {
         $this->withToken($this->adminEmpresa->createToken('hub')->plainTextToken)
