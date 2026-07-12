@@ -91,6 +91,10 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
 | GET | `shift/current` | Turno abierto del usuario (`data: null` si no hay) + `summary` de conciliación en vivo (esperado, totales por método, salidas) |
 | POST | `shift/open` | Abre turno (body: `opening_amount` opcional). `201`, o `409` si ya tiene uno abierto |
 | POST | `shift/close` | Cierra turno (body: `declared_amount`, `declared_card`, `declared_transfer`, `notes`, todos opcionales). Devuelve el corte: shift cerrado + `summary` |
+| POST | `shift/withdrawals` | Registra un retiro de efectivo sobre el turno abierto (body: `amount` > 0, `reason` ≤ 255). `201` con el retiro + `summary` fresco; `404` si no hay turno abierto. Controller: `Api\Hub\WithdrawalController` |
+| DELETE | `shift/withdrawals/{id}` | Elimina un retiro. El cajero dueño solo en su turno abierto; admin-sucursal también con turno cerrado; `403` fuera de la sucursal/tenant. Devuelve `summary` fresco (o `null` sin turno abierto) |
+
+Las reglas de retiros son las mismas que en la web: viven en `ShiftService::addWithdrawal` / `removeWithdrawal`, compartidas por `Sucursal\WithdrawalController` (web) y `Api\Hub\WithdrawalController` (hub).
 
 El turno abierto es requisito para cobrar ventas, registrar gastos, registrar compras y pagos en efectivo a proveedores (`409` si no hay).
 

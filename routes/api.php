@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Hub\PurchaseProductController as HubPurchaseProduct
 use App\Http\Controllers\Api\Hub\RealtimeController as HubRealtimeController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
+use App\Http\Controllers\Api\Hub\WithdrawalController as HubWithdrawalController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Public\DeliveryController as PublicDeliveryController;
@@ -71,6 +72,10 @@ Route::prefix('v1/hub')
         Route::get('shift/current', [HubShiftController::class, 'current'])->name('api.hub.shift.current');
         Route::post('shift/open', [HubShiftController::class, 'open'])->name('api.hub.shift.open');
         Route::post('shift/close', [HubShiftController::class, 'close'])->name('api.hub.shift.close');
+        // Retiros de efectivo del turno abierto (cajero dueño; admin-sucursal
+        // puede eliminar incluso con turno cerrado — mismas reglas que la web).
+        Route::post('shift/withdrawals', [HubWithdrawalController::class, 'store'])->name('api.hub.shift.withdrawals.store');
+        Route::delete('shift/withdrawals/{withdrawal}', [HubWithdrawalController::class, 'destroy'])->whereNumber('withdrawal')->name('api.hub.shift.withdrawals.destroy');
 
         Route::get('history', [HubHistoryController::class, 'index'])->name('api.hub.history.index');
         Route::get('payments', [HubPaymentController::class, 'index'])->name('api.hub.payments.index');

@@ -140,6 +140,16 @@ Admin selecciona venta cobrada → "Cancelar venta"
 | `open` | `POST /{tenant}/caja/turno/abrir` | Abre turno |
 | `close` | `POST /{tenant}/caja/turno/cerrar` | Cierra turno |
 
+### Retiros de efectivo (`Sucursal\WithdrawalController` + `Api\Hub\WithdrawalController`)
+
+Las reglas viven en `ShiftService::addWithdrawal` / `removeWithdrawal`, compartidas por las tres superficies (panel sucursal, panel caja y hub Electron):
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `store` | `POST /{tenant}/sucursal/turno/retiros` y `POST /{tenant}/caja/turno/retiros` | Registra retiro (`amount` > 0, `reason` ≤ 255) sobre el turno abierto del usuario |
+| `destroy` | `DELETE .../turno/retiros/{withdrawal}` | Elimina retiro. Cajero dueño solo en su turno abierto; admins también con turno cerrado |
+| `store`/`destroy` | `POST/DELETE /api/v1/hub/shift/withdrawals[/{id}]` | Mismas reglas vía Sanctum para el hub; devuelve `summary` fresco (ver `docs/api/hub.md`) |
+
 ### `Sucursal\PaymentController`
 
 | Método | Ruta | Auth | Notas |

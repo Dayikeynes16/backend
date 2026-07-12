@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\ShiftAlreadyOpenException;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
+use App\Models\CashWithdrawal;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -117,6 +118,60 @@ class ShiftService
         ]);
 
         return $shift->refresh();
+    }
+
+    /**
+     * Registra un retiro de efectivo sobre el turno abierto del usuario.
+     *
+     * @throws ModelNotFoundException si no hay turno abierto
+     */
+    public function addWithdrawal(User $user, float $amount, string $reason): CashWithdrawal
+    {
+        $shift = CashRegisterShift::where('user_id', $user->id)
+            ->whereNull('closed_at')
+            ->firstOrFail();
+
+        return CashWithdrawal::create([
+            'shift_id' => $shift->id,
+            'user_id' => $user->id,
+            'amount' => $amount,
+            'reason' => $reason,
+            'created_at' => now(),
+        ]);
+    }
+
+    /**
+     * Elimina un retiro aplicando las reglas compartidas web/hub: aislamiento
+     * de tenant y sucursal para todos los roles; los admins pueden borrar
+     * incluso con turno cerrado; el cajero dueño solo en su turno abierto.
+     */
+    public function removeWithdrawal(User $user, CashWithdrawal $withdrawal): void
+    {
+        // En web, TenantScope hace que el shift de otro tenant resuelva a null
+        // y caiga en la primera guarda; en el hub (sin tenant bound) protegen
+        // los checks explícitos de sucursal y tenant.
+        $shift = $withdrawal->shift()->withoutGlobalScopes()->first();
+
+        if (! $shift || $shift->branch_id !== $user->branch_id) {
+            abort(403, 'Este retiro no pertenece a tu sucursal.');
+        }
+
+        if ($shift->tenant_id !== $user->tenant_id) {
+            abort(403, 'Este retiro no pertenece a tu empresa.');
+        }
+
+        $isManager = $user->hasRole('admin-sucursal')
+            || $user->hasRole('admin-empresa')
+            || $user->hasRole('superadmin');
+
+        $isOwnerOnOpenShift = $shift->user_id === $user->id
+            && $shift->closed_at === null;
+
+        if (! $isManager && ! $isOwnerOnOpenShift) {
+            abort(403);
+        }
+
+        $withdrawal->delete();
     }
 
     /**
