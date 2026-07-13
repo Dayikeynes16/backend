@@ -32,10 +32,41 @@ class ConfigController extends Controller
                 'address' => $branch->address,
                 'phone' => $branch->phone,
             ],
+            // Snapshot read-only "Datos administrados por la empresa" (paridad
+            // con Sucursal\ConfiguracionController): ubicación y horario legible.
+            'branch_snapshot' => [
+                'name' => $branch->name,
+                'phone' => $branch->phone,
+                'address' => $branch->address,
+                'latitude' => $branch->latitude !== null ? (float) $branch->latitude : null,
+                'longitude' => $branch->longitude !== null ? (float) $branch->longitude : null,
+                'schedule_text' => $this->humanReadableHours($branch->hours) ?: $branch->schedule,
+            ],
             'payment_methods_enabled' => $branch->enabledPaymentMethods(),
             'supported_payment_methods' => Branch::SUPPORTED_PAYMENT_METHODS,
             'api_keys' => $this->apiKeyList($user->branch_id),
         ]);
+    }
+
+    /** Horario humano-legible desde hours JSONB (misma lógica que la web). */
+    private function humanReadableHours(?array $hours): ?string
+    {
+        if (empty($hours)) {
+            return null;
+        }
+
+        $labels = ['mon' => 'Lun', 'tue' => 'Mar', 'wed' => 'Mié', 'thu' => 'Jue', 'fri' => 'Vie', 'sat' => 'Sáb', 'sun' => 'Dom'];
+        $parts = [];
+        foreach ($labels as $key => $label) {
+            $day = $hours[$key] ?? null;
+            if (! $day || empty($day['open']) || empty($day['close'])) {
+                $parts[] = "{$label} cerrado";
+            } else {
+                $parts[] = "{$label} {$day['open']}-{$day['close']}";
+            }
+        }
+
+        return implode(' · ', $parts);
     }
 
     public function updatePaymentMethods(Request $request): JsonResponse

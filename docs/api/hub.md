@@ -223,7 +223,9 @@ Así la búsqueda por producto de la admin opera sobre todo el historial de la s
 | GET | `expenses/{id}/attachments/{aid}` | Descarga el adjunto |
 | DELETE | `expenses/{id}/attachments/{aid}` | Elimina el adjunto |
 
-## Compras (cajero, requiere toggle `cashier_purchases_enabled`)
+## Compras (requiere toggle `cashier_purchases_enabled`)
+
+> 2026-07-13: el índice acepta `q` (folio/factura/proveedor), `provider_id` y `payment_status` (pending/partial/paid), excluye canceladas (paridad `applyIndexFilters` web) y devuelve `kpis` del conjunto filtrado (`total_amount`, `count`, `pending_total`, `pending_count`). El `show` carga `history` (timeline AuditLog) en `HubPurchaseResource`.
 
 **Controller:** `Api\Hub\PurchaseController` (reusa el trait `HandlesPurchases` de la web).
 

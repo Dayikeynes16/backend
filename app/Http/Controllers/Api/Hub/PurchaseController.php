@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Hub;
 
 use App\Enums\AiDraftStatus;
+use App\Enums\PurchaseStatus;
 use App\Http\Controllers\Concerns\HandlesPurchases;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubPurchaseResource;
@@ -13,6 +14,7 @@ use App\Models\Provider;
 use App\Models\ProviderPayment;
 use App\Models\Purchase;
 use App\Services\Ai\AiPurchaseDraftService;
+use App\Services\AuditLogger;
 use App\Services\PurchaseAttachmentService;
 use App\Services\PurchaseFolioGenerator;
 use App\Services\PurchasePaymentService;
@@ -21,6 +23,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -39,6 +42,9 @@ class PurchaseController extends Controller
         $request->validate([
             'from' => 'nullable|date',
             'to' => 'nullable|date',
+            'q' => 'nullable|string|max:100',
+            'provider_id' => 'nullable|integer',
+            'payment_status' => 'nullable|in:pending,partial,paid',
         ]);
 
         $user = $request->user();
@@ -50,11 +56,35 @@ class PurchaseController extends Controller
         // (Sucursal\PurchaseController scopea solo por branch_id); el cajero
         // solo las suyas (Caja\PurchaseController añade created_by).
         $isAdmin = $user->hasRole('admin-sucursal');
+        $q = trim((string) $request->input('q', ''));
 
-        $purchases = Purchase::where('branch_id', $user->branch_id)
-            ->when(! $isAdmin, fn ($q) => $q->where('created_by', $user->id))
-            ->when($request->filled('from'), fn ($q) => $q->whereDate('purchased_at', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($q) => $q->whereDate('purchased_at', '<=', $request->date('to')))
+        // Mismos filtros que HandlesPurchases::applyIndexFilters: búsqueda por
+        // folio/factura/proveedor, proveedor y estado de pago; canceladas fuera.
+        $base = fn () => Purchase::where('branch_id', $user->branch_id)
+            ->when(! $isAdmin, fn ($qq) => $qq->where('created_by', $user->id))
+            ->where('status', '!=', PurchaseStatus::Cancelled->value)
+            ->when($request->filled('from'), fn ($qq) => $qq->whereDate('purchased_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($qq) => $qq->whereDate('purchased_at', '<=', $request->date('to')))
+            ->when($request->integer('provider_id'), fn ($qq, $pid) => $qq->where('provider_id', $pid))
+            ->when($request->input('payment_status') === 'pending', fn ($qq) => $qq->where('amount_paid', '<=', 0))
+            ->when($request->input('payment_status') === 'partial', fn ($qq) => $qq
+                ->whereColumn('amount_paid', '>', DB::raw('0'))
+                ->whereColumn('amount_paid', '<', DB::raw('total')))
+            ->when($request->input('payment_status') === 'paid', fn ($qq) => $qq->whereColumn('amount_paid', '>=', DB::raw('total')))
+            ->when($q !== '', fn ($qq) => $qq->where(fn ($w) => $w
+                ->where('folio', 'ilike', "%{$q}%")
+                ->orWhere('invoice_number', 'ilike', "%{$q}%")
+                ->orWhereHas('provider', fn ($pp) => $pp->where('name', 'ilike', "%{$q}%"))));
+
+        // KPIs del periodo sobre el conjunto filtrado (paridad kpisFromQuery web).
+        $kpis = [
+            'total_amount' => round((float) $base()->sum('total'), 2),
+            'count' => (int) $base()->count(),
+            'pending_total' => round((float) $base()->sum('amount_pending'), 2),
+            'pending_count' => (int) $base()->where('amount_pending', '>', 0)->count(),
+        ];
+
+        $purchases = $base()
             ->with(['provider:id,name', 'items', 'creator:id,name'])
             ->orderByDesc('purchased_at')
             ->orderByDesc('id')
@@ -70,6 +100,7 @@ class PurchaseController extends Controller
                 'last_page' => $purchases->lastPage(),
                 'total' => $purchases->total(),
             ],
+            'kpis' => $kpis,
             'providers' => $providers->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'payment_methods' => $branch?->enabledPaymentMethods() ?? ['cash', 'card', 'transfer'],
             'is_admin' => $isAdmin,
@@ -115,6 +146,10 @@ class PurchaseController extends Controller
         } else {
             $payments->recalculate($purchase);
         }
+
+        // Timeline: la web audita la creación (HandlesPurchases::store); el hub
+        // debe dejar el mismo rastro para el HistorialTimeline.
+        app(AuditLogger::class)->logCreated($purchase);
 
         // Si vino de la captura por IA, consume el draft (mueve la foto de la
         // factura a la compra y lo marca consumido).
@@ -191,7 +226,7 @@ class PurchaseController extends Controller
         Auth::setUser($user);
 
         $found = Purchase::where('branch_id', $user->branch_id)
-            ->with(['provider:id,name', 'items', 'payments', 'attachments'])
+            ->with(['provider:id,name', 'items', 'payments', 'attachments', 'history.user:id,name'])
             ->findOrFail($purchase);
 
         return response()->json(['data' => HubPurchaseResource::make($found)]);

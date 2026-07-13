@@ -8,9 +8,11 @@ use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\User;
 use App\Services\ShiftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -25,30 +27,48 @@ class DashboardController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'date' => 'nullable|date',
+            'statuses' => 'nullable|array',
+            'statuses.*' => 'in:completed,pending',
+        ]);
+
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
         $branchId = $user->branch_id;
-        $today = today()->toDateString();
-        $yesterday = today()->subDay()->toDateString();
+        // Selector de fecha + chips "Incluir Completadas/Pendientes" (paridad
+        // con el dashboard web: default hoy y SOLO completadas).
+        $today = $request->input('date') ?: today()->toDateString();
+        $yesterday = Carbon::parse($today)->subDay()->toDateString();
+        $statuses = collect($request->input('statuses', ['completed']))
+            ->intersect(['completed', 'pending'])->values()->all() ?: ['completed'];
 
-        // ── Ventas: agregado de hoy y de ayer (no canceladas) ──────────────
+        // ── Ventas: agregado del día y del anterior (estados de los chips) ──
         // Fecha canónica COALESCE(completed_at, created_at): la misma que el
         // dashboard web y Métricas, para que los números cuadren entre ambos.
         $salesAgg = fn (string $date) => Sale::withoutGlobalScopes()
             ->where('branch_id', $branchId)
             ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
-            ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->whereIn('status', $statuses)
             ->selectRaw('COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS total, COALESCE(SUM(amount_pending), 0) AS pending, COUNT(*) FILTER (WHERE amount_pending > 0) AS pending_count')
             ->first();
         $st = $salesAgg($today);
         $sy = $salesAgg($yesterday);
         $avgTicket = $st->cnt > 0 ? round((float) $st->total / $st->cnt, 2) : 0.0;
 
-        // ── Serie de ventas por hora (hoy y ayer), array 0..23 ─────────────
+        // Canceladas del día (KPI aparte — no se restan de las netas).
+        $cancelled = Sale::withoutGlobalScopes()
+            ->where('branch_id', $branchId)
+            ->whereRaw('DATE(COALESCE(cancelled_at, created_at)) = ?', [$today])
+            ->where('status', SaleStatus::Cancelled->value)
+            ->selectRaw('COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS total')
+            ->first();
+
+        // ── Serie de ventas por hora (día y anterior), array 0..23 ─────────
         $hourlyRows = fn (string $date) => DB::table('sales')
             ->where('branch_id', $branchId)
             ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
-            ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->whereIn('status', $statuses)
             ->whereNull('deleted_at')
             ->selectRaw('EXTRACT(HOUR FROM COALESCE(completed_at, created_at))::int AS h, COUNT(*) AS trx, COALESCE(SUM(total), 0) AS sales')
             ->groupBy('h')->get()->keyBy('h');
@@ -77,6 +97,8 @@ class DashboardController extends Controller
                 COUNT(*) FILTER (WHERE p.method = 'cash') AS cash_count,
                 COUNT(*) FILTER (WHERE p.method = 'card') AS card_count,
                 COUNT(*) FILTER (WHERE p.method = 'transfer') AS transfer_count,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(p.created_at) THEN p.amount END), 0) AS from_today,
+                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(p.created_at) THEN p.amount END), 0) AS from_previous,
                 COALESCE(SUM(p.amount), 0) AS total")
             ->first();
 
@@ -112,16 +134,26 @@ class DashboardController extends Controller
 
         // ── Contadores ─────────────────────────────────────────────────────
         $productCount = Product::where('branch_id', $branchId)->where('status', 'active')->count();
+        // Solicitudes pendientes SIN filtro de fecha (paridad web: una solicitud
+        // de hace días sigue pendiente hasta resolverse).
         $cancelRequestCount = Sale::withoutGlobalScopes()
-            ->where('branch_id', $branchId)->whereDate('created_at', $today)
+            ->where('branch_id', $branchId)
             ->where('status', '!=', SaleStatus::Cancelled->value)
-            ->whereNotNull('cancel_requested_at')->count();
+            ->whereNotNull('cancel_requested_at')
+            ->whereNull('cancelled_at')->count();
+        $cajeroCount = User::where('branch_id', $branchId)
+            ->whereHas('roles', fn ($q) => $q->where('name', 'cajero'))
+            ->count();
+        $activeCashierCount = CashRegisterShift::where('branch_id', $branchId)
+            ->whereNull('closed_at')
+            ->whereDate('opened_at', '<=', $today)
+            ->count();
 
         // ── Ventas recientes / top productos / cortes recientes ────────────
         $recent = Sale::withoutGlobalScopes()
             ->where('branch_id', $branchId)
             ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$today])
-            ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->whereIn('status', $statuses)
             ->orderByDesc('created_at')->limit(8)
             ->get(['id', 'folio', 'total', 'status', 'created_at']);
 
@@ -129,7 +161,7 @@ class DashboardController extends Controller
             ->join('sales as s', 's.id', '=', 'si.sale_id')
             ->where('s.branch_id', $branchId)
             ->whereRaw('DATE(COALESCE(s.completed_at, s.created_at)) = ?', [$today])
-            ->where('s.status', '!=', SaleStatus::Cancelled->value)
+            ->whereIn('s.status', $statuses)
             ->whereNull('si.deleted_at')->whereNull('s.deleted_at')
             ->groupBy('si.product_name')
             ->selectRaw('si.product_name, COALESCE(SUM(si.subtotal), 0) AS amount, COUNT(*) AS lines')
@@ -150,6 +182,8 @@ class DashboardController extends Controller
         $openShift = $this->shifts->current($user);
 
         return response()->json([
+            'date' => $today,
+            'statuses' => $statuses,
             'today' => [
                 'sales_count' => (int) $st->cnt,
                 'sales_total' => round((float) $st->total, 2),
@@ -158,13 +192,19 @@ class DashboardController extends Controller
                 'avg_ticket' => $avgTicket,
                 'pending_total' => round((float) $st->pending, 2),
                 'pending_count' => (int) $st->pending_count,
+                'cancelled_amount' => round((float) $cancelled->total, 2),
+                'cancelled_count' => (int) $cancelled->cnt,
                 'expenses_total' => $expTotal,
                 'expenses_total_yesterday' => $expYesterday,
                 'expenses_delta_pct' => $this->deltaPct($expYesterday, $expTotal),
                 'expenses_count' => $expensesToday->count(),
                 'collected_total' => round((float) $bm->total, 2),
+                'collected_from_today' => round((float) $bm->from_today, 2),
+                'collected_from_previous' => round((float) $bm->from_previous, 2),
                 'cancel_request_count' => $cancelRequestCount,
                 'product_count' => $productCount,
+                'cajero_count' => $cajeroCount,
+                'active_cashier_count' => $activeCashierCount,
             ],
             'by_method' => [
                 'cash' => round((float) $bm->cash, 2),

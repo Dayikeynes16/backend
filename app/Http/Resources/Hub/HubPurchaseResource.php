@@ -55,6 +55,15 @@ class HubPurchaseResource extends JsonResource
                 'mime_type' => $a->mime_type,
                 'size_bytes' => $a->size_bytes,
             ])->values()),
+            // Timeline de cambios (AuditLog), misma forma que consume el
+            // HistorialTimeline de la web: event + changes + usuario + fecha.
+            'history' => $this->whenLoaded('history', fn () => $this->history->map(fn ($h) => [
+                'id' => $h->id,
+                'event' => $h->event,
+                'changes' => $h->changes,
+                'user_name' => $h->user?->name,
+                'created_at' => $h->created_at?->toIso8601String(),
+            ])->values()),
         ];
     }
 

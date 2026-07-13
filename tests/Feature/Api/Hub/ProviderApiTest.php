@@ -203,6 +203,25 @@ class ProviderApiTest extends TestCase
         $this->assertNotNull($res->json('resumen.ultima_compra.folio'));
     }
 
+    public function test_show_kpis_respect_date_range_but_debt_is_lifetime(): void
+    {
+        $provider = $this->makeProvider();
+        // Compra vieja con deuda + compra de hoy pagada.
+        $old = $this->makePurchase($provider, 500, 100);
+        $old->forceFill(['purchased_at' => now()->subDays(30)])->save();
+        $this->makePurchase($provider, 200, 200);
+
+        $res = $this->withToken($this->adminToken())
+            ->getJson("/api/v1/hub/providers/{$provider->id}?from=".now()->subDay()->toDateString())
+            ->assertOk();
+
+        // KPIs del periodo: solo la compra de hoy.
+        $this->assertSame(1, $res->json('resumen.compras_count'));
+        $this->assertEquals(200, $res->json('resumen.total_comprado'));
+        // La deuda es de por vida (la compra vieja sigue debiendo 400).
+        $this->assertEquals(400, $res->json('resumen.deuda_actual'));
+    }
+
     public function test_detail_forbidden_for_cajero(): void
     {
         $provider = $this->makeProvider();

@@ -142,6 +142,29 @@ class ExpenseApiTest extends TestCase
         $this->assertFalse($res->json('data.0.can_manage'));
     }
 
+    public function test_index_filters_by_payment_method_and_category(): void
+    {
+        $adminToken = $this->adminSucursal->createToken('hub')->plainTextToken;
+
+        $this->withToken($adminToken)->postJson('/api/v1/hub/expenses', [
+            'concept' => 'Renta', 'amount' => 900,
+            'expense_subcategory_id' => $this->subcategory->id, 'payment_method' => 'transfer',
+        ])->assertCreated();
+        $this->withToken($adminToken)->postJson('/api/v1/hub/expenses', [
+            'concept' => 'Bolsas', 'amount' => 50,
+            'expense_subcategory_id' => $this->subcategory->id, 'payment_method' => 'cash',
+        ])->assertCreated();
+
+        $byMethod = $this->withToken($adminToken)
+            ->getJson('/api/v1/hub/expenses?payment_method=transfer')->assertOk();
+        $this->assertCount(1, $byMethod->json('data'));
+        $this->assertSame('Renta', $byMethod->json('data.0.concept'));
+
+        $byCategory = $this->withToken($adminToken)
+            ->getJson('/api/v1/hub/expenses?expense_subcategory_id='.$this->subcategory->id)->assertOk();
+        $this->assertCount(2, $byCategory->json('data'));
+    }
+
     public function test_index_lists_user_expenses_and_categories(): void
     {
         $token = $this->token();

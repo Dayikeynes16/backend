@@ -33,6 +33,9 @@ class ExpenseController extends Controller
             'search' => 'nullable|string|max:100',
             'from' => 'nullable|date',
             'to' => 'nullable|date',
+            'expense_category_id' => 'nullable|integer',
+            'expense_subcategory_id' => 'nullable|integer',
+            'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)],
         ]);
 
         $user = $request->user();
@@ -51,6 +54,12 @@ class ExpenseController extends Controller
             ->whereNull('cancelled_by')
             ->when($request->filled('from'), fn ($q) => $q->whereDate('expense_at', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('expense_at', '<=', $request->date('to')))
+            // Filtros por categoría/subcategoría/método (paridad Sucursal\GastoController).
+            ->when($request->expense_category_id, fn ($q, $cat) => $q->whereHas(
+                'subcategory', fn ($sq) => $sq->where('expense_category_id', $cat)
+            ))
+            ->when($request->expense_subcategory_id, fn ($q, $sub) => $q->where('expense_subcategory_id', $sub))
+            ->when($request->payment_method, fn ($q, $pm) => $q->where('payment_method', $pm))
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('concept', 'ilike', "%{$search}%")
                 ->orWhere('description', 'ilike', "%{$search}%")));

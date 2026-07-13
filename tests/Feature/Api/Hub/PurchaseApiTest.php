@@ -137,6 +137,41 @@ class PurchaseApiTest extends TestCase
         $this->assertNotNull($res->json('data.0.created_by.name'));
     }
 
+    public function test_index_kpis_search_and_payment_status_filter(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        // Una pagada por completo y una pendiente.
+        $this->createPurchase($token, ['paid_amount' => 900]);
+        $pendingId = $this->createPurchase($token, ['invoice_number' => 'FAC-777']);
+
+        $res = $this->withToken($token)->getJson('/api/v1/hub/purchases')->assertOk();
+        $this->assertEquals(1800, $res->json('kpis.total_amount'));
+        $this->assertSame(2, $res->json('kpis.count'));
+        $this->assertEquals(900, $res->json('kpis.pending_total'));
+        $this->assertSame(1, $res->json('kpis.pending_count'));
+
+        // Filtro por estado de pago.
+        $pending = $this->withToken($token)->getJson('/api/v1/hub/purchases?payment_status=pending')->assertOk();
+        $this->assertCount(1, $pending->json('data'));
+        $this->assertSame($pendingId, $pending->json('data.0.id'));
+
+        // Búsqueda por número de factura.
+        $search = $this->withToken($token)->getJson('/api/v1/hub/purchases?q=FAC-777')->assertOk();
+        $this->assertCount(1, $search->json('data'));
+    }
+
+    public function test_show_includes_history_timeline(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createPurchase($token);
+
+        $res = $this->withToken($token)->getJson("/api/v1/hub/purchases/{$id}")->assertOk();
+        $events = collect($res->json('data.history'))->pluck('event');
+        $this->assertTrue($events->contains('created'));
+    }
+
     public function test_admin_empresa_forbidden(): void
     {
         $this->withToken($this->adminEmpresa->createToken('hub')->plainTextToken)
