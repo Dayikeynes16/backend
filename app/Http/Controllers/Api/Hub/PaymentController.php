@@ -32,6 +32,9 @@ class PaymentController extends Controller
             'method' => 'nullable|string',
             'date' => 'nullable|date',
             'user_id' => 'nullable|integer',
+            // 'with' = pagos de ventas con cliente; 'without' = de mostrador
+            // (misma semántica que Sucursal\PagosController).
+            'customer' => 'nullable|in:with,without',
         ]);
 
         $user = $request->user();
@@ -41,7 +44,14 @@ class PaymentController extends Controller
         $isAdmin = $user->hasRole('admin-sucursal');
         $date = $request->date ?: today()->toDateString();
 
-        $baseQuery = Payment::whereHas('sale', fn ($q) => $q->where('branch_id', $branchId))
+        $baseQuery = Payment::whereHas('sale', function ($q) use ($branchId, $request) {
+            $q->where('branch_id', $branchId);
+            if ($request->customer === 'with') {
+                $q->whereNotNull('customer_id');
+            } elseif ($request->customer === 'without') {
+                $q->whereNull('customer_id');
+            }
+        })
             ->when($request->method, fn ($q, $m) => $q->where('method', $m))
             ->whereDate('payments.created_at', $date);
 
@@ -77,9 +87,10 @@ class PaymentController extends Controller
                     });
             })
             ->with([
-                'sale:id,folio,total,status,branch_id,amount_pending,customer_id',
+                'sale:id,folio,total,status,branch_id,amount_paid,amount_pending,created_at,customer_id',
                 'sale.customer:id,name',
                 'user:id,name',
+                'updatedByUser:id,name',
                 'customerPayment:id,folio,customer_id,amount_applied,method,user_id,created_at',
                 'customerPayment.customer:id,name',
                 'customerPayment.user:id,name',
@@ -114,13 +125,18 @@ class PaymentController extends Controller
                 'method' => $p->method,
                 'created_at' => $p->created_at?->toIso8601String(),
                 'user' => $p->user ? ['id' => $p->user->id, 'name' => $p->user->name] : null,
+                // Badge "Editado" (correcciones de admin), como la web.
+                'updated_by_user' => $p->updatedByUser ? ['id' => $p->updatedByUser->id, 'name' => $p->updatedByUser->name] : null,
                 'customer' => null,
                 'sale' => $p->sale ? [
                     'id' => $p->sale->id,
                     'folio' => $p->sale->folio,
                     'total' => (float) $p->sale->total,
                     'status' => $p->sale->status instanceof \BackedEnum ? $p->sale->status->value : $p->sale->status,
+                    'amount_paid' => (float) $p->sale->amount_paid,
                     'amount_pending' => (float) $p->sale->amount_pending,
+                    // Para el chip "Venta de ayer/del DD-mmm" en pagos retroactivos.
+                    'created_at' => $p->sale->created_at?->toIso8601String(),
                     'customer' => $p->sale->customer ? ['id' => $p->sale->customer->id, 'name' => $p->sale->customer->name] : null,
                 ] : null,
             ];
