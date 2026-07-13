@@ -63,6 +63,11 @@ class HubSaleResource extends JsonResource
                 // Un pago hijo de un cobro global NO es editable individualmente
                 // (misma regla que la web); el hub oculta Editar/Eliminar con esto.
                 'customer_payment_id' => $p->customer_payment_id,
+                // Quién cobró y quién corrigió (badge "Editado"), como la web.
+                'user' => $p->relationLoaded('user') && $p->user
+                    ? ['id' => $p->user->id, 'name' => $p->user->name] : null,
+                'updated_by_user' => $p->relationLoaded('updatedByUser') && $p->updatedByUser
+                    ? ['id' => $p->updatedByUser->id, 'name' => $p->updatedByUser->name] : null,
             ])),
         ];
     }

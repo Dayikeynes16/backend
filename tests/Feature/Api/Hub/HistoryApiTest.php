@@ -156,6 +156,44 @@ class HistoryApiTest extends TestCase
         $this->assertFalse($found->contains($pork->folio));
     }
 
+    public function test_admin_searches_by_folio_ignoring_date(): void
+    {
+        // Venta de hace 5 días: la búsqueda por folio la encuentra sin cambiar fecha.
+        $old = $this->sale($this->branch->id);
+        $old->forceFill(['created_at' => now()->subDays(5), 'completed_at' => now()->subDays(5)])->save();
+
+        $res = $this->withToken($this->adminSucursal->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history?search='.$old->folio)
+            ->assertOk();
+
+        $this->assertTrue(collect($res->json('data'))->pluck('folio')->contains($old->folio));
+        // Al buscar, el resumen enriquecido del día no aplica.
+        $this->assertNull($res->json('day_summary'));
+    }
+
+    public function test_admin_gets_rich_day_summary_and_payment_user(): void
+    {
+        $sale = $this->sale($this->branch->id, 150);
+        $sale->forceFill(['completed_at' => now()])->save();
+        $this->payBy($this->cajero->id, $sale);
+
+        $res = $this->withToken($this->adminSucursal->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history')
+            ->assertOk();
+
+        // DaySummaryBar (DailySummaryService): netas, tickets, cobranza y métodos.
+        $this->assertEquals(150, $res->json('day_summary.total_sold'));
+        $this->assertSame(1, $res->json('day_summary.sale_count'));
+        $this->assertEquals(150, $res->json('day_summary.total_collected'));
+        $cash = collect($res->json('day_summary.by_method'))->firstWhere('method', 'cash');
+        $this->assertEquals(150, $cash['total']);
+        $this->assertTrue($res->json('is_admin'));
+
+        // Cada pago trae quién lo cobró.
+        $row = collect($res->json('data'))->firstWhere('folio', $sale->folio);
+        $this->assertSame($this->cajero->name, $row['payments'][0]['user']['name']);
+    }
+
     public function test_returns_day_summary(): void
     {
         $a = $this->sale($this->branch->id, 120);

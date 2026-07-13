@@ -59,7 +59,7 @@ class SaleController extends Controller
     public function show(Request $request, int $sale): HubSaleResource
     {
         $found = $this->findSale($request, $sale);
-        $found->load(['items', 'payments', 'customer', 'lockedByUser:id,name']);
+        $found->load(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer', 'lockedByUser:id,name']);
 
         $branch = Branch::withoutGlobalScopes()->find($request->user()->branch_id);
 
@@ -339,7 +339,7 @@ class SaleController extends Controller
     private function saleResponse(Sale $sale): JsonResponse
     {
         return response()->json([
-            'data' => HubSaleResource::make($sale->load(['items', 'payments', 'customer']))->resolve(request()),
+            'data' => HubSaleResource::make($sale->load(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer']))->resolve(request()),
         ]);
     }
 
