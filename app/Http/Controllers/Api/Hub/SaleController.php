@@ -73,6 +73,10 @@ class SaleController extends Controller
                 'address' => $branch->address,
                 'phone' => $branch->phone,
             ] : null,
+            // Edición de items (solo admin): la UI marca el motivo como
+            // obligatorio si la sucursal lo exige (paridad web).
+            'can_edit_items' => $request->user()->hasRole('admin-sucursal') || $request->user()->hasRole('superadmin'),
+            'sale_item_edit_reason_mode' => $branch?->sale_item_edit_reason_mode ?? 'optional',
         ]);
     }
 

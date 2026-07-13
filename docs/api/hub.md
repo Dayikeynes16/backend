@@ -177,6 +177,19 @@ Requiere turno abierto (`409` si no). `422` si la venta está `completed` o `can
 
 Así la búsqueda por producto de la admin opera sobre todo el historial de la sucursal, no solo sobre las ventas que ella cobró.
 
+## Edición de items de venta (solo admin-sucursal)
+
+**Controller:** `Api\Hub\SaleItemController` (reusa `SaleItemEditor`, el mismo dominio que la Mesa de Trabajo web: solo ventas Active/Pending, respeta el lock, recálculo vía `SalePaymentService`, historial en `sale_item_changes`).
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `sales/{id}/items` | Agrega item (`product_id`, `presentation_id` opcional, `quantity`, `unit_price`, `notes`, `reason`). `201` con la venta fresca |
+| PATCH | `sales/{id}/items/{iid}` | Edita cantidad/precio (`reason` según config). `422` si no hay cambios (no-op) |
+| DELETE | `sales/{id}/items/{iid}` | Soft-delete del item; `reason` SIEMPRE obligatorio |
+| GET | `sales/{id}/items-history` | Historial de cambios (`changes[]`: event, before/after, diff, reason, user) |
+
+El `reason` en add/update es obligatorio si la sucursal tiene `sale_item_edit_reason_mode = required`; el `show` de la venta expone `can_edit_items` y `sale_item_edit_reason_mode` para la UI. `GET products` acepta `with_presentations=1` (sale_mode + presentaciones activas) para el formulario de agregar.
+
 ## Clientes y fiado
 
 **Controllers:** `Api\Hub\CustomerController`, `CustomerPaymentController`, `CustomerPriceController`.

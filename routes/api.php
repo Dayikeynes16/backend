@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Hub\PurchaseController as HubPurchaseController;
 use App\Http\Controllers\Api\Hub\PurchaseProductController as HubPurchaseProductController;
 use App\Http\Controllers\Api\Hub\RealtimeController as HubRealtimeController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
+use App\Http\Controllers\Api\Hub\SaleItemController as HubSaleItemController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
 use App\Http\Controllers\Api\Hub\WithdrawalController as HubWithdrawalController;
 use App\Http\Controllers\Api\ProductController;
@@ -163,6 +164,12 @@ Route::prefix('v1/hub')
         Route::post('sales/{sale}/unlock', [HubSaleController::class, 'unlock'])->whereNumber('sale')->name('api.hub.sales.unlock');
         Route::post('sales/{sale}/heartbeat', [HubSaleController::class, 'heartbeat'])->whereNumber('sale')->name('api.hub.sales.heartbeat');
         Route::post('sales/{sale}/whatsapp-phone', [HubSaleController::class, 'storeWhatsappPhone'])->whereNumber('sale')->name('api.hub.sales.whatsapp-phone');
+        // Edición de items de venta (solo admin-sucursal, paridad con la
+        // Mesa de Trabajo web; el cajero no la tiene tampoco en la web).
+        Route::post('sales/{sale}/items', [HubSaleItemController::class, 'store'])->whereNumber('sale')->name('api.hub.sales.items.store');
+        Route::patch('sales/{sale}/items/{item}', [HubSaleItemController::class, 'update'])->whereNumber('sale')->whereNumber('item')->name('api.hub.sales.items.update');
+        Route::delete('sales/{sale}/items/{item}', [HubSaleItemController::class, 'destroy'])->whereNumber('sale')->whereNumber('item')->name('api.hub.sales.items.destroy');
+        Route::get('sales/{sale}/items-history', [HubSaleItemController::class, 'history'])->whereNumber('sale')->name('api.hub.sales.items.history');
     });
 
 // Public endpoints for online ordering SPA. No auth. Rate-limited.

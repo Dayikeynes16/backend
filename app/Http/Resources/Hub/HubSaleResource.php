@@ -44,10 +44,12 @@ class HubSaleResource extends JsonResource
             ] : null),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($i) => [
                 'id' => $i->id,
+                'product_id' => $i->product_id,
                 'product_name' => $i->product_name,
                 'quantity' => (float) $i->quantity,
                 'unit_price' => (float) $i->unit_price,
                 'subtotal' => (float) $i->subtotal,
+                'notes' => $i->notes,
                 // Campos de presentación/unidad para formatear cantidades por peso
                 // (1.250 kg) o presentación ("Queso (500 g) × 2") en el hub.
                 'unit_type' => $i->unit_type,
