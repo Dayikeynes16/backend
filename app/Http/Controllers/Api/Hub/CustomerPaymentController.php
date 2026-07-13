@@ -45,35 +45,117 @@ class CustomerPaymentController extends Controller
             ->accountable()
             ->where('amount_pending', '>', 0)
             ->orderBy('created_at')
-            ->get(['id', 'folio', 'total', 'amount_pending', 'created_at']);
+            ->get(['id', 'folio', 'total', 'amount_paid', 'amount_pending', 'created_at']);
 
-        $movements = CustomerPayment::withoutGlobalScopes()
+        // Ledger fusionado (paridad CustomerStatsController::payments web):
+        // cobros globales + pagos individuales por venta, con el cajero.
+        $globals = CustomerPayment::withoutGlobalScopes()
             ->where('customer_id', $found->id)
+            ->with('user:id,name')
             ->orderByDesc('created_at')
-            ->limit(30)
-            ->get();
+            ->limit(100)
+            ->get()
+            ->map(fn ($m) => [
+                'type' => 'global',
+                'id' => $m->id,
+                'folio' => $m->folio,
+                'method' => $m->method instanceof \BackedEnum ? $m->method->value : $m->method,
+                'amount_received' => (float) $m->amount_received,
+                'amount_applied' => (float) $m->amount_applied,
+                'change_given' => (float) $m->change_given,
+                'sales_affected_count' => $m->sales_affected_count,
+                'cashier_name' => $m->user?->name,
+                'cancelled_at' => $m->cancelled_at?->toIso8601String(),
+                'created_at' => $m->created_at?->toIso8601String(),
+                'sort_key' => $m->created_at?->timestamp ?? 0,
+            ]);
+
+        $singles = DB::table('payments')
+            ->join('sales', 'sales.id', '=', 'payments.sale_id')
+            ->leftJoin('users', 'users.id', '=', 'payments.user_id')
+            ->where('sales.customer_id', $found->id)
+            ->whereNull('payments.customer_payment_id')
+            ->whereNull('payments.deleted_at')
+            ->select('payments.id', 'payments.sale_id', 'sales.folio as sale_folio', 'payments.method', 'payments.amount', 'payments.created_at', 'users.name as cashier_name')
+            ->orderByDesc('payments.created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn ($p) => [
+                'type' => 'single',
+                'id' => $p->id,
+                'sale_id' => $p->sale_id,
+                'sale_folio' => $p->sale_folio,
+                'method' => $p->method,
+                'amount' => (float) $p->amount,
+                'cashier_name' => $p->cashier_name,
+                'created_at' => $p->created_at,
+                'sort_key' => strtotime($p->created_at),
+            ]);
+
+        $movements = $globals->concat($singles)
+            ->sortByDesc('sort_key')
+            ->values()
+            ->take(100)
+            ->map(function (array $m) {
+                unset($m['sort_key']);
+
+                return $m;
+            });
 
         return response()->json([
             'pending_sales' => $pending->map(fn ($s) => [
                 'id' => $s->id,
                 'folio' => $s->folio,
                 'total' => (float) $s->total,
+                'amount_paid' => (float) $s->amount_paid,
                 'amount_pending' => (float) $s->amount_pending,
                 'created_at' => $s->created_at?->toIso8601String(),
             ])->values(),
-            'recent_movements' => $movements->map(fn ($m) => [
-                'id' => $m->id,
-                'folio' => $m->folio,
-                'method' => $m->method,
-                'amount_received' => (float) $m->amount_received,
-                'amount_applied' => (float) $m->amount_applied,
-                'change_given' => (float) $m->change_given,
-                'sales_affected_count' => $m->sales_affected_count,
-                'cancelled_at' => $m->cancelled_at?->toIso8601String(),
-                'created_at' => $m->created_at?->toIso8601String(),
-            ])->values(),
+            'recent_movements' => $movements->values(),
             'total_owed' => round((float) $pending->sum('amount_pending'), 2),
             'payment_methods' => $branch?->enabledPaymentMethods() ?? ['cash', 'card', 'transfer'],
+        ]);
+    }
+
+    /**
+     * Detalle de un cobro global: aplicaciones por venta, cajero y notas.
+     * Paridad con Sucursal\CustomerPaymentController::show.
+     */
+    public function show(Request $request, int $customer, int $payment): JsonResponse
+    {
+        $found = $this->findCustomer($request, $customer);
+
+        $cp = CustomerPayment::withoutGlobalScopes()
+            ->where('customer_id', $found->id)
+            ->findOrFail($payment);
+
+        $cp->load([
+            'user:id,name',
+            'payments' => fn ($q) => $q->with('sale:id,folio,total,amount_pending,status,created_at'),
+        ]);
+
+        return response()->json([
+            'id' => $cp->id,
+            'folio' => $cp->folio,
+            'method' => $cp->method instanceof \BackedEnum ? $cp->method->value : $cp->method,
+            'amount_received' => (float) $cp->amount_received,
+            'amount_applied' => (float) $cp->amount_applied,
+            'change_given' => (float) $cp->change_given,
+            'sales_affected_count' => $cp->sales_affected_count,
+            'notes' => $cp->notes,
+            'cancelled_at' => $cp->cancelled_at?->toIso8601String(),
+            'created_at' => $cp->created_at?->toIso8601String(),
+            'cashier' => $cp->user ? ['id' => $cp->user->id, 'name' => $cp->user->name] : null,
+            'applications' => $cp->payments->map(fn ($p) => [
+                'payment_id' => $p->id,
+                'sale_id' => $p->sale_id,
+                'sale_folio' => $p->sale?->folio,
+                'sale_date' => $p->sale?->created_at?->toIso8601String(),
+                'amount' => (float) $p->amount,
+                'sale_status_after' => $p->sale?->status instanceof \BackedEnum ? $p->sale->status->value : $p->sale?->status,
+                'sale_total' => (float) ($p->sale?->total ?? 0),
+                'sale_amount_pending_after' => (float) ($p->sale?->amount_pending ?? 0),
+            ])->values(),
         ]);
     }
 

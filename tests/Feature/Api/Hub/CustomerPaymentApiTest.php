@@ -159,6 +159,45 @@ class CustomerPaymentApiTest extends TestCase
         $this->assertEquals(150, $res->json('total_owed'));
     }
 
+    public function test_ledger_merges_global_and_single_payments_with_cashier(): void
+    {
+        // Un pago individual (por venta) y un cobro global aplicado.
+        $single = $this->pendingSale(80, now()->subHours(2));
+        Payment::create(['sale_id' => $single->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 80]);
+        app(SalePaymentService::class)->recalculate($single, $this->cajero);
+
+        $globalSale = $this->pendingSale(100, now()->subDay());
+        $this->appliedGlobalPayment($globalSale);
+
+        $res = $this->withToken($this->token())
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments")
+            ->assertOk();
+
+        $types = collect($res->json('recent_movements'))->pluck('type');
+        $this->assertTrue($types->contains('global'));
+        $this->assertTrue($types->contains('single'));
+
+        $singleRow = collect($res->json('recent_movements'))->firstWhere('type', 'single');
+        $this->assertSame($single->folio, $singleRow['sale_folio']);
+        $this->assertSame($this->cajero->name, $singleRow['cashier_name']);
+    }
+
+    public function test_global_payment_detail_shows_applications(): void
+    {
+        $sale = $this->pendingSale(100, now()->subDay());
+        $cp = $this->appliedGlobalPayment($sale);
+
+        $res = $this->withToken($this->token())
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}")
+            ->assertOk();
+
+        $this->assertSame('CG-00001', $res->json('folio'));
+        $this->assertSame($this->cajero->name, $res->json('cashier.name'));
+        $this->assertCount(1, $res->json('applications'));
+        $this->assertSame($sale->folio, $res->json('applications.0.sale_folio'));
+        $this->assertEquals(100, $res->json('applications.0.amount'));
+    }
+
     /**
      * Crea un cobro global ya aplicado a la venta (vía modelos) para probar la
      * cancelación sin encadenar dos peticiones con usuarios distintos (el guard

@@ -166,6 +166,26 @@ class CustomerApiTest extends TestCase
         $this->assertNull(Customer::withoutGlobalScopes()->find($c->id));
     }
 
+    public function test_index_paginates_and_sorts_by_debt_server_side(): void
+    {
+        // 26 clientes con nombres A..Z; el de mayor deuda tiene nombre "Z..."
+        // para probar que el orden por deuda es SQL y no de la página alfabética.
+        foreach (range('a', 'z') as $i => $letter) {
+            $this->customer($this->branch->id, strtoupper($letter).' Cliente', '66100011'.str_pad((string) $i, 2, '0', STR_PAD_LEFT));
+        }
+        $zeta = Customer::withoutGlobalScopes()->where('name', 'Z Cliente')->first();
+        $this->pendingSale($zeta, 900);
+
+        $res = $this->withToken($this->token())
+            ->getJson('/api/v1/hub/customers?sort=debt')
+            ->assertOk();
+
+        $this->assertSame('Z Cliente', $res->json('data.0.name'));
+        $this->assertSame(25, count($res->json('data')));
+        $this->assertSame(2, $res->json('meta.last_page'));
+        $this->assertSame(26, $res->json('meta.total'));
+    }
+
     public function test_index_reports_debt_and_portfolio_summary(): void
     {
         $ana = $this->customer($this->branch->id, 'Ana Deudora', '6610004444');

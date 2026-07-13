@@ -97,6 +97,7 @@ Route::prefix('v1/hub')
         // Fiado: ledger + cobro global FIFO + cancelar.
         Route::get('customers/{customer}/payments', [HubCustomerPaymentController::class, 'index'])->whereNumber('customer')->name('api.hub.customers.payments.index');
         Route::post('customers/{customer}/payments', [HubCustomerPaymentController::class, 'store'])->whereNumber('customer')->name('api.hub.customers.payments.store');
+        Route::get('customers/{customer}/payments/{payment}', [HubCustomerPaymentController::class, 'show'])->whereNumber('customer')->whereNumber('payment')->name('api.hub.customers.payments.show');
         Route::delete('customers/{customer}/payments/{payment}', [HubCustomerPaymentController::class, 'destroy'])->whereNumber('customer')->whereNumber('payment')->name('api.hub.customers.payments.destroy');
         // Precios preferenciales por producto.
         Route::post('customers/{customer}/prices', [HubCustomerPriceController::class, 'store'])->whereNumber('customer')->name('api.hub.customers.prices.store');

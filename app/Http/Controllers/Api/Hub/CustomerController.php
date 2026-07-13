@@ -29,26 +29,43 @@ class CustomerController extends Controller
             'status' => 'nullable|in:active,inactive,all',
             'with_debt' => 'nullable|boolean',
             'sort' => 'nullable|in:name,debt,last_sale',
+            'page' => 'nullable|integer|min:1',
         ]);
 
         $branchId = $request->user()->branch_id;
         $status = $request->input('status', 'active');
         $search = trim((string) $request->input('search', ''));
+        $sort = $request->input('sort', 'name');
 
-        $query = Customer::withoutGlobalScopes()
+        // Subconsultas de orden en SQL (paridad Sucursal\CustomerController):
+        // con paginación real el orden en memoria dejaría fuera clientes.
+        $debtSubquery = 'COALESCE((select SUM(amount_pending) from sales where sales.customer_id = customers.id and sales.status != ? and (sales.origin != ? or sales.status not in (?, ?)) and sales.deleted_at is null), 0)';
+        $debtBindings = [
+            SaleStatus::Cancelled->value,
+            'web',
+            SaleStatus::Pending->value,
+            SaleStatus::Fulfilled->value,
+        ];
+        $lastSaleSubquery = '(select MAX(created_at) from sales where sales.customer_id = customers.id and sales.deleted_at is null)';
+
+        $customers = Customer::withoutGlobalScopes()
             ->where('branch_id', $branchId)
             ->withCount('prices')
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('name', 'ilike', "%{$search}%")
-                ->orWhere('phone', 'ilike', "%{$search}%")));
+                ->orWhere('phone', 'ilike', "%{$search}%")))
+            ->when($request->boolean('with_debt'), fn ($q) => $q->whereRaw("{$debtSubquery} > 0", $debtBindings))
+            ->when($sort === 'debt', fn ($q) => $q->orderByRaw("{$debtSubquery} DESC", $debtBindings)->orderBy('name'))
+            ->when($sort === 'last_sale', fn ($q) => $q->orderByRaw("{$lastSaleSubquery} DESC NULLS LAST")->orderBy('name'))
+            ->when($sort === 'name', fn ($q) => $q->orderBy('name'))
+            ->paginate(25);
 
-        // Agregados de deuda/compras por cliente (un solo query, sin N+1).
-        $aggregates = $this->debtAggregates($branchId);
+        // Agregados de deuda/compras SOLO de la página (un query, sin N+1).
+        $pageIds = collect($customers->items())->pluck('id');
+        $aggregates = $this->debtAggregates($branchId, $pageIds->all());
 
-        $customers = $query->orderBy('name')->limit(200)->get();
-
-        $rows = $customers->map(function (Customer $c) use ($aggregates) {
+        $rows = collect($customers->items())->map(function (Customer $c) use ($aggregates) {
             $agg = $aggregates->get($c->id);
 
             return [
@@ -62,22 +79,17 @@ class CustomerController extends Controller
                 'last_sale_at' => $agg?->last_at,
                 'preferential_prices_count' => $c->prices_count,
             ];
-        });
-
-        if ($request->boolean('with_debt')) {
-            $rows = $rows->filter(fn ($r) => $r['total_owed'] > 0)->values();
-        }
-
-        $sort = $request->input('sort', 'name');
-        $rows = match ($sort) {
-            'debt' => $rows->sortByDesc('total_owed')->values(),
-            'last_sale' => $rows->sortByDesc('last_sale_at')->values(),
-            default => $rows->sortBy('name', SORT_FLAG_CASE | SORT_STRING)->values(),
-        };
+        })->values();
 
         return response()->json([
             'data' => $rows,
-            'summary' => $this->portfolioSummary($branchId, $aggregates),
+            'meta' => [
+                'current_page' => $customers->currentPage(),
+                'last_page' => $customers->lastPage(),
+                'total' => $customers->total(),
+            ],
+            // Panorama de la cartera completa (no se filtra por search/status).
+            'summary' => $this->portfolioSummary($branchId, $this->debtAggregates($branchId)),
         ]);
     }
 
@@ -199,14 +211,19 @@ class CustomerController extends Controller
         );
     }
 
-    /** Agregados de deuda/compras por cliente de la sucursal (1 query). */
-    private function debtAggregates(int $branchId): Collection
+    /**
+     * Agregados de deuda/compras por cliente de la sucursal (1 query).
+     *
+     * @param  list<int>|null  $customerIds  limita a esos clientes (página actual)
+     */
+    private function debtAggregates(int $branchId, ?array $customerIds = null): Collection
     {
         return Sale::withoutGlobalScopes()
             ->where('branch_id', $branchId)
             ->where('status', '!=', SaleStatus::Cancelled->value)
             ->accountable()
             ->whereNotNull('customer_id')
+            ->when($customerIds !== null, fn ($q) => $q->whereIn('customer_id', $customerIds))
             ->selectRaw('customer_id,
                 COALESCE(SUM(CASE WHEN amount_pending > 0 THEN amount_pending ELSE 0 END), 0) AS owed,
                 COUNT(*) AS cnt,
@@ -234,7 +251,7 @@ class CustomerController extends Controller
     private function row(Customer $c): array
     {
         $c->loadCount('prices');
-        $agg = $this->debtAggregates($c->branch_id)->get($c->id);
+        $agg = $this->debtAggregates($c->branch_id, [$c->id])->get($c->id);
 
         return [
             'id' => $c->id,
@@ -277,8 +294,29 @@ class CustomerController extends Controller
             'pending_sales_count' => (int) $sales->pending_count,
             'first_sale_at' => $sales->first_at,
             'last_sale_at' => $sales->last_at,
+            'total_saved' => $this->totalSaved($customer),
             'top_product' => $this->topProduct($customer),
         ];
+    }
+
+    /**
+     * Ahorro acumulado por precios preferenciales (misma consulta que la web:
+     * GREATEST(original_unit_price - unit_price, 0) * quantity en ventas
+     * contables no canceladas).
+     */
+    private function totalSaved(Customer $customer): float
+    {
+        $row = DB::table('sale_items')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->where('sales.customer_id', $customer->id)
+            ->where('sales.status', '!=', SaleStatus::Cancelled->value)
+            ->where(fn ($q) => $q->where('sales.origin', '!=', 'web')
+                ->orWhereNotIn('sales.status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
+            ->whereNull('sales.deleted_at')
+            ->selectRaw('COALESCE(SUM(GREATEST(sale_items.original_unit_price - sale_items.unit_price, 0) * sale_items.quantity), 0) as total_saved')
+            ->first();
+
+        return round((float) ($row->total_saved ?? 0), 2);
     }
 
     /**
