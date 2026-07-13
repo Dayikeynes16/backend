@@ -88,9 +88,13 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `shift/current` | Turno abierto del usuario (`data: null` si no hay) + `summary` de conciliación en vivo (esperado, totales por método, salidas) |
+| GET | `shift/current` | Turno abierto del usuario (`data: null` si no hay) + `summary` de conciliación en vivo (esperado, totales por método, salidas, y `sales_generated` — "Vendido vs Cobrado") |
 | POST | `shift/open` | Abre turno (body: `opening_amount` opcional). `201`, o `409` si ya tiene uno abierto |
-| POST | `shift/close` | Cierra turno (body: `declared_amount`, `declared_card`, `declared_transfer`, `notes`, todos opcionales). Devuelve el corte: shift cerrado + `summary` |
+| POST | `shift/close` | Cierra turno (body: `declared_amount`, `declared_card`, `declared_transfer`, `notes`, todos opcionales). Devuelve el corte completo: shift cerrado + `summary` + `verdict` (ShiftVerdictService: veredicto neto con compensación cruzada) + `whatsapp` (`{url, has_owner_whatsapp}` — reporte al dueño vía ShiftReportMessageService) |
+| GET | `shifts?from=&to=&page=` | Cortes históricos paginados (15). Admin: toda la sucursal; cajero: solo los suyos. Filas con totales, declarado y `difference_total` |
+| GET | `shifts/{id}` | Corte persistente: `data` + `summary` + `verdict` + `whatsapp`. Cajero solo los propios (403 ajeno); cross-branch 404 |
+| POST | `shifts/{id}/recalculate` | **admin-sucursal.** Recomputa totales/diferencias respetando declarados originales (NULL no se resucita). Devuelve el corte actualizado. `422` si el turno está abierto |
+| POST | `shifts/{id}/reopen` | **admin-sucursal.** Reabre el turno (resetea el corte a valores neutros). `422` si ya está abierto o si el cajero tiene otro turno abierto |
 | POST | `shift/withdrawals` | Registra un retiro de efectivo sobre el turno abierto (body: `amount` > 0, `reason` ≤ 255). `201` con el retiro + `summary` fresco; `404` si no hay turno abierto. Controller: `Api\Hub\WithdrawalController` |
 | DELETE | `shift/withdrawals/{id}` | Elimina un retiro. El cajero dueño solo en su turno abierto; admin-sucursal también con turno cerrado; `403` fuera de la sucursal/tenant. Devuelve `summary` fresco (o `null` sin turno abierto) |
 

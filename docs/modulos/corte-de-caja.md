@@ -140,6 +140,10 @@ Admin selecciona venta cobrada → "Cancelar venta"
 | `open` | `POST /{tenant}/caja/turno/abrir` | Abre turno |
 | `close` | `POST /{tenant}/caja/turno/cerrar` | Cierra turno |
 
+### API Hub (`Api\Hub\ShiftController`)
+
+El hub Electron tiene paridad completa del ciclo de turno vía `/api/v1/hub/*` (Sanctum): `shift/current|open|close` (el cierre devuelve `summary` + veredicto de `ShiftVerdictService` + link WhatsApp de `ShiftReportMessageService`), y cortes históricos `shifts` (lista scopada por rol), `shifts/{id}` (corte persistente), `shifts/{id}/recalculate` y `shifts/{id}/reopen` (solo admin-sucursal, misma lógica que `CashShiftController`). Ver `docs/api/hub.md`.
+
 ### Retiros de efectivo (`Sucursal\WithdrawalController` + `Api\Hub\WithdrawalController`)
 
 Las reglas viven en `ShiftService::addWithdrawal` / `removeWithdrawal`, compartidas por las tres superficies (panel sucursal, panel caja y hub Electron):

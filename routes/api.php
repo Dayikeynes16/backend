@@ -77,6 +77,13 @@ Route::prefix('v1/hub')
         // puede eliminar incluso con turno cerrado — mismas reglas que la web).
         Route::post('shift/withdrawals', [HubWithdrawalController::class, 'store'])->name('api.hub.shift.withdrawals.store');
         Route::delete('shift/withdrawals/{withdrawal}', [HubWithdrawalController::class, 'destroy'])->whereNumber('withdrawal')->name('api.hub.shift.withdrawals.destroy');
+        // Cortes históricos: lista (admin toda la sucursal, cajero los suyos),
+        // detalle persistente y, solo admin, recalcular/reabrir (paridad
+        // Sucursal\CashShiftController).
+        Route::get('shifts', [HubShiftController::class, 'index'])->name('api.hub.shifts.index');
+        Route::get('shifts/{shift}', [HubShiftController::class, 'show'])->whereNumber('shift')->name('api.hub.shifts.show');
+        Route::post('shifts/{shift}/recalculate', [HubShiftController::class, 'recalculate'])->whereNumber('shift')->name('api.hub.shifts.recalculate');
+        Route::post('shifts/{shift}/reopen', [HubShiftController::class, 'reopen'])->whereNumber('shift')->name('api.hub.shifts.reopen');
 
         Route::get('history', [HubHistoryController::class, 'index'])->name('api.hub.history.index');
         Route::get('payments', [HubPaymentController::class, 'index'])->name('api.hub.payments.index');

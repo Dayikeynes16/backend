@@ -199,6 +199,8 @@ class ShiftService
             $cashProviderPayments = $cashOut['cash_provider_payments'];
             $saleCount = $totals['collections_count'];
             $previous = $totals['collections_from_previous_amount'];
+            $generatedAmount = $totals['sales_generated_amount'];
+            $generatedCount = $totals['sales_generated_count'];
         } else {
             $totalCash = (float) $shift->total_cash;
             $totalCard = (float) $shift->total_card;
@@ -209,6 +211,8 @@ class ShiftService
             $cashProviderPayments = (float) $shift->total_cash_provider_payments;
             $saleCount = (int) $shift->sale_count;
             $previous = (float) $shift->collections_from_previous_amount;
+            $generatedAmount = (float) $shift->sales_generated_amount;
+            $generatedCount = (int) $shift->sales_generated_count;
         }
 
         $enabled = $this->enabledMethodsFor($shift->branch_id);
@@ -242,6 +246,12 @@ class ShiftService
             'total_collected' => round($totalCash + $totalCard + $totalTransfer, 2),
             'collections_from_previous' => round($previous, 2),
             'sale_count' => $saleCount,
+            // "Vendido" (ventas generadas en el turno) vs "Cobrado" (lo que
+            // entró al cajón) — misma distinción que el corte web.
+            'sales_generated' => [
+                'amount' => round($generatedAmount, 2),
+                'count' => $generatedCount,
+            ],
             'expected_cash' => round($expectedCash, 2),
             'cash_out' => [
                 'withdrawals' => round($withdrawalsTotal, 2),
