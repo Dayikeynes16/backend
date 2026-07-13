@@ -72,6 +72,76 @@ class ExpenseApiTest extends TestCase
         $this->assertSame(1, Expense::where('user_id', $this->cajero->id)->count());
     }
 
+    public function test_admin_stores_expense_without_shift_and_with_payment_method(): void
+    {
+        // Paridad web: el admin-sucursal registra gastos sin turno y eligiendo
+        // método (Sucursal\GastoController); no se atan a un turno.
+        $adminToken = $this->adminSucursal->createToken('hub')->plainTextToken;
+
+        $this->withToken($adminToken)
+            ->postJson('/api/v1/hub/expenses', [
+                'concept' => 'Renta local', 'amount' => 900,
+                'expense_subcategory_id' => $this->subcategory->id,
+                'payment_method' => 'transfer',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.payment_method', 'transfer');
+
+        $expense = Expense::where('concept', 'Renta local')->first();
+        $this->assertNull($expense->cash_register_shift_id);
+    }
+
+    public function test_cajero_cannot_choose_payment_method(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+
+        // Aunque mande otro método, el gasto del cajero queda en efectivo.
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses', [
+                'concept' => 'Bolsas', 'amount' => 50,
+                'expense_subcategory_id' => $this->subcategory->id,
+                'payment_method' => 'card',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.payment_method', 'cash');
+    }
+
+    public function test_cajero_cannot_edit_expense_from_closed_shift(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createExpense($token);
+
+        // Cierra el turno: el gasto quedó ligado a un turno cerrado.
+        $this->withToken($token)->postJson('/api/v1/hub/shift/close', [])->assertOk();
+
+        $this->withToken($token)
+            ->patchJson("/api/v1/hub/expenses/{$id}", [
+                'concept' => 'Editado', 'amount' => 99, 'expense_subcategory_id' => $this->subcategory->id,
+            ])
+            ->assertForbidden();
+
+        $this->withToken($token)
+            ->deleteJson("/api/v1/hub/expenses/{$id}", ['cancellation_reason' => 'x'])
+            ->assertForbidden();
+    }
+
+    public function test_index_marks_can_manage_by_open_shift(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $this->createExpense($token, 'Del turno abierto');
+
+        $res = $this->withToken($token)->getJson('/api/v1/hub/expenses')->assertOk();
+        $this->assertTrue($res->json('data.0.can_manage'));
+
+        // Cerrado el turno, el gasto deja de ser corregible para el cajero.
+        $this->withToken($token)->postJson('/api/v1/hub/shift/close', [])->assertOk();
+        $res = $this->withToken($token)->getJson('/api/v1/hub/expenses')->assertOk();
+        $this->assertFalse($res->json('data.0.can_manage'));
+    }
+
     public function test_index_lists_user_expenses_and_categories(): void
     {
         $token = $this->token();

@@ -61,7 +61,7 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
 
 `Api\Hub\DashboardController` espeja la riqueza del dashboard web (admin-sucursal) para el panel de Inicio del hub. Devuelve:
 
-- **`today`** — ventas del día no canceladas (`sales_count`, `sales_total`, `avg_ticket`, `pending_total`/`pending_count`), comparativa vs. ayer (`sales_total_yesterday`, `sales_delta_pct`), gastos (`expenses_total`, `expenses_total_yesterday`, `expenses_delta_pct`, `expenses_count`), `collected_total`, `cancel_request_count` y `product_count` (activos).
+- **`today`** — ventas del día no canceladas (`sales_count`, `sales_total`, `avg_ticket`, `pending_total`/`pending_count`), comparativa vs. ayer (`sales_total_yesterday`, `sales_delta_pct`), gastos (`expenses_total`, `expenses_total_yesterday`, `expenses_delta_pct`, `expenses_count`), `collected_total`, `cancel_request_count` y `product_count` (activos). La atribución de fecha de las ventas usa la **fecha canónica `COALESCE(completed_at, created_at)`** (2026-07-11), la misma que el dashboard web y Métricas, para que los números cuadren entre superficies.
 - **`by_method` / `by_method_count`** — cobranza del día por `cash`/`card`/`transfer` (importe y número de pagos).
 - **`hourly` / `hourly_yesterday`** — serie de ventas por hora (arrays de 24 con `{ h, sales, trx }`) para la gráfica hoy vs. ayer; **`expenses_hourly`** (24 × `{ h, amount }`) para el sparkline de gastos.
 - **`top_products`** (top 5 por importe) y **`top_expense_categories`** (top 5 categorías de gasto del día).
@@ -165,18 +165,20 @@ Así la búsqueda por producto de la admin opera sobre todo el historial de la s
 
 | Método | Ruta | Rol | Descripción |
 |--------|------|-----|-------------|
-| GET | `customers` | ambos | Lista (máx. 200) con deuda/compras agregadas + `summary` de cartera. Filtros: `search` (nombre/teléfono), `status`, `with_debt`, `sort=name\|debt\|last_sale` |
-| POST | `customers` | ambos | Alta (`name`, `phone` único por sucursal, `notes`) |
-| GET | `customers/{id}` | ambos | Detalle + `stats` (gastado, pagado, deuda, ticket promedio, producto top) + precios preferenciales |
-| PATCH | `customers/{id}` | ambos | Edición (incluye `status`) |
-| DELETE | `customers/{id}` | ambos | Si tiene ventas → desactiva (`action: "deactivated"`); si no → borra |
+| GET | `customers` | ambos | Lista (máx. 200) con deuda/compras agregadas + `summary` de cartera. Filtros: `search` (nombre/teléfono), `status`, `with_debt`, `sort=name\|debt\|last_sale`. El cajero la usa para asignar cliente a una venta |
+| POST | `customers` | **admin-sucursal** | Alta (`name`, `phone` único por sucursal, `notes`) |
+| GET | `customers/{id}` | ambos | Detalle + `stats` (gastado, pagado, deuda, ticket promedio, producto top por gasto acumulado, mismo criterio que la web) + precios preferenciales |
+| PATCH | `customers/{id}` | **admin-sucursal** | Edición (incluye `status`) |
+| DELETE | `customers/{id}` | **admin-sucursal** | Si tiene ventas → desactiva (`action: "deactivated"`); si no → borra |
 | GET | `customers/{id}/history` | ambos | Compras del cliente paginadas (25), no canceladas |
 | GET | `customers/{id}/payments` | ambos | Ledger de fiado: ventas pendientes + últimos 30 cobros globales + `total_owed` + métodos de pago |
-| POST | `customers/{id}/payments` | ambos | **Cobro global FIFO** (ver abajo) |
+| POST | `customers/{id}/payments` | **admin-sucursal** | **Cobro global FIFO** (ver abajo) |
 | DELETE | `customers/{id}/payments/{pid}` | **admin-sucursal** | Cancela un cobro global (body: `cancel_reason`): borra los pagos hijos, recalcula ventas y turnos cerrados afectados |
-| POST | `customers/{id}/prices` | ambos | Precio preferencial (`product_id`, `price`); único por producto |
-| PATCH | `customers/{id}/prices/{pid}` | ambos | Actualiza `price` |
-| DELETE | `customers/{id}/prices/{pid}` | ambos | Elimina el precio |
+| POST | `customers/{id}/prices` | **admin-sucursal** | Precio preferencial (`product_id`, `price`); único por producto |
+| PATCH | `customers/{id}/prices/{pid}` | **admin-sucursal** | Actualiza `price` |
+| DELETE | `customers/{id}/prices/{pid}` | **admin-sucursal** | Elimina el precio |
+
+> Paridad de permisos (2026-07-11): las escrituras de clientes, precios preferenciales y cobro global son exclusivas de **admin-sucursal**, igual que en la web (grupo `role:admin-sucursal|superadmin` + `RegisterCustomerPaymentRequest`). El cajero conserva las lecturas que la web también le da (lista para asignar cliente en la mesa).
 
 **Cobro global (`POST customers/{id}/payments`):** requiere turno abierto (`409`). Body: `amount_received`, `method`, `excluded_sale_ids[]` opcional, `notes`. Distribuye el abono FIFO (venta más antigua primero) sobre las ventas con saldo del cliente, creando un `Payment` por venta ligado a un `CustomerPayment` con folio `CG-00001`. Solo `cash` admite cambio; con otros métodos el monto no puede exceder la deuda (`422`). Responde `201` con el `customer_payment` y el detalle `applied` por venta. Usa advisory lock de PostgreSQL por sucursal para evitar cobros concurrentes.
 
@@ -187,18 +189,18 @@ Así la búsqueda por producto de la admin opera sobre todo el historial de la s
 | GET | `products?search=` | Catálogo activo de la sucursal (`id`, `name`, `price`, `unit_type`; máx. 50). Apoyo de formularios (p. ej. precios preferenciales) |
 | GET | `purchase-products?search=` | Catálogo tenant-wide de productos de compra (`id`, `name`, `unit`) para autocompletar el formulario de compras |
 
-## Gastos (cajero, requiere toggle `cashier_expenses_enabled`)
+## Gastos (requiere toggle `cashier_expenses_enabled`)
 
-**Controller:** `Api\Hub\ExpenseController`. Los gastos del hub son siempre **en efectivo** y quedan ligados al turno abierto (afectan el corte).
+**Controller:** `Api\Hub\ExpenseController`. Reglas por rol (paridad web, 2026-07-11): el gasto del **cajero** es siempre **en efectivo** y queda ligado a su turno abierto (afecta el corte); el **admin-sucursal** registra sin turno, con `payment_method` opcional (cash/card/transfer, vacío = sin especificar) y sin atar el gasto a un turno (igual que `Sucursal\GastoController` vía `ExpenseWriter`).
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `expenses?search=` | Gastos propios del usuario (máx. 50, no cancelados) + árbol de categorías/subcategorías activas + `total` filtrado + contexto del turno |
-| POST | `expenses` | Crea gasto (`concept`, `amount`, `expense_subcategory_id`, `description`, `ai_draft_id` opcional). `409` sin turno abierto |
+| GET | `expenses?search=&from=&to=` | Cajero: sus gastos; admin: toda la sucursal. Incluye `can_manage` por fila (cajero: solo gastos del turno abierto), árbol de categorías, `payment_methods`, `total` filtrado exacto, `meta` de paginación y contexto del turno |
+| POST | `expenses` | Crea gasto (`concept`, `amount`, `expense_subcategory_id`, `description`, `payment_method` solo admin, `ai_draft_id` opcional). `409` sin turno abierto (solo cajero) |
 | POST | `expenses/ai-draft` | Borrador por IA (texto/imagen/audio → GPT-4o/Whisper, síncrono). Devuelve `draft_id` + `proposal` para prerrellenar; el gasto se crea al confirmar con `store` pasando `ai_draft_id` (mueve la foto del ticket al gasto). `502` si la IA falla |
-| GET | `expenses/{id}` | Detalle (solo gastos propios) |
-| PATCH | `expenses/{id}` | Edita. `422` si está cancelado |
-| DELETE | `expenses/{id}` | Cancela (soft, `cancellation_reason` opcional). `422` si ya estaba cancelado |
+| GET | `expenses/{id}` | Detalle (cajero: solo propios; admin: de la sucursal) |
+| PATCH | `expenses/{id}` | Edita. Cajero: `403` si el gasto no es de su turno abierto ("Solo puedes corregir tus gastos del turno abierto"). `422` si está cancelado |
+| DELETE | `expenses/{id}` | Cancela (soft, `cancellation_reason` opcional). Misma regla de turno que PATCH. `422` si ya estaba cancelado |
 | POST | `expenses/{id}/attachments` | Adjunta archivos (jpg/png/webp/pdf) |
 | GET | `expenses/{id}/attachments/{aid}` | Descarga el adjunto |
 | DELETE | `expenses/{id}/attachments/{aid}` | Elimina el adjunto |

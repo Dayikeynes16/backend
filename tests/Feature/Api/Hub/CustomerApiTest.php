@@ -87,9 +87,32 @@ class CustomerApiTest extends TestCase
         return $this->cajero->createToken('hub')->plainTextToken;
     }
 
+    /** Las escrituras de clientes son de admin-sucursal (paridad web). */
+    private function adminToken(): string
+    {
+        return $this->adminSucursal->createToken('hub')->plainTextToken;
+    }
+
+    public function test_cajero_cannot_manage_customers(): void
+    {
+        $c = $this->customer($this->branch->id, 'Intocable', '6619990000');
+
+        $this->withToken($this->token())
+            ->postJson('/api/v1/hub/customers', ['name' => 'Nuevo'])
+            ->assertForbidden();
+
+        $this->withToken($this->token())
+            ->patchJson("/api/v1/hub/customers/{$c->id}", ['name' => 'Otro', 'status' => 'active'])
+            ->assertForbidden();
+
+        $this->withToken($this->token())
+            ->deleteJson("/api/v1/hub/customers/{$c->id}")
+            ->assertForbidden();
+    }
+
     public function test_store_creates_customer(): void
     {
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->postJson('/api/v1/hub/customers', ['name' => 'Nuevo Cliente', 'phone' => '6612223344'])
             ->assertCreated()
             ->assertJsonPath('data.name', 'Nuevo Cliente')
@@ -102,7 +125,7 @@ class CustomerApiTest extends TestCase
     {
         $this->customer($this->branch->id, 'Existente', '6610000000');
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->postJson('/api/v1/hub/customers', ['name' => 'Otro', 'phone' => '6610000000'])
             ->assertStatus(422);
     }
@@ -111,7 +134,7 @@ class CustomerApiTest extends TestCase
     {
         $c = $this->customer($this->branch->id, 'Viejo Nombre', '6610001111');
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->patchJson("/api/v1/hub/customers/{$c->id}", ['name' => 'Nuevo Nombre', 'phone' => '6610001111', 'status' => 'inactive'])
             ->assertOk()
             ->assertJsonPath('data.name', 'Nuevo Nombre')
@@ -123,7 +146,7 @@ class CustomerApiTest extends TestCase
         $c = $this->customer($this->branch->id, 'Con Ventas', '6610002222');
         $this->pendingSale($c);
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->deleteJson("/api/v1/hub/customers/{$c->id}")
             ->assertOk()
             ->assertJsonPath('action', 'deactivated');
@@ -135,7 +158,7 @@ class CustomerApiTest extends TestCase
     {
         $c = $this->customer($this->branch->id, 'Sin Ventas', '6610003333');
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->deleteJson("/api/v1/hub/customers/{$c->id}")
             ->assertOk()
             ->assertJsonPath('action', 'deleted');

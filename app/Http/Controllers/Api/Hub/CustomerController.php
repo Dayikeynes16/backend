@@ -83,6 +83,7 @@ class CustomerController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->ensureAdmin($request);
         $user = $request->user();
         $validated = $this->validateCustomer($request, $user->branch_id);
 
@@ -100,6 +101,7 @@ class CustomerController extends Controller
 
     public function update(Request $request, int $customer): JsonResponse
     {
+        $this->ensureAdmin($request);
         $found = $this->findCustomer($request, $customer);
         $validated = $this->validateCustomer($request, $request->user()->branch_id, $found->id, withStatus: true);
 
@@ -115,6 +117,7 @@ class CustomerController extends Controller
 
     public function destroy(Request $request, int $customer): JsonResponse
     {
+        $this->ensureAdmin($request);
         $found = $this->findCustomer($request, $customer);
 
         // Si tiene ventas, se desactiva (no se borra) para preservar el historial.
@@ -179,6 +182,22 @@ class CustomerController extends Controller
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * Paridad con la web: la gestión de clientes es exclusiva de
+     * admin-sucursal (routes/web.php grupo role:admin-sucursal|superadmin).
+     * El cajero solo lee (para asignar cliente a una venta en la mesa).
+     */
+    private function ensureAdmin(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
+            403,
+            'Solo el administrador de sucursal puede gestionar clientes.'
+        );
+    }
 
     /** Agregados de deuda/compras por cliente de la sucursal (1 query). */
     private function debtAggregates(int $branchId): Collection
@@ -262,17 +281,25 @@ class CustomerController extends Controller
         ];
     }
 
+    /**
+     * Mismo criterio que la web (Sucursal\CustomerController): producto con
+     * mayor gasto acumulado (SUM(subtotal) DESC), excluyendo canceladas y
+     * pedidos web no contables (accountable).
+     */
     private function topProduct(Customer $customer): ?array
     {
         $row = DB::table('sale_items as si')
             ->join('sales as s', 's.id', '=', 'si.sale_id')
             ->where('s.customer_id', $customer->id)
             ->where('s.status', '!=', SaleStatus::Cancelled->value)
+            ->where(fn ($q) => $q->where('s.origin', '!=', 'web')
+                ->orWhereNotIn('s.status', [SaleStatus::Pending->value, SaleStatus::Fulfilled->value]))
             ->whereNull('si.deleted_at')
             ->whereNull('s.deleted_at')
-            ->groupBy('si.product_name')
+            ->whereNotNull('si.product_id')
+            ->groupBy('si.product_id', 'si.product_name')
             ->selectRaw('si.product_name, COUNT(*) AS times_bought, COALESCE(SUM(si.subtotal),0) AS total_spent')
-            ->orderByDesc('times_bought')
+            ->orderByRaw('SUM(si.subtotal) DESC')
             ->first();
 
         return $row ? [

@@ -77,10 +77,15 @@ class CustomerPaymentController extends Controller
         ]);
     }
 
-    /** Cobro global FIFO. Requiere turno abierto. */
+    /** Cobro global FIFO. Solo admin-sucursal (paridad con RegisterCustomerPaymentRequest web). Requiere turno abierto. */
     public function store(Request $request, int $customer): JsonResponse
     {
         $user = $request->user();
+        abort_unless(
+            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
+            403,
+            'Solo el administrador de sucursal puede registrar cobros globales.'
+        );
         $found = $this->findCustomer($request, $customer);
 
         $hasOpenShift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->exists();

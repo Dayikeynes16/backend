@@ -32,9 +32,11 @@ class DashboardController extends Controller
         $yesterday = today()->subDay()->toDateString();
 
         // ── Ventas: agregado de hoy y de ayer (no canceladas) ──────────────
+        // Fecha canónica COALESCE(completed_at, created_at): la misma que el
+        // dashboard web y Métricas, para que los números cuadren entre ambos.
         $salesAgg = fn (string $date) => Sale::withoutGlobalScopes()
             ->where('branch_id', $branchId)
-            ->whereDate('created_at', $date)
+            ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
             ->where('status', '!=', SaleStatus::Cancelled->value)
             ->selectRaw('COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS total, COALESCE(SUM(amount_pending), 0) AS pending, COUNT(*) FILTER (WHERE amount_pending > 0) AS pending_count')
             ->first();
@@ -45,10 +47,10 @@ class DashboardController extends Controller
         // ── Serie de ventas por hora (hoy y ayer), array 0..23 ─────────────
         $hourlyRows = fn (string $date) => DB::table('sales')
             ->where('branch_id', $branchId)
-            ->whereDate('created_at', $date)
+            ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
             ->where('status', '!=', SaleStatus::Cancelled->value)
             ->whereNull('deleted_at')
-            ->selectRaw('EXTRACT(HOUR FROM created_at)::int AS h, COUNT(*) AS trx, COALESCE(SUM(total), 0) AS sales')
+            ->selectRaw('EXTRACT(HOUR FROM COALESCE(completed_at, created_at))::int AS h, COUNT(*) AS trx, COALESCE(SUM(total), 0) AS sales')
             ->groupBy('h')->get()->keyBy('h');
         $mkHourly = function ($rows) {
             $out = [];
@@ -117,14 +119,16 @@ class DashboardController extends Controller
 
         // ── Ventas recientes / top productos / cortes recientes ────────────
         $recent = Sale::withoutGlobalScopes()
-            ->where('branch_id', $branchId)->whereDate('created_at', $today)
+            ->where('branch_id', $branchId)
+            ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$today])
             ->where('status', '!=', SaleStatus::Cancelled->value)
             ->orderByDesc('created_at')->limit(8)
             ->get(['id', 'folio', 'total', 'status', 'created_at']);
 
         $topProducts = DB::table('sale_items as si')
             ->join('sales as s', 's.id', '=', 'si.sale_id')
-            ->where('s.branch_id', $branchId)->whereDate('s.created_at', $today)
+            ->where('s.branch_id', $branchId)
+            ->whereRaw('DATE(COALESCE(s.completed_at, s.created_at)) = ?', [$today])
             ->where('s.status', '!=', SaleStatus::Cancelled->value)
             ->whereNull('si.deleted_at')->whereNull('s.deleted_at')
             ->groupBy('si.product_name')

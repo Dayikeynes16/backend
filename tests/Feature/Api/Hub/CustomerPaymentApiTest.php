@@ -40,12 +40,14 @@ class CustomerPaymentApiTest extends TestCase
         return $user->createToken('hub')->plainTextToken;
     }
 
-    private function openShift(): void
+    private function openShift(?int $userId = null): void
     {
         CashRegisterShift::create([
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
-            'user_id' => $this->cajero->id,
+            // El cobro global es de admin-sucursal (paridad web), así que el
+            // turno abierto por defecto es el del admin.
+            'user_id' => $userId ?? $this->adminSucursal->id,
             'opened_at' => now()->subHour(),
             'opening_amount' => 0,
         ]);
@@ -68,13 +70,26 @@ class CustomerPaymentApiTest extends TestCase
         ]);
     }
 
+    public function test_cajero_cannot_register_global_payment(): void
+    {
+        $this->openShift($this->cajero->id);
+        $this->pendingSale(100, now()->subDay());
+
+        $this->withToken($this->token('cajero'))
+            ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
+                'amount_received' => 50,
+                'method' => 'cash',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_global_payment_distributes_fifo(): void
     {
         $this->openShift();
         $first = $this->pendingSale(100, now()->subDays(2));
         $second = $this->pendingSale(50, now()->subDay());
 
-        $res = $this->withToken($this->token())
+        $res = $this->withToken($this->token('admin'))
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
                 'amount_received' => 120,
                 'method' => 'cash',
@@ -96,7 +111,7 @@ class CustomerPaymentApiTest extends TestCase
         $this->openShift();
         $this->pendingSale(100, now()->subDay());
 
-        $this->withToken($this->token())
+        $this->withToken($this->token('admin'))
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
                 'amount_received' => 150,
                 'method' => 'cash',
@@ -111,7 +126,7 @@ class CustomerPaymentApiTest extends TestCase
         $this->openShift();
         $this->pendingSale(100, now()->subDay());
 
-        $this->withToken($this->token())
+        $this->withToken($this->token('admin'))
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
                 'amount_received' => 150,
                 'method' => 'card',
@@ -123,7 +138,7 @@ class CustomerPaymentApiTest extends TestCase
     {
         $this->pendingSale(100, now()->subDay());
 
-        $this->withToken($this->token())
+        $this->withToken($this->token('admin'))
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
                 'amount_received' => 50,
                 'method' => 'cash',

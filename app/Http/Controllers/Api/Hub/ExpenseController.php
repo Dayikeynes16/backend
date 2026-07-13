@@ -70,8 +70,14 @@ class ExpenseController extends Controller
         // Contexto del turno: total que sale del cajón afecta el corte.
         $shift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->first();
 
+        // Paridad con la web: el cajero solo puede corregir gastos de su turno
+        // abierto (Caja\GastoController::can_manage); el admin, cualquiera.
+        $items = collect($expenses->items())->each(function (Expense $e) use ($isAdmin, $shift) {
+            $e->setAttribute('can_manage', $isAdmin || ($shift && $e->cash_register_shift_id === $shift->id));
+        });
+
         return response()->json([
-            'data' => HubExpenseResource::collection($expenses->items()),
+            'data' => HubExpenseResource::collection($items),
             'meta' => [
                 'current_page' => $expenses->currentPage(),
                 'last_page' => $expenses->lastPage(),
@@ -84,6 +90,11 @@ class ExpenseController extends Controller
                 'subcategories' => $c->subcategories->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values(),
             ])->values(),
             'total' => $total,
+            // Métodos de pago para el gasto (solo el admin puede elegir; el
+            // cajero queda fijo en efectivo, igual que la web).
+            'payment_methods' => collect([PaymentMethod::Cash, PaymentMethod::Card, PaymentMethod::Transfer])
+                ->map(fn (PaymentMethod $m) => ['value' => $m->value, 'label' => $m->label()])
+                ->values(),
             'shift' => $shift ? [
                 'opened_at' => $shift->opened_at?->toIso8601String(),
                 'opening_amount' => (float) $shift->opening_amount,
@@ -105,9 +116,12 @@ class ExpenseController extends Controller
         $this->ensureModuleEnabled($user->branch_id);
 
         $found = $this->findOwnExpense($request, $expense);
+        $this->assertCanMutate($request, $found);
         if ($found->cancelled_by !== null) {
             return response()->json(['message' => 'No se puede editar un gasto cancelado.'], 422);
         }
+
+        $isAdmin = $user->hasRole('admin-sucursal');
 
         $validated = $request->validate([
             'concept' => 'required|string|max:160',
@@ -119,6 +133,7 @@ class ExpenseController extends Controller
                 ),
             ],
             'description' => 'nullable|string|max:1000',
+            'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)],
         ]);
 
         $found->update([
@@ -126,6 +141,11 @@ class ExpenseController extends Controller
             'amount' => $validated['amount'],
             'expense_subcategory_id' => $validated['expense_subcategory_id'],
             'description' => $validated['description'] ?? null,
+            // Solo el admin puede cambiar el método (paridad Sucursal\GastoController,
+            // donde vacío = null); el gasto del cajero queda fijo en efectivo.
+            'payment_method' => $isAdmin
+                ? ($validated['payment_method'] ?? null)
+                : $found->payment_method,
             'updated_by' => $user->id,
         ]);
 
@@ -138,6 +158,7 @@ class ExpenseController extends Controller
         app()->instance('tenant', $user->tenant);
 
         $found = $this->findOwnExpense($request, $expense);
+        $this->assertCanMutate($request, $found);
         if ($found->cancelled_by !== null) {
             return response()->json(['message' => 'Este gasto ya fue cancelado.'], 422);
         }
@@ -206,14 +227,41 @@ class ExpenseController extends Controller
             ->findOrFail($expense);
     }
 
+    /**
+     * Paridad con la web (Caja\GastoController::assertCajaCanMutate): el cajero
+     * solo puede corregir/cancelar gastos de su turno ABIERTO; el admin-sucursal
+     * puede actuar sobre cualquier gasto de su sucursal.
+     */
+    private function assertCanMutate(Request $request, Expense $expense): void
+    {
+        $user = $request->user();
+
+        if ($user->hasRole('admin-sucursal')) {
+            return;
+        }
+
+        $shift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->first();
+
+        abort_unless(
+            $shift && $expense->cash_register_shift_id === $shift->id,
+            403,
+            'Solo puedes corregir tus gastos del turno abierto.'
+        );
+    }
+
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
         $this->ensureModuleEnabled($user->branch_id);
 
+        $isAdmin = $user->hasRole('admin-sucursal');
         $shift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->first();
-        if (! $shift) {
+
+        // Paridad con la web: el cajero exige turno abierto (el gasto sale del
+        // cajón); el admin-sucursal registra sin turno (Sucursal\GastoController
+        // vía ExpenseWriter, sin cash_register_shift_id).
+        if (! $isAdmin && ! $shift) {
             return response()->json(['message' => 'Abre un turno antes de registrar un gasto.'], 409);
         }
 
@@ -228,18 +276,22 @@ class ExpenseController extends Controller
             ],
             'description' => 'nullable|string|max:1000',
             'ai_draft_id' => 'nullable|integer',
+            'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)],
         ]);
 
-        // El gasto del cajero siempre es en efectivo y ligado al turno.
+        // Cajero: siempre efectivo y ligado al turno. Admin: elige método
+        // (nullable, como la web) y el gasto no se ata a un turno.
         $expense = Expense::create([
             'tenant_id' => $user->tenant_id,
-            'branch_id' => $shift->branch_id,
-            'cash_register_shift_id' => $shift->id,
+            'branch_id' => $user->branch_id,
+            'cash_register_shift_id' => $isAdmin ? null : $shift->id,
             'expense_subcategory_id' => $validated['expense_subcategory_id'],
             'user_id' => $user->id,
             'concept' => $validated['concept'],
             'amount' => $validated['amount'],
-            'payment_method' => PaymentMethod::Cash->value,
+            'payment_method' => $isAdmin
+                ? ($validated['payment_method'] ?? null)
+                : PaymentMethod::Cash->value,
             'expense_at' => now(),
             'description' => $validated['description'] ?? null,
         ]);

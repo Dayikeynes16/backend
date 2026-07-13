@@ -33,6 +33,12 @@ class CustomerPriceApiTest extends TestCase
         return $this->cajero->createToken('hub')->plainTextToken;
     }
 
+    /** Los precios preferenciales son de admin-sucursal (paridad web). */
+    private function adminToken(): string
+    {
+        return $this->adminSucursal->createToken('hub')->plainTextToken;
+    }
+
     private function product(string $name = 'Bistec', float $price = 120): Product
     {
         return Product::create([
@@ -58,7 +64,7 @@ class CustomerPriceApiTest extends TestCase
         $this->assertSame('Bistec de res', $res->json('data.0.name'));
     }
 
-    public function test_store_and_show_preferential_price(): void
+    public function test_cajero_cannot_manage_preferential_prices(): void
     {
         $product = $this->product();
 
@@ -66,11 +72,23 @@ class CustomerPriceApiTest extends TestCase
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/prices", [
                 'product_id' => $product->id, 'price' => 99,
             ])
+            ->assertForbidden();
+    }
+
+    public function test_store_and_show_preferential_price(): void
+    {
+        $product = $this->product();
+
+        $this->withToken($this->adminToken())
+            ->postJson("/api/v1/hub/customers/{$this->customer->id}/prices", [
+                'product_id' => $product->id, 'price' => 99,
+            ])
             ->assertCreated()
             ->assertJsonPath('data.price', 99)
             ->assertJsonPath('data.product_name', 'Bistec');
 
-        $this->withToken($this->token())
+        // Mismo usuario (el guard de Sanctum cachea al usuario en el test).
+        $this->withToken($this->adminToken())
             ->getJson("/api/v1/hub/customers/{$this->customer->id}")
             ->assertOk()
             ->assertJsonPath('prices.0.price', 99);
@@ -79,11 +97,11 @@ class CustomerPriceApiTest extends TestCase
     public function test_rejects_duplicate_product_price(): void
     {
         $product = $this->product();
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/prices", ['product_id' => $product->id, 'price' => 99])
             ->assertCreated();
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/prices", ['product_id' => $product->id, 'price' => 80])
             ->assertStatus(422);
     }
@@ -91,16 +109,16 @@ class CustomerPriceApiTest extends TestCase
     public function test_update_and_destroy_price(): void
     {
         $product = $this->product();
-        $priceId = $this->withToken($this->token())
+        $priceId = $this->withToken($this->adminToken())
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/prices", ['product_id' => $product->id, 'price' => 99])
             ->json('data.id');
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->patchJson("/api/v1/hub/customers/{$this->customer->id}/prices/{$priceId}", ['price' => 85])
             ->assertOk()
             ->assertJsonPath('data.price', 85);
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->deleteJson("/api/v1/hub/customers/{$this->customer->id}/prices/{$priceId}")
             ->assertOk()
             ->assertJsonPath('action', 'deleted');

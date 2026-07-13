@@ -16,6 +16,12 @@ class HubExpenseResource extends JsonResource
             'payment_method' => $this->payment_method,
             'expense_at' => $this->expense_at?->toIso8601String(),
             'description' => $this->description,
+            // Regla web: el cajero solo corrige gastos de su turno abierto. El
+            // índice lo calcula con setAttribute; en otros contextos se omite.
+            'can_manage' => $this->when(
+                array_key_exists('can_manage', $this->resource->getAttributes()),
+                fn () => (bool) $this->can_manage,
+            ),
             // Quién lo registró (el admin-sucursal ve los de toda la sucursal).
             'user' => $this->whenLoaded('user', fn () => $this->user
                 ? ['id' => $this->user->id, 'name' => $this->user->name]

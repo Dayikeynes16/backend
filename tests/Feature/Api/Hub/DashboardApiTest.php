@@ -27,6 +27,29 @@ class DashboardApiTest extends TestCase
         return $this->cajero->createToken('hub')->plainTextToken;
     }
 
+    public function test_uses_canonical_date_completed_at_over_created_at(): void
+    {
+        // Paridad con el dashboard web: una venta CREADA ayer pero COMPLETADA
+        // hoy cuenta en los KPIs de hoy (COALESCE(completed_at, created_at)).
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'folio' => 'S-AYER', 'payment_method' => 'cash', 'total' => 300,
+            'amount_paid' => 300, 'amount_pending' => 0, 'origin' => 'api',
+            'status' => SaleStatus::Completed,
+            'created_at' => now()->subDay(),
+            'completed_at' => now(),
+        ]);
+
+        $res = $this->withToken($this->token())
+            ->getJson('/api/v1/hub/dashboard')
+            ->assertOk();
+
+        $this->assertSame(1, $res->json('today.sales_count'));
+        $this->assertEquals(300, $res->json('today.sales_total'));
+        $this->assertEquals(0, $res->json('today.sales_total_yesterday'));
+        $this->assertSame('S-AYER', $res->json('recent_sales.0.folio'));
+    }
+
     public function test_dashboard_reports_today_metrics_and_open_shift(): void
     {
         CashRegisterShift::create([
