@@ -60,6 +60,9 @@ class HubSaleResource extends JsonResource
                 'method' => $p->method,
                 'amount' => (float) $p->amount,
                 'created_at' => $p->created_at->toIso8601String(),
+                // Un pago hijo de un cobro global NO es editable individualmente
+                // (misma regla que la web); el hub oculta Editar/Eliminar con esto.
+                'customer_payment_id' => $p->customer_payment_id,
             ])),
         ];
     }

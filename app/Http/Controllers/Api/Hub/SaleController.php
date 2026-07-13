@@ -12,6 +12,7 @@ use App\Models\Branch;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
 use App\Services\PhoneNormalizer;
+use App\Services\RecalculateClosedShifts;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -130,6 +131,77 @@ class SaleController extends Controller
     }
 
     /**
+     * Cancelación DIRECTA (solo admin-sucursal): borra pagos, marca Cancelled y
+     * recalcula cortes cerrados afectados. Paridad con WorkbenchController::cancel.
+     */
+    public function cancel(Request $request, int $sale): JsonResponse
+    {
+        $user = $request->user();
+        $this->ensureAdmin($request, 'No tienes permiso para cancelar ventas.');
+
+        $found = $this->findSale($request, $sale);
+
+        if ($found->status === SaleStatus::Cancelled) {
+            return response()->json(['message' => 'Esta venta ya está cancelada.'], 422);
+        }
+
+        $validated = $request->validate([
+            'cancel_reason' => 'required|string|max:500',
+        ]);
+
+        $wasCompleted = $found->status === SaleStatus::Completed;
+
+        DB::transaction(function () use ($found, $user, $validated, $wasCompleted) {
+            $found->payments()->delete();
+
+            $found->update([
+                'status' => SaleStatus::Cancelled,
+                'amount_paid' => 0,
+                'amount_pending' => 0,
+                'cancelled_at' => now(),
+                'cancelled_by' => $user->id,
+                'cancel_reason' => $validated['cancel_reason'],
+            ]);
+
+            if ($wasCompleted) {
+                app(RecalculateClosedShifts::class)->forSale($found);
+            }
+        });
+
+        $this->broadcast($found);
+
+        return $this->saleResponse($found->refresh());
+    }
+
+    /**
+     * Reabre una venta completada (Completed → Active, solo admin-sucursal).
+     * Paridad con WorkbenchController::reopen.
+     */
+    public function reopen(Request $request, int $sale): JsonResponse
+    {
+        $this->ensureAdmin($request, 'No tienes permiso para reabrir ventas.');
+
+        $found = $this->findSale($request, $sale);
+
+        if ($found->status !== SaleStatus::Completed) {
+            return response()->json(['message' => 'Solo se pueden enviar a pendiente ventas completadas.'], 422);
+        }
+
+        $totalPaid = $found->payments()->sum('amount');
+        $pending = round((float) $found->total - $totalPaid, 2);
+
+        $found->update([
+            'status' => SaleStatus::Active,
+            'amount_pending' => max($pending, 0),
+            'completed_at' => null,
+        ]);
+
+        $this->broadcast($found);
+
+        return $this->saleResponse($found->refresh());
+    }
+
+    /**
      * Asigna o desasigna (customer_id null) un cliente existente a la venta y
      * aplica precios preferenciales. Reusa el servicio de la web.
      */
@@ -242,6 +314,18 @@ class SaleController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /** Guard de admin-sucursal para las potestades de gestión de ventas. */
+    private function ensureAdmin(Request $request, string $message): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
+            403,
+            $message
+        );
     }
 
     /** Venta de la sucursal del token; cross-branch → 404. */

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Hub;
 
 use App\Enums\SaleStatus;
+use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubSaleResource;
 use App\Models\Branch;
@@ -14,6 +15,7 @@ use App\Services\SalePaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
@@ -226,5 +228,128 @@ class PaymentController extends Controller
             'change' => $change,
             'sale' => HubSaleResource::make($sale),
         ], 201);
+    }
+
+    /**
+     * Corrige método/monto de un pago (paridad con Sucursal\PaymentController::update):
+     * solo admin, tope = total − otros pagos, protege pagos de cobro global.
+     */
+    public function update(Request $request, int $sale, int $payment): JsonResponse
+    {
+        $user = $request->user();
+        [$foundSale, $foundPayment] = $this->findPaymentForAdmin($request, $sale, $payment);
+
+        if ($foundSale->status === SaleStatus::Cancelled) {
+            return response()->json(['message' => 'No se pueden modificar pagos de una venta cancelada.'], 422);
+        }
+
+        if ($guard = $this->guardGlobalPaymentChild($foundPayment, 'editarse')) {
+            return $guard;
+        }
+
+        $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
+        $allowed = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
+
+        $otherPaymentsTotal = $foundSale->payments()->where('id', '!=', $foundPayment->id)->sum('amount');
+        $maxAmount = round((float) $foundSale->total - $otherPaymentsTotal, 2);
+
+        $validated = $request->validate([
+            'method' => 'required|in:'.implode(',', $allowed),
+            'amount' => "required|numeric|gt:0|max:{$maxAmount}",
+        ], [
+            'method.in' => 'El método de pago seleccionado no está habilitado para esta sucursal.',
+            'amount.max' => "El monto no puede exceder \${$maxAmount} (total de la venta menos otros pagos).",
+        ]);
+
+        DB::transaction(function () use ($foundPayment, $foundSale, $user, $validated) {
+            $foundPayment->update(array_merge($validated, ['updated_by' => $user->id]));
+            $this->payments->recalculate($foundSale, $user);
+        });
+
+        $this->broadcastSaleUpdate($foundSale);
+
+        return $this->saleResponse($request, $foundSale);
+    }
+
+    /**
+     * Elimina un pago y recalcula la venta (paridad con la web): solo admin,
+     * protege pagos de cobro global.
+     */
+    public function destroy(Request $request, int $sale, int $payment): JsonResponse
+    {
+        $user = $request->user();
+        [$foundSale, $foundPayment] = $this->findPaymentForAdmin($request, $sale, $payment);
+
+        if ($foundSale->status === SaleStatus::Cancelled) {
+            return response()->json(['message' => 'No se pueden modificar pagos de una venta cancelada.'], 422);
+        }
+
+        if ($guard = $this->guardGlobalPaymentChild($foundPayment, 'eliminarse')) {
+            return $guard;
+        }
+
+        DB::transaction(function () use ($foundPayment, $foundSale, $user) {
+            $foundPayment->delete();
+            $this->payments->recalculate($foundSale, $user);
+        });
+
+        $this->broadcastSaleUpdate($foundSale);
+
+        return $this->saleResponse($request, $foundSale);
+    }
+
+    /**
+     * Venta de la sucursal + pago de esa venta, con guard de rol admin
+     * (espeja authorizePaymentAction de la web; admin-empresa no entra al hub).
+     *
+     * @return array{0: Sale, 1: Payment}
+     */
+    private function findPaymentForAdmin(Request $request, int $sale, int $payment): array
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
+            403,
+            'No tienes permiso para modificar pagos.'
+        );
+
+        $foundSale = Sale::withoutGlobalScopes()
+            ->where('branch_id', $user->branch_id)
+            ->findOrFail($sale);
+
+        $foundPayment = Payment::where('sale_id', $foundSale->id)->findOrFail($payment);
+
+        return [$foundSale, $foundPayment];
+    }
+
+    /** 422 si el pago pertenece a un cobro global (no editable individualmente). */
+    private function guardGlobalPaymentChild(Payment $payment, string $verb): ?JsonResponse
+    {
+        if ($payment->customer_payment_id === null) {
+            return null;
+        }
+
+        $payment->loadMissing('customerPayment:id,folio');
+        $folio = $payment->customerPayment?->folio ?? 'global';
+
+        return response()->json(['message' => "Este pago es parte del cobro {$folio} y no puede {$verb} individualmente."], 422);
+    }
+
+    private function saleResponse(Request $request, Sale $sale): JsonResponse
+    {
+        return response()->json([
+            'data' => HubSaleResource::make($sale->refresh()->load(['items', 'payments', 'customer']))->resolve($request),
+        ]);
+    }
+
+    /** Broadcast tolerante a Reverb caído (nunca rompe la operación). */
+    private function broadcastSaleUpdate(Sale $sale): void
+    {
+        try {
+            SaleUpdated::dispatch($sale->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+        }
     }
 }

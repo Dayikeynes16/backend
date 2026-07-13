@@ -108,13 +108,27 @@ El turno abierto es requisito para cobrar ventas, registrar gastos, registrar co
 | GET | `sales/{id}` | Detalle con items/pagos/cliente. Incluye `payment_methods` habilitados de la sucursal y datos de `branch` (para el ticket) |
 | POST | `sales/{id}/payments` | Registra un pago (ver contrato abajo) |
 | PATCH | `sales/{id}/status` | Pausar/reactivar: el cajero solo puede transicionar `active` ↔ `pending` (`403` otra transición, `422` si el estado no lo permite) |
-| POST | `sales/{id}/request-cancel` | Solicita cancelación (body: `cancel_request_reason`, la aprueba un admin en la web). `422` si ya está cancelada o ya hay solicitud |
+| POST | `sales/{id}/request-cancel` | Solicita cancelación (body: `cancel_request_reason`, la aprueba un admin). `422` si ya está cancelada o ya hay solicitud |
+| PUT | `sales/{id}/payments/{pid}` | **admin-sucursal** — Corrige método/monto de un pago (tope: total − otros pagos; `422` si el pago es hijo de un cobro global o la venta está cancelada). Recalcula la venta vía `SalePaymentService` y devuelve el detalle fresco |
+| DELETE | `sales/{id}/payments/{pid}` | **admin-sucursal** — Elimina un pago (soft) y recalcula. Mismas protecciones que PUT |
+| POST | `sales/{id}/cancel` | **admin-sucursal** — Cancelación DIRECTA (body: `cancel_reason` requerido): borra pagos, marca `cancelled` y recalcula cortes cerrados afectados si estaba completada. Paridad con `Sucursal\Workbench::cancel` |
+| POST | `sales/{id}/reopen` | **admin-sucursal** — Reabre una venta completada (`completed` → `active`, recalcula pendiente con los pagos existentes; `422` si no está completada) |
 | PATCH | `sales/{id}/customer` | Asigna/desasigna cliente (`customer_id` o `null`) y aplica precios preferenciales (reusa `AssignCustomerToSale`) |
 | GET | `sales/{id}/whatsapp` | Link `wa.me` del ticket; `reason=needs_phone` si la venta no tiene teléfono |
 | POST | `sales/{id}/whatsapp-phone` | Guarda `contact_phone` (10 dígitos → E.164) y devuelve el link. No crea cliente |
 | POST | `sales/{id}/lock` | Adquiere el lock de concurrencia (5 min). `409` con `locked_by_name` si otro usuario lo tiene. Adquirir uno libera los locks previos del usuario |
 | POST | `sales/{id}/unlock` | Libera el lock (solo si es propio) |
 | POST | `sales/{id}/heartbeat` | Renueva `locked_at` (mantiene vivo el lock) |
+
+### Solicitudes de cancelación (solo admin-sucursal)
+
+**Controller:** `Api\Hub\CancelRequestController` (paridad con `Sucursal\CancelRequestController`).
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `cancel-requests?from=&to=` | Solicitudes pendientes (independientes del rango) + `stats` de canceladas del rango (default: hoy), `top_reasons` (5) e `history` (máx. 100) |
+| POST | `cancel-requests/{id}/approve` | Aprueba: body `cancel_reason` opcional (vacío = usa el motivo de la solicitud; `422` si no hay ninguno). Borra pagos, cancela y recalcula cortes si estaba completada; responde `recalculated_shifts` |
+| POST | `cancel-requests/{id}/reject` | Rechaza: limpia los campos de solicitud y la venta se conserva |
 
 ### POST `sales/{id}/payments` — contrato e idempotencia
 

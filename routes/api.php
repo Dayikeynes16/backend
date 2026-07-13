@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\Hub\CancelRequestController as HubCancelRequestController;
 use App\Http\Controllers\Api\Hub\ConfigController as HubConfigController;
 use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
 use App\Http\Controllers\Api\Hub\CustomerPaymentController as HubCustomerPaymentController;
@@ -134,9 +135,19 @@ Route::prefix('v1/hub')
         Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
         Route::get('sales/{sale}', [HubSaleController::class, 'show'])->whereNumber('sale')->name('api.hub.sales.show');
         Route::post('sales/{sale}/payments', [HubPaymentController::class, 'store'])->whereNumber('sale')->name('api.hub.sales.payments.store');
+        // Corrección de pagos (solo admin-sucursal, paridad con la web).
+        Route::put('sales/{sale}/payments/{payment}', [HubPaymentController::class, 'update'])->whereNumber('sale')->whereNumber('payment')->name('api.hub.sales.payments.update');
+        Route::delete('sales/{sale}/payments/{payment}', [HubPaymentController::class, 'destroy'])->whereNumber('sale')->whereNumber('payment')->name('api.hub.sales.payments.destroy');
         // Acciones de mesa de trabajo (cajero): estado, cancelación, cliente, WhatsApp.
         Route::patch('sales/{sale}/status', [HubSaleController::class, 'updateStatus'])->whereNumber('sale')->name('api.hub.sales.update-status');
         Route::post('sales/{sale}/request-cancel', [HubSaleController::class, 'requestCancel'])->whereNumber('sale')->name('api.hub.sales.request-cancel');
+        // Potestades de admin-sucursal sobre la venta (paridad con Sucursal\Workbench).
+        Route::post('sales/{sale}/cancel', [HubSaleController::class, 'cancel'])->whereNumber('sale')->name('api.hub.sales.cancel');
+        Route::post('sales/{sale}/reopen', [HubSaleController::class, 'reopen'])->whereNumber('sale')->name('api.hub.sales.reopen');
+        // Solicitudes de cancelación (aprobar/rechazar, solo admin-sucursal).
+        Route::get('cancel-requests', [HubCancelRequestController::class, 'index'])->name('api.hub.cancel-requests.index');
+        Route::post('cancel-requests/{sale}/approve', [HubCancelRequestController::class, 'approve'])->whereNumber('sale')->name('api.hub.cancel-requests.approve');
+        Route::post('cancel-requests/{sale}/reject', [HubCancelRequestController::class, 'reject'])->whereNumber('sale')->name('api.hub.cancel-requests.reject');
         Route::patch('sales/{sale}/customer', [HubSaleController::class, 'assignCustomer'])->whereNumber('sale')->name('api.hub.sales.assign-customer');
         Route::get('sales/{sale}/whatsapp', [HubSaleController::class, 'whatsappLink'])->whereNumber('sale')->name('api.hub.sales.whatsapp');
         // Lock de concurrencia (5 min con heartbeat).
