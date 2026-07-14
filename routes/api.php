@@ -128,6 +128,14 @@ Route::prefix('v1/hub')
         Route::get('purchases/{purchase}/attachments/{attachment}', [HubPurchaseController::class, 'downloadAttachment'])->whereNumber('purchase')->whereNumber('attachment')->name('api.hub.purchases.attachments.download');
         Route::delete('purchases/{purchase}/attachments/{attachment}', [HubPurchaseController::class, 'destroyAttachment'])->whereNumber('purchase')->whereNumber('attachment')->name('api.hub.purchases.attachments.destroy');
         Route::get('purchase-products', [HubPurchaseProductController::class, 'index'])->name('api.hub.purchase-products.index');
+        // Gestión del catálogo de productos de compra (admin-sucursal, sin
+        // borrado — paridad con Sucursal\PurchaseProductController).
+        Route::get('purchase-products/manage', [HubPurchaseProductController::class, 'manage'])->name('api.hub.purchase-products.manage');
+        Route::post('purchase-products', [HubPurchaseProductController::class, 'store'])->name('api.hub.purchase-products.store');
+        Route::patch('purchase-products/{product}', [HubPurchaseProductController::class, 'update'])->whereNumber('product')->name('api.hub.purchase-products.update');
+        Route::get('purchase-products/{product}/history', [HubPurchaseProductController::class, 'history'])->whereNumber('product')->name('api.hub.purchase-products.history');
+        Route::post('purchase-product-categories', [HubPurchaseProductController::class, 'storeCategory'])->name('api.hub.purchase-product-categories.store');
+        Route::patch('purchase-product-categories/{category}', [HubPurchaseProductController::class, 'updateCategory'])->whereNumber('category')->name('api.hub.purchase-product-categories.update');
 
         // Proveedores (admin-sucursal): lectura siempre; crear/editar gateado por
         // el toggle branch_admin_providers_enabled. Sin borrar.
