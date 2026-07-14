@@ -106,6 +106,17 @@ Route::prefix('v1/hub')
         Route::patch('customers/{customer}/prices/{price}', [HubCustomerPriceController::class, 'update'])->whereNumber('customer')->whereNumber('price')->name('api.hub.customers.prices.update');
         Route::delete('customers/{customer}/prices/{price}', [HubCustomerPriceController::class, 'destroy'])->whereNumber('customer')->whereNumber('price')->name('api.hub.customers.prices.destroy');
         Route::get('products', [HubProductController::class, 'index'])->name('api.hub.products.index');
+        // Gestión del catálogo de productos de venta (solo admin-sucursal,
+        // paridad Sucursal\ProductoController + CategoryController).
+        Route::get('products/manage', [HubProductController::class, 'manage'])->name('api.hub.products.manage');
+        Route::get('products/{product}', [HubProductController::class, 'show'])->whereNumber('product')->name('api.hub.products.show');
+        Route::post('products', [HubProductController::class, 'store'])->name('api.hub.products.store');
+        Route::post('products/{product}', [HubProductController::class, 'update'])->whereNumber('product')->name('api.hub.products.update');
+        Route::patch('products/{product}/quick', [HubProductController::class, 'quickToggle'])->whereNumber('product')->name('api.hub.products.quick');
+        Route::delete('products/{product}', [HubProductController::class, 'destroy'])->whereNumber('product')->name('api.hub.products.destroy');
+        Route::post('product-categories', [HubProductController::class, 'storeCategory'])->name('api.hub.product-categories.store');
+        Route::patch('product-categories/{category}', [HubProductController::class, 'updateCategory'])->whereNumber('category')->name('api.hub.product-categories.update');
+        Route::delete('product-categories/{category}', [HubProductController::class, 'destroyCategory'])->whereNumber('category')->name('api.hub.product-categories.destroy');
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
