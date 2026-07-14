@@ -87,9 +87,32 @@ class CustomerApiTest extends TestCase
         return $this->cajero->createToken('hub')->plainTextToken;
     }
 
+    /** Las escrituras de clientes son de admin-sucursal (paridad web). */
+    private function adminToken(): string
+    {
+        return $this->adminSucursal->createToken('hub')->plainTextToken;
+    }
+
+    public function test_cajero_cannot_manage_customers(): void
+    {
+        $c = $this->customer($this->branch->id, 'Intocable', '6619990000');
+
+        $this->withToken($this->token())
+            ->postJson('/api/v1/hub/customers', ['name' => 'Nuevo'])
+            ->assertForbidden();
+
+        $this->withToken($this->token())
+            ->patchJson("/api/v1/hub/customers/{$c->id}", ['name' => 'Otro', 'status' => 'active'])
+            ->assertForbidden();
+
+        $this->withToken($this->token())
+            ->deleteJson("/api/v1/hub/customers/{$c->id}")
+            ->assertForbidden();
+    }
+
     public function test_store_creates_customer(): void
     {
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->postJson('/api/v1/hub/customers', ['name' => 'Nuevo Cliente', 'phone' => '6612223344'])
             ->assertCreated()
             ->assertJsonPath('data.name', 'Nuevo Cliente')
@@ -102,7 +125,7 @@ class CustomerApiTest extends TestCase
     {
         $this->customer($this->branch->id, 'Existente', '6610000000');
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->postJson('/api/v1/hub/customers', ['name' => 'Otro', 'phone' => '6610000000'])
             ->assertStatus(422);
     }
@@ -111,7 +134,7 @@ class CustomerApiTest extends TestCase
     {
         $c = $this->customer($this->branch->id, 'Viejo Nombre', '6610001111');
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->patchJson("/api/v1/hub/customers/{$c->id}", ['name' => 'Nuevo Nombre', 'phone' => '6610001111', 'status' => 'inactive'])
             ->assertOk()
             ->assertJsonPath('data.name', 'Nuevo Nombre')
@@ -123,7 +146,7 @@ class CustomerApiTest extends TestCase
         $c = $this->customer($this->branch->id, 'Con Ventas', '6610002222');
         $this->pendingSale($c);
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->deleteJson("/api/v1/hub/customers/{$c->id}")
             ->assertOk()
             ->assertJsonPath('action', 'deactivated');
@@ -135,12 +158,52 @@ class CustomerApiTest extends TestCase
     {
         $c = $this->customer($this->branch->id, 'Sin Ventas', '6610003333');
 
-        $this->withToken($this->token())
+        $this->withToken($this->adminToken())
             ->deleteJson("/api/v1/hub/customers/{$c->id}")
             ->assertOk()
             ->assertJsonPath('action', 'deleted');
 
         $this->assertNull(Customer::withoutGlobalScopes()->find($c->id));
+    }
+
+    public function test_index_paginates_and_sorts_by_debt_server_side(): void
+    {
+        // 26 clientes con nombres A..Z; el de mayor deuda tiene nombre "Z..."
+        // para probar que el orden por deuda es SQL y no de la página alfabética.
+        foreach (range('a', 'z') as $i => $letter) {
+            $this->customer($this->branch->id, strtoupper($letter).' Cliente', '66100011'.str_pad((string) $i, 2, '0', STR_PAD_LEFT));
+        }
+        $zeta = Customer::withoutGlobalScopes()->where('name', 'Z Cliente')->first();
+        $this->pendingSale($zeta, 900);
+
+        $res = $this->withToken($this->token())
+            ->getJson('/api/v1/hub/customers?sort=debt')
+            ->assertOk();
+
+        $this->assertSame('Z Cliente', $res->json('data.0.name'));
+        $this->assertSame(25, count($res->json('data')));
+        $this->assertSame(2, $res->json('meta.last_page'));
+        $this->assertSame(26, $res->json('meta.total'));
+    }
+
+    public function test_last_sale_sort_ignores_cancelled_sales(): void
+    {
+        // Cliente A: venta reciente CANCELADA. Cliente B: venta vieja válida.
+        $a = $this->customer($this->branch->id, 'A Reciente Cancelada', '6613330001');
+        $saleA = $this->pendingSale($a, 100);
+        $saleA->forceFill(['status' => SaleStatus::Cancelled->value, 'created_at' => now()])->save();
+
+        $b = $this->customer($this->branch->id, 'B Vieja Valida', '6613330002');
+        $saleB = $this->pendingSale($b, 100);
+        $saleB->forceFill(['created_at' => now()->subDays(3)])->save();
+
+        $res = $this->withToken($this->token())
+            ->getJson('/api/v1/hub/customers?sort=last_sale')
+            ->assertOk();
+
+        // B debe ir antes que A: la venta de A no cuenta por estar cancelada.
+        $names = collect($res->json('data'))->pluck('name');
+        $this->assertLessThan($names->search('A Reciente Cancelada'), $names->search('B Vieja Valida'));
     }
 
     public function test_index_reports_debt_and_portfolio_summary(): void

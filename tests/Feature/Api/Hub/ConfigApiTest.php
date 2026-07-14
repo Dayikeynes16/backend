@@ -34,6 +34,16 @@ class ConfigApiTest extends TestCase
             ->assertJsonPath('branch.name', $this->branch->name);
     }
 
+    public function test_index_includes_branch_snapshot(): void
+    {
+        $res = $this->withToken($this->adminToken())
+            ->getJson('/api/v1/hub/config')
+            ->assertOk();
+
+        $this->assertSame('Sucursal 1', $res->json('branch_snapshot.name'));
+        $this->assertArrayHasKey('schedule_text', $res->json('branch_snapshot'));
+    }
+
     public function test_update_payment_methods(): void
     {
         $this->withToken($this->adminToken())

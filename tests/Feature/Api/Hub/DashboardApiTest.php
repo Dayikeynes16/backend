@@ -27,6 +27,73 @@ class DashboardApiTest extends TestCase
         return $this->cajero->createToken('hub')->plainTextToken;
     }
 
+    public function test_uses_canonical_date_completed_at_over_created_at(): void
+    {
+        // Paridad con el dashboard web: una venta CREADA ayer pero COMPLETADA
+        // hoy cuenta en los KPIs de hoy (COALESCE(completed_at, created_at)).
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'folio' => 'S-AYER', 'payment_method' => 'cash', 'total' => 300,
+            'amount_paid' => 300, 'amount_pending' => 0, 'origin' => 'api',
+            'status' => SaleStatus::Completed,
+            'created_at' => now()->subDay(),
+            'completed_at' => now(),
+        ]);
+
+        $res = $this->withToken($this->token())
+            ->getJson('/api/v1/hub/dashboard')
+            ->assertOk();
+
+        $this->assertSame(1, $res->json('today.sales_count'));
+        $this->assertEquals(300, $res->json('today.sales_total'));
+        $this->assertEquals(0, $res->json('today.sales_total_yesterday'));
+        $this->assertSame('S-AYER', $res->json('recent_sales.0.folio'));
+    }
+
+    public function test_dashboard_defaults_to_completed_and_accepts_status_chips(): void
+    {
+        // Completada (cuenta por default) + pendiente (solo con el chip).
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'folio' => 'S-C', 'payment_method' => 'cash', 'total' => 100,
+            'amount_paid' => 100, 'amount_pending' => 0, 'origin' => 'api',
+            'status' => SaleStatus::Completed, 'completed_at' => now(),
+        ]);
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'folio' => 'S-P', 'payment_method' => 'cash', 'total' => 40,
+            'amount_paid' => 0, 'amount_pending' => 40, 'origin' => 'api',
+            'status' => SaleStatus::Pending,
+        ]);
+
+        $default = $this->withToken($this->token())->getJson('/api/v1/hub/dashboard')->assertOk();
+        $this->assertEquals(100, $default->json('today.sales_total'));
+        $this->assertSame(['completed'], $default->json('statuses'));
+
+        $withPending = $this->withToken($this->token())
+            ->getJson('/api/v1/hub/dashboard?statuses[]=completed&statuses[]=pending')->assertOk();
+        $this->assertEquals(140, $withPending->json('today.sales_total'));
+    }
+
+    public function test_pending_total_counts_active_fiado_sales(): void
+    {
+        // Venta a fiado de hoy: queda status=Active con saldo pendiente. Debe
+        // contar en "Por cobrar" aunque no esté en los chips completed/pending.
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'folio' => 'S-FIADO', 'payment_method' => 'cash', 'total' => 500,
+            'amount_paid' => 0, 'amount_pending' => 500, 'origin' => 'api',
+            'status' => SaleStatus::Active,
+        ]);
+
+        $res = $this->withToken($this->token())->getJson('/api/v1/hub/dashboard')->assertOk();
+
+        $this->assertEquals(500, $res->json('today.pending_total'));
+        $this->assertSame(1, $res->json('today.pending_count'));
+        // No es una venta neta (Active no está en los chips por default).
+        $this->assertEquals(0, $res->json('today.sales_total'));
+    }
+
     public function test_dashboard_reports_today_metrics_and_open_shift(): void
     {
         CashRegisterShift::create([

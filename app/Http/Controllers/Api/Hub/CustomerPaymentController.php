@@ -16,6 +16,7 @@ use App\Services\RecalculateClosedShifts;
 use App\Services\SalePaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -45,42 +46,142 @@ class CustomerPaymentController extends Controller
             ->accountable()
             ->where('amount_pending', '>', 0)
             ->orderBy('created_at')
-            ->get(['id', 'folio', 'total', 'amount_pending', 'created_at']);
+            ->get(['id', 'folio', 'total', 'amount_paid', 'amount_pending', 'created_at']);
 
-        $movements = CustomerPayment::withoutGlobalScopes()
+        // Ledger fusionado (paridad CustomerStatsController::payments web):
+        // cobros globales + pagos individuales por venta, con el cajero.
+        $globals = CustomerPayment::withoutGlobalScopes()
             ->where('customer_id', $found->id)
+            ->with('user:id,name')
             ->orderByDesc('created_at')
-            ->limit(30)
-            ->get();
+            ->limit(100)
+            ->get()
+            ->map(fn ($m) => [
+                'type' => 'global',
+                'id' => $m->id,
+                'folio' => $m->folio,
+                'method' => $m->method instanceof \BackedEnum ? $m->method->value : $m->method,
+                'amount_received' => (float) $m->amount_received,
+                'amount_applied' => (float) $m->amount_applied,
+                'change_given' => (float) $m->change_given,
+                'sales_affected_count' => $m->sales_affected_count,
+                'cashier_name' => $m->user?->name,
+                'cancelled_at' => $m->cancelled_at?->toIso8601String(),
+                'created_at' => $m->created_at?->toIso8601String(),
+                'sort_key' => $m->created_at?->timestamp ?? 0,
+            ]);
+
+        $singles = DB::table('payments')
+            ->join('sales', 'sales.id', '=', 'payments.sale_id')
+            ->leftJoin('users', 'users.id', '=', 'payments.user_id')
+            ->where('sales.customer_id', $found->id)
+            ->whereNull('payments.customer_payment_id')
+            ->whereNull('payments.deleted_at')
+            ->select('payments.id', 'payments.sale_id', 'sales.folio as sale_folio', 'payments.method', 'payments.amount', 'payments.created_at', 'users.name as cashier_name')
+            ->orderByDesc('payments.created_at')
+            ->limit(100)
+            ->get()
+            ->map(function ($p) {
+                // created_at viene como string crudo de BD (DB::table); se
+                // normaliza a ISO-8601 para igualar el formato de los globales.
+                $at = Carbon::parse($p->created_at);
+
+                return [
+                    'type' => 'single',
+                    'id' => $p->id,
+                    'sale_id' => $p->sale_id,
+                    'sale_folio' => $p->sale_folio,
+                    'method' => $p->method,
+                    'amount' => (float) $p->amount,
+                    'cashier_name' => $p->cashier_name,
+                    'created_at' => $at->toIso8601String(),
+                    'sort_key' => $at->timestamp,
+                ];
+            });
+
+        $movements = $globals->concat($singles)
+            ->sortByDesc('sort_key')
+            ->values()
+            ->take(100)
+            ->map(function (array $m) {
+                unset($m['sort_key']);
+
+                return $m;
+            });
 
         return response()->json([
             'pending_sales' => $pending->map(fn ($s) => [
                 'id' => $s->id,
                 'folio' => $s->folio,
                 'total' => (float) $s->total,
+                'amount_paid' => (float) $s->amount_paid,
                 'amount_pending' => (float) $s->amount_pending,
                 'created_at' => $s->created_at?->toIso8601String(),
             ])->values(),
-            'recent_movements' => $movements->map(fn ($m) => [
-                'id' => $m->id,
-                'folio' => $m->folio,
-                'method' => $m->method,
-                'amount_received' => (float) $m->amount_received,
-                'amount_applied' => (float) $m->amount_applied,
-                'change_given' => (float) $m->change_given,
-                'sales_affected_count' => $m->sales_affected_count,
-                'cancelled_at' => $m->cancelled_at?->toIso8601String(),
-                'created_at' => $m->created_at?->toIso8601String(),
-            ])->values(),
+            'recent_movements' => $movements->values(),
             'total_owed' => round((float) $pending->sum('amount_pending'), 2),
             'payment_methods' => $branch?->enabledPaymentMethods() ?? ['cash', 'card', 'transfer'],
         ]);
     }
 
-    /** Cobro global FIFO. Requiere turno abierto. */
+    /**
+     * Detalle de un cobro global: aplicaciones por venta, cajero y notas.
+     * Solo admin-sucursal (paridad con la ruta web, del grupo admin-sucursal).
+     */
+    public function show(Request $request, int $customer, int $payment): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
+            403,
+            'Solo el administrador de sucursal puede ver el detalle de un cobro global.'
+        );
+
+        $found = $this->findCustomer($request, $customer);
+
+        $cp = CustomerPayment::withoutGlobalScopes()
+            ->where('customer_id', $found->id)
+            ->findOrFail($payment);
+
+        $cp->load([
+            'user:id,name',
+            'payments' => fn ($q) => $q->with('sale:id,folio,total,amount_pending,status,created_at'),
+        ]);
+
+        return response()->json([
+            'id' => $cp->id,
+            'folio' => $cp->folio,
+            'method' => $cp->method instanceof \BackedEnum ? $cp->method->value : $cp->method,
+            'amount_received' => (float) $cp->amount_received,
+            'amount_applied' => (float) $cp->amount_applied,
+            'change_given' => (float) $cp->change_given,
+            'sales_affected_count' => $cp->sales_affected_count,
+            'notes' => $cp->notes,
+            'cancelled_at' => $cp->cancelled_at?->toIso8601String(),
+            'created_at' => $cp->created_at?->toIso8601String(),
+            'cashier' => $cp->user ? ['id' => $cp->user->id, 'name' => $cp->user->name] : null,
+            'applications' => $cp->payments->map(fn ($p) => [
+                'payment_id' => $p->id,
+                'sale_id' => $p->sale_id,
+                'sale_folio' => $p->sale?->folio,
+                'sale_date' => $p->sale?->created_at?->toIso8601String(),
+                'amount' => (float) $p->amount,
+                'sale_status_after' => $p->sale?->status instanceof \BackedEnum ? $p->sale->status->value : $p->sale?->status,
+                'sale_total' => (float) ($p->sale?->total ?? 0),
+                'sale_amount_pending_after' => (float) ($p->sale?->amount_pending ?? 0),
+            ])->values(),
+        ]);
+    }
+
+    /** Cobro global FIFO. Solo admin-sucursal (paridad con RegisterCustomerPaymentRequest web). Requiere turno abierto. */
     public function store(Request $request, int $customer): JsonResponse
     {
         $user = $request->user();
+        abort_unless(
+            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
+            403,
+            'Solo el administrador de sucursal puede registrar cobros globales.'
+        );
         $found = $this->findCustomer($request, $customer);
 
         $hasOpenShift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->exists();

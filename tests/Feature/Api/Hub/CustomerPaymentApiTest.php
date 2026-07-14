@@ -40,12 +40,14 @@ class CustomerPaymentApiTest extends TestCase
         return $user->createToken('hub')->plainTextToken;
     }
 
-    private function openShift(): void
+    private function openShift(?int $userId = null): void
     {
         CashRegisterShift::create([
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
-            'user_id' => $this->cajero->id,
+            // El cobro global es de admin-sucursal (paridad web), así que el
+            // turno abierto por defecto es el del admin.
+            'user_id' => $userId ?? $this->adminSucursal->id,
             'opened_at' => now()->subHour(),
             'opening_amount' => 0,
         ]);
@@ -68,13 +70,26 @@ class CustomerPaymentApiTest extends TestCase
         ]);
     }
 
+    public function test_cajero_cannot_register_global_payment(): void
+    {
+        $this->openShift($this->cajero->id);
+        $this->pendingSale(100, now()->subDay());
+
+        $this->withToken($this->token('cajero'))
+            ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
+                'amount_received' => 50,
+                'method' => 'cash',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_global_payment_distributes_fifo(): void
     {
         $this->openShift();
         $first = $this->pendingSale(100, now()->subDays(2));
         $second = $this->pendingSale(50, now()->subDay());
 
-        $res = $this->withToken($this->token())
+        $res = $this->withToken($this->token('admin'))
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
                 'amount_received' => 120,
                 'method' => 'cash',
@@ -96,7 +111,7 @@ class CustomerPaymentApiTest extends TestCase
         $this->openShift();
         $this->pendingSale(100, now()->subDay());
 
-        $this->withToken($this->token())
+        $this->withToken($this->token('admin'))
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
                 'amount_received' => 150,
                 'method' => 'cash',
@@ -111,7 +126,7 @@ class CustomerPaymentApiTest extends TestCase
         $this->openShift();
         $this->pendingSale(100, now()->subDay());
 
-        $this->withToken($this->token())
+        $this->withToken($this->token('admin'))
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
                 'amount_received' => 150,
                 'method' => 'card',
@@ -123,7 +138,7 @@ class CustomerPaymentApiTest extends TestCase
     {
         $this->pendingSale(100, now()->subDay());
 
-        $this->withToken($this->token())
+        $this->withToken($this->token('admin'))
             ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
                 'amount_received' => 50,
                 'method' => 'cash',
@@ -142,6 +157,71 @@ class CustomerPaymentApiTest extends TestCase
 
         $this->assertCount(2, $res->json('pending_sales'));
         $this->assertEquals(150, $res->json('total_owed'));
+    }
+
+    public function test_ledger_merges_global_and_single_payments_with_cashier(): void
+    {
+        // Un pago individual (por venta) y un cobro global aplicado.
+        $single = $this->pendingSale(80, now()->subHours(2));
+        Payment::create(['sale_id' => $single->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 80]);
+        app(SalePaymentService::class)->recalculate($single, $this->cajero);
+
+        $globalSale = $this->pendingSale(100, now()->subDay());
+        $this->appliedGlobalPayment($globalSale);
+
+        $res = $this->withToken($this->token())
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments")
+            ->assertOk();
+
+        $types = collect($res->json('recent_movements'))->pluck('type');
+        $this->assertTrue($types->contains('global'));
+        $this->assertTrue($types->contains('single'));
+
+        $singleRow = collect($res->json('recent_movements'))->firstWhere('type', 'single');
+        $this->assertSame($single->folio, $singleRow['sale_folio']);
+        $this->assertSame($this->cajero->name, $singleRow['cashier_name']);
+    }
+
+    public function test_global_payment_detail_shows_applications(): void
+    {
+        $sale = $this->pendingSale(100, now()->subDay());
+        $cp = $this->appliedGlobalPayment($sale);
+
+        // El detalle del cobro global es exclusivo de admin-sucursal (paridad web).
+        $res = $this->withToken($this->token('admin'))
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}")
+            ->assertOk();
+
+        $this->assertSame('CG-00001', $res->json('folio'));
+        $this->assertSame($this->cajero->name, $res->json('cashier.name'));
+        $this->assertCount(1, $res->json('applications'));
+        $this->assertSame($sale->folio, $res->json('applications.0.sale_folio'));
+        $this->assertEquals(100, $res->json('applications.0.amount'));
+    }
+
+    public function test_cajero_cannot_view_global_payment_detail(): void
+    {
+        $sale = $this->pendingSale(100, now()->subDay());
+        $cp = $this->appliedGlobalPayment($sale);
+
+        $this->withToken($this->token('cajero'))
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}")
+            ->assertForbidden();
+    }
+
+    public function test_ledger_single_payment_created_at_is_iso8601(): void
+    {
+        $sale = $this->pendingSale(80, now()->subHour());
+        Payment::create(['sale_id' => $sale->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 80]);
+        app(SalePaymentService::class)->recalculate($sale, $this->cajero);
+
+        $res = $this->withToken($this->token())
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments")
+            ->assertOk();
+
+        $single = collect($res->json('recent_movements'))->firstWhere('type', 'single');
+        // Formato ISO-8601 (igual que los cobros globales), no string crudo de BD.
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $single['created_at']);
     }
 
     /**

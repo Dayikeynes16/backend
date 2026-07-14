@@ -82,6 +82,33 @@ class PaymentApiTest extends TestCase
         $this->assertEquals(100, $filtered->json('summary.total'));
     }
 
+    public function test_payments_index_filters_by_customer_and_exposes_sale_context(): void
+    {
+        $customer = Customer::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'name' => 'Doña Mary', 'status' => 'active',
+        ]);
+        // Venta con cliente, creada AYER (para el chip "Venta de ayer").
+        $withCustomer = $this->activeSale($this->branch->id, 300);
+        $withCustomer->forceFill(['customer_id' => $customer->id, 'created_at' => now()->subDay()])->save();
+        Payment::create(['sale_id' => $withCustomer->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 100, 'updated_by' => $this->adminSucursal->id]);
+        // Venta de mostrador.
+        $counter = $this->activeSale($this->branch->id, 50);
+        Payment::create(['sale_id' => $counter->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 50]);
+
+        $with = $this->withToken($this->token())->getJson('/api/v1/hub/payments?customer=with')->assertOk();
+        $this->assertCount(1, $with->json('data'));
+        $row = $with->json('data.0');
+        // Contexto para chips: fecha de la venta, pagado, y quién editó el pago.
+        $this->assertSame(now()->subDay()->toDateString(), substr($row['sale']['created_at'], 0, 10));
+        $this->assertSame('Doña Mary', $row['sale']['customer']['name']);
+        $this->assertSame($this->adminSucursal->name, $row['updated_by_user']['name']);
+
+        $without = $this->withToken($this->token())->getJson('/api/v1/hub/payments?customer=without')->assertOk();
+        $this->assertCount(1, $without->json('data'));
+        $this->assertNull($without->json('data.0.sale.customer'));
+    }
+
     public function test_payments_index_collapses_global_fifo_collection(): void
     {
         $sale1 = $this->activeSale($this->branch->id, 2000);

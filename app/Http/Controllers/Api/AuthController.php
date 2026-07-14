@@ -76,6 +76,10 @@ class AuthController extends Controller
             'cashier_purchases_enabled' => (bool) $user->branch?->cashier_purchases_enabled,
             'tenant_id' => $user->tenant_id,
             'tenant_slug' => $user->tenant?->slug,
+            // Branding para el shell del hub (logo + nombre de empresa, como
+            // el sidebar web). logo_url es absoluta (Storage public / APP_URL).
+            'tenant_name' => $user->tenant?->name,
+            'tenant_logo_url' => $user->tenant?->logo_url,
         ];
     }
 }

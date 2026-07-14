@@ -19,6 +19,7 @@ class CustomerPriceController extends Controller
 {
     public function store(Request $request, int $customer): JsonResponse
     {
+        $this->ensureAdmin($request);
         $found = $this->findCustomer($request, $customer);
 
         $validated = $request->validate([
@@ -43,6 +44,7 @@ class CustomerPriceController extends Controller
 
     public function update(Request $request, int $customer, int $price): JsonResponse
     {
+        $this->ensureAdmin($request);
         $found = $this->findCustomer($request, $customer);
         $model = CustomerProductPrice::where('customer_id', $found->id)->findOrFail($price);
 
@@ -54,11 +56,27 @@ class CustomerPriceController extends Controller
 
     public function destroy(Request $request, int $customer, int $price): JsonResponse
     {
+        $this->ensureAdmin($request);
         $found = $this->findCustomer($request, $customer);
         $model = CustomerProductPrice::where('customer_id', $found->id)->findOrFail($price);
         $model->delete();
 
         return response()->json(['action' => 'deleted']);
+    }
+
+    /**
+     * Paridad con la web: los precios preferenciales son exclusivos de
+     * admin-sucursal (routes/web.php grupo role:admin-sucursal|superadmin).
+     */
+    private function ensureAdmin(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
+            403,
+            'Solo el administrador de sucursal puede gestionar precios preferenciales.'
+        );
     }
 
     private function findCustomer(Request $request, int $customer): Customer

@@ -100,17 +100,26 @@ class ProviderController extends Controller
         return response()->json(['data' => HubProviderResource::make($found->refresh())]);
     }
 
-    /** Detalle: KPIs + deuda + última compra (scopeado a la sucursal). */
+    /** Detalle: KPIs + deuda + última compra (scopeado a la sucursal).
+     * `from`/`to` acotan los KPIs de comprado/pagado/# al periodo (paridad con
+     * el selector de rango del detalle web); la deuda y la última compra son
+     * SIEMPRE de por vida (una deuda no deja de existir por el filtro). */
     public function show(Request $request, int $provider): JsonResponse
     {
+        $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date']);
+
         $user = $request->user();
         $this->ensureAdminSucursal($user);
         $found = $this->findProvider($user, $provider);
 
-        $base = fn () => Purchase::withoutGlobalScopes()
+        $lifetime = fn () => Purchase::withoutGlobalScopes()
             ->where('provider_id', $found->id)
             ->where('branch_id', $user->branch_id)
             ->where('status', '!=', PurchaseStatus::Cancelled->value);
+
+        $base = fn () => $lifetime()
+            ->when($request->filled('from'), fn ($q) => $q->whereDate('purchased_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($q) => $q->whereDate('purchased_at', '<=', $request->date('to')));
 
         $agg = (clone $base())->selectRaw('
             COUNT(*) AS cnt,
@@ -118,7 +127,9 @@ class ProviderController extends Controller
             COALESCE(SUM(amount_paid), 0) AS pagado,
             COALESCE(SUM(amount_pending), 0) AS deuda')->first();
 
-        $last = (clone $base())->orderByDesc('purchased_at')->orderByDesc('id')
+        $lifetimeDebt = (float) $lifetime()->sum('amount_pending');
+
+        $last = $lifetime()->orderByDesc('purchased_at')->orderByDesc('id')
             ->first(['id', 'folio', 'total', 'purchased_at']);
 
         return response()->json([
@@ -127,7 +138,7 @@ class ProviderController extends Controller
                 'compras_count' => (int) $agg->cnt,
                 'total_comprado' => round((float) $agg->comprado, 2),
                 'total_pagado' => round((float) $agg->pagado, 2),
-                'deuda_actual' => round((float) $agg->deuda, 2),
+                'deuda_actual' => round($lifetimeDebt, 2),
                 'ultima_compra' => $last ? [
                     'id' => $last->id,
                     'folio' => $last->folio,

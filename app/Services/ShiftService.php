@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\ShiftAlreadyOpenException;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
+use App\Models\CashWithdrawal;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -120,6 +121,70 @@ class ShiftService
     }
 
     /**
+     * Registra un retiro de efectivo sobre el turno abierto del usuario.
+     *
+     * @throws ModelNotFoundException si no hay turno abierto
+     */
+    public function addWithdrawal(User $user, float $amount, string $reason): CashWithdrawal
+    {
+        $shift = CashRegisterShift::where('user_id', $user->id)
+            ->whereNull('closed_at')
+            ->firstOrFail();
+
+        return CashWithdrawal::create([
+            'shift_id' => $shift->id,
+            'user_id' => $user->id,
+            'amount' => $amount,
+            'reason' => $reason,
+            'created_at' => now(),
+        ]);
+    }
+
+    /**
+     * Elimina un retiro aplicando las reglas compartidas web/hub: aislamiento
+     * de tenant y sucursal para todos los roles; los admins pueden borrar
+     * incluso con turno cerrado; el cajero dueño solo en su turno abierto.
+     * Devuelve el turno AFECTADO (no el del usuario que borra), para que el
+     * caller refresque su resumen.
+     */
+    public function removeWithdrawal(User $user, CashWithdrawal $withdrawal): CashRegisterShift
+    {
+        // En web, TenantScope hace que el shift de otro tenant resuelva a null
+        // y caiga en la primera guarda; en el hub (sin tenant bound) protegen
+        // los checks explícitos de sucursal y tenant.
+        $shift = $withdrawal->shift()->withoutGlobalScopes()->first();
+
+        if (! $shift || $shift->branch_id !== $user->branch_id) {
+            abort(403, 'Este retiro no pertenece a tu sucursal.');
+        }
+
+        if ($shift->tenant_id !== $user->tenant_id) {
+            abort(403, 'Este retiro no pertenece a tu empresa.');
+        }
+
+        $isManager = $user->hasRole('admin-sucursal')
+            || $user->hasRole('admin-empresa')
+            || $user->hasRole('superadmin');
+
+        $isOwnerOnOpenShift = $shift->user_id === $user->id
+            && $shift->closed_at === null;
+
+        if (! $isManager && ! $isOwnerOnOpenShift) {
+            abort(403);
+        }
+
+        $withdrawal->delete();
+
+        // Si el turno ya estaba cerrado, sus totales/esperado quedaron obsoletos
+        // (el retiro afectaba el efectivo esperado del corte): se recalculan.
+        if ($shift->closed_at !== null) {
+            app(RecalculateClosedShifts::class)->forShift($shift);
+        }
+
+        return $shift->refresh();
+    }
+
+    /**
      * Resumen de conciliación de un turno para el hub. Funciona EN VIVO para un
      * turno abierto (recalcula con el reloj actual) y con los valores
      * persistidos para un turno cerrado (el corte). Incluye el esperado por
@@ -144,6 +209,8 @@ class ShiftService
             $cashProviderPayments = $cashOut['cash_provider_payments'];
             $saleCount = $totals['collections_count'];
             $previous = $totals['collections_from_previous_amount'];
+            $generatedAmount = $totals['sales_generated_amount'];
+            $generatedCount = $totals['sales_generated_count'];
         } else {
             $totalCash = (float) $shift->total_cash;
             $totalCard = (float) $shift->total_card;
@@ -154,6 +221,8 @@ class ShiftService
             $cashProviderPayments = (float) $shift->total_cash_provider_payments;
             $saleCount = (int) $shift->sale_count;
             $previous = (float) $shift->collections_from_previous_amount;
+            $generatedAmount = (float) $shift->sales_generated_amount;
+            $generatedCount = (int) $shift->sales_generated_count;
         }
 
         $enabled = $this->enabledMethodsFor($shift->branch_id);
@@ -187,6 +256,12 @@ class ShiftService
             'total_collected' => round($totalCash + $totalCard + $totalTransfer, 2),
             'collections_from_previous' => round($previous, 2),
             'sale_count' => $saleCount,
+            // "Vendido" (ventas generadas en el turno) vs "Cobrado" (lo que
+            // entró al cajón) — misma distinción que el corte web.
+            'sales_generated' => [
+                'amount' => round($generatedAmount, 2),
+                'count' => $generatedCount,
+            ],
             'expected_cash' => round($expectedCash, 2),
             'cash_out' => [
                 'withdrawals' => round($withdrawalsTotal, 2),

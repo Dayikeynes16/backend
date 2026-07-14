@@ -44,10 +44,12 @@ class HubSaleResource extends JsonResource
             ] : null),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($i) => [
                 'id' => $i->id,
+                'product_id' => $i->product_id,
                 'product_name' => $i->product_name,
                 'quantity' => (float) $i->quantity,
                 'unit_price' => (float) $i->unit_price,
                 'subtotal' => (float) $i->subtotal,
+                'notes' => $i->notes,
                 // Campos de presentación/unidad para formatear cantidades por peso
                 // (1.250 kg) o presentación ("Queso (500 g) × 2") en el hub.
                 'unit_type' => $i->unit_type,
@@ -60,6 +62,14 @@ class HubSaleResource extends JsonResource
                 'method' => $p->method,
                 'amount' => (float) $p->amount,
                 'created_at' => $p->created_at->toIso8601String(),
+                // Un pago hijo de un cobro global NO es editable individualmente
+                // (misma regla que la web); el hub oculta Editar/Eliminar con esto.
+                'customer_payment_id' => $p->customer_payment_id,
+                // Quién cobró y quién corrigió (badge "Editado"), como la web.
+                'user' => $p->relationLoaded('user') && $p->user
+                    ? ['id' => $p->user->id, 'name' => $p->user->name] : null,
+                'updated_by_user' => $p->relationLoaded('updatedByUser') && $p->updatedByUser
+                    ? ['id' => $p->updatedByUser->id, 'name' => $p->updatedByUser->name] : null,
             ])),
         ];
     }
