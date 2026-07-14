@@ -169,6 +169,8 @@ Route::prefix('v1/hub')
         Route::post('providers/{provider}/pagos', [HubProviderController::class, 'accountPayment'])->whereNumber('provider')->name('api.hub.providers.account-payment');
 
         Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
+        // Crear venta manual desde la mesa (solo admin-sucursal, paridad web).
+        Route::post('sales', [HubSaleController::class, 'store'])->name('api.hub.sales.store');
         Route::get('sales/{sale}', [HubSaleController::class, 'show'])->whereNumber('sale')->name('api.hub.sales.show');
         Route::post('sales/{sale}/payments', [HubPaymentController::class, 'store'])->whereNumber('sale')->name('api.hub.sales.payments.store');
         // Corrección de pagos (solo admin-sucursal, paridad con la web).

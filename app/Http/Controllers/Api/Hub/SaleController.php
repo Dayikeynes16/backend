@@ -6,13 +6,16 @@ use App\Enums\SaleStatus;
 use App\Events\SaleLocked;
 use App\Events\SaleUnlocked;
 use App\Events\SaleUpdated;
+use App\Exceptions\SaleItemEditNotAllowed;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubSaleResource;
 use App\Models\Branch;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
 use App\Services\PhoneNormalizer;
 use App\Services\RecalculateClosedShifts;
+use App\Services\SaleItemEditor;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +25,101 @@ use Illuminate\Validation\Rules\Enum;
 
 class SaleController extends Controller
 {
+    /**
+     * Crea una venta manual desde la mesa (solo admin-sucursal, paridad con
+     * Sucursal\WorkbenchController::store). Cada línea se arma con SaleItemEditor
+     * (misma lógica de presentación/peso, snapshot y recálculo que la edición
+     * de items). El precio es el de catálogo/presentación, con override opcional
+     * del admin. La venta nace Active, origin='admin', sin cobros.
+     */
+    public function store(Request $request, SaleItemEditor $editor): JsonResponse
+    {
+        $user = $request->user();
+        $this->ensureAdmin($request, 'Solo el administrador de sucursal puede crear ventas.');
+        app()->instance('tenant', $user->tenant);
+
+        $validated = $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|integer',
+            'items.*.quantity' => 'required|numeric|gt:0',
+            'items.*.presentation_id' => 'nullable|integer',
+            'items.*.custom_price' => 'nullable|numeric|min:0',
+            'items.*.notes' => 'nullable|string|max:500',
+        ]);
+
+        $branchId = $user->branch_id;
+
+        // Valida que todos los productos existan, estén activos y sean de la
+        // sucursal, y precarga presentaciones para resolver precios.
+        $productIds = collect($validated['items'])->pluck('product_id')->unique();
+        $products = Product::withoutGlobalScopes()
+            ->whereNull('deleted_at')
+            ->where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->whereIn('id', $productIds)
+            ->with('presentations')
+            ->get()
+            ->keyBy('id');
+
+        if ($productIds->diff($products->keys())->isNotEmpty()) {
+            return response()->json(['message' => 'Algunos productos no son válidos o están inactivos.'], 422);
+        }
+
+        try {
+            $sale = DB::transaction(function () use ($validated, $branchId, $user, $products, $editor) {
+                // Folio atómico por sucursal (mismo esquema S-00001 que la web).
+                DB::statement('SELECT pg_advisory_xact_lock(?)', [$branchId]);
+                $count = Sale::withoutGlobalScopes()->where('branch_id', $branchId)->count();
+
+                $sale = Sale::create([
+                    'tenant_id' => $user->tenant_id,
+                    'branch_id' => $branchId,
+                    'folio' => 'S-'.str_pad((string) ($count + 1), 5, '0', STR_PAD_LEFT),
+                    'payment_method' => 'cash',
+                    'total' => 0,
+                    'amount_paid' => 0,
+                    'amount_pending' => 0,
+                    'origin' => 'admin',
+                    'origin_name' => 'Administrador',
+                    'status' => SaleStatus::Active,
+                ]);
+
+                foreach ($validated['items'] as $item) {
+                    $product = $products[$item['product_id']];
+                    $presentationId = $item['presentation_id'] ?? null;
+
+                    // Precio base: presentación o catálogo; override del admin si viene.
+                    $basePrice = (float) $product->price;
+                    if ($presentationId && in_array($product->sale_mode, ['presentation', 'both'], true)) {
+                        $pres = $product->presentations->firstWhere('id', $presentationId);
+                        if ($pres) {
+                            $basePrice = (float) $pres->price;
+                        }
+                    }
+                    $unitPrice = isset($item['custom_price']) && $item['custom_price'] !== null
+                        ? (float) $item['custom_price']
+                        : $basePrice;
+
+                    $editor->add($sale, [
+                        'product_id' => $product->id,
+                        'presentation_id' => $presentationId,
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $unitPrice,
+                        'notes' => $item['notes'] ?? null,
+                    ], null, $user);
+                }
+
+                return $sale;
+            });
+        } catch (SaleItemEditNotAllowed $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $this->broadcast($sale);
+
+        return $this->saleResponse($sale->refresh(), 201);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $request->validate(['status' => 'nullable|in:active,pending,all']);
@@ -340,11 +438,11 @@ class SaleController extends Controller
             ->findOrFail($sale);
     }
 
-    private function saleResponse(Sale $sale): JsonResponse
+    private function saleResponse(Sale $sale, int $status = 200): JsonResponse
     {
         return response()->json([
             'data' => HubSaleResource::make($sale->load(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer']))->resolve(request()),
-        ]);
+        ], $status);
     }
 
     private function broadcast(Sale $sale): void
