@@ -16,6 +16,7 @@ use App\Services\RecalculateClosedShifts;
 use App\Services\SalePaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -80,17 +81,23 @@ class CustomerPaymentController extends Controller
             ->orderByDesc('payments.created_at')
             ->limit(100)
             ->get()
-            ->map(fn ($p) => [
-                'type' => 'single',
-                'id' => $p->id,
-                'sale_id' => $p->sale_id,
-                'sale_folio' => $p->sale_folio,
-                'method' => $p->method,
-                'amount' => (float) $p->amount,
-                'cashier_name' => $p->cashier_name,
-                'created_at' => $p->created_at,
-                'sort_key' => strtotime($p->created_at),
-            ]);
+            ->map(function ($p) {
+                // created_at viene como string crudo de BD (DB::table); se
+                // normaliza a ISO-8601 para igualar el formato de los globales.
+                $at = Carbon::parse($p->created_at);
+
+                return [
+                    'type' => 'single',
+                    'id' => $p->id,
+                    'sale_id' => $p->sale_id,
+                    'sale_folio' => $p->sale_folio,
+                    'method' => $p->method,
+                    'amount' => (float) $p->amount,
+                    'cashier_name' => $p->cashier_name,
+                    'created_at' => $at->toIso8601String(),
+                    'sort_key' => $at->timestamp,
+                ];
+            });
 
         $movements = $globals->concat($singles)
             ->sortByDesc('sort_key')
@@ -119,10 +126,17 @@ class CustomerPaymentController extends Controller
 
     /**
      * Detalle de un cobro global: aplicaciones por venta, cajero y notas.
-     * Paridad con Sucursal\CustomerPaymentController::show.
+     * Solo admin-sucursal (paridad con la ruta web, del grupo admin-sucursal).
      */
     public function show(Request $request, int $customer, int $payment): JsonResponse
     {
+        $user = $request->user();
+        abort_unless(
+            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
+            403,
+            'Solo el administrador de sucursal puede ver el detalle de un cobro global.'
+        );
+
         $found = $this->findCustomer($request, $customer);
 
         $cp = CustomerPayment::withoutGlobalScopes()

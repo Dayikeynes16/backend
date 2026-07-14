@@ -50,11 +50,22 @@ class DashboardController extends Controller
             ->where('branch_id', $branchId)
             ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
             ->whereIn('status', $statuses)
-            ->selectRaw('COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS total, COALESCE(SUM(amount_pending), 0) AS pending, COUNT(*) FILTER (WHERE amount_pending > 0) AS pending_count')
+            ->selectRaw('COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS total')
             ->first();
         $st = $salesAgg($today);
         $sy = $salesAgg($yesterday);
         $avgTicket = $st->cnt > 0 ? round((float) $st->total / $st->cnt, 2) : 0.0;
+
+        // "Por cobrar" del día: saldo pendiente sobre TODAS las ventas no
+        // canceladas (las de fiado quedan status=Active, fuera de los chips
+        // completed/pending; filtrarlas por estado daría siempre $0).
+        $pendingAgg = Sale::withoutGlobalScopes()
+            ->where('branch_id', $branchId)
+            ->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$today])
+            ->where('status', '!=', SaleStatus::Cancelled->value)
+            ->where('amount_pending', '>', 0)
+            ->selectRaw('COALESCE(SUM(amount_pending), 0) AS pending, COUNT(*) AS pending_count')
+            ->first();
 
         // Canceladas del día (KPI aparte — no se restan de las netas).
         $cancelled = Sale::withoutGlobalScopes()
@@ -190,8 +201,8 @@ class DashboardController extends Controller
                 'sales_total_yesterday' => round((float) $sy->total, 2),
                 'sales_delta_pct' => $this->deltaPct((float) $sy->total, (float) $st->total),
                 'avg_ticket' => $avgTicket,
-                'pending_total' => round((float) $st->pending, 2),
-                'pending_count' => (int) $st->pending_count,
+                'pending_total' => round((float) $pendingAgg->pending, 2),
+                'pending_count' => (int) $pendingAgg->pending_count,
                 'cancelled_amount' => round((float) $cancelled->total, 2),
                 'cancelled_count' => (int) $cancelled->cnt,
                 'expenses_total' => $expTotal,

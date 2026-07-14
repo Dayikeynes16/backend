@@ -186,6 +186,26 @@ class CustomerApiTest extends TestCase
         $this->assertSame(26, $res->json('meta.total'));
     }
 
+    public function test_last_sale_sort_ignores_cancelled_sales(): void
+    {
+        // Cliente A: venta reciente CANCELADA. Cliente B: venta vieja válida.
+        $a = $this->customer($this->branch->id, 'A Reciente Cancelada', '6613330001');
+        $saleA = $this->pendingSale($a, 100);
+        $saleA->forceFill(['status' => SaleStatus::Cancelled->value, 'created_at' => now()])->save();
+
+        $b = $this->customer($this->branch->id, 'B Vieja Valida', '6613330002');
+        $saleB = $this->pendingSale($b, 100);
+        $saleB->forceFill(['created_at' => now()->subDays(3)])->save();
+
+        $res = $this->withToken($this->token())
+            ->getJson('/api/v1/hub/customers?sort=last_sale')
+            ->assertOk();
+
+        // B debe ir antes que A: la venta de A no cuenta por estar cancelada.
+        $names = collect($res->json('data'))->pluck('name');
+        $this->assertLessThan($names->search('A Reciente Cancelada'), $names->search('B Vieja Valida'));
+    }
+
     public function test_index_reports_debt_and_portfolio_summary(): void
     {
         $ana = $this->customer($this->branch->id, 'Ana Deudora', '6610004444');

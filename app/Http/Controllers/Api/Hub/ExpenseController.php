@@ -150,9 +150,10 @@ class ExpenseController extends Controller
             'amount' => $validated['amount'],
             'expense_subcategory_id' => $validated['expense_subcategory_id'],
             'description' => $validated['description'] ?? null,
-            // Solo el admin puede cambiar el método (paridad Sucursal\GastoController,
-            // donde vacío = null); el gasto del cajero queda fijo en efectivo.
-            'payment_method' => $isAdmin
+            // Solo el admin puede cambiar el método, y SOLO si lo envía: omitirlo
+            // preserva el existente (evita desligar un gasto en efectivo del
+            // arqueo del turno al editar otro campo). El gasto del cajero queda fijo.
+            'payment_method' => $isAdmin && $request->exists('payment_method')
                 ? ($validated['payment_method'] ?? null)
                 : $found->payment_method,
             'updated_by' => $user->id,

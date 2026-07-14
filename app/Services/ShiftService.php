@@ -144,8 +144,10 @@ class ShiftService
      * Elimina un retiro aplicando las reglas compartidas web/hub: aislamiento
      * de tenant y sucursal para todos los roles; los admins pueden borrar
      * incluso con turno cerrado; el cajero dueño solo en su turno abierto.
+     * Devuelve el turno AFECTADO (no el del usuario que borra), para que el
+     * caller refresque su resumen.
      */
-    public function removeWithdrawal(User $user, CashWithdrawal $withdrawal): void
+    public function removeWithdrawal(User $user, CashWithdrawal $withdrawal): CashRegisterShift
     {
         // En web, TenantScope hace que el shift de otro tenant resuelva a null
         // y caiga en la primera guarda; en el hub (sin tenant bound) protegen
@@ -172,6 +174,14 @@ class ShiftService
         }
 
         $withdrawal->delete();
+
+        // Si el turno ya estaba cerrado, sus totales/esperado quedaron obsoletos
+        // (el retiro afectaba el efectivo esperado del corte): se recalculan.
+        if ($shift->closed_at !== null) {
+            app(RecalculateClosedShifts::class)->forShift($shift);
+        }
+
+        return $shift->refresh();
     }
 
     /**

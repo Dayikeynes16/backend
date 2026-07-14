@@ -142,6 +142,24 @@ class ExpenseApiTest extends TestCase
         $this->assertFalse($res->json('data.0.can_manage'));
     }
 
+    public function test_admin_update_omitting_payment_method_preserves_it(): void
+    {
+        // Un gasto en efectivo ligado al turno del cajero.
+        $token = $this->token();
+        $this->openShift($token);
+        $id = $this->createExpense($token);
+
+        // El admin edita solo el concepto, sin enviar payment_method: debe
+        // conservar 'cash' (no desligarlo del arqueo del turno).
+        $this->withToken($this->adminSucursal->createToken('hub')->plainTextToken)
+            ->patchJson("/api/v1/hub/expenses/{$id}", [
+                'concept' => 'Recibo CFE corregido', 'amount' => 150,
+                'expense_subcategory_id' => $this->subcategory->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.payment_method', 'cash');
+    }
+
     public function test_index_filters_by_payment_method_and_category(): void
     {
         $adminToken = $this->adminSucursal->createToken('hub')->plainTextToken;

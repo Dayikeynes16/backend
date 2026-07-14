@@ -46,12 +46,12 @@ class WithdrawalController extends Controller
 
     public function destroy(Request $request, CashWithdrawal $withdrawal): JsonResponse
     {
-        $this->shifts->removeWithdrawal($request->user(), $withdrawal);
-
-        $shift = $this->shifts->current($request->user());
+        // Devuelve el resumen del turno AFECTADO por el retiro (no el del
+        // usuario que borra, que puede ser un admin sin turno abierto).
+        $shift = $this->shifts->removeWithdrawal($request->user(), $withdrawal);
 
         return response()->json([
-            'summary' => $shift ? $this->shifts->summary($shift) : null,
+            'summary' => $this->shifts->summary($shift),
         ]);
     }
 }

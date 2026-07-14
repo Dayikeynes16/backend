@@ -46,7 +46,9 @@ class CustomerController extends Controller
             SaleStatus::Pending->value,
             SaleStatus::Fulfilled->value,
         ];
-        $lastSaleSubquery = '(select MAX(created_at) from sales where sales.customer_id = customers.id and sales.deleted_at is null)';
+        // Misma cobertura que el last_sale_at mostrado (debtAggregates: no
+        // canceladas + accountable); si no, el orden contradice el dato visible.
+        $lastSaleSubquery = '(select MAX(created_at) from sales where sales.customer_id = customers.id and sales.status != ? and (sales.origin != ? or sales.status not in (?, ?)) and sales.deleted_at is null)';
 
         $customers = Customer::withoutGlobalScopes()
             ->where('branch_id', $branchId)
@@ -57,7 +59,7 @@ class CustomerController extends Controller
                 ->orWhere('phone', 'ilike', "%{$search}%")))
             ->when($request->boolean('with_debt'), fn ($q) => $q->whereRaw("{$debtSubquery} > 0", $debtBindings))
             ->when($sort === 'debt', fn ($q) => $q->orderByRaw("{$debtSubquery} DESC", $debtBindings)->orderBy('name'))
-            ->when($sort === 'last_sale', fn ($q) => $q->orderByRaw("{$lastSaleSubquery} DESC NULLS LAST")->orderBy('name'))
+            ->when($sort === 'last_sale', fn ($q) => $q->orderByRaw("{$lastSaleSubquery} DESC NULLS LAST", $debtBindings)->orderBy('name'))
             ->when($sort === 'name', fn ($q) => $q->orderBy('name'))
             ->paginate(25);
 

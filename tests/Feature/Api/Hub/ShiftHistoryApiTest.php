@@ -88,6 +88,26 @@ class ShiftHistoryApiTest extends TestCase
         $this->assertCount(1, $res->json('data'));
     }
 
+    public function test_index_exposes_cross_method_discrepancy(): void
+    {
+        // Corte "cuadrado en neto" pero cruzado: falta 50 en efectivo, sobra 50
+        // en tarjeta. El neto es 0 pero has_discrepancy debe ser true.
+        $shift = $this->closedShift($this->cajero, [
+            'difference' => -50,
+            'difference_card' => 50,
+            'difference_transfer' => 0,
+        ]);
+
+        $res = $this->withToken($this->tokenFor($this->adminSucursal))
+            ->getJson('/api/v1/hub/shifts')->assertOk();
+
+        $row = collect($res->json('data'))->firstWhere('id', $shift->id);
+        $this->assertEquals(0, $row['difference_total']);
+        $this->assertTrue($row['has_discrepancy']);
+        $this->assertEquals(-50, $row['difference']);
+        $this->assertEquals(50, $row['difference_card']);
+    }
+
     public function test_show_returns_summary_verdict_and_whatsapp(): void
     {
         $this->tenant->update(['owner_whatsapp' => '5216621112233']);

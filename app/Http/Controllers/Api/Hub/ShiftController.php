@@ -102,7 +102,16 @@ class ShiftController extends Controller
                 'sale_count' => (int) $s->sale_count,
                 'expected_amount' => (float) $s->expected_amount,
                 'declared_amount' => $s->declared_amount !== null ? (float) $s->declared_amount : null,
+                // Suma con signo (neto del corte).
                 'difference_total' => round((float) $s->difference + (float) $s->difference_card + (float) $s->difference_transfer, 2),
+                // Descuadre por método: permite detectar cruces (falta en un
+                // método, sobra en otro) que el neto ocultaría al verse "cuadrado".
+                'difference' => (float) $s->difference,
+                'difference_card' => (float) $s->difference_card,
+                'difference_transfer' => (float) $s->difference_transfer,
+                'has_discrepancy' => abs((float) $s->difference) > 0.005
+                    || abs((float) $s->difference_card) > 0.005
+                    || abs((float) $s->difference_transfer) > 0.005,
             ])->values(),
             'meta' => [
                 'current_page' => $shifts->currentPage(),

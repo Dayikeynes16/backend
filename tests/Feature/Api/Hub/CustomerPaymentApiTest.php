@@ -187,7 +187,8 @@ class CustomerPaymentApiTest extends TestCase
         $sale = $this->pendingSale(100, now()->subDay());
         $cp = $this->appliedGlobalPayment($sale);
 
-        $res = $this->withToken($this->token())
+        // El detalle del cobro global es exclusivo de admin-sucursal (paridad web).
+        $res = $this->withToken($this->token('admin'))
             ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}")
             ->assertOk();
 
@@ -196,6 +197,31 @@ class CustomerPaymentApiTest extends TestCase
         $this->assertCount(1, $res->json('applications'));
         $this->assertSame($sale->folio, $res->json('applications.0.sale_folio'));
         $this->assertEquals(100, $res->json('applications.0.amount'));
+    }
+
+    public function test_cajero_cannot_view_global_payment_detail(): void
+    {
+        $sale = $this->pendingSale(100, now()->subDay());
+        $cp = $this->appliedGlobalPayment($sale);
+
+        $this->withToken($this->token('cajero'))
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}")
+            ->assertForbidden();
+    }
+
+    public function test_ledger_single_payment_created_at_is_iso8601(): void
+    {
+        $sale = $this->pendingSale(80, now()->subHour());
+        Payment::create(['sale_id' => $sale->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 80]);
+        app(SalePaymentService::class)->recalculate($sale, $this->cajero);
+
+        $res = $this->withToken($this->token())
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments")
+            ->assertOk();
+
+        $single = collect($res->json('recent_movements'))->firstWhere('type', 'single');
+        // Formato ISO-8601 (igual que los cobros globales), no string crudo de BD.
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $single['created_at']);
     }
 
     /**

@@ -75,6 +75,25 @@ class DashboardApiTest extends TestCase
         $this->assertEquals(140, $withPending->json('today.sales_total'));
     }
 
+    public function test_pending_total_counts_active_fiado_sales(): void
+    {
+        // Venta a fiado de hoy: queda status=Active con saldo pendiente. Debe
+        // contar en "Por cobrar" aunque no esté en los chips completed/pending.
+        Sale::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'folio' => 'S-FIADO', 'payment_method' => 'cash', 'total' => 500,
+            'amount_paid' => 0, 'amount_pending' => 500, 'origin' => 'api',
+            'status' => SaleStatus::Active,
+        ]);
+
+        $res = $this->withToken($this->token())->getJson('/api/v1/hub/dashboard')->assertOk();
+
+        $this->assertEquals(500, $res->json('today.pending_total'));
+        $this->assertSame(1, $res->json('today.pending_count'));
+        // No es una venta neta (Active no está en los chips por default).
+        $this->assertEquals(0, $res->json('today.sales_total'));
+    }
+
     public function test_dashboard_reports_today_metrics_and_open_shift(): void
     {
         CashRegisterShift::create([

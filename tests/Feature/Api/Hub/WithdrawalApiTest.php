@@ -129,14 +129,25 @@ class WithdrawalApiTest extends TestCase
     public function test_admin_sucursal_deletes_withdrawal_even_on_closed_shift(): void
     {
         $shift = $this->openShiftFor($this->cajero);
-        $shift->update(['closed_at' => now()]);
-        $w = $this->makeWithdrawal($shift, $this->cajero->id);
+        // Corte cerrado con un retiro de 200 ya descontado del esperado.
+        $shift->update([
+            'closed_at' => now(),
+            'total_cash' => 800,
+            'expected_amount' => 800, // 1000 fondo + 0 cobros − 200 retiro
+            'difference' => 0,
+            'declared_amount' => 800,
+        ]);
+        $w = $this->makeWithdrawal($shift, $this->cajero->id, 200);
 
-        $this->withToken($this->tokenFor($this->adminSucursal))
+        $res = $this->withToken($this->tokenFor($this->adminSucursal))
             ->deleteJson("/api/v1/hub/shift/withdrawals/{$w->id}")
             ->assertOk();
 
         $this->assertDatabaseMissing('cash_withdrawals', ['id' => $w->id]);
+        // El corte cerrado se recalcula: sin el retiro, el esperado sube a 1000.
+        $this->assertEquals(1000, $shift->refresh()->expected_amount);
+        // La respuesta trae el resumen del turno AFECTADO (no el del admin).
+        $this->assertEquals(0, $res->json('summary.cash_out.withdrawals'));
     }
 
     public function test_cannot_delete_withdrawal_from_another_branch(): void
