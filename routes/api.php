@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\Hub\RealtimeController as HubRealtimeController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
 use App\Http\Controllers\Api\Hub\SaleItemController as HubSaleItemController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
+use App\Http\Controllers\Api\Hub\UserController as HubUserController;
 use App\Http\Controllers\Api\Hub\WithdrawalController as HubWithdrawalController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SaleController;
@@ -136,6 +137,13 @@ Route::prefix('v1/hub')
         Route::get('purchase-products/{product}/history', [HubPurchaseProductController::class, 'history'])->whereNumber('product')->name('api.hub.purchase-products.history');
         Route::post('purchase-product-categories', [HubPurchaseProductController::class, 'storeCategory'])->name('api.hub.purchase-product-categories.store');
         Route::patch('purchase-product-categories/{category}', [HubPurchaseProductController::class, 'updateCategory'])->whereNumber('category')->name('api.hub.purchase-product-categories.update');
+
+        // Gestión de cajeros de la sucursal (solo admin-sucursal, paridad con
+        // Sucursal\UsuarioController). No gestiona la cuenta del propio admin.
+        Route::get('users', [HubUserController::class, 'index'])->name('api.hub.users.index');
+        Route::post('users', [HubUserController::class, 'store'])->name('api.hub.users.store');
+        Route::patch('users/{user}', [HubUserController::class, 'update'])->whereNumber('user')->name('api.hub.users.update');
+        Route::delete('users/{user}', [HubUserController::class, 'destroy'])->whereNumber('user')->name('api.hub.users.destroy');
 
         // Proveedores (admin-sucursal): lectura siempre; crear/editar gateado por
         // el toggle branch_admin_providers_enabled. Sin borrar.
