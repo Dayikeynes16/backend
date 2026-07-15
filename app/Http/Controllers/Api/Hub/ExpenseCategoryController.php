@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers\Api\Hub;
 
+use App\Http\Controllers\Concerns\HandlesExpenseCategoryWrites;
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseSubcategory;
 use App\Models\User;
+use App\Services\Ai\AiCategoryDraftService;
 use App\Services\Expenses\ExpenseCategoryWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Gestión del catálogo de categorías/subcategorías de gasto desde el hub.
@@ -23,6 +27,68 @@ use Illuminate\Validation\ValidationException;
  */
 class ExpenseCategoryController extends Controller
 {
+    // storeFromAiDraft (aplicar propuesta IA) viene del trait web — reuso
+    // literal; sus métodos store/update (Inertia) no se rutean aquí.
+    use HandlesExpenseCategoryWrites;
+
+    public function __construct(private readonly AiCategoryDraftService $aiDrafts) {}
+
+    /**
+     * Borrador de categoría por IA (texto y/o nota de voz → GPT-4o/Whisper).
+     * Espeja Ai\CategoryDraftController@store; el hub lo gatea igual que la
+     * ruta web de sucursal (rol + toggle). No acepta imágenes (como la web).
+     */
+    public function aiDraft(Request $request): JsonResponse
+    {
+        $user = $this->ensureCanManage($request);
+
+        $maxAudioKb = (int) (config('ai.expenses.max_audio_bytes', 10 * 1024 * 1024) / 1024);
+
+        $validated = $request->validate([
+            'input_text' => ['nullable', 'string', 'max:'.config('ai.expenses.max_input_text_length', 2000)],
+            'audio' => ['nullable', 'file', 'mimes:webm,ogg,oga,mp3,mpga,m4a,mp4,wav,flac,aac', 'max:'.$maxAudioKb],
+        ], [
+            'audio.mimes' => 'Formato de audio no permitido.',
+            'audio.max' => 'El audio no puede superar '.round($maxAudioKb / 1024).' MB.',
+        ]);
+
+        $text = $validated['input_text'] ?? null;
+        $audio = $request->file('audio');
+
+        if (trim((string) $text) === '' && $audio === null) {
+            return response()->json(['message' => 'Aporta un texto o una nota de voz describiendo la categoría.'], 422);
+        }
+
+        try {
+            $draft = $this->aiDrafts->createDraft($user->tenant, $user, $text, $audio);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'No pude analizar tu solicitud. Intenta de nuevo o crea la categoría manualmente.'], 502);
+        }
+
+        return response()->json([
+            'draft_id' => $draft->id,
+            'status' => $draft->status->value,
+            'proposal' => $draft->parsed_proposal,
+            'audio_transcription' => $draft->audio_transcription,
+        ]);
+    }
+
+    /**
+     * Aplica la propuesta revisada (create_new / use_existing). Delega en el
+     * storeFromAiDraft del trait web tras fijar el usuario del guard (el trait
+     * usa Auth::id() en contexto web; con Sanctum hay que fijarlo explícito,
+     * mismo patrón que HandlesPurchases en el hub).
+     */
+    public function aiApply(Request $request): JsonResponse
+    {
+        $user = $this->ensureCanManage($request);
+        Auth::setUser($user);
+
+        return $this->storeFromAiDraft($request);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $this->ensureCanManage($request);
