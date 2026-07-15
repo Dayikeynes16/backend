@@ -94,18 +94,21 @@ const previewWidth = computed(() => c.value.width === '58mm' ? '260px' : '340px'
 
         <!-- Print-only content -->
         <div class="hidden print:block" :style="{ width: c.width }">
-            <div style="font-family: monospace; font-size: 12px; line-height: 1.4; padding: 4px;">
+            <!-- Térmicas: nada de grises (#666 se imprime como puntitos borrosos)
+                 ni letra <11px. Todo negro puro y peso 600 de base para que el
+                 ticket salga nítido y legible. -->
+            <div style="font-family: monospace; font-size: 12px; font-weight: 600; color: #000; line-height: 1.4; padding: 4px;">
                 <div style="text-align: center;">
-                    <div v-if="c.header_business_name" style="font-size: 14px; font-weight: bold;">{{ businessName }}</div>
-                    <div v-if="c.header_branch_name && branchName" style="font-size: 11px;">{{ branchName }}</div>
-                    <div v-if="c.header_address && branchAddress" style="font-size: 10px; color: #666;">{{ branchAddress }}</div>
-                    <div v-if="c.header_phone && branchPhone" style="font-size: 10px; color: #666;">Tel: {{ branchPhone }}</div>
-                    <div v-if="c.header_custom" style="font-size: 10px; color: #666;">{{ c.header_custom }}</div>
+                    <div v-if="c.header_business_name" style="font-size: 15px; font-weight: bold;">{{ businessName }}</div>
+                    <div v-if="c.header_branch_name && branchName" style="font-size: 12px;">{{ branchName }}</div>
+                    <div v-if="c.header_address && branchAddress" style="font-size: 11px;">{{ branchAddress }}</div>
+                    <div v-if="c.header_phone && branchPhone" style="font-size: 11px;">Tel: {{ branchPhone }}</div>
+                    <div v-if="c.header_custom" style="font-size: 11px;">{{ c.header_custom }}</div>
                 </div>
                 <div style="border-top: 1px dashed #000; margin: 6px 0;" />
                 <div v-if="c.show_folio" style="font-weight: bold;">{{ sale.folio }}</div>
-                <div v-if="c.show_date" style="font-size: 10px; color: #666;">{{ now }}</div>
-                <div v-if="c.show_cashier && cashierName" style="font-size: 10px; color: #666;">Cajero: {{ cashierName }}</div>
+                <div v-if="c.show_date" style="font-size: 11px;">{{ now }}</div>
+                <div v-if="c.show_cashier && cashierName" style="font-size: 11px;">Cajero: {{ cashierName }}</div>
                 <div style="border-top: 1px dashed #000; margin: 6px 0;" />
                 <div style="margin-top: 6px;">
                     <div v-for="item in sale.items" :key="item.id" style="display: flex; justify-content: space-between; margin-bottom: 2px;">
@@ -114,12 +117,12 @@ const previewWidth = computed(() => c.value.width === '58mm' ? '260px' : '340px'
                     </div>
                 </div>
                 <div style="border-top: 1px dashed #000; margin: 6px 0;" />
-                <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold;">
+                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
                     <span>TOTAL</span>
                     <span>${{ parseFloat(sale.total).toFixed(2) }}</span>
                 </div>
                 <div v-if="c.show_payment_method && sale.payments?.length > 0" style="margin-top: 4px;">
-                    <div v-for="p in sale.payments" :key="p.id" style="display: flex; justify-content: space-between; font-size: 11px;">
+                    <div v-for="p in sale.payments" :key="p.id" style="display: flex; justify-content: space-between; font-size: 12px;">
                         <span>{{ methodLabel(p.method) }}</span>
                         <span>${{ parseFloat(p.amount).toFixed(2) }}</span>
                     </div>
@@ -128,8 +131,8 @@ const previewWidth = computed(() => c.value.width === '58mm' ? '260px' : '340px'
                 <div style="text-align: center; font-weight: bold;">
                     {{ isPaid ? 'PAGADO' : `PENDIENTE: $${parseFloat(sale.amount_pending).toFixed(2)}` }}
                 </div>
-                <div v-if="c.footer_message" style="text-align: center; font-size: 10px; margin-top: 6px; color: #666;">{{ c.footer_message }}</div>
-                <div v-if="c.footer_custom" style="text-align: center; font-size: 10px; margin-top: 2px; color: #666; white-space: pre-line;">{{ c.footer_custom }}</div>
+                <div v-if="c.footer_message" style="text-align: center; font-size: 11px; margin-top: 6px;">{{ c.footer_message }}</div>
+                <div v-if="c.footer_custom" style="text-align: center; font-size: 11px; margin-top: 2px; white-space: pre-line;">{{ c.footer_custom }}</div>
                 <div style="margin-top: 12px;" />
             </div>
         </div>
