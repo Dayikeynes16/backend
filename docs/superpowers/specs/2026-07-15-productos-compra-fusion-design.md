@@ -92,6 +92,19 @@ Ambos validan que `canonical_id` y `absorbed_ids` existan y sean del tenant. `me
   - Diálogo de confirmación fuerte (`ConfirmDialog` existente, variante danger) antes del `POST .../fusionar`.
 - Estilo Tailwind consistente con el resto de la pantalla; sin `@material/web`.
 
+#### Calidad visual (requisito explícito del usuario)
+
+El modal debe sentirse **moderno y pulido, con estética tipo app de iOS**, no un formulario genérico:
+
+- **Superficies y forma:** esquinas redondeadas generosas (`rounded-2xl`/`rounded-3xl`), fondos limpios, sombras suaves difusas (no bordes duros), spacing amplio y respiración entre secciones.
+- **Jerarquía tipográfica clara:** título grande y con peso, subtítulos discretos, cifras del panel de impacto destacadas (número grande + etiqueta pequeña), estilo "Settings de iOS".
+- **Selección con feedback inmediato:** filas de producto tipo lista iOS (separadores sutiles, no tabla densa); el ítem seleccionado y el canónico se distinguen con acento de color y check animado; toques/hover con transición suave.
+- **Movimiento con intención:** entrada/salida del modal y del panel de impacto animadas (fade + scale/slide corto, ~200 ms, `ease-out`), respetando `prefers-reduced-motion`. Sin animaciones gratuitas.
+- **Estados cuidados:** loading del preview con skeleton o spinner discreto; estado vacío del buscador; la advertencia de unidades como "banner" suave, no una alerta agresiva.
+- **Coherencia:** usa la paleta y tokens Tailwind ya presentes en la web; no reintroduce Material Design. Para la ejecución, aplicar los skills `emil-design-eng` y/o `frontend-design` al construir el componente.
+
+El pulido visual es parte de la definición de done de la tarea de UI: el review de esa tarea debe evaluarlo, no solo la corrección funcional.
+
 ### 6. Tests
 
 Feature tests (`tests/Feature/`), con factories:
