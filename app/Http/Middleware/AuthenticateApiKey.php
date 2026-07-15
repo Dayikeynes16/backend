@@ -49,13 +49,13 @@ class AuthenticateApiKey
         }
 
         // Rate limiting: 60 requests per minute per API Key
-        $rateLimitKey = 'api-key:' . $apiKey->id;
+        $rateLimitKey = 'api-key:'.$apiKey->id;
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, 60)) {
             $retryAfter = RateLimiter::availableIn($rateLimitKey);
 
             return response()->json([
-                'message' => 'Rate limit excedido. Intenta de nuevo en ' . $retryAfter . ' segundos.',
+                'message' => 'Rate limit excedido. Intenta de nuevo en '.$retryAfter.' segundos.',
             ], 429)->header('Retry-After', $retryAfter);
         }
 
@@ -70,8 +70,8 @@ class AuthenticateApiKey
         ]);
         $request->setUserResolver(fn () => null);
 
-        // Update last_used_at
-        $apiKey->updateQuietly(['last_used_at' => now()]);
+        // Update last_used_at (forceFill: no es fillable y nunca viene de input)
+        $apiKey->forceFill(['last_used_at' => now()])->saveQuietly();
 
         return $next($request);
     }
