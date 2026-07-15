@@ -17,16 +17,15 @@ const baseNavLinks = [
     // Si alguien navega a /sucursal/categorias (legacy), el backend redirige
     // a productos?tab=categorias. El match adicional aquí mantiene el item
     // "Productos" resaltado en cualquier flow que aterrice en esa ruta.
-    { label: 'Productos', route: 'sucursal.productos.index', match: 'sucursal.productos', extraMatch: 'sucursal.categorias', icon: 'productos' },
+    { label: 'Productos', route: 'sucursal.productos.index', match: 'sucursal.productos.', extraMatch: 'sucursal.categorias', icon: 'productos' },
     { label: 'Mesa de Trabajo', route: 'sucursal.workbench', icon: 'workbench' },
     { label: 'Pagos', route: 'sucursal.pagos.index', icon: 'pagos' },
     { label: 'Historial', route: 'sucursal.historial.index', icon: 'historial' },
     { label: 'Mi Turno', route: 'sucursal.turno.active', icon: 'turno' },
     { label: 'Clientes', route: 'sucursal.clientes.index', icon: 'clientes' },
     { label: 'Cancelaciones', route: 'sucursal.cancelaciones.index', icon: 'cancelaciones' },
-    { label: 'Proveedores', route: 'sucursal.proveedores.index', match: 'sucursal.proveedores', icon: 'proveedores' },
-    { label: 'Compras', route: 'sucursal.compras.index', match: 'sucursal.compras', icon: 'compras' },
-    { label: 'Productos de compra', route: 'sucursal.productos-compra.index', match: 'sucursal.productos-compra', icon: 'productoscompra' },
+    // Compras agrupa Compras + Productos de compra + Proveedores (tabs en página; spec 2026-07-15).
+    { label: 'Compras', route: 'sucursal.compras.index', match: 'sucursal.compras', extraMatch: ['sucursal.productos-compra', 'sucursal.proveedores'], icon: 'compras' },
     { label: 'Gastos', route: 'sucursal.gastos.index', match: 'sucursal.gastos', icon: 'gastos' },
     { label: 'Cortes', route: 'sucursal.cortes.index', match: 'sucursal.cortes', icon: 'cortes' },
     { label: 'Métricas', route: 'sucursal.metricas.index', match: 'sucursal.metricas', icon: 'metricas' },
@@ -44,7 +43,8 @@ const navLinks = computed(() =>
 const isActive = (link) => {
     if (link.match) {
         if (route().current(link.match + '*') || route().current(link.route)) return true;
-        if (link.extraMatch && route().current(link.extraMatch + '*')) return true;
+        const extras = Array.isArray(link.extraMatch) ? link.extraMatch : (link.extraMatch ? [link.extraMatch] : []);
+        if (extras.some((m) => route().current(m + '*'))) return true;
     }
     return route().current(link.route);
 };
