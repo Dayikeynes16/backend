@@ -130,6 +130,8 @@ Route::prefix('v1/hub')
         // con la pestaña Categorías web; sin borrado — reservado a empresa).
         Route::get('expense-categories', [HubExpenseCategoryController::class, 'index'])->name('api.hub.expense-categories.index');
         Route::post('expense-categories', [HubExpenseCategoryController::class, 'storeCategory'])->name('api.hub.expense-categories.store');
+        Route::post('expense-categories/ai-draft', [HubExpenseCategoryController::class, 'aiDraft'])->name('api.hub.expense-categories.ai-draft');
+        Route::post('expense-categories/ai-apply', [HubExpenseCategoryController::class, 'aiApply'])->name('api.hub.expense-categories.ai-apply');
         Route::patch('expense-categories/{category}', [HubExpenseCategoryController::class, 'updateCategory'])->whereNumber('category')->name('api.hub.expense-categories.update');
         Route::post('expense-subcategories', [HubExpenseCategoryController::class, 'storeSubcategory'])->name('api.hub.expense-subcategories.store');
         Route::patch('expense-subcategories/{subcategory}', [HubExpenseCategoryController::class, 'updateSubcategory'])->whereNumber('subcategory')->name('api.hub.expense-subcategories.update');
