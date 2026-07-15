@@ -37,14 +37,17 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
         "id": 4, "name": "Cajero Demo", "email": "cajero@eltoro.test",
         "role": "cajero", "branch_id": 1, "branch_name": "Sucursal Centro",
         "cashier_expenses_enabled": true, "cashier_purchases_enabled": true,
+        "branch_admin_expense_categories_enabled": false,
         "tenant_id": 1, "tenant_slug": "el-toro"
     }
 }
 ```
 
-> `cashier_expenses_enabled` / `cashier_purchases_enabled` son los feature-flags de la sucursal; el hub los usa para mostrar/ocultar Gastos y Compras al cajero en la navegación, con la misma regla que la web (`CajeroLayout`).
+> `cashier_expenses_enabled` / `cashier_purchases_enabled` son los feature-flags de la sucursal; el hub los usa para mostrar/ocultar Gastos y Compras al cajero en la navegación, con la misma regla que la web (`CajeroLayout`). `branch_admin_expense_categories_enabled` habilita la pestaña Categorías de Gastos para el admin-sucursal (misma regla que la web).
 
-**Errores:** `401` credenciales incorrectas · `403` el usuario no tiene rol de hub · `409` el usuario tiene `force_password_change` pendiente (debe cambiarla en la web).
+**Errores:** `401` credenciales incorrectas · `403` el usuario no tiene rol de hub · `409` el usuario tiene `force_password_change` pendiente (se resuelve in-app con el endpoint siguiente).
+
+**POST /api/v1/auth/change-password** (throttle 10/min) — cambio de contraseña forzado, para el flujo del `409` de login (en ese punto no existe token, así que autentica por credenciales). Body: `email`, `password` (la temporal), `new_password` + `new_password_confirmation` (reglas `Password::defaults()` + `confirmed`, como el `ForcePasswordChangeController` web), `device_name`. En éxito actualiza la contraseña, limpia `force_password_change` y responde igual que login (`token` + `user`), así el hub entra directo. **Errores:** `401` credenciales incorrectas · `403` sin rol de hub · `409` el usuario NO tiene el flag activo (`No necesitas cambiar tu contraseña.`) · `422` validación de la nueva contraseña.
 
 ## Roles y scoping
 
@@ -219,6 +222,18 @@ El `reason` en add/update es obligatorio si la sucursal tiene `sale_item_edit_re
 |--------|------|-------------|
 | GET | `products?search=` | Catálogo activo de la sucursal (`id`, `name`, `price`, `unit_type`; máx. 50). Apoyo de formularios (p. ej. precios preferenciales) |
 | GET | `purchase-products?search=` | Catálogo tenant-wide de productos de compra (`id`, `name`, `unit`) para autocompletar el formulario de compras |
+
+## Categorías de gasto (solo admin-sucursal, requiere toggle `branch_admin_expense_categories_enabled`)
+
+**Controller:** `Api\Hub\ExpenseCategoryController`. Paridad con la pestaña "Categorías" web del admin-sucursal (`HandlesExpenseCategoryWrites` / `HandlesExpenseSubcategoryWrites` + `ExpenseCategoryWriter`): catálogo **tenant-wide**, crear/editar categoría y subcategoría con `name`/`description`/`aliases`/`status`, **sin borrado** (reservado a empresa). El gate replica el middleware web `branch.feature:branch_admin_expense_categories_enabled` (`403 Tu empresa no ha habilitado esta función para tu sucursal.`). Aliases se normalizan (trim + dedupe case-insensitive).
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/api/v1/hub/expense-categories` | Catálogo completo (incluye inactivas), ordenado por nombre, con subcategorías |
+| POST | `/api/v1/hub/expense-categories` | Crea categoría (`name` único por tenant, nace `active`) → `201` |
+| PATCH | `/api/v1/hub/expense-categories/{id}` | Edita `name`/`description`/`aliases`/`status` |
+| POST | `/api/v1/hub/expense-subcategories` | Crea subcategoría (`expense_category_id` + `name`, único en su categoría) → `201` |
+| PATCH | `/api/v1/hub/expense-subcategories/{id}` | Edita subcategoría (mismos campos + `status`) |
 
 ## Gastos (requiere toggle `cashier_expenses_enabled`)
 

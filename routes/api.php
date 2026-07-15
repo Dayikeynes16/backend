@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
 use App\Http\Controllers\Api\Hub\CustomerPaymentController as HubCustomerPaymentController;
 use App\Http\Controllers\Api\Hub\CustomerPriceController as HubCustomerPriceController;
 use App\Http\Controllers\Api\Hub\DashboardController as HubDashboardController;
+use App\Http\Controllers\Api\Hub\ExpenseCategoryController as HubExpenseCategoryController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
 use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
 use App\Http\Controllers\Api\Hub\PaymentController as HubPaymentController;
@@ -47,6 +48,12 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:10,1')
         ->name('api.auth.login');
+
+    // Cambio de contraseña forzado (flujo del 409 de login): autentica por
+    // credenciales porque en ese punto aún no existe token Sanctum.
+    Route::post('auth/change-password', [AuthController::class, 'changePassword'])
+        ->middleware('throttle:10,1')
+        ->name('api.auth.change-password');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
@@ -117,6 +124,15 @@ Route::prefix('v1/hub')
         Route::post('product-categories', [HubProductController::class, 'storeCategory'])->name('api.hub.product-categories.store');
         Route::patch('product-categories/{category}', [HubProductController::class, 'updateCategory'])->whereNumber('category')->name('api.hub.product-categories.update');
         Route::delete('product-categories/{category}', [HubProductController::class, 'destroyCategory'])->whereNumber('category')->name('api.hub.product-categories.destroy');
+
+        // Gestión del catálogo de categorías/subcategorías de gasto (solo
+        // admin-sucursal con branch_admin_expense_categories_enabled, paridad
+        // con la pestaña Categorías web; sin borrado — reservado a empresa).
+        Route::get('expense-categories', [HubExpenseCategoryController::class, 'index'])->name('api.hub.expense-categories.index');
+        Route::post('expense-categories', [HubExpenseCategoryController::class, 'storeCategory'])->name('api.hub.expense-categories.store');
+        Route::patch('expense-categories/{category}', [HubExpenseCategoryController::class, 'updateCategory'])->whereNumber('category')->name('api.hub.expense-categories.update');
+        Route::post('expense-subcategories', [HubExpenseCategoryController::class, 'storeSubcategory'])->name('api.hub.expense-subcategories.store');
+        Route::patch('expense-subcategories/{subcategory}', [HubExpenseCategoryController::class, 'updateSubcategory'])->whereNumber('subcategory')->name('api.hub.expense-subcategories.update');
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
