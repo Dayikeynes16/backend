@@ -255,6 +255,37 @@ class SaleApiTest extends TestCase
         $this->assertStringContainsString('wa.me', $res->json('url'));
     }
 
+    public function test_whatsapp_phone_can_be_removed(): void
+    {
+        $sale = $this->makeSaleWithItem(SaleStatus::Active);
+        $sale->update(['contact_phone' => '5215512345678']);
+        $token = $this->cajero->createToken('hub')->plainTextToken;
+
+        $this->withToken($token)
+            ->deleteJson("/api/v1/hub/sales/{$sale->id}/whatsapp-phone")
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertNull($sale->fresh()->contact_phone);
+    }
+
+    public function test_items_expose_edit_audit_fields_for_edited_badge(): void
+    {
+        $sale = $this->makeSaleWithItem(SaleStatus::Active);
+        $item = $sale->items()->first();
+        $item->forceFill(['updated_by' => $this->cajero->id])->save();
+        $token = $this->cajero->createToken('hub')->plainTextToken;
+
+        $res = $this->withToken($token)
+            ->getJson("/api/v1/hub/sales/{$sale->id}")
+            ->assertOk();
+
+        $itemJson = collect($res->json('data.items'))->firstWhere('id', $item->id);
+        $this->assertSame($this->cajero->id, $itemJson['updated_by']);
+        $this->assertNotEmpty($itemJson['created_at']);
+        $this->assertNotEmpty($itemJson['updated_at']);
+    }
+
     public function test_lock_acquire_and_unlock(): void
     {
         $sale = $this->makeSaleWithItem(SaleStatus::Active);

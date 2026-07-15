@@ -70,6 +70,11 @@ class HubSaleResource extends JsonResource
                 'quantity_unit' => $i->quantity_unit,
                 'sale_mode_at_sale' => $i->sale_mode_at_sale,
                 'presentation_snapshot' => $i->presentation_snapshot,
+                // Badge "Editado" por renglón (misma regla que la web:
+                // updated_by presente y updated_at ≠ created_at).
+                'updated_by' => $i->updated_by,
+                'created_at' => $i->created_at?->toIso8601String(),
+                'updated_at' => $i->updated_at?->toIso8601String(),
             ])),
             'payments' => $this->whenLoaded('payments', fn () => $this->payments->map(fn ($p) => [
                 'id' => $p->id,

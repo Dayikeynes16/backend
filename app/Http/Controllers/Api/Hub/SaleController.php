@@ -362,6 +362,19 @@ class SaleController extends Controller
         return response()->json($whatsapp->linkForSale($found->fresh()));
     }
 
+    /**
+     * Quita el teléfono de WhatsApp guardado en la venta (paridad con
+     * Sucursal/Caja WorkbenchController@destroyWhatsappPhone).
+     */
+    public function destroyWhatsappPhone(Request $request, int $sale): JsonResponse
+    {
+        $found = $this->findSale($request, $sale);
+
+        $found->update(['contact_phone' => null]);
+
+        return response()->json(['ok' => true]);
+    }
+
     /** Adquiere el lock de concurrencia (5 min). 409 si otro la tiene. */
     public function lock(Request $request, int $sale): JsonResponse
     {
