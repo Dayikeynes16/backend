@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\Hub\RealtimeController as HubRealtimeController;
 use App\Http\Controllers\Api\Hub\SaleController as HubSaleController;
 use App\Http\Controllers\Api\Hub\SaleItemController as HubSaleItemController;
 use App\Http\Controllers\Api\Hub\ShiftController as HubShiftController;
+use App\Http\Controllers\Api\Hub\UserController as HubUserController;
 use App\Http\Controllers\Api\Hub\WithdrawalController as HubWithdrawalController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SaleController;
@@ -105,6 +106,17 @@ Route::prefix('v1/hub')
         Route::patch('customers/{customer}/prices/{price}', [HubCustomerPriceController::class, 'update'])->whereNumber('customer')->whereNumber('price')->name('api.hub.customers.prices.update');
         Route::delete('customers/{customer}/prices/{price}', [HubCustomerPriceController::class, 'destroy'])->whereNumber('customer')->whereNumber('price')->name('api.hub.customers.prices.destroy');
         Route::get('products', [HubProductController::class, 'index'])->name('api.hub.products.index');
+        // Gestión del catálogo de productos de venta (solo admin-sucursal,
+        // paridad Sucursal\ProductoController + CategoryController).
+        Route::get('products/manage', [HubProductController::class, 'manage'])->name('api.hub.products.manage');
+        Route::get('products/{product}', [HubProductController::class, 'show'])->whereNumber('product')->name('api.hub.products.show');
+        Route::post('products', [HubProductController::class, 'store'])->name('api.hub.products.store');
+        Route::post('products/{product}', [HubProductController::class, 'update'])->whereNumber('product')->name('api.hub.products.update');
+        Route::patch('products/{product}/quick', [HubProductController::class, 'quickToggle'])->whereNumber('product')->name('api.hub.products.quick');
+        Route::delete('products/{product}', [HubProductController::class, 'destroy'])->whereNumber('product')->name('api.hub.products.destroy');
+        Route::post('product-categories', [HubProductController::class, 'storeCategory'])->name('api.hub.product-categories.store');
+        Route::patch('product-categories/{category}', [HubProductController::class, 'updateCategory'])->whereNumber('category')->name('api.hub.product-categories.update');
+        Route::delete('product-categories/{category}', [HubProductController::class, 'destroyCategory'])->whereNumber('category')->name('api.hub.product-categories.destroy');
 
         Route::get('expenses', [HubExpenseController::class, 'index'])->name('api.hub.expenses.index');
         Route::post('expenses', [HubExpenseController::class, 'store'])->name('api.hub.expenses.store');
@@ -128,6 +140,21 @@ Route::prefix('v1/hub')
         Route::get('purchases/{purchase}/attachments/{attachment}', [HubPurchaseController::class, 'downloadAttachment'])->whereNumber('purchase')->whereNumber('attachment')->name('api.hub.purchases.attachments.download');
         Route::delete('purchases/{purchase}/attachments/{attachment}', [HubPurchaseController::class, 'destroyAttachment'])->whereNumber('purchase')->whereNumber('attachment')->name('api.hub.purchases.attachments.destroy');
         Route::get('purchase-products', [HubPurchaseProductController::class, 'index'])->name('api.hub.purchase-products.index');
+        // Gestión del catálogo de productos de compra (admin-sucursal, sin
+        // borrado — paridad con Sucursal\PurchaseProductController).
+        Route::get('purchase-products/manage', [HubPurchaseProductController::class, 'manage'])->name('api.hub.purchase-products.manage');
+        Route::post('purchase-products', [HubPurchaseProductController::class, 'store'])->name('api.hub.purchase-products.store');
+        Route::patch('purchase-products/{product}', [HubPurchaseProductController::class, 'update'])->whereNumber('product')->name('api.hub.purchase-products.update');
+        Route::get('purchase-products/{product}/history', [HubPurchaseProductController::class, 'history'])->whereNumber('product')->name('api.hub.purchase-products.history');
+        Route::post('purchase-product-categories', [HubPurchaseProductController::class, 'storeCategory'])->name('api.hub.purchase-product-categories.store');
+        Route::patch('purchase-product-categories/{category}', [HubPurchaseProductController::class, 'updateCategory'])->whereNumber('category')->name('api.hub.purchase-product-categories.update');
+
+        // Gestión de cajeros de la sucursal (solo admin-sucursal, paridad con
+        // Sucursal\UsuarioController). No gestiona la cuenta del propio admin.
+        Route::get('users', [HubUserController::class, 'index'])->name('api.hub.users.index');
+        Route::post('users', [HubUserController::class, 'store'])->name('api.hub.users.store');
+        Route::patch('users/{user}', [HubUserController::class, 'update'])->whereNumber('user')->name('api.hub.users.update');
+        Route::delete('users/{user}', [HubUserController::class, 'destroy'])->whereNumber('user')->name('api.hub.users.destroy');
 
         // Proveedores (admin-sucursal): lectura siempre; crear/editar gateado por
         // el toggle branch_admin_providers_enabled. Sin borrar.
@@ -142,6 +169,8 @@ Route::prefix('v1/hub')
         Route::post('providers/{provider}/pagos', [HubProviderController::class, 'accountPayment'])->whereNumber('provider')->name('api.hub.providers.account-payment');
 
         Route::get('sales', [HubSaleController::class, 'index'])->name('api.hub.sales.index');
+        // Crear venta manual desde la mesa (solo admin-sucursal, paridad web).
+        Route::post('sales', [HubSaleController::class, 'store'])->name('api.hub.sales.store');
         Route::get('sales/{sale}', [HubSaleController::class, 'show'])->whereNumber('sale')->name('api.hub.sales.show');
         Route::post('sales/{sale}/payments', [HubPaymentController::class, 'store'])->whereNumber('sale')->name('api.hub.sales.payments.store');
         // Corrección de pagos (solo admin-sucursal, paridad con la web).

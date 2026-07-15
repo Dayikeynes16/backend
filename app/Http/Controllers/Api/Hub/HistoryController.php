@@ -97,7 +97,14 @@ class HistoryController extends Controller
         ];
 
         $sales = $base()
-            ->with(['items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer:id,name,phone'])
+            ->with([
+                'items',
+                'payments.user:id,name',
+                'payments.updatedByUser:id,name',
+                'customer:id,name,phone',
+                'linkedOrder:id,folio',
+                'fulfilledBy:id,folio',
+            ])
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate(20)

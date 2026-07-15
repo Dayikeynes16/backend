@@ -25,6 +25,20 @@ class HubSaleResource extends JsonResource
             'origin' => $this->origin,
             'origin_name' => $this->origin_name,
             'created_at' => $this->created_at->toIso8601String(),
+            'completed_at' => $this->completed_at?->toIso8601String(),
+            'cancelled_at' => $this->cancelled_at?->toIso8601String(),
+            'cancel_reason' => $this->cancel_reason,
+            // Vínculo con pedidos web (pastillas 🔗/Cumple en el historial), misma
+            // forma que SaleResource. Solo si la relación fue eager-loaded.
+            'linked_order_id' => $this->linked_order_id,
+            'linked_order' => $this->whenLoaded('linkedOrder', fn () => $this->linkedOrder ? [
+                'id' => $this->linkedOrder->id,
+                'folio' => $this->linkedOrder->folio,
+            ] : null),
+            'fulfilled_by' => $this->whenLoaded('fulfilledBy', fn () => $this->fulfilledBy ? [
+                'id' => $this->fulfilledBy->id,
+                'folio' => $this->fulfilledBy->folio,
+            ] : null),
             // cancel_requested_at no está casteado a datetime en el modelo Sale;
             // se parsea defensivamente para no alterar el modelo compartido.
             'cancel_requested_at' => $this->cancel_requested_at

@@ -156,6 +156,26 @@ class HistoryApiTest extends TestCase
         $this->assertFalse($found->contains($pork->folio));
     }
 
+    public function test_history_exposes_linked_order_for_linked_sales(): void
+    {
+        // Pedido web (referencia) + venta real que lo cumple (linked_order_id).
+        $webOrder = $this->sale($this->branch->id);
+        $webOrder->forceFill(['origin' => 'web', 'status' => SaleStatus::Fulfilled])->save();
+
+        $real = $this->sale($this->branch->id);
+        $real->forceFill(['origin' => 'admin', 'linked_order_id' => $webOrder->id])->save();
+        $this->payBy($this->cajero->id, $real);
+
+        $res = $this->withToken($this->adminSucursal->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history')
+            ->assertOk();
+
+        $row = collect($res->json('data'))->firstWhere('folio', $real->folio);
+        $this->assertNotNull($row);
+        $this->assertSame($webOrder->id, $row['linked_order_id']);
+        $this->assertSame($webOrder->folio, $row['linked_order']['folio']);
+    }
+
     public function test_admin_searches_by_folio_ignoring_date(): void
     {
         // Venta de hace 5 días: la búsqueda por folio la encuentra sin cambiar fecha.
