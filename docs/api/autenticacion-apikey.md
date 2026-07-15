@@ -21,7 +21,7 @@ Toda la API pública (`/api/v1/*`) se autentica mediante una API Key enviada en 
 4. Verifica que la key, la sucursal y el tenant estén activos.
 5. Aplica rate limiting (60 req/min por key).
 6. Inyecta `tenant` en el contenedor y `branch_id` / `tenant_id` en el request.
-7. Actualiza `last_used_at` silenciosamente (`updateQuietly`).
+7. Actualiza `last_used_at` silenciosamente (`forceFill()->saveQuietly()`; el campo no es fillable, un `update()` masivo lo descartaría en silencio — regresión cubierta por `ApiKeyLastUsedTest`).
 
 ### Seguridad
 
