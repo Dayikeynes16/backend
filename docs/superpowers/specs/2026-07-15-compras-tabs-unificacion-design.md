@@ -42,7 +42,7 @@ Decisiones tomadas con el usuario (2026-07-15, con mockups en visual companion):
 - Prop `active`: `'compras' | 'productos-compra' | 'proveedores'`.
 - Infiere el prefijo de rol (`empresa`/`sucursal`) y el slug del tenant desde la ruta actual (`route().current()` / props de página). Sin estado propio ni lógica de datos.
 
-### 3. Páginas que montan el componente (7)
+### 3. Páginas que montan el componente (8)
 
 | Página | Tab activo |
 |---|---|

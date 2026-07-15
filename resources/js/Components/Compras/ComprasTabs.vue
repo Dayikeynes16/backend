@@ -27,6 +27,7 @@ const tabs = computed(() => [
 <template>
     <nav class="mb-5 flex gap-6 overflow-x-auto border-b border-gray-200" aria-label="Secciones de compras">
         <Link v-for="tab in tabs" :key="tab.key" :href="tab.href"
+            :aria-current="tab.key === props.active ? 'page' : undefined"
             class="-mb-px whitespace-nowrap border-b-2 pb-2.5 text-sm font-semibold transition"
             :class="tab.key === props.active
                 ? 'border-gray-900 text-gray-900'
