@@ -45,6 +45,11 @@ class CustomerPayment extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function receipts(): HasMany
+    {
+        return $this->hasMany(PaymentReceipt::class);
+    }
+
     protected function casts(): array
     {
         return [
