@@ -69,6 +69,7 @@ merge(PurchaseProduct $canonical, array $absorbedIds): MergeResult
 
 En `routes/web.php`, dentro del grupo `empresa` (mismo bloque que el resto de `productos-compra`):
 
+- `GET productos-compra/fusionar/candidatos?q=` → `Empresa\PurchaseProductController@mergeCandidates`: devuelve `{ data: [{id, name, unit}] }` de productos activos que coinciden con `q` (hasta 500). **Necesario** porque el índice pagina de 25 en 25 y el modal debe poder alcanzar las 80+ fichas de un mismo tipo, cosa que filtrar la página ya cargada no permite.
 - `POST productos-compra/fusionar/preview` → `Empresa\PurchaseProductController@mergePreview`: recibe `{ canonical_id, absorbed_ids[] }`, devuelve JSON `{ absorbed_count, items_count, unit_mismatch: bool }` **sin ejecutar nada** (para el panel de impacto y la advertencia de unidades).
 - `POST productos-compra/fusionar` → `Empresa\PurchaseProductController@merge`: ejecuta la fusión, redirige al índice con flash de éxito.
 
@@ -85,7 +86,7 @@ Ambos validan que `canonical_id` y `absorbed_ids` existan y sean del tenant. `me
 
 - Botón **"Fusionar duplicados"** en la pantalla Productos de compra, **visible solo para admin-empresa** (la pantalla ya distingue rol; el botón se oculta en sucursal).
 - Modal `resources/js/Components/Compras/FusionarProductosModal.vue`:
-  - Buscador que filtra la lista de productos ya cargada en la página (sin ida al servidor para filtrar).
+  - Buscador con búsqueda **contra el servidor** (endpoint de candidatos, debounce ~250 ms) — no filtra solo la página paginada, que solo trae 25 fichas.
   - Checkboxes + "seleccionar todas las coincidencias".
   - Selector de **ficha canónica** entre las seleccionadas (por defecto, la de **nombre más corto** — suele ser la forma "limpia", p. ej. "Canal de res" sobre "Canal de res 111"; el usuario puede cambiarla).
   - Al confirmar selección, llama a `.../fusionar/preview` y muestra el **panel de impacto** ("83 fichas → 'Canal de res' · 340 líneas se reapuntarán") + la advertencia de unidades si aplica.
