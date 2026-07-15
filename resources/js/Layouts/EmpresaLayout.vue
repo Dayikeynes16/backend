@@ -16,9 +16,8 @@ const baseNavLinks = [
     { label: 'Sucursales', route: 'empresa.sucursales.index', match: 'empresa.sucursales', icon: 'sucursales' },
     { label: 'Usuarios', route: 'empresa.usuarios.index', match: 'empresa.usuarios', icon: 'usuarios' },
     { label: 'Tickets', route: 'empresa.tickets', icon: 'ticket' },
-    { label: 'Proveedores', route: 'empresa.proveedores.index', match: 'empresa.proveedores', icon: 'proveedores' },
-    { label: 'Compras', route: 'empresa.compras.index', match: 'empresa.compras', icon: 'compras' },
-    { label: 'Productos de compra', route: 'empresa.productos-compra.index', match: 'empresa.productos-compra', icon: 'proveedores' },
+    // Compras agrupa Compras + Productos de compra + Proveedores (tabs en página; spec 2026-07-15).
+    { label: 'Compras', route: 'empresa.compras.index', match: 'empresa.compras', extraMatch: ['empresa.productos-compra', 'empresa.proveedores'], icon: 'compras' },
     { label: 'Gastos', route: 'empresa.gastos.index', match: 'empresa.gastos', icon: 'gastos' },
     { label: 'Métricas', route: 'empresa.metricas.index', match: 'empresa.metricas', icon: 'metricas' },
     { label: 'Asistente', route: 'asistente.index', match: 'asistente.', icon: 'asistente' },
@@ -31,7 +30,11 @@ const navLinks = computed(() =>
 );
 
 const isActive = (link) => {
-    if (link.match) return route().current(link.match + '*') || route().current(link.route);
+    if (link.match) {
+        if (route().current(link.match + '*') || route().current(link.route)) return true;
+        const extras = Array.isArray(link.extraMatch) ? link.extraMatch : (link.extraMatch ? [link.extraMatch] : []);
+        if (extras.some((m) => route().current(m + '*'))) return true;
+    }
     return route().current(link.route);
 };
 </script>
