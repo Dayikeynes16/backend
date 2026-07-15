@@ -1,5 +1,5 @@
 <script setup>
-import { compactLine } from '@/composables/useSaleItemDisplay';
+import { displayName, displayQuantity, realContent } from '@/composables/useSaleItemDisplay';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
@@ -34,6 +34,23 @@ const c = computed(() => ({
 const printTicket = () => window.print();
 const methodLabel = (m) => ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' }[m] || m);
 const isPaid = computed(() => parseFloat(props.sale.amount_pending) <= 0);
+
+// "1.250 kg x $180.00" / "2 pz x $95.00" — cantidad y precio unitario del
+// renglón (el "× " de displayQuantity sobra porque aquí va el precio al lado).
+const qtyPriceLine = (item) => {
+    const qty = displayQuantity(item).replace(/^×\s*/, '');
+    return `${qty} x $${parseFloat(item.unit_price).toFixed(2)}`;
+};
+
+// Suma de kilos realmente vendidos (peso libre y presentaciones; excluye
+// piezas). Solo se muestra si hay algo que sumar.
+const totalWeightKg = computed(() => {
+    const kg = (props.sale.items ?? []).reduce((acc, item) => {
+        const r = realContent(item);
+        return r && r.kind === 'weight' && r.unit === 'kg' ? acc + r.amount : acc;
+    }, 0);
+    return Math.round(kg * 1000) / 1000;
+});
 const now = new Date().toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
 const previewWidth = computed(() => c.value.width === '58mm' ? '260px' : '340px');
 </script>
@@ -60,13 +77,20 @@ const previewWidth = computed(() => c.value.width === '58mm' ? '260px' : '340px'
                             <p v-if="c.show_cashier && cashierName" class="text-xs text-gray-400">Cajero: {{ cashierName }}</p>
                         </div>
                         <div class="my-2 border-t border-dashed border-gray-300" />
-                        <div class="space-y-1">
-                            <div v-for="item in sale.items" :key="item.id" class="flex justify-between text-xs">
-                                <span class="flex-1 truncate">{{ compactLine(item) }}</span>
-                                <span class="ml-2 font-medium">${{ parseFloat(item.subtotal).toFixed(2) }}</span>
+                        <div class="space-y-1.5">
+                            <div v-for="item in sale.items" :key="item.id" class="text-xs">
+                                <p class="truncate font-medium">{{ displayName(item) }}</p>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">{{ qtyPriceLine(item) }}</span>
+                                    <span class="ml-2 font-medium">${{ parseFloat(item.subtotal).toFixed(2) }}</span>
+                                </div>
                             </div>
                         </div>
                         <div class="my-2 border-t border-dashed border-gray-300" />
+                        <div v-if="totalWeightKg > 0" class="flex justify-between text-xs">
+                            <span>Total peso:</span>
+                            <span>{{ totalWeightKg.toFixed(3) }} kg</span>
+                        </div>
                         <div class="flex justify-between text-sm font-bold">
                             <span>TOTAL</span>
                             <span>${{ parseFloat(sale.total).toFixed(2) }}</span>
@@ -111,12 +135,21 @@ const previewWidth = computed(() => c.value.width === '58mm' ? '260px' : '340px'
                 <div v-if="c.show_cashier && cashierName" style="font-size: 11px;">Cajero: {{ cashierName }}</div>
                 <div style="border-top: 1px dashed #000; margin: 6px 0;" />
                 <div style="margin-top: 6px;">
-                    <div v-for="item in sale.items" :key="item.id" style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                        <span>{{ compactLine(item) }}</span>
-                        <span>${{ parseFloat(item.subtotal).toFixed(2) }}</span>
+                    <!-- Dos líneas por renglón: nombre arriba; cantidad × precio
+                         unitario e importe abajo (formato de báscula). -->
+                    <div v-for="item in sale.items" :key="item.id" style="margin-bottom: 4px;">
+                        <div>{{ displayName(item) }}</div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="padding-left: 8px;">{{ qtyPriceLine(item) }}</span>
+                            <span>${{ parseFloat(item.subtotal).toFixed(2) }}</span>
+                        </div>
                     </div>
                 </div>
                 <div style="border-top: 1px dashed #000; margin: 6px 0;" />
+                <div v-if="totalWeightKg > 0" style="display: flex; justify-content: space-between; font-size: 12px;">
+                    <span>Total peso:</span>
+                    <span>{{ totalWeightKg.toFixed(3) }} kg</span>
+                </div>
                 <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
                     <span>TOTAL</span>
                     <span>${{ parseFloat(sale.total).toFixed(2) }}</span>
