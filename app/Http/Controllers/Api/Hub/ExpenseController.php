@@ -12,8 +12,8 @@ use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Services\Ai\AiExpenseDraftService;
-use App\Services\AuditLogger;
 use App\Services\ExpenseAttachmentService;
+use App\Services\Expenses\ExpenseWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -259,7 +259,7 @@ class ExpenseController extends Controller
         );
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, ExpenseWriter $writer): JsonResponse
     {
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
@@ -289,30 +289,34 @@ class ExpenseController extends Controller
             'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)],
         ]);
 
+        $draft = $this->resolveAiDraft($validated['ai_draft_id'] ?? null, $user->tenant_id);
+
         // Cajero: siempre efectivo y ligado al turno. Admin: elige método
         // (nullable, como la web) y el gasto no se ata a un turno.
-        $expense = Expense::create([
-            'tenant_id' => $user->tenant_id,
-            'branch_id' => $user->branch_id,
-            'cash_register_shift_id' => $isAdmin ? null : $shift->id,
-            'expense_subcategory_id' => $validated['expense_subcategory_id'],
-            'user_id' => $user->id,
-            'concept' => $validated['concept'],
-            'amount' => $validated['amount'],
-            'payment_method' => $isAdmin
-                ? ($validated['payment_method'] ?? null)
-                : PaymentMethod::Cash->value,
-            'expense_at' => now(),
-            'description' => $validated['description'] ?? null,
-        ]);
-
-        app(AuditLogger::class)->logCreated($expense);
-
-        // Si vino de la captura por IA, consume el draft: mueve sus adjuntos
-        // (foto del ticket) al gasto y lo marca consumido.
-        if (! empty($validated['ai_draft_id'])) {
-            $this->consumeAiDraft($expense, (int) $validated['ai_draft_id'], $user->id, $user->tenant_id);
-        }
+        $expense = $writer->create(
+            $user->tenant,
+            $user,
+            [
+                'branch_id' => $user->branch_id,
+                'expense_subcategory_id' => $validated['expense_subcategory_id'],
+                'cash_register_shift_id' => $isAdmin ? null : $shift->id,
+                'concept' => $validated['concept'],
+                'amount' => $validated['amount'],
+                'payment_method' => $isAdmin
+                    ? ($validated['payment_method'] ?? null)
+                    : PaymentMethod::Cash->value,
+                'expense_at' => now(),
+                'description' => $validated['description'] ?? null,
+            ],
+            draftAttachmentPaths: $draft?->attachment_paths ?? [],
+            afterCreate: $draft ? function (Expense $expense) use ($draft) {
+                $draft->update([
+                    'status' => AiDraftStatus::Consumed->value,
+                    'expense_id' => $expense->id,
+                    'consumed_at' => now(),
+                ]);
+            } : null,
+        );
 
         $expense->load(['subcategory.category', 'attachments']);
 
@@ -364,24 +368,21 @@ class ExpenseController extends Controller
         ]);
     }
 
-    private function consumeAiDraft(Expense $expense, int $draftId, int $userId, int $tenantId): void
+    /**
+     * Espeja Sucursal\GastoController::resolveAiDraft: el borrador Ready se
+     * bloquea y sus adjuntos/consumo pasan por ExpenseWriter (afterCreate).
+     */
+    private function resolveAiDraft(?int $draftId, int $tenantId): ?AiExpenseDraft
     {
-        $draft = AiExpenseDraft::query()
-            ->where('id', $draftId)
-            ->where('tenant_id', $tenantId)
-            ->where('status', AiDraftStatus::Ready->value)
-            ->first();
-
-        if (! $draft) {
-            return;
+        if (! $draftId) {
+            return null;
         }
 
-        app(ExpenseAttachmentService::class)->attachFromDraft($expense, $draft, $userId);
-        $draft->update([
-            'status' => AiDraftStatus::Consumed->value,
-            'expense_id' => $expense->id,
-            'consumed_at' => now(),
-        ]);
+        return AiExpenseDraft::where('id', $draftId)
+            ->where('tenant_id', $tenantId)
+            ->where('status', AiDraftStatus::Ready->value)
+            ->lockForUpdate()
+            ->first();
     }
 
     private function ensureModuleEnabled(?int $branchId): void
