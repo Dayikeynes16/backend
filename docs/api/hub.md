@@ -123,6 +123,7 @@ El turno abierto es requisito para cobrar ventas, registrar gastos, registrar co
 | PATCH | `sales/{id}/customer` | Asigna/desasigna cliente (`customer_id` o `null`) y aplica precios preferenciales (reusa `AssignCustomerToSale`) |
 | GET | `sales/{id}/whatsapp` | Link `wa.me` del ticket; `reason=needs_phone` si la venta no tiene teléfono |
 | POST | `sales/{id}/whatsapp-phone` | Guarda `contact_phone` (10 dígitos → E.164) y devuelve el link. No crea cliente |
+| DELETE | `sales/{id}/whatsapp-phone` | Quita el teléfono guardado (`{ok:true}`; paridad `destroyWhatsappPhone` web). `HubSaleResource` expone `contact_phone` y, por item, `updated_by`/`created_at`/`updated_at` (badge "Editado") |
 | POST | `sales/{id}/lock` | Adquiere el lock de concurrencia (5 min). `409` con `locked_by_name` si otro usuario lo tiene. Adquirir uno libera los locks previos del usuario |
 | POST | `sales/{id}/unlock` | Libera el lock (solo si es propio) |
 | POST | `sales/{id}/heartbeat` | Renueva `locked_at` (mantiene vivo el lock) |
