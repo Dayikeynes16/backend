@@ -1,7 +1,7 @@
 # Unificar Compras, Productos de compra y Proveedores en una entrada con tabs
 
 **Fecha:** 2026-07-15
-**Estado:** Aprobado — pendiente de plan
+**Estado:** Implementado (2026-07-15) — ver docs/modulos/compras.md § Navegación unificada
 **Alcance:** solo navegación/frontend en `carniceria-saas` (roles admin-empresa y admin-sucursal). Cero cambios de backend. El hub Electron adopta esto después, como trabajo de paridad separado.
 
 ## Problema
@@ -14,7 +14,7 @@ El sidebar acumula demasiadas entradas (15 en Sucursal, 13 en Empresa) y tres pe
 
 Decisiones tomadas con el usuario (2026-07-15, con mockups en visual companion):
 
-1. **Agrupación total** (opción A): las 3 pantallas bajo una entrada; el sidebar de Sucursal pasa de 15 → 13 entradas y el de Empresa de 13 → 11.
+1. **Agrupación total** (opción A): las 3 pantallas bajo una entrada; ambos sidebars pierden 2 entradas (el conteo absoluto depende de feature flags).
 2. **Segundo nivel subordinado** (opción A): dentro del tab "Productos de compra", el manejo Productos/Categorías se queda tal cual existe hoy (segmented control), sin promover Categorías a tab de primer nivel ni moverla a un modal.
 3. **Tabs de navegación, rutas intactas**: cada tab es un `<Link>` de Inertia a la ruta actual de cada sección. Se descartó la página contenedora única (refactor grande, rompe URLs y tests, mismo resultado visual).
 4. **Hub después**: la paridad del hub se agenda aparte, conforme a la regla de trackear la paridad visual separada del resto.
