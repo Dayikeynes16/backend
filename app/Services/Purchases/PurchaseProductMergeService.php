@@ -2,6 +2,12 @@
 
 namespace App\Services\Purchases;
 
+use App\Enums\AuditEvent;
+use App\Models\PurchaseItem;
+use App\Models\PurchaseProduct;
+use App\Services\AuditLogger;
+use Illuminate\Support\Facades\DB;
+
 /**
  * Fusiona fichas duplicadas de purchase_products en una canónica: reapunta
  * las líneas de compra, normaliza su concept y mueve el dato variable a la
@@ -11,6 +17,73 @@ namespace App\Services\Purchases;
  */
 class PurchaseProductMergeService
 {
+    public function __construct(private AuditLogger $auditor) {}
+
+    /**
+     * Reapunta las líneas de las fichas absorbidas al canónico, normaliza su
+     * texto y da de baja las absorbidas. Todo en una transacción.
+     *
+     * @param  array<int, int>  $absorbedIds
+     * @return array{absorbed_count: int, relinked_items_count: int}
+     */
+    public function merge(PurchaseProduct $canonical, array $absorbedIds): array
+    {
+        return DB::transaction(function () use ($canonical, $absorbedIds) {
+            $canonical = PurchaseProduct::whereKey($canonical->id)->lockForUpdate()->firstOrFail();
+
+            $absorbed = PurchaseProduct::whereIn('id', $absorbedIds)
+                ->where('id', '!=', $canonical->id)
+                ->lockForUpdate()
+                ->get();
+
+            $relinked = 0;
+            foreach ($absorbed as $product) {
+                $items = PurchaseItem::where('purchase_product_id', $product->id)->lockForUpdate()->get();
+                foreach ($items as $item) {
+                    $normalized = $this->buildNormalizedLine($canonical->name, $item->concept, $item->notes);
+                    $item->update([
+                        'purchase_product_id' => $canonical->id,
+                        'concept' => $normalized['concept'],
+                        'notes' => $normalized['notes'],
+                    ]);
+                    $relinked++;
+                }
+                $product->delete();
+            }
+
+            if ($absorbed->isNotEmpty()) {
+                $this->auditor->log($canonical, AuditEvent::Merged, [
+                    'absorbed' => $absorbed->pluck('name')->all(),
+                    'items_relinked' => $relinked,
+                ]);
+            }
+
+            return ['absorbed_count' => $absorbed->count(), 'relinked_items_count' => $relinked];
+        });
+    }
+
+    /**
+     * Calcula el impacto sin ejecutar nada.
+     *
+     * @param  array<int, int>  $absorbedIds
+     * @return array{absorbed_count: int, items_count: int, unit_mismatch: bool}
+     */
+    public function preview(PurchaseProduct $canonical, array $absorbedIds): array
+    {
+        $absorbed = PurchaseProduct::whereIn('id', $absorbedIds)
+            ->where('id', '!=', $canonical->id)
+            ->get();
+
+        $itemsCount = PurchaseItem::whereIn('purchase_product_id', $absorbed->pluck('id'))->count();
+        $units = $absorbed->pluck('unit')->push($canonical->unit)->unique();
+
+        return [
+            'absorbed_count' => $absorbed->count(),
+            'items_count' => $itemsCount,
+            'unit_mismatch' => $units->count() > 1,
+        ];
+    }
+
     /**
      * Calcula el concept normalizado y la nota resultante de una línea al
      * reapuntarla a la ficha canónica (spec §3.1).

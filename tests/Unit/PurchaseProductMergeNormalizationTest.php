@@ -12,7 +12,7 @@ class PurchaseProductMergeNormalizationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc = new PurchaseProductMergeService();
+        $this->svc = new PurchaseProductMergeService(new \App\Services\AuditLogger());
     }
 
     public function test_moves_numeric_suffix_to_empty_notes(): void
