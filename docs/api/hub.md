@@ -222,7 +222,7 @@ El `reason` en add/update es obligatorio si la sucursal tiene `sale_item_edit_re
 
 ## Gastos (requiere toggle `cashier_expenses_enabled`)
 
-**Controller:** `Api\Hub\ExpenseController`. Reglas por rol (paridad web, 2026-07-11): el gasto del **cajero** es siempre **en efectivo** y queda ligado a su turno abierto (afecta el corte); el **admin-sucursal** registra sin turno, con `payment_method` opcional (cash/card/transfer, vacío = sin especificar) y sin atar el gasto a un turno (igual que `Sucursal\GastoController` vía `ExpenseWriter`).
+**Controller:** `Api\Hub\ExpenseController`. Reglas por rol (paridad web, 2026-07-11): el gasto del **cajero** es siempre **en efectivo** y queda ligado a su turno abierto (afecta el corte); el **admin-sucursal** registra sin turno, con `payment_method` opcional (cash/card/transfer, vacío = sin especificar) y sin atar el gasto a un turno. Desde 2026-07-14 el alta delega en **`ExpenseWriter`** (el mismo servicio de dominio que `Sucursal\GastoController`): creación + adjuntos del borrador IA + consumo del draft ocurren en una sola transacción y con las mismas reglas que la web, sin lógica duplicada.
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
