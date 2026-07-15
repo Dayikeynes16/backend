@@ -187,6 +187,16 @@ Cada producto de compra registra su historial de cambios en `audit_logs` (vía e
 
 ## UI
 
+### Navegación unificada (2026-07-15)
+
+El sidebar tiene **una sola entrada "Compras"** (Empresa y Sucursal). Dentro, el
+componente `Components/Compras/ComprasTabs.vue` muestra 3 tabs de navegación
+(Compras | Productos de compra | Proveedores); cada tab es un `<Link>` de
+Inertia a la ruta existente de su sección — las rutas y controladores no
+cambiaron. El detalle de proveedor conserva la barra con "Proveedores" activo.
+El segmented Productos/Categorías sigue viviendo dentro de *Productos de
+compra*. Spec: `docs/superpowers/specs/2026-07-15-compras-tabs-unificacion-design.md`.
+
 ### `/{tenant}/empresa/proveedores`
 
 - KPIs: activos, inactivos, con saldo pendiente.
