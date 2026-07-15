@@ -211,6 +211,7 @@ Route::prefix('v1/hub')
         Route::post('sales/{sale}/unlock', [HubSaleController::class, 'unlock'])->whereNumber('sale')->name('api.hub.sales.unlock');
         Route::post('sales/{sale}/heartbeat', [HubSaleController::class, 'heartbeat'])->whereNumber('sale')->name('api.hub.sales.heartbeat');
         Route::post('sales/{sale}/whatsapp-phone', [HubSaleController::class, 'storeWhatsappPhone'])->whereNumber('sale')->name('api.hub.sales.whatsapp-phone');
+        Route::delete('sales/{sale}/whatsapp-phone', [HubSaleController::class, 'destroyWhatsappPhone'])->whereNumber('sale')->name('api.hub.sales.whatsapp-phone.destroy');
         // Edición de items de venta (solo admin-sucursal, paridad con la
         // Mesa de Trabajo web; el cajero no la tiene tampoco en la web).
         Route::post('sales/{sale}/items', [HubSaleItemController::class, 'store'])->whereNumber('sale')->name('api.hub.sales.items.store');
