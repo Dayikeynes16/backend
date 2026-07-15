@@ -17,8 +17,8 @@ Cuando un cliente paga por transferencia, envía una captura del comprobante (JP
 | Momento | Al cobrar (multipart en el mismo request) y también después (endpoints dedicados), porque la captura suele llegar tarde |
 | Permisos | Regla de gastos: ver = quien ve el pago; adjuntar/eliminar = cajero solo pagos de su turno abierto, admin-sucursal cualquiera de su sucursal |
 | Storage | Disco privado (`ExpenseAttachmentService::disk()`), rutas `tenants/{tenant}/payment_receipts/{payment|cg}/{uuid}.ext`, descarga solo por endpoint autenticado con streaming. Nunca URLs públicas (datos bancarios) |
-| Modelo de datos | Tabla `payment_receipts` con dos FKs nullable (`payment_id`, `customer_payment_id`) + CHECK de exactamente-uno — mismo patrón dual que la tabla `payments` (`sale_id`/`customer_payment_id`). Sin morphs (el proyecto no los usa) |
-| Límites | jpg/jpeg/png/webp/pdf, 5 MB por archivo, máx. 3 por pago (mismas constantes que gastos) |
+| Modelo de datos | Tabla `payment_receipts` con dos FKs nullable (`payment_id`, `customer_payment_id`) + CHECK de exactamente-uno. (Nota: NO es idéntico al esquema de `payments`, donde `sale_id` es NOT NULL y `customer_payment_id` es liga al padre — aquí el CHECK exige exactamente un padre.) Sin morphs (el proyecto no los usa) |
+| Límites | jpg/jpeg/png/webp/pdf y 5 MB por archivo (mismos mimes/tamaño que gastos); máx. **3 por pago** (propio de este módulo — gastos usa 5) |
 
 ## Modelo de datos
 
@@ -53,7 +53,7 @@ Columnas nuevas en `branches`: `payment_receipts_enabled` (bool, default false),
 ## Reglas de negocio
 
 1. Solo pagos con `method = transfer` aceptan comprobantes (venta o cobro global). Si el método del pago se edita después y deja de ser transferencia, los comprobantes existentes **se conservan** (evidencia histórica).
-2. Con `payment_receipts_required` activo: registrar un pago por transferencia (venta o cobro global) sin al menos un archivo → 422 `"Adjunta el comprobante de la transferencia."`. Los demás métodos no cambian.
+2. Con `payment_receipts_required` activo: registrar un pago por transferencia (venta o cobro global) sin al menos un archivo → 422 `"Adjunta el comprobante de la transferencia."`. Los demás métodos no cambian. **El `required` se valida en los controladores de los formularios web de cobro, nunca dentro de los servicios de dominio:** el confirm del asistente IA (`CustomerGlobalPaymentDraftConfirmer`, que crea cobros globales por transferencia sin posibilidad de adjuntar en el chat) queda exento — su comprobante se adjunta después vía los endpoints dedicados.
 3. Con `payment_receipts_enabled` apagado: los endpoints de comprobantes devuelven 403 `"Tu empresa no ha habilitado esta función para tu sucursal."` (mismo mensaje que `EnsureBranchFeature`).
 4. Mutación (adjuntar/eliminar tras el cobro): cajero solo en pagos ligados a su turno abierto; admin-sucursal cualquiera de su sucursal. Paridad con la regla de corrección de gastos.
 5. La creación del pago sigue pasando por `SalePaymentService` / `CustomerGlobalPaymentService` sin cambios: el adjunto se procesa en el controlador dentro de la misma transacción, después de obtener el `Payment`/`CustomerPayment` creado.
@@ -61,8 +61,8 @@ Columnas nuevas en `branches`: `payment_receipts_enabled` (bool, default false),
 ## Endpoints (web, por rol como los pagos actuales)
 
 Los `store` de pago existentes aceptan `receipts[]` opcional (multipart):
-- Cobro de venta: `Sucursal\PaymentController@store` y `Caja\PaymentController@store`.
-- Cobro global: `Sucursal\CustomerPaymentController@store` (y su equivalente de caja si existe).
+- Cobro de venta: `Sucursal\PaymentController@store` — **es el mismo controlador para ambos prefijos**: la ruta `caja.payment.store` lo reusa (no existe `Caja\PaymentController`). Un solo store que modificar.
+- Cobro global: `Sucursal\CustomerPaymentController@store`. **No hay ruta de store de cobro global en caja**; los endpoints `cobros/.../comprobantes` con prefijo caja existen solo para adjuntar/descargar después (p. ej. cobros creados por el asistente ligados a su turno).
 
 Endpoints nuevos (prefijos `sucursal`/`caja` según rol, protegidos por el flag):
 
