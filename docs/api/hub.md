@@ -234,6 +234,8 @@ El `reason` en add/update es obligatorio si la sucursal tiene `sale_item_edit_re
 | PATCH | `/api/v1/hub/expense-categories/{id}` | Edita `name`/`description`/`aliases`/`status` |
 | POST | `/api/v1/hub/expense-subcategories` | Crea subcategoría (`expense_category_id` + `name`, único en su categoría) → `201` |
 | PATCH | `/api/v1/hub/expense-subcategories/{id}` | Edita subcategoría (mismos campos + `status`) |
+| POST | `/api/v1/hub/expense-categories/ai-draft` | Borrador de categoría por IA: `input_text` (máx. 2000) y/o `audio` (voz, máx. 10 MB; **sin imágenes**, como la web). Devuelve `{draft_id, status, proposal, audio_transcription}`; `proposal.action` ∈ crear_categoria/usar_existente/crear_subcategoria/necesita_aclaracion. Reusa `AiCategoryDraftService` (Whisper + gpt-4o) |
+| POST | `/api/v1/hub/expense-categories/ai-apply` | Aplica la propuesta revisada. Payload idéntico al web (`mode` create_new/use_existing + `category`/`category_updates` + `subcategories` máx. 8). Reuso literal de `HandlesExpenseCategoryWrites::storeFromAiDraft` |
 
 ## Gastos (requiere toggle `cashier_expenses_enabled`)
 
