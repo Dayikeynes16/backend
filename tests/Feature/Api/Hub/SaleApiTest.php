@@ -261,6 +261,12 @@ class SaleApiTest extends TestCase
         $sale->update(['contact_phone' => '5215512345678']);
         $token = $this->cajero->createToken('hub')->plainTextToken;
 
+        // El resource expone el teléfono para que el chip persista al reabrir.
+        $this->withToken($token)
+            ->getJson("/api/v1/hub/sales/{$sale->id}")
+            ->assertOk()
+            ->assertJsonPath('data.contact_phone', '5215512345678');
+
         $this->withToken($token)
             ->deleteJson("/api/v1/hub/sales/{$sale->id}/whatsapp-phone")
             ->assertOk()

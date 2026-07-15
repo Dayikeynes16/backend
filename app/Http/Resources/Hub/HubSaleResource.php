@@ -51,6 +51,9 @@ class HubSaleResource extends JsonResource
             'locked_by_name' => $this->whenLoaded('lockedByUser', fn () => $this->lockedByUser?->name),
             // Cliente asignado (precios preferenciales). Solo se incluye si la
             // relación fue eager-loaded; el catálogo lo expone en el detalle.
+            // Teléfono de WhatsApp asociado a la venta (chip persistente del
+            // hub; puede venir del cliente o capturado manual).
+            'contact_phone' => $this->contact_phone,
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,
                 'name' => $this->customer->name,
