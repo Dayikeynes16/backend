@@ -297,6 +297,51 @@ class PaymentReceiptTest extends TestCase
         );
 
         $this->assertSame(0, PaymentReceipt::count());
+
+        // PaymentController::destroy borra el archivo físico en un
+        // DB::afterCommit dentro de la DB::transaction del controlador, para
+        // que un rollback nunca deje filas apuntando a un archivo ya
+        // eliminado (ver hallazgo de revisión T5). RefreshDatabase envuelve
+        // este test en una transacción externa, pero Laravel testing usa
+        // Illuminate\Foundation\Testing\DatabaseTransactionsManager, que
+        // ejecuta los callbacks afterCommit cuando la transacción INTERNA
+        // (la del controlador) hace commit, no cuando la externa lo hace —
+        // por eso esta aserción sigue siendo válida bajo RefreshDatabase.
         Storage::disk(PaymentReceiptService::disk())->assertMissing($path);
+    }
+
+    // Reglas de turno del cajero sobre comprobantes (authorizeMutation en
+    // PaymentReceiptController): solo puede mutar comprobantes de SUS PROPIOS
+    // pagos y solo si el pago fue creado dentro de su turno abierto.
+    public function test_cajero_cannot_mutate_another_users_payment(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $otherCajero = $this->makeUser('caja2@test.local', 'cajero', $this->branch->id);
+        $sale = $this->makeActiveSale();
+        $payment = Payment::create([
+            'sale_id' => $sale->id,
+            'user_id' => $otherCajero->id,
+            'method' => 'transfer',
+            'amount' => 100,
+        ]);
+        $this->openShiftFor($this->cajero);
+
+        $this->actingAs($this->cajero)->post(
+            route('caja.pagos.receipts.store', [$this->tenant->slug, $payment->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertStatus(403);
+    }
+
+    public function test_cajero_cannot_mutate_payment_created_before_his_shift(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        [, $payment] = $this->makeSaleWithTransferPayment();
+        $payment->forceFill(['created_at' => now()->subDay()])->save();
+        $this->openShiftFor($this->cajero); // opened_at = now(), después del pago
+
+        $this->actingAs($this->cajero)->post(
+            route('caja.pagos.receipts.store', [$this->tenant->slug, $payment->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertStatus(403);
     }
 }

@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class PaymentController extends Controller
 {
@@ -167,9 +168,16 @@ class PaymentController extends Controller
         }
 
         DB::transaction(function () use ($payment, $sale, $user) {
-            foreach ($payment->receipts()->get() as $receipt) {
-                app(PaymentReceiptService::class)->delete($receipt);
-            }
+            // El archivo físico se borra solo si la transacción hace commit:
+            // borrarlo aquí y luego revertir la transacción resucitaría filas
+            // que apuntan a un archivo ya eliminado en disco.
+            $receiptPaths = $payment->receipts()->pluck('path')->all();
+            $payment->receipts()->delete();
+            DB::afterCommit(function () use ($receiptPaths) {
+                foreach ($receiptPaths as $path) {
+                    Storage::disk(PaymentReceiptService::disk())->delete($path);
+                }
+            });
 
             $payment->delete();
             app(SalePaymentService::class)->recalculate($sale, $user);
