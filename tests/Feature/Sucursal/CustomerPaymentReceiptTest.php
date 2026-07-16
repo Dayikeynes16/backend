@@ -88,7 +88,14 @@ class CustomerPaymentReceiptTest extends TestCase
             'status' => 'active',
         ]);
 
-        return CustomerPayment::create(array_merge([
+        // created_at no está en el #[Fillable] del modelo: CustomerPayment::create()
+        // lo ignora silenciosamente y sella now(). Para controlar el timestamp hay
+        // que aplicarlo con forceFill() después de crear (espejo del patrón usado
+        // en tests/Feature/Sucursal/PaymentReceiptTest.php con Payment).
+        $createdAt = $overrides['created_at'] ?? null;
+        unset($overrides['created_at']);
+
+        $cg = CustomerPayment::create(array_merge([
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
             'customer_id' => $customer->id,
@@ -100,6 +107,12 @@ class CustomerPaymentReceiptTest extends TestCase
             'change_given' => 0,
             'sales_affected_count' => 0,
         ], $overrides));
+
+        if ($createdAt !== null) {
+            $cg->forceFill(['created_at' => $createdAt])->save();
+        }
+
+        return $cg;
     }
 
     public function test_global_collection_by_transfer_stores_receipt_on_parent(): void
@@ -185,6 +198,46 @@ class CustomerPaymentReceiptTest extends TestCase
         $this->actingAs($this->cajero)->get(
             route('caja.cobros.receipts.download', [$this->tenant->slug, $cg->id, $receipt->id]),
         )->assertOk()->assertDownload('tarde.jpg');
+    }
+
+    // Reglas de turno del cajero sobre comprobantes de CG (authorizeMutation
+    // en CustomerPaymentReceiptController): solo puede mutar comprobantes de
+    // SUS PROPIOS cobros globales y solo si el CG fue creado dentro de su
+    // turno abierto. Espejo de los tests homónimos de PaymentReceiptTest.
+    public function test_cajero_cannot_mutate_cg_without_open_shift(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg = $this->makeCustomerPayment($this->cajero);
+        // Sin turno abierto → 403.
+        $this->actingAs($this->cajero)->post(
+            route('caja.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertStatus(403);
+    }
+
+    public function test_cajero_cannot_mutate_another_users_cg(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $otherCajero = $this->makeUser('caja2@test.local', 'cajero', $this->branch->id);
+        $cg = $this->makeCustomerPayment($otherCajero);
+        $this->openShiftFor($this->cajero);
+
+        $this->actingAs($this->cajero)->post(
+            route('caja.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertStatus(403);
+    }
+
+    public function test_cajero_cannot_mutate_cg_created_before_his_shift(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg = $this->makeCustomerPayment($this->cajero, ['created_at' => now()->subDay()]);
+        $this->openShiftFor($this->cajero); // opened_at = now(), después del CG
+
+        $this->actingAs($this->cajero)->post(
+            route('caja.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertStatus(403);
     }
 
     public function test_flag_off_returns_403_with_exact_message(): void
