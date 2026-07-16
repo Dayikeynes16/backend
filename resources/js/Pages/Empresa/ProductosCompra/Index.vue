@@ -28,6 +28,7 @@ defineProps({
             :stats="stats"
             route-prefix="empresa"
             :can-delete="true"
+            :can-merge="true"
         />
     </EmpresaLayout>
 </template>

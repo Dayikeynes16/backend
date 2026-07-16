@@ -29,6 +29,7 @@ defineProps({
             :stats="stats"
             route-prefix="sucursal"
             :can-delete="false"
+            :can-merge="false"
         />
     </SucursalLayout>
 </template>
