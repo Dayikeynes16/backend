@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\PaymentReceiptService;
 use App\Services\SalePaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -48,24 +49,51 @@ class PaymentController extends Controller
         $allowed = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
         $allowedStr = implode(',', $allowed);
 
-        $validated = $request->validate([
+        $canAttach = (bool) ($branch->payment_receipts_enabled || $branch->payment_receipts_required);
+
+        $rules = [
             'method' => "required|in:{$allowedStr}",
             'amount' => 'required|numeric|gt:0',
-        ], [
+        ];
+        if ($canAttach) {
+            $rules['receipts'] = 'nullable|array|max:'.PaymentReceiptService::MAX_PER_PAYMENT;
+            $rules['receipts.*'] = [
+                'file', 'mimes:jpg,jpeg,png,webp,pdf',
+                'mimetypes:'.implode(',', PaymentReceiptService::ALLOWED_MIMES),
+                'max:'.(PaymentReceiptService::MAX_BYTES / 1024),
+            ];
+        }
+
+        $validated = $request->validate($rules, [
             'method.in' => 'El metodo de pago seleccionado no esta habilitado para esta sucursal.',
+            'receipts.max' => 'Máximo 3 comprobantes por pago.',
+            'receipts.*.mimes' => 'Solo se permiten imágenes (jpg, png, webp) o PDF.',
+            'receipts.*.max' => 'Cada archivo no puede superar 5 MB.',
         ]);
+
+        // Solo transferencias llevan comprobante; required lo exige.
+        $receiptFiles = $canAttach && $validated['method'] === 'transfer'
+            ? ($request->file('receipts') ?? [])
+            : [];
+        if ($branch->payment_receipts_required && $validated['method'] === 'transfer' && $receiptFiles === []) {
+            return back()->withErrors(['receipts' => 'Adjunta el comprobante de la transferencia.']);
+        }
 
         $change = 0;
 
-        DB::transaction(function () use ($sale, $user, $validated, &$change) {
+        DB::transaction(function () use ($sale, $user, $validated, $receiptFiles, &$change) {
             $actualPayment = min((float) $validated['amount'], (float) $sale->amount_pending);
 
-            Payment::create([
+            $payment = Payment::create([
                 'sale_id' => $sale->id,
                 'user_id' => $user->id,
                 'method' => $validated['method'],
                 'amount' => round($actualPayment, 2),
             ]);
+
+            if ($receiptFiles !== []) {
+                app(PaymentReceiptService::class)->attach($payment, $receiptFiles, $user->id);
+            }
 
             app(SalePaymentService::class)->recalculate($sale, $user);
             $change = round((float) $validated['amount'] - $actualPayment, 2);
