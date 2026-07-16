@@ -9,7 +9,7 @@ import PhoneFields from '@/Components/PhoneFields.vue';
 import DeliveryTiersEditor from '@/Components/DeliveryTiersEditor.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 
 const props = defineProps({ sucursal: Object, tenant: Object });
 
@@ -40,6 +40,17 @@ const form = useForm({
     cashier_purchases_enabled: props.sucursal.cashier_purchases_enabled !== undefined ? !!props.sucursal.cashier_purchases_enabled : true,
     branch_admin_providers_enabled: !!props.sucursal.branch_admin_providers_enabled,
     branch_admin_expense_categories_enabled: !!props.sucursal.branch_admin_expense_categories_enabled,
+    payment_receipts_enabled: !!props.sucursal.payment_receipts_enabled,
+    payment_receipts_required: !!props.sucursal.payment_receipts_required,
+});
+
+// "Exigir comprobante" implica "Comprobantes de transferencia" activo: si se
+// apaga el primero, el segundo se apaga junto con él (y queda deshabilitado
+// en el template mientras tanto).
+watch(() => form.payment_receipts_enabled, (enabled) => {
+    if (!enabled) {
+        form.payment_receipts_required = false;
+    }
 });
 
 const submit = () => form.put(route('empresa.sucursales.update', [props.tenant.slug, props.sucursal.id]));
@@ -366,6 +377,48 @@ const copyMenuUrl = async () => {
                                 <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
                             </div>
                             <span class="text-sm font-semibold text-gray-700">{{ form.branch_admin_expense_categories_enabled ? 'Activo' : 'Inactivo' }}</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Comprobantes de pago -->
+            <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Comprobantes de pago</h2>
+                    <p class="mt-1 text-sm text-gray-500">Controla si se puede (o debe) adjuntar comprobante en los cobros por transferencia.</p>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    <div class="flex items-start justify-between gap-4 px-6 py-5">
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Comprobantes de transferencia</p>
+                            <p class="mt-0.5 text-xs text-gray-500">Permite adjuntar el comprobante (imagen o PDF) a los cobros por transferencia.</p>
+                        </div>
+                        <label class="inline-flex shrink-0 cursor-pointer items-center gap-2">
+                            <input type="checkbox" v-model="form.payment_receipts_enabled" class="peer sr-only" />
+                            <div class="relative h-6 w-11 rounded-full bg-gray-200 transition peer-checked:bg-red-600">
+                                <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">{{ form.payment_receipts_enabled ? 'Activo' : 'Inactivo' }}</span>
+                        </label>
+                    </div>
+                    <div class="flex items-start justify-between gap-4 px-6 py-5">
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Exigir comprobante</p>
+                            <p class="mt-0.5 text-xs text-gray-500">No se podrá cobrar por transferencia sin adjuntar el comprobante.</p>
+                        </div>
+                        <label
+                            class="inline-flex shrink-0 items-center gap-2"
+                            :class="form.payment_receipts_enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'">
+                            <input
+                                type="checkbox"
+                                v-model="form.payment_receipts_required"
+                                :disabled="!form.payment_receipts_enabled"
+                                class="peer sr-only" />
+                            <div class="relative h-6 w-11 rounded-full bg-gray-200 transition peer-checked:bg-red-600">
+                                <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">{{ form.payment_receipts_required ? 'Activo' : 'Inactivo' }}</span>
                         </label>
                     </div>
                 </div>
