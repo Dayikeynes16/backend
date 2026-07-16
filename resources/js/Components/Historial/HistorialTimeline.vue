@@ -11,9 +11,10 @@ const EVENT_LABEL = {
     cancelled: 'Canceló',
     payment_added: 'Registró pago',
     payment_cancelled: 'Canceló pago',
+    merged: 'Fusionó',
 };
 const EVENT_ICON = {
-    created: '🟢', updated: '✏️', cancelled: '🔴', payment_added: '💵', payment_cancelled: '↩️',
+    created: '🟢', updated: '✏️', cancelled: '🔴', payment_added: '💵', payment_cancelled: '↩️', merged: '🔀',
 };
 const FIELD_LABEL = {
     provider: 'Proveedor', invoice_number: 'Factura', purchased_at: 'Fecha', total: 'Total', notes: 'Notas',
@@ -42,6 +43,7 @@ const lines = (h) => {
     if (h.event === 'cancelled' && c.reason) out.push(`Motivo: ${c.reason}`);
     if (h.event === 'payment_added') out.push(`${METHOD_LABEL[c.method] || c.method} +${money(c.amount)}`);
     if (h.event === 'payment_cancelled') out.push(`${METHOD_LABEL[c.method] || c.method} −${money(c.amount)}${c.reason ? ` · ${c.reason}` : ''}`);
+    if (h.event === 'merged') out.push(`Absorbió: ${(c.absorbed || []).join(', ')} · ${c.items_relinked ?? 0} líneas reapuntadas`);
     if (c.fields) {
         for (const [k, pair] of Object.entries(c.fields)) {
             out.push(`${FIELD_LABEL[k] || k}: ${fmtVal(k, pair[0])} → ${fmtVal(k, pair[1])}`);

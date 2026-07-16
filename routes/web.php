@@ -199,6 +199,11 @@ Route::prefix('{tenant}')
                 Route::post('productos-compra', [EmpresaPurchaseProductController::class, 'store'])->name('productos-compra.store');
                 Route::put('productos-compra/{producto_compra}', [EmpresaPurchaseProductController::class, 'update'])->whereNumber('producto_compra')->name('productos-compra.update');
                 Route::delete('productos-compra/{producto_compra}', [EmpresaPurchaseProductController::class, 'destroy'])->whereNumber('producto_compra')->name('productos-compra.destroy');
+                // Fusión de duplicados (solo empresa). 'fusionar' no colisiona con
+                // {producto_compra} porque ese parámetro está restringido a numérico.
+                Route::get('productos-compra/fusionar/candidatos', [EmpresaPurchaseProductController::class, 'mergeCandidates'])->name('productos-compra.fusionar.candidatos');
+                Route::post('productos-compra/fusionar/preview', [EmpresaPurchaseProductController::class, 'mergePreview'])->name('productos-compra.fusionar.preview');
+                Route::post('productos-compra/fusionar', [EmpresaPurchaseProductController::class, 'merge'])->name('productos-compra.fusionar');
                 // Categorías del catálogo (administrables).
                 Route::post('productos-compra/categorias', [EmpresaPurchaseProductController::class, 'storeCategory'])->name('productos-compra.categorias.store');
                 Route::put('productos-compra/categorias/{categoria}', [EmpresaPurchaseProductController::class, 'updateCategory'])->whereNumber('categoria')->name('productos-compra.categorias.update');
