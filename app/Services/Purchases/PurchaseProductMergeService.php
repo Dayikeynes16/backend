@@ -57,8 +57,9 @@ class PurchaseProductMergeService
                 // (tenant_id, name) incluye filas borradas, así que re-capturar
                 // una compra con este nombre (p.ej. un número de res que se
                 // repite) rompería con QueryException si no lo renombramos.
+                // 130 + sufijo (14 fijos + id) cabe en varchar(160) hasta ids de 16 dígitos.
                 $product->update([
-                    'name' => mb_substr($product->name, 0, 140).' (fusionado #'.$product->id.')',
+                    'name' => mb_substr($product->name, 0, 130).' (fusionado #'.$product->id.')',
                 ]);
                 $product->delete();
             }
