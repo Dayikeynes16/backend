@@ -37,7 +37,9 @@ class SaleHistoryController extends Controller
                     ->orWhere('status', '!=', SaleStatus::Pending->value);
             })
             ->with([
-                'items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer:id,name,phone',
+                'items', 'payments.user:id,name', 'payments.updatedByUser:id,name',
+                'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
+                'customer:id,name,phone',
                 'linkedOrder:id,folio,status',
                 'fulfilledBy:id,folio,status,linked_order_id',
             ])
@@ -107,6 +109,8 @@ class SaleHistoryController extends Controller
                 'address' => $branch->address,
                 'phone' => $branch->phone,
                 'ticket_config' => $branch->ticket_config,
+                'payment_receipts_enabled' => (bool) ($branch->payment_receipts_enabled || $branch->payment_receipts_required),
+                'payment_receipts_required' => (bool) $branch->payment_receipts_required,
             ],
             'daySummary' => $daySummary,
         ]);

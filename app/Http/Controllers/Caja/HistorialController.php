@@ -27,7 +27,11 @@ class HistorialController extends Controller
             ->pluck('sale_id');
 
         $sales = Sale::whereIn('id', $saleIds)
-            ->with(['items', 'payments', 'customer:id,name,phone'])
+            ->with([
+                'items',
+                'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
+                'customer:id,name,phone',
+            ])
             ->when(
                 $request->date,
                 fn ($q, $d) => $q->whereDate('created_at', $d),
@@ -60,6 +64,8 @@ class HistorialController extends Controller
                 'address' => $branch->address,
                 'phone' => $branch->phone,
                 'ticket_config' => $branch->ticket_config,
+                'payment_receipts_enabled' => (bool) ($branch->payment_receipts_enabled || $branch->payment_receipts_required),
+                'payment_receipts_required' => (bool) $branch->payment_receipts_required,
             ],
         ]);
     }

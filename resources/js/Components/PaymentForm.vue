@@ -1,6 +1,7 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import InputError from '@/Components/InputError.vue';
 
 const allMethods = [
     { id: 'cash', label: 'Efectivo' },
@@ -12,6 +13,8 @@ const props = defineProps({
     sale: { type: Object, required: true },
     paymentRoute: { type: String, required: true },
     paymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
+    receiptsEnabled: { type: Boolean, default: false },
+    receiptsRequired: { type: Boolean, default: false },
 });
 
 const availableMethods = computed(() => allMethods.filter(m => props.paymentMethods.includes(m.id)));
@@ -28,11 +31,20 @@ const change = computed(() => Math.max(received.value - pending.value, 0));
 const isOverpay = computed(() => received.value > pending.value);
 const remaining = computed(() => Math.max(pending.value - received.value, 0));
 
+const receiptFiles = ref([]);
+const onReceiptChange = (e) => { receiptFiles.value = Array.from(e.target.files ?? []).slice(0, 3); };
+const needsReceipt = computed(() => props.receiptsRequired && form.method === 'transfer' && receiptFiles.value.length === 0);
+
 const submit = () => {
-    form.post(props.paymentRoute, {
-        preserveScroll: true,
-        onSuccess: () => { form.reset('amount'); emit('success'); },
-    });
+    if (needsReceipt.value) {
+        return;
+    }
+    form.transform((data) => ({ ...data, receipts: receiptFiles.value }))
+        .post(props.paymentRoute, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => { form.reset('amount'); receiptFiles.value = []; emit('success'); },
+        });
 };
 </script>
 
@@ -93,8 +105,20 @@ const submit = () => {
                 </div>
             </div>
 
+            <div v-if="(receiptsEnabled || receiptsRequired) && form.method === 'transfer'" class="mt-3">
+                <label class="mb-1 block text-xs font-semibold text-gray-600">
+                    Comprobante de la transferencia <span v-if="receiptsRequired" class="text-red-600">*</span>
+                </label>
+                <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple
+                    class="block w-full text-xs text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                    @change="onReceiptChange" />
+                <p v-if="receiptFiles.length" class="mt-1 text-xs text-gray-500">{{ receiptFiles.map(f => f.name).join(', ') }}</p>
+                <p v-else-if="receiptsRequired" class="mt-1 text-xs text-amber-600">Adjunta el comprobante para poder cobrar.</p>
+                <InputError :message="form.errors.receipts" class="mt-1" />
+            </div>
+
             <div class="flex gap-3">
-                <button type="submit" :disabled="form.processing"
+                <button type="submit" :disabled="form.processing || needsReceipt"
                     class="flex-1 rounded-xl bg-red-600 py-3.5 text-sm font-bold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-50">
                     Cobrar
                 </button>

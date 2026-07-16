@@ -152,6 +152,8 @@ class CustomerController extends Controller
             'tenant' => app('tenant'),
             'allowedPaymentMethods' => $allowedMethods,
             'saleItemEditReasonMode' => $branch?->sale_item_edit_reason_mode ?? 'optional',
+            'paymentReceiptsEnabled' => (bool) ($branch?->payment_receipts_enabled || $branch?->payment_receipts_required),
+            'paymentReceiptsRequired' => (bool) $branch?->payment_receipts_required,
         ]);
     }
 

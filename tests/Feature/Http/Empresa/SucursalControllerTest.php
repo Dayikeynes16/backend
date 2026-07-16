@@ -88,6 +88,23 @@ class SucursalControllerTest extends TestCase
         $this->assertSame('Sucursal 1', $this->branch->name);
     }
 
+    public function test_update_persists_payment_receipts_toggles(): void
+    {
+        $this->actingAs($this->adminEmpresa)
+            ->put(
+                route('empresa.sucursales.update', [$this->tenant->slug, $this->branch->id]),
+                $this->validPayload([
+                    'payment_receipts_enabled' => true,
+                    'payment_receipts_required' => true,
+                ])
+            )
+            ->assertRedirect(route('empresa.sucursales.index', $this->tenant->slug));
+
+        $this->branch->refresh();
+        $this->assertTrue($this->branch->payment_receipts_enabled);
+        $this->assertTrue($this->branch->payment_receipts_required);
+    }
+
     public function test_update_autogenerates_schedule_from_hours(): void
     {
         $this->actingAs($this->adminEmpresa)

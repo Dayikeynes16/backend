@@ -5,6 +5,7 @@ namespace Tests\Feature\Sucursal;
 use App\Enums\SaleStatus;
 use App\Models\Customer;
 use App\Models\Payment;
+use App\Models\PaymentReceipt;
 use App\Models\Sale;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
@@ -176,6 +177,39 @@ class PagosSummaryTest extends TestCase
         $withoutCustomer = $this->get("{$base}?date={$date}&customer=without")->viewData('page')['props']['payments']['data'];
         $this->assertSame([$paymentWalkIn->id], collect($withoutCustomer)->pluck('id')->all());
         $this->assertNull($withoutCustomer[0]['sale']['customer']);
+    }
+
+    public function test_transfer_payment_includes_receipts_in_response(): void
+    {
+        // T10: espejo de test_transfer_payment_includes_receipts_in_response en
+        // tests/Feature/Caja/PagosIndexTest.php — `sucursal.pagos.index` necesita
+        // `payments.data.*.receipts` para el clip de comprobantes (T9).
+        $sale = $this->makeSale(['created_at' => now()]);
+        $payment = Payment::create([
+            'sale_id' => $sale->id,
+            'user_id' => $this->cajero->id,
+            'method' => 'transfer',
+            'amount' => 100,
+            'created_at' => now(),
+        ]);
+        PaymentReceipt::create([
+            'tenant_id' => $this->tenant->id,
+            'payment_id' => $payment->id,
+            'uploaded_by' => $this->cajero->id,
+            'original_name' => 'comprobante.jpg',
+            'path' => 'tenants/x/payment_receipts/p-'.$payment->id.'/a.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1234,
+        ]);
+
+        $this->actingAs($this->adminSucursal)
+            ->get(route('sucursal.pagos.index', $this->tenant->slug).'?date='.now()->toDateString())
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Sucursal/Pagos/Index')
+                ->has('payments.data.0.receipts', 1)
+                ->where('payments.data.0.receipts.0.original_name', 'comprobante.jpg')
+            );
     }
 
     public function test_daily_summary_groups_correctly_by_active_methods_only(): void

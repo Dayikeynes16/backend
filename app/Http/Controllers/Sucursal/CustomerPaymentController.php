@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Sucursal;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterCustomerPaymentRequest;
+use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Services\CustomerGlobalPaymentService;
+use App\Services\PaymentReceiptService;
 use App\Services\RecalculateClosedShifts;
 use App\Services\SalePaymentService;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -51,6 +53,18 @@ class CustomerPaymentController extends Controller
 
         $validated = $request->validated();
 
+        $branch = Branch::withoutGlobalScopes()->findOrFail($user->branch_id);
+        $canAttach = (bool) ($branch->payment_receipts_enabled || $branch->payment_receipts_required);
+        $receiptFiles = $canAttach && ($validated['method'] ?? null) === 'transfer'
+            ? ($request->file('receipts') ?? [])
+            : [];
+        if ($branch->payment_receipts_required && ($validated['method'] ?? null) === 'transfer' && $receiptFiles === []) {
+            return response()->json([
+                'message' => 'Adjunta el comprobante de la transferencia.',
+                'errors' => ['receipts' => ['Adjunta el comprobante de la transferencia.']],
+            ], 422);
+        }
+
         try {
             $result = $this->globalPayments->apply($customer, $user, [
                 'amount_received' => (float) $validated['amount_received'],
@@ -68,6 +82,14 @@ class CustomerPaymentController extends Controller
         $this->globalPayments->broadcastSaleUpdates($result['affected_sale_ids']);
 
         $cp = $result['customer_payment'];
+
+        // El comprobante va en el CustomerPayment padre; los Payment hijos que
+        // crea el servicio (uno por venta afectada) no llevan comprobante propio.
+        // No es necesario envolver el servicio en la misma transacción: si el
+        // attach falla, el cobro queda válido sin comprobante (preferible).
+        if ($receiptFiles !== []) {
+            app(PaymentReceiptService::class)->attach($cp, $receiptFiles, $user->id);
+        }
 
         return response()->json([
             'customer_payment' => [

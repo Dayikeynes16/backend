@@ -1,5 +1,6 @@
 <script setup>
 import Modal from '@/Components/Modal.vue';
+import InputError from '@/Components/InputError.vue';
 import { ref, computed, watch, nextTick } from 'vue';
 
 const props = defineProps({
@@ -9,6 +10,8 @@ const props = defineProps({
     pendingSales: { type: Array, default: () => [] },
     allowedMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
     shiftOpen: { type: Boolean, default: true },
+    receiptsEnabled: { type: Boolean, default: false },
+    receiptsRequired: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close', 'success']);
@@ -19,6 +22,9 @@ const amountInputRef = ref(null);
 const excluded = ref(new Set());
 const submitting = ref(false);
 const serverError = ref(null);
+const receiptFiles = ref([]);
+const receiptsError = ref(null);
+const onReceiptChange = (e) => { receiptFiles.value = Array.from(e.target.files ?? []).slice(0, 3); };
 
 watch(() => props.show, async (v) => {
     if (v) {
@@ -26,6 +32,8 @@ watch(() => props.show, async (v) => {
         amountReceived.value = null;
         excluded.value = new Set();
         serverError.value = null;
+        receiptFiles.value = [];
+        receiptsError.value = null;
         await nextTick();
         amountInputRef.value?.focus();
     }
@@ -88,6 +96,8 @@ const cardExcessInvalid = computed(() => {
     return received > totalSelected.value + 0.001;
 });
 
+const needsReceipt = computed(() => props.receiptsRequired && method.value === 'transfer' && receiptFiles.value.length === 0);
+
 const canSubmit = computed(() => {
     if (submitting.value) return false;
     if (!props.shiftOpen) return false;
@@ -95,6 +105,7 @@ const canSubmit = computed(() => {
     if (received <= 0) return false;
     if (selectedSales.value.length === 0) return false;
     if (cardExcessInvalid.value) return false;
+    if (needsReceipt.value) return false;
     return true;
 });
 
@@ -115,6 +126,7 @@ const methodLabel = (m) => ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Tran
 
 const submitLabel = computed(() => {
     if (!canSubmit.value && cardExcessInvalid.value) return 'Monto excede el adeudado';
+    if (!canSubmit.value && needsReceipt.value) return 'Adjunta el comprobante';
     if (!canSubmit.value) return 'Cobrar';
     if (changeGiven.value > 0) return `Cobrar ${money(amountToApply.value)} · cambio ${money(changeGiven.value)}`;
     if (amountToApply.value < totalSelected.value) return `Cobrar ${money(amountToApply.value)} (parcial)`;
@@ -125,28 +137,62 @@ const submit = async () => {
     if (!canSubmit.value) return;
     submitting.value = true;
     serverError.value = null;
+    receiptsError.value = null;
     try {
-        const res = await fetch(
-            route('sucursal.clientes.cobro-global', [props.tenantSlug, props.customer.id]),
-            {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    amount_received: Number(amountReceived.value),
-                    method: method.value,
-                    excluded_sale_ids: Array.from(excluded.value),
-                }),
-            }
-        );
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        const hasFiles = receiptFiles.value.length > 0;
+
+        let res;
+        if (hasFiles) {
+            // Comprobantes adjuntos: multipart/form-data (no fijar Content-Type,
+            // el navegador agrega el boundary correcto automáticamente).
+            const fd = new FormData();
+            fd.append('amount_received', Number(amountReceived.value));
+            fd.append('method', method.value);
+            Array.from(excluded.value).forEach((id) => fd.append('excluded_sale_ids[]', id));
+            receiptFiles.value.forEach((f) => fd.append('receipts[]', f));
+
+            res = await fetch(
+                route('sucursal.clientes.cobro-global', [props.tenantSlug, props.customer.id]),
+                {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    credentials: 'same-origin',
+                    body: fd,
+                }
+            );
+        } else {
+            res = await fetch(
+                route('sucursal.clientes.cobro-global', [props.tenantSlug, props.customer.id]),
+                {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        amount_received: Number(amountReceived.value),
+                        method: method.value,
+                        excluded_sale_ids: Array.from(excluded.value),
+                    }),
+                }
+            );
+        }
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            serverError.value = err.message || err.errors?.amount_received?.[0] || err.errors?.method?.[0] || 'Error al registrar el pago';
+            receiptsError.value = err.errors?.receipts?.[0] || null;
+            // El comprobante ya se muestra inline junto al input; el banner
+            // genérico solo se usa para el resto de errores del servidor.
+            serverError.value = receiptsError.value
+                ? null
+                : (err.message || err.errors?.amount_received?.[0] || err.errors?.method?.[0] || 'Error al registrar el pago');
             return;
         }
         const data = await res.json();
@@ -230,6 +276,19 @@ const methodIcons = {
                             Saldar todo ({{ money(totalSelected) }})
                         </button>
                     </div>
+                </div>
+
+                <!-- Comprobante de transferencia (flag por sucursal) -->
+                <div v-if="(receiptsEnabled || receiptsRequired) && method === 'transfer'">
+                    <label class="mb-2 block text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                        Comprobante de la transferencia <span v-if="receiptsRequired" class="text-red-600">*</span>
+                    </label>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple
+                        class="block w-full text-xs text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                        @change="onReceiptChange" />
+                    <p v-if="receiptFiles.length" class="mt-1 text-xs text-gray-500">{{ receiptFiles.map(f => f.name).join(', ') }}</p>
+                    <p v-else-if="receiptsRequired" class="mt-1 text-xs text-amber-600">Adjunta el comprobante para poder cobrar.</p>
+                    <InputError :message="receiptsError" class="mt-1" />
                 </div>
 
                 <!-- Distribución preview -->

@@ -3,6 +3,7 @@ import TicketPrinter from '@/Components/TicketPrinter.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import EditPaymentForm from '@/Components/EditPaymentForm.vue';
+import InputError from '@/Components/InputError.vue';
 import WhatsappPhoneDialog from '@/Components/WhatsappPhoneDialog.vue';
 import WhatsappSendConfirmDialog from '@/Components/WhatsappSendConfirmDialog.vue';
 import SaleWhatsappPhoneChip from '@/Components/SaleWhatsappPhoneChip.vue';
@@ -12,6 +13,8 @@ import SaleItemDeleteDialog from '@/Components/Sucursal/SaleItemDeleteDialog.vue
 import SaleItemHistoryModal from '@/Components/Sucursal/SaleItemHistoryModal.vue';
 import LinkOrderModal from '@/Components/Workbench/LinkOrderModal.vue';
 import LinkSaleToOrderModal from '@/Components/Workbench/LinkSaleToOrderModal.vue';
+import Modal from '@/Components/Modal.vue';
+import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
 import { useWhatsappSend } from '@/composables/useWhatsappSend';
 import { displayName as itemDisplayName, displayQuantity as itemDisplayQuantity, realContentDisplay as itemRealContentDisplay } from '@/composables/useSaleItemDisplay';
 import { router, useForm, usePage } from '@inertiajs/vue3';
@@ -68,23 +71,44 @@ const enteredAmount = computed(() => parseFloat(paymentForm.amount) || 0);
 const changeAmount = computed(() => Math.max(enteredAmount.value - pendingAmount.value, 0));
 const hasPending = computed(() => pendingAmount.value > 0);
 
+// --- Comprobante de transferencia (flags por sucursal) ---
+const receiptsEnabled = computed(() => !!props.branchInfo?.payment_receipts_enabled);
+const receiptsRequired = computed(() => !!props.branchInfo?.payment_receipts_required);
+const receiptFiles = ref([]);
+const onReceiptChange = (e) => { receiptFiles.value = Array.from(e.target.files ?? []).slice(0, 3); };
+const needsReceipt = computed(() => receiptsRequired.value && paymentForm.method === 'transfer' && receiptFiles.value.length === 0);
+
 watch(() => paymentForm.amount, (value) => {
     emit('update:dirty', String(value ?? '').trim().length > 0);
 }, { immediate: true });
 
 const submitPayment = () => {
-    if (!hasPending.value) {
+    if (!hasPending.value || needsReceipt.value) {
         return;
     }
-    paymentForm.post(route('sucursal.workbench.payment', [props.tenantSlug, props.sale.id]), {
-        preserveScroll: true,
-        onSuccess: () => {
-            paymentForm.reset('amount');
-            paymentForm.method = defaultMethod.value;
-            emit('paid');
-        },
-    });
+    paymentForm
+        .transform((data) => ({ ...data, receipts: receiptFiles.value }))
+        .post(route('sucursal.workbench.payment', [props.tenantSlug, props.sale.id]), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                paymentForm.reset('amount');
+                paymentForm.method = defaultMethod.value;
+                receiptFiles.value = [];
+                emit('paid');
+            },
+        });
 };
+
+// --- Comprobantes de un pago (ver/gestionar) ---
+// `canManage` se pasa fijo en `true`: el backend (turno del cajero, rol,
+// dueño del pago) decide si la mutación procede — ver comentario en
+// PaymentReceiptsPanel.vue.
+const receiptsPanelPaymentId = ref(null);
+const receiptsPanelPayment = computed(() => props.sale.payments?.find(p => p.id === receiptsPanelPaymentId.value) || null);
+const openReceiptsPanel = (p) => { receiptsPanelPaymentId.value = p.id; };
+const closeReceiptsPanel = () => { receiptsPanelPaymentId.value = null; };
+const onReceiptsChanged = () => emit('mutated');
 
 // --- Edit / delete payment ---
 const editingPaymentId = ref(null);
@@ -502,6 +526,11 @@ const submitUnlink = () => {
                             <div class="flex items-center gap-2">
                                 <span :class="methodColor(p.method)" class="text-sm font-semibold">{{ methodLabel(p.method) }}</span>
                                 <span class="text-xs text-gray-400">{{ new Date(p.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                                <button v-if="p.method === 'transfer' && receiptsEnabled" type="button" @click="openReceiptsPanel(p)"
+                                    class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100"
+                                    title="Comprobantes de esta transferencia">
+                                    📎 {{ p.receipts?.length ?? 0 }}
+                                </button>
                             </div>
                             <div class="flex items-center gap-3">
                                 <span class="text-sm font-bold text-gray-900">${{ parseFloat(p.amount).toFixed(2) }}</span>
@@ -574,7 +603,19 @@ const submitUnlink = () => {
                     </button>
                 </div>
 
-                <button type="submit" :disabled="paymentForm.processing"
+                <div v-if="(receiptsEnabled || receiptsRequired) && paymentForm.method === 'transfer'" class="mt-1">
+                    <label class="mb-1 block text-xs font-semibold text-gray-600">
+                        Comprobante de la transferencia <span v-if="receiptsRequired" class="text-red-600">*</span>
+                    </label>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple
+                        class="block w-full text-xs text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                        @change="onReceiptChange" />
+                    <p v-if="receiptFiles.length" class="mt-1 text-xs text-gray-500">{{ receiptFiles.map(f => f.name).join(', ') }}</p>
+                    <p v-else-if="receiptsRequired" class="mt-1 text-xs text-amber-600">Adjunta el comprobante para poder cobrar.</p>
+                    <InputError :message="paymentForm.errors.receipts" class="mt-1" />
+                </div>
+
+                <button type="submit" :disabled="paymentForm.processing || needsReceipt"
                     class="w-full rounded-xl bg-red-600 py-4 text-base font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-50">
                     Cobrar
                 </button>
@@ -685,5 +726,18 @@ const submitUnlink = () => {
             :processing="unlinkingOrder"
             @confirm="submitUnlink"
             @cancel="showUnlinkConfirm = false" />
+
+        <!-- Comprobantes de un pago por transferencia -->
+        <Modal :show="!!receiptsPanelPayment" max-width="lg" @close="closeReceiptsPanel">
+            <PaymentReceiptsPanel v-if="receiptsPanelPayment"
+                :receipts="receiptsPanelPayment.receipts ?? []"
+                parent-type="payment"
+                :parent-id="receiptsPanelPayment.id"
+                :can-manage="true"
+                :tenant-slug="tenantSlug"
+                route-prefix="sucursal"
+                @changed="onReceiptsChanged"
+                @close="closeReceiptsPanel" />
+        </Modal>
     </div>
 </template>

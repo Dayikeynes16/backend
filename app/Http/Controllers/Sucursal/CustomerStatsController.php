@@ -272,7 +272,7 @@ class CustomerStatsController extends Controller
         // Movimientos globales
         $globals = CustomerPayment::where('customer_id', $customer->id)
             ->where('branch_id', $customer->branch_id)
-            ->with('user:id,name')
+            ->with(['user:id,name', 'receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes'])
             ->orderByDesc('created_at')
             ->limit(100)
             ->get()
@@ -287,6 +287,7 @@ class CustomerStatsController extends Controller
                 'sales_affected_count' => $cp->sales_affected_count,
                 'cashier_name' => $cp->user?->name,
                 'created_at' => $cp->created_at,
+                'receipts' => $cp->receipts,
                 'sort_key' => $cp->created_at?->timestamp ?? 0,
             ]);
 

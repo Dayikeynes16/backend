@@ -5,6 +5,8 @@ import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import EditPaymentForm from '@/Components/EditPaymentForm.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import DaySummaryBar from '@/Components/Historial/DaySummaryBar.vue';
+import Modal from '@/Components/Modal.vue';
+import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
@@ -13,6 +15,7 @@ const props = defineProps({
     filters: Object, tenant: Object,
     canEditPayments: Boolean, paymentMethods: Array,
     dailySummary: Object,
+    paymentReceiptsEnabled: { type: Boolean, default: false },
 });
 
 // --- Day summary helpers ---
@@ -203,6 +206,22 @@ const reloadData = () => {
 
 const onPaymentSaved = () => { editingPaymentId.value = null; reloadData(); };
 
+// --- Comprobantes de un pago por transferencia (venta o cobro global) ---
+// `canManage` se pasa fijo en `true`: el backend (rol, turno del cajero,
+// dueño del pago) decide si la mutación procede — ver comentario en
+// PaymentReceiptsPanel.vue.
+const receiptCount = (p) => (p.customer_payment ? p.customer_payment.receipts?.length : p.receipts?.length) ?? 0;
+const showReceipts = ref(false);
+const receiptsFor = computed(() => {
+    if (!selected.value) return null;
+    if (selected.value.customer_payment) {
+        return { parentType: 'customer-payment', parentId: selected.value.customer_payment.id, receipts: selected.value.customer_payment.receipts ?? [] };
+    }
+    return { parentType: 'payment', parentId: selected.value.id, receipts: selected.value.receipts ?? [] };
+});
+const openReceipts = (payment) => { selectPayment(payment); showReceipts.value = true; };
+const onReceiptsChanged = () => reloadData();
+
 // --- Payment deletion (admin only) ---
 const confirmDeletePaymentId = ref(null);
 const doDeletePayment = () => {
@@ -288,7 +307,14 @@ const doDeletePayment = () => {
                                             <span class="font-mono font-medium text-violet-600">{{ payment.customer_payment.folio }}</span>
                                             <span class="text-gray-300"> · {{ payment.customer_payment.user?.name }}</span>
                                         </span>
-                                        <span class="shrink-0 text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                        <span class="flex shrink-0 items-center gap-1.5">
+                                            <button v-if="payment.method === 'transfer' && paymentReceiptsEnabled" type="button" @click.stop="openReceipts(payment)"
+                                                class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100"
+                                                title="Comprobantes de esta transferencia">
+                                                📎 {{ receiptCount(payment) }}
+                                            </button>
+                                            <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                        </span>
                                     </div>
                                 </template>
                                 <!-- Pago normal (venta individual) -->
@@ -311,7 +337,14 @@ const doDeletePayment = () => {
                                             <span v-else class="italic text-gray-300">Mostrador</span>
                                             <span class="text-gray-300"> · {{ payment.user?.name }}</span>
                                         </span>
-                                        <span class="shrink-0 text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                        <span class="flex shrink-0 items-center gap-1.5">
+                                            <button v-if="payment.method === 'transfer' && paymentReceiptsEnabled" type="button" @click.stop="openReceipts(payment)"
+                                                class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100"
+                                                title="Comprobantes de esta transferencia">
+                                                📎 {{ receiptCount(payment) }}
+                                            </button>
+                                            <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                        </span>
                                     </div>
                                 </template>
                             </div>
@@ -361,6 +394,10 @@ const doDeletePayment = () => {
                             <div class="flex items-center gap-2">
                                 <span :class="[methodMeta[selected.method]?.bg, 'rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset']">{{ methodMeta[selected.method]?.label }}</span>
                                 <span v-if="selected.updated_by" class="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-500/20">Editado</span>
+                                <button v-if="selected.method === 'transfer' && paymentReceiptsEnabled" type="button" @click="showReceipts = true"
+                                    class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100">
+                                    📎 Comprobantes ({{ receiptCount(selected) }})
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -511,6 +548,19 @@ const doDeletePayment = () => {
             variant="danger"
             @confirm="doDeletePayment"
             @cancel="confirmDeletePaymentId = null" />
+
+        <!-- Comprobantes de un pago por transferencia -->
+        <Modal :show="showReceipts && !!receiptsFor" max-width="lg" @close="showReceipts = false">
+            <PaymentReceiptsPanel v-if="receiptsFor"
+                :receipts="receiptsFor.receipts"
+                :parent-type="receiptsFor.parentType"
+                :parent-id="receiptsFor.parentId"
+                :can-manage="true"
+                :tenant-slug="tenant.slug"
+                route-prefix="sucursal"
+                @changed="onReceiptsChanged"
+                @close="showReceipts = false" />
+        </Modal>
 
         <FlashToast />
     </SucursalLayout>
