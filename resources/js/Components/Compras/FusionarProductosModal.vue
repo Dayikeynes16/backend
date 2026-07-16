@@ -19,6 +19,7 @@ const selected = ref(new Map());
 const canonicalId = ref(null);
 const preview = ref(null);
 const previewLoading = ref(false);
+const previewError = ref('');
 const confirming = ref(false);
 const submitting = ref(false);
 const submitError = ref('');
@@ -130,17 +131,27 @@ let previewSeq = 0;
 
 function schedulePreview() {
     clearTimeout(previewTimer);
+    // Se marca "cargando" de inmediato (no solo cuando arranca la petición)
+    // para que `ready` no pueda quedar en true contra un preview obsoleto
+    // durante los 200 ms de debounce.
+    previewLoading.value = true;
+    previewError.value = '';
     previewTimer = setTimeout(refreshPreview, 200);
 }
 
 async function refreshPreview() {
     if (!canonicalId.value || absorbedIds.value.length === 0) {
+        // Invalida cualquier respuesta en vuelo: si llega tarde, su seq ya
+        // no coincidirá y no podrá resucitar un preview muerto.
+        previewSeq++;
         preview.value = null;
+        previewError.value = '';
         previewLoading.value = false;
         return;
     }
     const seq = ++previewSeq;
     previewLoading.value = true;
+    previewError.value = '';
     try {
         const { data } = await window.axios.post(
             route('empresa.productos-compra.fusionar.preview', props.tenantSlug),
@@ -148,7 +159,10 @@ async function refreshPreview() {
         );
         if (seq === previewSeq) preview.value = data;
     } catch {
-        if (seq === previewSeq) preview.value = null;
+        if (seq === previewSeq) {
+            preview.value = null;
+            previewError.value = 'No se pudo calcular el impacto.';
+        }
     } finally {
         if (seq === previewSeq) previewLoading.value = false;
     }
@@ -179,8 +193,10 @@ function submit() {
                 emit('merged');
                 emit('close');
             },
-            onError: () => {
-                submitError.value = 'No se pudo completar la fusión. Revisa la selección e inténtalo de nuevo.';
+            onError: (errors) => {
+                submitError.value =
+                    Object.values(errors)[0] ??
+                    'No se pudo completar la fusión. Revisa la selección e inténtalo de nuevo.';
             },
             onFinish: () => {
                 submitting.value = false;
@@ -196,7 +212,10 @@ function reset() {
     candidates.value = [];
     selected.value = new Map();
     canonicalId.value = null;
+    // Invalida cualquier preview en vuelo antes de limpiar el estado.
+    previewSeq++;
     preview.value = null;
+    previewError.value = '';
     previewLoading.value = false;
     confirming.value = false;
     submitError.value = '';
@@ -448,7 +467,7 @@ const fichas = (count) => (count === 1 ? 'ficha' : 'fichas');
 
                         <!-- Impacto -->
                         <Transition name="fsection">
-                            <section v-if="preview || previewLoading" aria-live="polite">
+                            <section v-if="preview || previewLoading || previewError" aria-live="polite">
                                 <p class="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Impacto</p>
                                 <div
                                     :class="[
@@ -469,6 +488,12 @@ const fichas = (count) => (count === 1 ? 'ficha' : 'fichas');
                                             <span class="min-w-0 truncate font-semibold text-gray-900">«{{ canonical?.name }}»</span>
                                         </p>
                                     </template>
+                                    <div v-else-if="previewError" class="flex flex-col items-center gap-1.5 py-1 text-center">
+                                        <p class="text-sm font-medium text-gray-600">{{ previewError }}</p>
+                                        <button type="button" class="text-xs font-semibold text-orange-600 hover:text-orange-700" @click="refreshPreview">
+                                            Reintentar
+                                        </button>
+                                    </div>
                                     <div v-else class="flex items-center gap-2.5 py-1 text-sm text-gray-400">
                                         <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v3a5 5 0 0 0-5 5H4z" /></svg>
                                         Calculando impacto…
@@ -499,6 +524,7 @@ const fichas = (count) => (count === 1 ? 'ficha' : 'fichas');
                             {{ selected.size }} {{ fichas(selected.size) }} · {{ n(preview.items_count) }} {{ preview.items_count === 1 ? 'línea' : 'líneas' }}
                         </p>
                         <p v-else-if="previewLoading" class="text-xs text-gray-400">Calculando impacto…</p>
+                        <p v-else-if="previewError" class="text-xs font-medium text-red-500">{{ previewError }}</p>
                         <p v-else class="text-xs text-gray-400">Selecciona al menos 2 fichas duplicadas.</p>
 
                         <div class="flex shrink-0 items-center gap-2">
