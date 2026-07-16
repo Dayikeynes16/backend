@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\PaymentReceiptService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -72,6 +73,35 @@ class CustomerPaymentReceiptTest extends TestCase
         ]);
     }
 
+    /**
+     * CG creado directamente por modelo (no por endpoint): el cajero no tiene
+     * ruta para crear cobros globales (eso es exclusivo de admin-sucursal en
+     * la web; el cajero solo los crea vía el asistente IA). Espejo del
+     * CustomerPayment::create inline usado en PaymentReceiptTest.
+     */
+    private function makeCustomerPayment(User $owner, array $overrides = []): CustomerPayment
+    {
+        $customer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Cliente F',
+            'status' => 'active',
+        ]);
+
+        return CustomerPayment::create(array_merge([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'customer_id' => $customer->id,
+            'user_id' => $owner->id,
+            'folio' => 'CG-'.fake()->unique()->numerify('#####'),
+            'method' => 'transfer',
+            'amount_received' => 200,
+            'amount_applied' => 200,
+            'change_given' => 0,
+            'sales_affected_count' => 0,
+        ], $overrides));
+    }
+
     public function test_global_collection_by_transfer_stores_receipt_on_parent(): void
     {
         Storage::fake(PaymentReceiptService::disk());
@@ -114,5 +144,140 @@ class CustomerPaymentReceiptTest extends TestCase
             route('sucursal.clientes.cobro-global', [$this->tenant->slug, $customer->id]),
             ['amount_received' => 200, 'method' => 'cash'],
         )->assertCreated();
+    }
+
+    // --- Endpoints de comprobantes sobre un CG ya existente (T6) ---
+    // Espejo de tests/Feature/Sucursal/PaymentReceiptTest.php, adaptado a
+    // CustomerPayment (que tiene branch_id/user_id propios, sin sale).
+
+    public function test_admin_attaches_receipt_later_via_sucursal_route(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg = $this->makeCustomerPayment($this->adminSucursal);
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('tarde.jpg')]],
+        )->assertSessionHas('success');
+
+        $this->assertSame(1, $cg->receipts()->count());
+    }
+
+    // NOTA: el actor cajero solo puede usar el prefijo /caja
+    // ("caja.cobros.receipts.*" -> mismo Sucursal\CustomerPaymentReceiptController).
+    // El prefijo /sucursal exige role:admin-sucursal|superadmin y devolvería
+    // 403 por el gate de rol del grupo, no por la regla de turno. El CG se
+    // crea por modelo (no hay ruta de creación para cajero): user_id del
+    // cajero y created_at >= opened_at de su turno.
+    public function test_owner_cajero_attaches_and_downloads_receipt_via_caja_route_within_shift(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $shift = $this->openShiftFor($this->cajero);
+        $cg = $this->makeCustomerPayment($this->cajero, ['created_at' => $shift->opened_at->copy()->addMinute()]);
+
+        $this->actingAs($this->cajero)->post(
+            route('caja.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('tarde.jpg')]],
+        )->assertSessionHas('success');
+
+        $receipt = $cg->receipts()->firstOrFail();
+
+        $this->actingAs($this->cajero)->get(
+            route('caja.cobros.receipts.download', [$this->tenant->slug, $cg->id, $receipt->id]),
+        )->assertOk()->assertDownload('tarde.jpg');
+    }
+
+    public function test_flag_off_returns_403_with_exact_message(): void
+    {
+        $this->branch->forceFill(['payment_receipts_enabled' => false, 'payment_receipts_required' => false])->save();
+        $cg = $this->makeCustomerPayment($this->adminSucursal);
+
+        $this->actingAs($this->adminSucursal)->postJson(
+            route('sucursal.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertStatus(403)->assertJsonPath('message', 'Tu empresa no ha habilitado esta función para tu sucursal.');
+    }
+
+    public function test_cash_method_rejects_receipt(): void
+    {
+        $cg = $this->makeCustomerPayment($this->adminSucursal, ['method' => 'cash']);
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertSessionHasErrors(['receipts' => 'Solo los pagos por transferencia llevan comprobante.']);
+    }
+
+    public function test_destroy_only_allowed_via_sucursal_route_admin(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg = $this->makeCustomerPayment($this->adminSucursal);
+        $receipt = app(PaymentReceiptService::class)->attach($cg, [UploadedFile::fake()->image('c.jpg')], $this->adminSucursal->id)[0];
+
+        // El cajero no tiene ruta destroy sobre comprobantes de CG (paridad
+        // limitada a adjuntar/descargar — decisión del coordinador).
+        $this->assertFalse(Route::has('caja.cobros.receipts.destroy'));
+
+        $this->actingAs($this->adminSucursal)->delete(
+            route('sucursal.cobros.receipts.destroy', [$this->tenant->slug, $cg->id, $receipt->id]),
+        )->assertSessionHas('success');
+
+        $this->assertSame(0, $cg->receipts()->count());
+    }
+
+    public function test_receipts_cap_at_three_accumulated(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg = $this->makeCustomerPayment($this->adminSucursal);
+        app(PaymentReceiptService::class)->attach($cg, [
+            UploadedFile::fake()->image('a.jpg'),
+            UploadedFile::fake()->image('b.jpg'),
+        ], $this->adminSucursal->id);
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('c.jpg'), UploadedFile::fake()->image('d.jpg')]],
+        )->assertSessionHasErrors(['receipts' => 'Máximo 3 comprobantes por pago.']);
+
+        $this->assertSame(2, $cg->receipts()->count());
+    }
+
+    public function test_receipt_belonging_to_another_customer_payment_returns_404(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg1 = $this->makeCustomerPayment($this->adminSucursal);
+        $cg2 = $this->makeCustomerPayment($this->adminSucursal);
+        $receiptOfCg1 = app(PaymentReceiptService::class)->attach($cg1, [UploadedFile::fake()->image('a.jpg')], $this->adminSucursal->id)[0];
+
+        $this->actingAs($this->adminSucursal)->get(
+            route('sucursal.cobros.receipts.download', [$this->tenant->slug, $cg2->id, $receiptOfCg1->id]),
+        )->assertNotFound();
+    }
+
+    public function test_cancelling_global_payment_preserves_receipts(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $customer = $this->makeCustomerWithDebt(200);
+        $this->openShiftFor($this->adminSucursal);
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.clientes.cobro-global', [$this->tenant->slug, $customer->id]),
+            ['amount_received' => 200, 'method' => 'transfer', 'receipts' => [UploadedFile::fake()->image('cap.jpg')]],
+        )->assertCreated();
+
+        $cg = CustomerPayment::where('customer_id', $customer->id)->firstOrFail();
+        $this->assertSame(1, $cg->receipts()->count());
+
+        // Cancelar es un soft-delete (CustomerPaymentController@destroy marca
+        // cancelled_* y hace $customerPayment->delete() con SoftDeletes) — no
+        // borra físicamente el CG ni sus comprobantes: quedan como evidencia.
+        $this->actingAs($this->adminSucursal)->delete(
+            route('sucursal.clientes.cobro-global.cancel', [$this->tenant->slug, $customer->id, $cg->id]),
+            ['cancel_reason' => 'Error de captura'],
+        )->assertOk();
+
+        $this->assertNotNull($cg->fresh()->cancelled_at);
+        $this->assertSoftDeleted($cg);
+        $this->assertSame(1, PaymentReceipt::where('customer_payment_id', $cg->id)->count());
     }
 }
