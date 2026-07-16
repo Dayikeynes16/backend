@@ -131,6 +131,27 @@ Se gestionan en una **pestaña "Categorías"** dentro de la pantalla *Productos 
 
 Cada producto de compra registra su historial de cambios en `audit_logs` (vía el trait `RecordsHistory` + servicio `AuditLogger`, igual que Compras/Gastos): se loguean los eventos **`created`** y **`updated`** (con diff de Nombre, Unidad, Categoría y Estado — la desactivación queda como cambio de `status`). Se consulta bajo demanda en `…/productos-compra/{producto}/historial` (JSON) y se muestra con `HistorialTimeline`. El `destroy` de empresa no borra las filas de auditoría (son inmutables; quedan huérfanas e inofensivas).
 
+#### Fusión de productos de compra duplicados (2026-07-15)
+
+Solo **admin-empresa**. En la pantalla Productos de compra, el botón **"Fusionar
+duplicados"** abre un modal (`Components/Compras/FusionarProductosModal.vue`):
+buscas las fichas duplicadas, las seleccionas, eliges la **canónica** y fusionas.
+La lógica vive en `App\Services\Purchases\PurchaseProductMergeService`:
+
+- Reapunta las `purchase_items` de las fichas absorbidas a la canónica.
+- Normaliza el `concept` de cada línea al nombre canónico y **mueve el dato
+  variable a `notes`** (ej. "Canal de res 111" → concept "Canal de res", nota
+  "111"). Si el texto viejo no era un sufijo limpio del canónico, se preserva
+  completo en la nota; nunca se pierde información.
+- Da de baja (soft-delete) las fichas absorbidas.
+- Registra un evento de auditoría `merged` sobre la canónica.
+
+Endpoints (solo empresa): `GET productos-compra/fusionar/candidatos`,
+`POST productos-compra/fusionar/preview` (impacto sin ejecutar),
+`POST productos-compra/fusionar`. Sucursal y hub no la tienen. Sin migraciones.
+La **prevención** de nuevos duplicados (sugerir producto existente al capturar,
+nota por línea, IA) es trabajo aparte.
+
 ## Validaciones
 
 ### Purchase

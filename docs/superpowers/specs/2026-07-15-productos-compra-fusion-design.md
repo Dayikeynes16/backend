@@ -1,7 +1,7 @@
 # Fusión de productos de compra duplicados
 
 **Fecha:** 2026-07-15
-**Estado:** Aprobado — pendiente de plan
+**Estado:** Implementado (2026-07-15) — ver docs/modulos/compras.md § Fusión de productos de compra duplicados
 **Alcance:** solo la **fusión de duplicados existentes** en el catálogo de productos de compra (`purchase_products`). La **prevención** de nuevos duplicados (sugerir producto existente al capturar, nota por línea en el formulario, arreglar el pipeline de IA) es un spec aparte y posterior.
 
 ## Problema

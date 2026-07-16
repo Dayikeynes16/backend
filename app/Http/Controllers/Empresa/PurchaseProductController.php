@@ -21,7 +21,8 @@ use Inertia\Response;
  * CRUD del catálogo de productos de compra y sus categorías para admin-empresa.
  * Tenant-wide, igual que Proveedores. La escritura y la serialización se
  * comparten con el controlador de sucursal vía concerns; aquí vive además el
- * borrado de productos y categorías.
+ * borrado de productos y categorías. También expone la fusión de duplicados
+ * (candidatos/preview/merge), delegando en PurchaseProductMergeService.
  */
 class PurchaseProductController extends Controller
 {
