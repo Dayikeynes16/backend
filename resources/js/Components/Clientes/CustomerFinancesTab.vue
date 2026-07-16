@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import SaleDetailModal from '@/Components/Clientes/SaleDetailModal.vue';
 import GlobalPaymentDetailModal from '@/Components/Clientes/GlobalPaymentDetailModal.vue';
+import Modal from '@/Components/Modal.vue';
+import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
 
 const props = defineProps({
     customerId: { type: Number, required: true },
@@ -16,6 +18,7 @@ const props = defineProps({
     products: { type: Array, default: () => [] },
     allowedPaymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
     saleItemEditReasonMode: { type: String, default: 'optional' },
+    paymentReceiptsEnabled: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['load', 'register-payment']);
@@ -150,6 +153,16 @@ const openMovement = (m) => {
     if (m.type === 'global') selectedGlobalId.value = m.id;
     else selectedSaleId.value = m.sale_id;
 };
+
+// --- Comprobantes de un cobro global por transferencia (ver/gestionar) ---
+// `canManage` se pasa fijo en `true`: esta pestaña solo la ve admin-sucursal
+// (siempre puede gestionar comprobantes de su sucursal) — ver comentario en
+// PaymentReceiptsPanel.vue para el caso general (cajero + turno).
+const receiptsMovementId = ref(null);
+const receiptsMovement = computed(() => movements.value.find(m => m.type === 'global' && m.id === receiptsMovementId.value) || null);
+const openReceipts = (m) => { if (m.type === 'global') receiptsMovementId.value = m.id; };
+const closeReceipts = () => { receiptsMovementId.value = null; };
+const onReceiptsChanged = () => emit('load');
 
 const refreshAll = () => {
     emit('load');
@@ -296,6 +309,11 @@ const refreshAll = () => {
                                 <span v-if="m.type === 'global'" class="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20">
                                     {{ m.sales_affected_count }} ventas
                                 </span>
+                                <button v-if="m.type === 'global' && m.method === 'transfer' && paymentReceiptsEnabled" type="button" @click.stop="openReceipts(m)"
+                                    class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100"
+                                    title="Comprobantes de esta transferencia">
+                                    📎 {{ m.receipts?.length ?? 0 }}
+                                </button>
                             </div>
                             <p class="mt-0.5 truncate text-xs text-gray-500">
                                 <span class="font-semibold text-gray-700">{{ m.cashier_name || 'Sistema' }}</span> · {{ formatRelative(m.created_at) }}
@@ -324,5 +342,18 @@ const refreshAll = () => {
             @close="selectedGlobalId = null"
             @open-sale="(id) => { selectedGlobalId = null; selectedSaleId = id; }"
             @cancelled="refreshAll" />
+
+        <!-- Comprobantes de un cobro global por transferencia -->
+        <Modal :show="!!receiptsMovement" max-width="lg" @close="closeReceipts">
+            <PaymentReceiptsPanel v-if="receiptsMovement"
+                :receipts="receiptsMovement.receipts ?? []"
+                parent-type="customer-payment"
+                :parent-id="receiptsMovement.id"
+                :can-manage="true"
+                :tenant-slug="tenantSlug"
+                route-prefix="sucursal"
+                @changed="onReceiptsChanged"
+                @close="closeReceipts" />
+        </Modal>
     </div>
 </template>

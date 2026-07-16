@@ -7,6 +7,8 @@ import SaleWhatsappPhoneChip from '@/Components/SaleWhatsappPhoneChip.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import LinkOrderModal from '@/Components/Workbench/LinkOrderModal.vue';
 import InputError from '@/Components/InputError.vue';
+import Modal from '@/Components/Modal.vue';
+import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
 import { useWhatsappSend } from '@/composables/useWhatsappSend';
 import { displayName as itemDisplayName, displayQuantity as itemDisplayQuantity } from '@/composables/useSaleItemDisplay';
 import { router, useForm, usePage } from '@inertiajs/vue3';
@@ -60,6 +62,16 @@ const receiptsRequired = computed(() => !!props.branchInfo?.payment_receipts_req
 const receiptFiles = ref([]);
 const onReceiptChange = (e) => { receiptFiles.value = Array.from(e.target.files ?? []).slice(0, 3); };
 const needsReceipt = computed(() => receiptsRequired.value && paymentForm.method === 'transfer' && receiptFiles.value.length === 0);
+
+// --- Comprobantes de un pago (ver/gestionar) ---
+// `canManage` se pasa fijo en `true`: el backend (turno del cajero, dueño
+// del pago) decide si la mutación procede — ver comentario en
+// PaymentReceiptsPanel.vue.
+const receiptsPanelPaymentId = ref(null);
+const receiptsPanelPayment = computed(() => props.sale.payments?.find(p => p.id === receiptsPanelPaymentId.value) || null);
+const openReceiptsPanel = (p) => { receiptsPanelPaymentId.value = p.id; };
+const closeReceiptsPanel = () => { receiptsPanelPaymentId.value = null; };
+const onReceiptsChanged = () => emit('mutated');
 
 // Expose "dirty" state (typed amount not yet charged) so the modal can confirm before closing.
 watch(() => paymentForm.amount, (value) => {
@@ -348,7 +360,14 @@ const submitUnlink = () => {
                 <h3 class="mb-2 text-sm font-bold text-gray-700">Pagos</h3>
                 <div class="space-y-1.5">
                     <div v-for="p in sale.payments" :key="p.id" class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2.5">
-                        <span :class="methodColor(p.method)" class="text-sm font-semibold">{{ methodLabel(p.method) }}</span>
+                        <div class="flex items-center gap-2">
+                            <span :class="methodColor(p.method)" class="text-sm font-semibold">{{ methodLabel(p.method) }}</span>
+                            <button v-if="p.method === 'transfer' && receiptsEnabled" type="button" @click="openReceiptsPanel(p)"
+                                class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100"
+                                title="Comprobantes de esta transferencia">
+                                📎 {{ p.receipts?.length ?? 0 }}
+                            </button>
+                        </div>
                         <span class="text-sm font-bold text-gray-900">${{ parseFloat(p.amount).toFixed(2) }}</span>
                     </div>
                 </div>
@@ -499,5 +518,18 @@ const submitUnlink = () => {
             :processing="unlinkingOrder"
             @confirm="submitUnlink"
             @cancel="showUnlinkConfirm = false" />
+
+        <!-- Comprobantes de un pago por transferencia -->
+        <Modal :show="!!receiptsPanelPayment" max-width="lg" @close="closeReceiptsPanel">
+            <PaymentReceiptsPanel v-if="receiptsPanelPayment"
+                :receipts="receiptsPanelPayment.receipts ?? []"
+                parent-type="payment"
+                :parent-id="receiptsPanelPayment.id"
+                :can-manage="true"
+                :tenant-slug="tenantSlug"
+                route-prefix="caja"
+                @changed="onReceiptsChanged"
+                @close="closeReceiptsPanel" />
+        </Modal>
     </div>
 </template>

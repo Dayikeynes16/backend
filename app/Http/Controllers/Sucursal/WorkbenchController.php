@@ -41,7 +41,7 @@ class WorkbenchController extends Controller
         $sales = Sale::where('branch_id', $branchId)
             ->whereIn('status', [SaleStatus::Active, SaleStatus::Pending])
             ->with([
-                'items', 'payments', 'lockedByUser:id,name', 'customer:id,name,phone',
+                'items', 'payments.receipts', 'lockedByUser:id,name', 'customer:id,name,phone',
                 'linkedOrder:id,folio,status',
                 'fulfilledBy:id,folio,status,linked_order_id',
             ])

@@ -4,6 +4,7 @@ namespace Tests\Feature\Caja;
 
 use App\Enums\SaleStatus;
 use App\Models\Payment;
+use App\Models\PaymentReceipt;
 use App\Models\Sale;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
@@ -59,6 +60,31 @@ class PagosIndexTest extends TestCase
                 // Solo cuenta el pago propio.
                 ->has('payments.data', 1)
                 ->where('totals.total', '100.00')
+            );
+    }
+
+    public function test_transfer_payment_includes_receipts_in_response(): void
+    {
+        // T9: la lista de Pagos necesita `payments.data.*.receipts` para
+        // mostrar el clip de comprobantes junto a los pagos por transferencia.
+        $payment = $this->makePayment(['user_id' => $this->cajero->id, 'amount' => 150, 'method' => 'transfer']);
+        PaymentReceipt::create([
+            'tenant_id' => $this->tenant->id,
+            'payment_id' => $payment->id,
+            'uploaded_by' => $this->cajero->id,
+            'original_name' => 'comprobante.jpg',
+            'path' => 'tenants/x/payment_receipts/p-'.$payment->id.'/a.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1234,
+        ]);
+
+        $this->actingAs($this->cajero)
+            ->get(route('caja.pagos', $this->tenant->slug))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Caja/Pagos/Index')
+                ->has('payments.data.0.receipts', 1)
+                ->where('payments.data.0.receipts.0.original_name', 'comprobante.jpg')
             );
     }
 }

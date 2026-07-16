@@ -162,6 +162,7 @@ const submitEdit = () => {
                 :products="products"
                 :allowed-payment-methods="allowedPaymentMethods"
                 :sale-item-edit-reason-mode="saleItemEditReasonMode"
+                :payment-receipts-enabled="paymentReceiptsEnabled"
                 @load="() => loadPayments()"
                 @register-payment="onRegisterPayment" />
         </div>

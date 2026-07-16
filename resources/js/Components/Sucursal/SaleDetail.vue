@@ -13,6 +13,8 @@ import SaleItemDeleteDialog from '@/Components/Sucursal/SaleItemDeleteDialog.vue
 import SaleItemHistoryModal from '@/Components/Sucursal/SaleItemHistoryModal.vue';
 import LinkOrderModal from '@/Components/Workbench/LinkOrderModal.vue';
 import LinkSaleToOrderModal from '@/Components/Workbench/LinkSaleToOrderModal.vue';
+import Modal from '@/Components/Modal.vue';
+import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
 import { useWhatsappSend } from '@/composables/useWhatsappSend';
 import { displayName as itemDisplayName, displayQuantity as itemDisplayQuantity, realContentDisplay as itemRealContentDisplay } from '@/composables/useSaleItemDisplay';
 import { router, useForm, usePage } from '@inertiajs/vue3';
@@ -97,6 +99,16 @@ const submitPayment = () => {
             },
         });
 };
+
+// --- Comprobantes de un pago (ver/gestionar) ---
+// `canManage` se pasa fijo en `true`: el backend (turno del cajero, rol,
+// dueño del pago) decide si la mutación procede — ver comentario en
+// PaymentReceiptsPanel.vue.
+const receiptsPanelPaymentId = ref(null);
+const receiptsPanelPayment = computed(() => props.sale.payments?.find(p => p.id === receiptsPanelPaymentId.value) || null);
+const openReceiptsPanel = (p) => { receiptsPanelPaymentId.value = p.id; };
+const closeReceiptsPanel = () => { receiptsPanelPaymentId.value = null; };
+const onReceiptsChanged = () => emit('mutated');
 
 // --- Edit / delete payment ---
 const editingPaymentId = ref(null);
@@ -514,6 +526,11 @@ const submitUnlink = () => {
                             <div class="flex items-center gap-2">
                                 <span :class="methodColor(p.method)" class="text-sm font-semibold">{{ methodLabel(p.method) }}</span>
                                 <span class="text-xs text-gray-400">{{ new Date(p.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                                <button v-if="p.method === 'transfer' && receiptsEnabled" type="button" @click="openReceiptsPanel(p)"
+                                    class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100"
+                                    title="Comprobantes de esta transferencia">
+                                    📎 {{ p.receipts?.length ?? 0 }}
+                                </button>
                             </div>
                             <div class="flex items-center gap-3">
                                 <span class="text-sm font-bold text-gray-900">${{ parseFloat(p.amount).toFixed(2) }}</span>
@@ -709,5 +726,18 @@ const submitUnlink = () => {
             :processing="unlinkingOrder"
             @confirm="submitUnlink"
             @cancel="showUnlinkConfirm = false" />
+
+        <!-- Comprobantes de un pago por transferencia -->
+        <Modal :show="!!receiptsPanelPayment" max-width="lg" @close="closeReceiptsPanel">
+            <PaymentReceiptsPanel v-if="receiptsPanelPayment"
+                :receipts="receiptsPanelPayment.receipts ?? []"
+                parent-type="payment"
+                :parent-id="receiptsPanelPayment.id"
+                :can-manage="true"
+                :tenant-slug="tenantSlug"
+                route-prefix="sucursal"
+                @changed="onReceiptsChanged"
+                @close="closeReceiptsPanel" />
+        </Modal>
     </div>
 </template>

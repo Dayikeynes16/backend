@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Caja;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -56,23 +57,31 @@ class PagosController extends Controller
             })
             ->with([
                 'sale:id,folio,total,status,branch_id,amount_paid,amount_pending',
-                'sale.payments' => fn ($q) => $q->with('user:id,name')->orderBy('created_at'),
+                'sale.payments' => fn ($q) => $q->with([
+                    'user:id,name',
+                    'receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
+                ])->orderBy('created_at'),
                 'user:id,name',
                 'updatedByUser:id,name',
                 'customerPayment:id,folio,customer_id,amount_applied,method,user_id,created_at',
                 'customerPayment.customer:id,name',
                 'customerPayment.user:id,name',
+                'customerPayment.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
+                'receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
             ])
             ->orderByDesc('payments.created_at')
             ->orderByDesc('payments.id')
             ->cursorPaginate(20)
             ->withQueryString();
 
+        $branch = Branch::withoutGlobalScopes()->findOrFail($branchId);
+
         return Inertia::render('Caja/Pagos/Index', [
             'payments' => $payments,
             'totals' => $totals,
             'filters' => $request->only(['method', 'date']),
             'tenant' => app('tenant'),
+            'paymentReceiptsEnabled' => (bool) ($branch->payment_receipts_enabled || $branch->payment_receipts_required),
         ]);
     }
 }

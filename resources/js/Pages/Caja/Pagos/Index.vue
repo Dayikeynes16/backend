@@ -2,12 +2,15 @@
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
 import DatePicker from '@/Components/DatePicker.vue';
 import FlashToast from '@/Components/FlashToast.vue';
+import Modal from '@/Components/Modal.vue';
+import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
     payments: Object, totals: Object,
     filters: Object, tenant: Object,
+    paymentReceiptsEnabled: { type: Boolean, default: false },
 });
 
 const methodMeta = {
@@ -108,6 +111,30 @@ const selectedId = ref(null);
 const selected = ref(null);
 const selectPayment = (payment) => { selectedId.value = payment.id; selected.value = payment; };
 
+const reloadData = () => {
+    router.reload({ only: ['payments', 'totals'], preserveScroll: true, onSuccess: () => {
+        const updated = allPayments.value.find(p => p.id === selectedId.value);
+        if (updated) selected.value = updated;
+    }});
+};
+
+// --- Comprobantes de un pago por transferencia (venta o cobro global) ---
+// `canManage` se pasa fijo en `true`: el backend (turno del cajero, dueño
+// del pago) decide si la mutación procede — ver comentario en
+// PaymentReceiptsPanel.vue. En este prefijo `caja`, los cobros globales
+// (customer-payment) no exponen destroy: el panel lo omite solo.
+const receiptCount = (p) => (p.customer_payment ? p.customer_payment.receipts?.length : p.receipts?.length) ?? 0;
+const showReceipts = ref(false);
+const receiptsFor = computed(() => {
+    if (!selected.value) return null;
+    if (selected.value.customer_payment) {
+        return { parentType: 'customer-payment', parentId: selected.value.customer_payment.id, receipts: selected.value.customer_payment.receipts ?? [] };
+    }
+    return { parentType: 'payment', parentId: selected.value.id, receipts: selected.value.receipts ?? [] };
+});
+const openReceipts = (payment) => { selectPayment(payment); showReceipts.value = true; };
+const onReceiptsChanged = () => reloadData();
+
 // --- Computed for sale payments context ---
 const salePayments = computed(() => selected.value?.sale?.payments || []);
 const paidPct = computed(() => {
@@ -197,7 +224,14 @@ const paidPct = computed(() => {
                                     </div>
                                     <div class="mt-1 flex items-center justify-between">
                                         <span class="truncate font-mono text-xs font-medium text-violet-600">{{ payment.customer_payment.folio }}</span>
-                                        <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                        <span class="flex shrink-0 items-center gap-1.5">
+                                            <button v-if="payment.method === 'transfer' && paymentReceiptsEnabled" type="button" @click.stop="openReceipts(payment)"
+                                                class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100"
+                                                title="Comprobantes de esta transferencia">
+                                                📎 {{ receiptCount(payment) }}
+                                            </button>
+                                            <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                        </span>
                                     </div>
                                 </template>
                                 <!-- Pago normal (venta individual) -->
@@ -211,7 +245,14 @@ const paidPct = computed(() => {
                                     </div>
                                     <div class="mt-1 flex items-center justify-between">
                                         <span class="text-xs text-gray-400 truncate">{{ payment.user?.name }}</span>
-                                        <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                        <span class="flex shrink-0 items-center gap-1.5">
+                                            <button v-if="payment.method === 'transfer' && paymentReceiptsEnabled" type="button" @click.stop="openReceipts(payment)"
+                                                class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100"
+                                                title="Comprobantes de esta transferencia">
+                                                📎 {{ receiptCount(payment) }}
+                                            </button>
+                                            <span class="text-xs text-gray-400">{{ formatTime(payment.created_at) }}</span>
+                                        </span>
                                     </div>
                                 </template>
                             </div>
@@ -262,6 +303,10 @@ const paidPct = computed(() => {
                             <div class="flex items-center gap-2">
                                 <span :class="[methodMeta[selected.method]?.bg, 'rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset']">{{ methodMeta[selected.method]?.label }}</span>
                                 <span v-if="selected.updated_by" class="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-500/20">Editado</span>
+                                <button v-if="selected.method === 'transfer' && paymentReceiptsEnabled" type="button" @click="showReceipts = true"
+                                    class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-700 ring-1 ring-inset ring-violet-600/20 transition hover:bg-violet-100">
+                                    📎 Comprobantes ({{ receiptCount(selected) }})
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -373,6 +418,19 @@ const paidPct = computed(() => {
                 </template>
             </div>
         </div>
+
+        <!-- Comprobantes de un pago por transferencia -->
+        <Modal :show="showReceipts && !!receiptsFor" max-width="lg" @close="showReceipts = false">
+            <PaymentReceiptsPanel v-if="receiptsFor"
+                :receipts="receiptsFor.receipts"
+                :parent-type="receiptsFor.parentType"
+                :parent-id="receiptsFor.parentId"
+                :can-manage="true"
+                :tenant-slug="tenant.slug"
+                route-prefix="caja"
+                @changed="onReceiptsChanged"
+                @close="showReceipts = false" />
+        </Modal>
 
         <FlashToast />
     </CajeroLayout>

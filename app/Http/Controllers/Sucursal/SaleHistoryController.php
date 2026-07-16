@@ -37,7 +37,9 @@ class SaleHistoryController extends Controller
                     ->orWhere('status', '!=', SaleStatus::Pending->value);
             })
             ->with([
-                'items', 'payments.user:id,name', 'payments.updatedByUser:id,name', 'customer:id,name,phone',
+                'items', 'payments.user:id,name', 'payments.updatedByUser:id,name',
+                'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
+                'customer:id,name,phone',
                 'linkedOrder:id,folio,status',
                 'fulfilledBy:id,folio,status,linked_order_id',
             ])
