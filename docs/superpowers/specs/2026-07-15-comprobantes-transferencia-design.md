@@ -1,7 +1,7 @@
 # Comprobantes de pago en transferencias
 
 **Fecha:** 2026-07-15
-**Estado:** Aprobado — pendiente de plan
+**Estado:** Implementado (2026-07-16) — ver docs/modulos/comprobantes-pago.md
 **Alcance:** web (Sucursal y Caja). El hub replicará después por paridad con sus endpoints `/api/v1/hub/*` (spec/plan aparte). Fuera de alcance: OCR/IA sobre el comprobante, notificaciones, pagos a proveedores (compras y gastos ya tienen adjuntos propios).
 
 ## Problema
