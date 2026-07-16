@@ -220,4 +220,83 @@ class PaymentReceiptTest extends TestCase
             ->post($this->payUrl($sale), ['method' => 'cash', 'amount' => 100])
             ->assertSessionHas('success');
     }
+
+    // NOTA (T5): el actor de estos tests para las acciones del cajero es
+    // $this->cajero, cuyo rol solo puede usar el prefijo /caja
+    // ("caja.pagos.receipts.*" -> mismo Sucursal\PaymentReceiptController).
+    // El prefijo /sucursal ("sucursal.pagos.receipts.*") exige
+    // role:admin-sucursal|superadmin y devolvería 403 por el gate de rol del
+    // grupo, no por la regla de turno que estos tests quieren probar. Por
+    // eso el cajero usa rutas caja.* y el admin usa rutas sucursal.*.
+    public function test_attach_later_and_download_and_destroy(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        [, $payment] = $this->makeSaleWithTransferPayment(); // pago del cajero
+        $this->openShiftFor($this->cajero);
+
+        $this->actingAs($this->cajero)->post(
+            route('caja.pagos.receipts.store', [$this->tenant->slug, $payment->id]),
+            ['receipts' => [UploadedFile::fake()->image('tarde.jpg')]],
+        )->assertSessionHas('success');
+
+        $receipt = $payment->receipts()->firstOrFail();
+
+        $this->actingAs($this->cajero)->get(
+            route('caja.pagos.receipts.download', [$this->tenant->slug, $payment->id, $receipt->id]),
+        )->assertOk()->assertDownload('tarde.jpg');
+
+        $this->actingAs($this->adminSucursal)->delete(
+            route('sucursal.pagos.receipts.destroy', [$this->tenant->slug, $payment->id, $receipt->id]),
+        )->assertSessionHas('success');
+        $this->assertSame(0, $payment->receipts()->count());
+    }
+
+    public function test_flag_off_returns_403(): void
+    {
+        $this->branch->forceFill(['payment_receipts_enabled' => false, 'payment_receipts_required' => false])->save();
+        [, $payment] = $this->makeSaleWithTransferPayment();
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.pagos.receipts.store', [$this->tenant->slug, $payment->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertStatus(403);
+    }
+
+    public function test_cash_payment_rejects_receipt(): void
+    {
+        $sale = $this->makeActiveSale();
+        $cash = Payment::create(['sale_id' => $sale->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 50]);
+        $this->openShiftFor($this->cajero);
+
+        $this->actingAs($this->cajero)->post(
+            route('caja.pagos.receipts.store', [$this->tenant->slug, $cash->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertSessionHasErrors(['receipts' => 'Solo los pagos por transferencia llevan comprobante.']);
+    }
+
+    public function test_cajero_cannot_mutate_payment_outside_his_open_shift(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        [, $payment] = $this->makeSaleWithTransferPayment();
+        // Sin turno abierto → 403.
+        $this->actingAs($this->cajero)->post(
+            route('caja.pagos.receipts.store', [$this->tenant->slug, $payment->id]),
+            ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
+        )->assertStatus(403);
+    }
+
+    public function test_deleting_payment_cascades_receipts(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        [$sale, $payment] = $this->makeSaleWithTransferPayment();
+        $receipt = app(PaymentReceiptService::class)->attach($payment, [UploadedFile::fake()->image('c.jpg')], $this->cajero->id)[0];
+        $path = $receipt->path;
+
+        $this->actingAs($this->adminSucursal)->delete(
+            route('sucursal.workbench.payment.destroy', [$this->tenant->slug, $sale->id, $payment->id]),
+        );
+
+        $this->assertSame(0, PaymentReceipt::count());
+        Storage::disk(PaymentReceiptService::disk())->assertMissing($path);
+    }
 }

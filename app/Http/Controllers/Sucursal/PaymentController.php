@@ -167,6 +167,10 @@ class PaymentController extends Controller
         }
 
         DB::transaction(function () use ($payment, $sale, $user) {
+            foreach ($payment->receipts()->get() as $receipt) {
+                app(PaymentReceiptService::class)->delete($receipt);
+            }
+
             $payment->delete();
             app(SalePaymentService::class)->recalculate($sale, $user);
         });

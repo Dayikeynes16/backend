@@ -68,6 +68,7 @@ use App\Http\Controllers\Sucursal\Metrics\SalesMetricsController as SucursalSale
 use App\Http\Controllers\Sucursal\Metrics\ShiftMetricsController as SucursalShiftMetricsController;
 use App\Http\Controllers\Sucursal\PagosController;
 use App\Http\Controllers\Sucursal\PaymentController;
+use App\Http\Controllers\Sucursal\PaymentReceiptController;
 use App\Http\Controllers\Sucursal\ProductoController;
 use App\Http\Controllers\Sucursal\ProviderController as SucursalProviderController;
 use App\Http\Controllers\Sucursal\ProviderPaymentController as SucursalProviderPaymentController;
@@ -349,6 +350,11 @@ Route::prefix('{tenant}')
                 Route::put('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'update'])->name('workbench.payment.update');
                 Route::delete('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'destroy'])->name('workbench.payment.destroy');
 
+                // Comprobantes de pago (adjuntar después / descargar / eliminar)
+                Route::post('pagos/{payment}/comprobantes', [PaymentReceiptController::class, 'store'])->whereNumber('payment')->name('pagos.receipts.store');
+                Route::get('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'download'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.download');
+                Route::delete('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'destroy'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.destroy');
+
                 // Items de una venta — solo admin-sucursal+ (gated por el grupo).
                 // No se expone en Caja: el cajero no toca items.
                 Route::post('mesa-de-trabajo/ventas/{sale}/items', [SaleItemController::class, 'store'])->name('workbench.items.store');
@@ -511,6 +517,12 @@ Route::prefix('{tenant}')
                     Route::get('ventas-vinculables', [CajaWorkbenchController::class, 'linkableSales'])->name('linkable-sales');
                 }
                 Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
+
+                // Comprobantes de pago (adjuntar después / descargar / eliminar)
+                Route::post('pagos/{payment}/comprobantes', [PaymentReceiptController::class, 'store'])->whereNumber('payment')->name('pagos.receipts.store');
+                Route::get('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'download'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.download');
+                Route::delete('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'destroy'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.destroy');
+
                 Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
                 Route::post('ventas/{sale}/unlock', [SaleLockController::class, 'unlock'])->name('sale.unlock');
                 Route::post('ventas/{sale}/heartbeat', [SaleLockController::class, 'heartbeat'])->name('sale.heartbeat');
