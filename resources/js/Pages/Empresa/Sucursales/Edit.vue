@@ -51,7 +51,7 @@ watch(() => form.payment_receipts_enabled, (enabled) => {
     if (!enabled) {
         form.payment_receipts_required = false;
     }
-});
+}, { immediate: true });
 
 const submit = () => form.put(route('empresa.sucursales.update', [props.tenant.slug, props.sucursal.id]));
 
