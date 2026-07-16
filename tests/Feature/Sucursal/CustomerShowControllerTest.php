@@ -61,6 +61,23 @@ class CustomerShowControllerTest extends TestCase
                 ->where('statsSeed.total_owed', 100)
                 ->where('statsSeed.pending_sales_count', 1)
                 ->has('customer.prices')
+                // T8: flags de comprobantes de pago expuestos al frontend del
+                // cobro global; por defecto (migración) ambos son false.
+                ->where('paymentReceiptsEnabled', false)
+                ->where('paymentReceiptsRequired', false)
+            );
+    }
+
+    public function test_show_exposes_payment_receipts_flags_when_branch_enables_them(): void
+    {
+        $this->branch->forceFill(['payment_receipts_enabled' => true, 'payment_receipts_required' => true])->save();
+        $customer = $this->makeCustomer();
+
+        $this->actingAs($this->adminSucursal)
+            ->get(route('sucursal.clientes.show', [$this->tenant->slug, $customer->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('paymentReceiptsEnabled', true)
+                ->where('paymentReceiptsRequired', true)
             );
     }
 

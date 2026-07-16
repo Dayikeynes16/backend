@@ -17,6 +17,8 @@ const props = defineProps({
     tenant: { type: Object, required: true },
     allowedPaymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
     saleItemEditReasonMode: { type: String, default: 'optional' },
+    paymentReceiptsEnabled: { type: Boolean, default: false },
+    paymentReceiptsRequired: { type: Boolean, default: false },
 });
 
 const customerRef = toRef(props, 'customer');
@@ -172,6 +174,8 @@ const submitEdit = () => {
             :pending-sales="payments?.pending_sales || []"
             :allowed-methods="allowedPaymentMethods"
             :shift-open="stats?.current_user_shift_open ?? true"
+            :receipts-enabled="paymentReceiptsEnabled"
+            :receipts-required="paymentReceiptsRequired"
             @close="showPaymentModal = false"
             @success="onPaymentSuccess" />
 

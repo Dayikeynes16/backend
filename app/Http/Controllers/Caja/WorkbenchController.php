@@ -71,6 +71,8 @@ class WorkbenchController extends Controller
                 'address' => $branch->address,
                 'phone' => $branch->phone,
                 'ticket_config' => $branch->ticket_config,
+                'payment_receipts_enabled' => (bool) ($branch->payment_receipts_enabled || $branch->payment_receipts_required),
+                'payment_receipts_required' => (bool) $branch->payment_receipts_required,
             ],
             'paymentMethods' => $paymentMethods,
             'customers' => $customers,

@@ -6,6 +6,7 @@ import WhatsappSendConfirmDialog from '@/Components/WhatsappSendConfirmDialog.vu
 import SaleWhatsappPhoneChip from '@/Components/SaleWhatsappPhoneChip.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import LinkOrderModal from '@/Components/Workbench/LinkOrderModal.vue';
+import InputError from '@/Components/InputError.vue';
 import { useWhatsappSend } from '@/composables/useWhatsappSend';
 import { displayName as itemDisplayName, displayQuantity as itemDisplayQuantity } from '@/composables/useSaleItemDisplay';
 import { router, useForm, usePage } from '@inertiajs/vue3';
@@ -53,23 +54,34 @@ const enteredAmount = computed(() => parseFloat(paymentForm.amount) || 0);
 const changeAmount = computed(() => Math.max(enteredAmount.value - pendingAmount.value, 0));
 const hasPending = computed(() => pendingAmount.value > 0);
 
+// --- Comprobante de transferencia (flags por sucursal) ---
+const receiptsEnabled = computed(() => !!props.branchInfo?.payment_receipts_enabled);
+const receiptsRequired = computed(() => !!props.branchInfo?.payment_receipts_required);
+const receiptFiles = ref([]);
+const onReceiptChange = (e) => { receiptFiles.value = Array.from(e.target.files ?? []).slice(0, 3); };
+const needsReceipt = computed(() => receiptsRequired.value && paymentForm.method === 'transfer' && receiptFiles.value.length === 0);
+
 // Expose "dirty" state (typed amount not yet charged) so the modal can confirm before closing.
 watch(() => paymentForm.amount, (value) => {
     emit('update:dirty', String(value ?? '').trim().length > 0);
 }, { immediate: true });
 
 const submitPayment = () => {
-    if (!hasPending.value) {
+    if (!hasPending.value || needsReceipt.value) {
         return;
     }
-    paymentForm.post(route('caja.payment.store', [props.tenantSlug, props.sale.id]), {
-        preserveScroll: true,
-        onSuccess: () => {
-            paymentForm.reset('amount');
-            paymentForm.method = defaultMethod.value;
-            emit('paid');
-        },
-    });
+    paymentForm
+        .transform((data) => ({ ...data, receipts: receiptFiles.value }))
+        .post(route('caja.payment.store', [props.tenantSlug, props.sale.id]), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                paymentForm.reset('amount');
+                paymentForm.method = defaultMethod.value;
+                receiptFiles.value = [];
+                emit('paid');
+            },
+        });
 };
 
 // --- Customer assignment ---
@@ -410,8 +422,20 @@ const submitUnlink = () => {
                     </button>
                 </div>
 
+                <div v-if="(receiptsEnabled || receiptsRequired) && paymentForm.method === 'transfer'" class="mt-1">
+                    <label class="mb-1 block text-xs font-semibold text-gray-600">
+                        Comprobante de la transferencia <span v-if="receiptsRequired" class="text-red-600">*</span>
+                    </label>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple
+                        class="block w-full text-xs text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                        @change="onReceiptChange" />
+                    <p v-if="receiptFiles.length" class="mt-1 text-xs text-gray-500">{{ receiptFiles.map(f => f.name).join(', ') }}</p>
+                    <p v-else-if="receiptsRequired" class="mt-1 text-xs text-amber-600">Adjunta el comprobante para poder cobrar.</p>
+                    <InputError :message="paymentForm.errors.receipts" class="mt-1" />
+                </div>
+
                 <!-- Cobrar button: full width, prominent -->
-                <button type="submit" :disabled="paymentForm.processing"
+                <button type="submit" :disabled="paymentForm.processing || needsReceipt"
                     class="w-full rounded-xl bg-red-600 py-4 text-base font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-50">
                     Cobrar
                 </button>
