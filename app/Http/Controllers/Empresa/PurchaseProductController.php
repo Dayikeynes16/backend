@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -122,6 +123,13 @@ class PurchaseProductController extends Controller
 
         $canonical = PurchaseProduct::findOrFail($validated['canonical_id']);
 
-        return [$canonical, $validated['absorbed_ids']];
+        $absorbedIds = array_values(array_diff($validated['absorbed_ids'], [$canonical->id]));
+        if ($absorbedIds === []) {
+            throw ValidationException::withMessages([
+                'absorbed_ids' => 'Selecciona al menos una ficha distinta de la canónica.',
+            ]);
+        }
+
+        return [$canonical, $absorbedIds];
     }
 }

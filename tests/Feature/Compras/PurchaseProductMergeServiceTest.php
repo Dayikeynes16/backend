@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Compras;
 
+use App\Models\AuditLog;
 use App\Models\Provider;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
@@ -71,6 +72,18 @@ class PurchaseProductMergeServiceTest extends TestCase
         $this->assertSoftDeleted('purchase_products', ['id' => $a->id]);
         $this->assertSoftDeleted('purchase_products', ['id' => $b->id]);
         $this->assertNotNull($canonical->fresh());
+
+        // El nombre se libera antes del soft-delete (el índice único
+        // tenant+name incluye borrados) para permitir recapturar el nombre.
+        $aTrashed = PurchaseProduct::withTrashed()->findOrFail($a->id);
+        $bTrashed = PurchaseProduct::withTrashed()->findOrFail($b->id);
+        $this->assertStringContainsString('(fusionado #'.$a->id.')', $aTrashed->name);
+        $this->assertStringContainsString('(fusionado #'.$b->id.')', $bTrashed->name);
+
+        // Pero la auditoría conserva los nombres ORIGINALES, no los renombrados.
+        $log = AuditLog::where('auditable_id', $canonical->id)->where('event', 'merged')->firstOrFail();
+        $this->assertTrue(in_array('Canal de res 111', $log->changes['absorbed'], true));
+        $this->assertTrue(in_array('Canal de res 112', $log->changes['absorbed'], true));
     }
 
     public function test_merge_ignores_canonical_in_absorbed_list(): void

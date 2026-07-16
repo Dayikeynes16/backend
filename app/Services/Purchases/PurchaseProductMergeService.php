@@ -36,6 +36,10 @@ class PurchaseProductMergeService
                 ->lockForUpdate()
                 ->get();
 
+            // Los nombres ORIGINALES se capturan antes de renombrar para que la
+            // auditoría quede legible (ver rename más abajo).
+            $originalNames = $absorbed->pluck('name')->all();
+
             $relinked = 0;
             foreach ($absorbed as $product) {
                 $items = PurchaseItem::where('purchase_product_id', $product->id)->lockForUpdate()->get();
@@ -48,12 +52,20 @@ class PurchaseProductMergeService
                     ]);
                     $relinked++;
                 }
+
+                // Libera el nombre antes del soft-delete: el índice único
+                // (tenant_id, name) incluye filas borradas, así que re-capturar
+                // una compra con este nombre (p.ej. un número de res que se
+                // repite) rompería con QueryException si no lo renombramos.
+                $product->update([
+                    'name' => mb_substr($product->name, 0, 140).' (fusionado #'.$product->id.')',
+                ]);
                 $product->delete();
             }
 
             if ($absorbed->isNotEmpty()) {
                 $this->auditor->log($canonical, AuditEvent::Merged, [
-                    'absorbed' => $absorbed->pluck('name')->all(),
+                    'absorbed' => $originalNames,
                     'items_relinked' => $relinked,
                 ]);
             }

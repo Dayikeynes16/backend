@@ -6,6 +6,7 @@ use App\Models\Provider;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\PurchaseProduct;
+use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -115,7 +116,7 @@ class PurchaseProductMergeTest extends TestCase
         $canonical = $this->product('Canal de res');
 
         // Ficha de otro tenant
-        $other = \App\Models\Tenant::create(['name' => 'Otra', 'slug' => 'otra-'.uniqid(), 'status' => 'active']);
+        $other = Tenant::create(['name' => 'Otra', 'slug' => 'otra-'.uniqid(), 'status' => 'active']);
         $foreign = PurchaseProduct::create(['tenant_id' => $other->id, 'name' => 'Ajena', 'unit' => 'kg', 'status' => 'active']);
 
         $this->actingAs($this->adminEmpresa);
@@ -124,5 +125,78 @@ class PurchaseProductMergeTest extends TestCase
         ])->assertStatus(422);
 
         $this->assertNull($foreign->fresh()->deleted_at);
+    }
+
+    public function test_cannot_merge_with_canonical_from_another_tenant(): void
+    {
+        $a = $this->product('Canal de res 111');
+
+        // Canónico de otro tenant
+        $other = Tenant::create(['name' => 'Otra', 'slug' => 'otra-'.uniqid(), 'status' => 'active']);
+        $foreignCanonical = PurchaseProduct::create(['tenant_id' => $other->id, 'name' => 'Ajena', 'unit' => 'kg', 'status' => 'active']);
+
+        $this->actingAs($this->adminEmpresa);
+        $this->postJson(route('empresa.productos-compra.fusionar', $this->tenant->slug), [
+            'canonical_id' => $foreignCanonical->id, 'absorbed_ids' => [$a->id],
+        ])->assertStatus(422);
+
+        $this->assertNull($a->fresh()->deleted_at);
+    }
+
+    public function test_merge_rejects_absorbed_ids_with_only_canonical(): void
+    {
+        $canonical = $this->product('Canal de res');
+
+        $this->actingAs($this->adminEmpresa);
+        $this->postJson(route('empresa.productos-compra.fusionar', $this->tenant->slug), [
+            'canonical_id' => $canonical->id, 'absorbed_ids' => [$canonical->id],
+        ])->assertStatus(422)->assertJsonValidationErrors('absorbed_ids');
+
+        $this->assertNull($canonical->fresh()->deleted_at);
+    }
+
+    public function test_merge_preview_rejects_absorbed_ids_with_only_canonical(): void
+    {
+        $canonical = $this->product('Canal de res');
+
+        $this->actingAs($this->adminEmpresa);
+        $this->postJson(route('empresa.productos-compra.fusionar.preview', $this->tenant->slug), [
+            'canonical_id' => $canonical->id, 'absorbed_ids' => [$canonical->id],
+        ])->assertStatus(422)->assertJsonValidationErrors('absorbed_ids');
+    }
+
+    public function test_recaptures_purchase_with_merged_away_name(): void
+    {
+        // Escenario real: los números de res se repiten, así que un nombre
+        // absorbido por una fusión anterior vuelve a aparecer en una compra
+        // nueva. Antes del fix, el índice único (tenant_id, name) — que
+        // incluye soft-deletes — rompía esta captura con un 500.
+        $canonical = $this->product('Canal de res');
+        $absorbed = $this->product('Canal de res 111');
+        $this->lineFor($absorbed, 'Canal de res 111');
+
+        $this->actingAs($this->adminEmpresa);
+        $this->post(route('empresa.productos-compra.fusionar', $this->tenant->slug), [
+            'canonical_id' => $canonical->id,
+            'absorbed_ids' => [$absorbed->id],
+        ])->assertRedirect();
+        $this->assertSoftDeleted('purchase_products', ['id' => $absorbed->id]);
+
+        $provider = Provider::create(['name' => 'Prov '.uniqid(), 'type' => 'mayorista_carne']);
+        $this->post(route('empresa.compras.store', $this->tenant->slug), [
+            'provider_id' => $provider->id,
+            'branch_id' => $this->branch->id,
+            'purchased_at' => now()->toDateString(),
+            'items' => [[
+                'concept' => 'Canal de res 111',
+                'quantity' => 1,
+                'unit' => 'kg',
+                'unit_price' => 100,
+            ]],
+        ])->assertRedirect();
+
+        $fresh = PurchaseProduct::where('name', 'Canal de res 111')->whereNull('deleted_at')->first();
+        $this->assertNotNull($fresh);
+        $this->assertNotSame($absorbed->id, $fresh->id);
     }
 }
