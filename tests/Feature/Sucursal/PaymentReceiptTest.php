@@ -3,11 +3,16 @@
 namespace Tests\Feature\Sucursal;
 
 use App\Enums\SaleStatus;
+use App\Models\Customer;
+use App\Models\CustomerPayment;
 use App\Models\Payment;
 use App\Models\PaymentReceipt;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Services\PaymentReceiptService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
 
@@ -74,5 +79,56 @@ class PaymentReceiptTest extends TestCase
 
         $this->assertSame(1, $payment->receipts()->count());
         $this->assertSame($receipt->id, $payment->receipts()->first()->id);
+    }
+
+    public function test_service_attaches_file_to_private_disk(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        [, $payment] = $this->makeSaleWithTransferPayment();
+
+        $created = app(PaymentReceiptService::class)->attach(
+            $payment,
+            [UploadedFile::fake()->image('captura.jpg', 400, 400)],
+            $this->cajero->id,
+        );
+
+        $this->assertCount(1, $created);
+        $receipt = $created[0];
+        $this->assertSame($payment->id, $receipt->payment_id);
+        $this->assertNull($receipt->customer_payment_id);
+        $this->assertStringStartsWith("tenants/{$this->tenant->id}/payment_receipts/p-{$payment->id}/", $receipt->path);
+        Storage::disk(PaymentReceiptService::disk())->assertExists($receipt->path);
+    }
+
+    public function test_service_attaches_to_customer_payment_and_delete_removes_file(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg = CustomerPayment::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'customer_id' => Customer::create([
+                'tenant_id' => $this->tenant->id,
+                'branch_id' => $this->branch->id,
+                'name' => 'Cliente F',
+                'status' => 'active',
+            ])->id,
+            'user_id' => $this->cajero->id,
+            'folio' => 'CG-TEST1',
+            'method' => 'transfer',
+            'amount_received' => 200,
+            'amount_applied' => 200,
+            'change_given' => 0,
+            'sales_affected_count' => 0,
+        ]);
+
+        $svc = app(PaymentReceiptService::class);
+        $created = $svc->attach($cg, [UploadedFile::fake()->create('comp.pdf', 100, 'application/pdf')], $this->cajero->id);
+
+        $this->assertSame($cg->id, $created[0]->customer_payment_id);
+
+        $path = $created[0]->path;
+        $svc->delete($created[0]);
+        Storage::disk(PaymentReceiptService::disk())->assertMissing($path);
+        $this->assertSame(0, PaymentReceipt::count());
     }
 }
