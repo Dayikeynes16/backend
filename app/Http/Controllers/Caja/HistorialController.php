@@ -27,7 +27,11 @@ class HistorialController extends Controller
             ->pluck('sale_id');
 
         $sales = Sale::whereIn('id', $saleIds)
-            ->with(['items', 'payments.receipts', 'customer:id,name,phone'])
+            ->with([
+                'items',
+                'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
+                'customer:id,name,phone',
+            ])
             ->when(
                 $request->date,
                 fn ($q, $d) => $q->whereDate('created_at', $d),
