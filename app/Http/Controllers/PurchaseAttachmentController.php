@@ -64,12 +64,12 @@ class PurchaseAttachmentController extends Controller
     /**
      * Ver/descargar/previsualizar. admin-empresa/superadmin: cualquiera de
      * su tenant. admin-sucursal: solo de su sucursal. cajero: solo de su
-     * sucursal — SIN filtro de dueño (Caja\PurchaseController@index ya
-     * muestra todas las compras de la sucursal a cualquier cajero, a
-     * diferencia de Gastos).
+     * sucursal Y sus propias compras (created_by) — misma regla que Gastos,
+     * porque Caja\PurchaseController@index también filtra su listado por
+     * branch_id + created_by (no muestra todas las compras de la sucursal
+     * a cualquier cajero).
      *
-     * OJO: esta regla es la contraria a la de gastos a propósito — no es un
-     * descuido. Ver docs/superpowers/specs/2026-07-17-adjuntos-unificados-design.md.
+     * Ver docs/superpowers/specs/2026-07-17-adjuntos-unificados-design.md.
      */
     private function authorizeView(Purchase $purchase, PurchaseAttachment $attachment): void
     {

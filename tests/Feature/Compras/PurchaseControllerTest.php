@@ -238,9 +238,9 @@ class PurchaseControllerTest extends TestCase
         $this->get(route('caja.compras.adjuntos.preview', [$this->tenant->slug, $own->id, $ownAtt->id]))
             ->assertOk();
 
-        // NO puede ver el de otro cajero (aunque Compras muestra todas las compras
-        // de la sucursal en el índice, los ADJUNTOS solo son visibles para quien
-        // registró la compra — regla decidida en la spec).
+        // NO puede ver el de otro cajero: Compras exige sucursal Y dueño
+        // (created_by), misma regla que Gastos — Caja\PurchaseController@index
+        // también filtra su listado por branch_id + created_by.
         $this->get(route('caja.compras.adjuntos.download', [$this->tenant->slug, $othersPurchase->id, $othersAtt->id]))
             ->assertForbidden();
         $this->get(route('caja.compras.adjuntos.preview', [$this->tenant->slug, $othersPurchase->id, $othersAtt->id]))
