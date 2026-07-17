@@ -10,6 +10,7 @@ use App\Models\PaymentReceipt;
 use App\Services\PaymentReceiptService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -63,6 +64,30 @@ class CustomerPaymentReceiptController extends Controller
         abort_unless($receipt->customer_payment_id === $customerPayment->id, 404);
 
         return Storage::disk(PaymentReceiptService::disk())->download($receipt->path, $receipt->original_name);
+    }
+
+    /**
+     * Vista previa en línea (no descarga). Espejo de
+     * ExpenseAttachmentController@preview / PaymentReceiptController@preview.
+     */
+    public function preview(CustomerPayment $customerPayment, PaymentReceipt $receipt): Response
+    {
+        $user = Auth::user();
+        $this->authorizeView($user, $customerPayment);
+        abort_unless($receipt->customer_payment_id === $customerPayment->id, 404);
+
+        $disk = Storage::disk(PaymentReceiptService::disk());
+        if (! $disk->exists($receipt->path)) {
+            abort(404, 'Archivo no encontrado.');
+        }
+
+        return response($disk->get($receipt->path), 200, [
+            'Content-Type' => $receipt->mime_type,
+            'Content-Disposition' => 'inline; filename="'.addslashes($receipt->original_name).'"',
+            'Content-Length' => (string) $receipt->size_bytes,
+            'Cache-Control' => 'private, max-age=300',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function destroy(CustomerPayment $customerPayment, PaymentReceipt $receipt): RedirectResponse

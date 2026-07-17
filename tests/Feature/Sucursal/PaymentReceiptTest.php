@@ -344,4 +344,28 @@ class PaymentReceiptTest extends TestCase
             ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
         )->assertStatus(403);
     }
+
+    public function test_preview_returns_inline_disposition(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        [, $payment] = $this->makeSaleWithTransferPayment();
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.pagos.receipts.store', [$this->tenant->slug, $payment->id]),
+            ['receipts' => [UploadedFile::fake()->image('captura.jpg')]],
+        )->assertSessionHas('success');
+
+        $receipt = $payment->receipts()->firstOrFail();
+
+        $response = $this->actingAs($this->adminSucursal)->get(
+            route('sucursal.pagos.receipts.preview', [$this->tenant->slug, $payment->id, $receipt->id]),
+        );
+        $response->assertOk();
+        $this->assertStringContainsString('inline', $response->headers->get('content-disposition') ?? '');
+
+        // Mismo gate de rol que .download: un cajero sin turno/dueño del pago no puede.
+        $this->actingAs($this->cajero)->get(
+            route('sucursal.pagos.receipts.preview', [$this->tenant->slug, $payment->id, $receipt->id]),
+        )->assertForbidden();
+    }
 }

@@ -351,9 +351,10 @@ Route::prefix('{tenant}')
                 Route::put('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'update'])->name('workbench.payment.update');
                 Route::delete('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'destroy'])->name('workbench.payment.destroy');
 
-                // Comprobantes de pago (adjuntar después / descargar / eliminar)
+                // Comprobantes de pago (adjuntar después / descargar / previsualizar / eliminar)
                 Route::post('pagos/{payment}/comprobantes', [PaymentReceiptController::class, 'store'])->whereNumber('payment')->name('pagos.receipts.store');
                 Route::get('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'download'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.download');
+                Route::get('pagos/{payment}/comprobantes/{receipt}/preview', [PaymentReceiptController::class, 'preview'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.preview');
                 Route::delete('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'destroy'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.destroy');
 
                 // Items de una venta — solo admin-sucursal+ (gated por el grupo).
@@ -392,9 +393,10 @@ Route::prefix('{tenant}')
                 Route::get('clientes/{customer}/cobros-globales/{customerPayment}', [CustomerPaymentController::class, 'show'])->name('clientes.cobro-global.show');
                 Route::delete('clientes/{customer}/cobros-globales/{customerPayment}', [CustomerPaymentController::class, 'destroy'])->name('clientes.cobro-global.cancel');
 
-                // Comprobantes de cobro global (adjuntar después / descargar / eliminar)
+                // Comprobantes de cobro global (adjuntar después / descargar / previsualizar / eliminar)
                 Route::post('cobros/{customerPayment}/comprobantes', [CustomerPaymentReceiptController::class, 'store'])->whereNumber('customerPayment')->name('cobros.receipts.store');
                 Route::get('cobros/{customerPayment}/comprobantes/{receipt}', [CustomerPaymentReceiptController::class, 'download'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.download');
+                Route::get('cobros/{customerPayment}/comprobantes/{receipt}/preview', [CustomerPaymentReceiptController::class, 'preview'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.preview');
                 Route::delete('cobros/{customerPayment}/comprobantes/{receipt}', [CustomerPaymentReceiptController::class, 'destroy'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.destroy');
 
                 // Assign customer to sale
@@ -524,9 +526,10 @@ Route::prefix('{tenant}')
                 }
                 Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
 
-                // Comprobantes de pago (adjuntar después / descargar / eliminar)
+                // Comprobantes de pago (adjuntar después / descargar / previsualizar / eliminar)
                 Route::post('pagos/{payment}/comprobantes', [PaymentReceiptController::class, 'store'])->whereNumber('payment')->name('pagos.receipts.store');
                 Route::get('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'download'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.download');
+                Route::get('pagos/{payment}/comprobantes/{receipt}/preview', [PaymentReceiptController::class, 'preview'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.preview');
                 Route::delete('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'destroy'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.destroy');
 
                 // Comprobantes de cobro global (adjuntar después / descargar). El
@@ -536,6 +539,7 @@ Route::prefix('{tenant}')
                 // elimina: no hay ruta destroy en este grupo.
                 Route::post('cobros/{customerPayment}/comprobantes', [CustomerPaymentReceiptController::class, 'store'])->whereNumber('customerPayment')->name('cobros.receipts.store');
                 Route::get('cobros/{customerPayment}/comprobantes/{receipt}', [CustomerPaymentReceiptController::class, 'download'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.download');
+                Route::get('cobros/{customerPayment}/comprobantes/{receipt}/preview', [CustomerPaymentReceiptController::class, 'preview'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.preview');
 
                 Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
                 Route::post('ventas/{sale}/unlock', [SaleLockController::class, 'unlock'])->name('sale.unlock');

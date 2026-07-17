@@ -176,6 +176,25 @@ class CustomerPaymentReceiptTest extends TestCase
         $this->assertSame(1, $cg->receipts()->count());
     }
 
+    public function test_preview_returns_inline_disposition(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg = $this->makeCustomerPayment($this->adminSucursal);
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('tarde.jpg')]],
+        )->assertSessionHas('success');
+
+        $receipt = $cg->receipts()->firstOrFail();
+
+        $response = $this->actingAs($this->adminSucursal)->get(
+            route('sucursal.cobros.receipts.preview', [$this->tenant->slug, $cg->id, $receipt->id]),
+        );
+        $response->assertOk();
+        $this->assertStringContainsString('inline', $response->headers->get('content-disposition') ?? '');
+    }
+
     // NOTA: el actor cajero solo puede usar el prefijo /caja
     // ("caja.cobros.receipts.*" -> mismo Sucursal\CustomerPaymentReceiptController).
     // El prefijo /sucursal exige role:admin-sucursal|superadmin y devolvería
