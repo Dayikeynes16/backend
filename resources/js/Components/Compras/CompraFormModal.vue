@@ -337,6 +337,7 @@ const onConceptInput = (line) => {
                                 :max-count="MAX_ATTACHMENTS"
                                 :preview-url="attachmentPreviewRouteName ? previewUrlBuilder : null"
                                 :download-url="attachmentDownloadRouteName ? downloadUrlBuilder : null"
+                                :can-delete="!!attachmentDestroyRouteName"
                                 @remove-existing="removeExistingAttachment" />
                             <p v-if="form.errors.attachments" class="mt-1 text-xs text-red-600">{{ form.errors.attachments }}</p>
                         </div>
