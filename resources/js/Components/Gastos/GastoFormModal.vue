@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import DateField from '@/Components/DateField.vue';
-import AttachmentViewerModal from '@/Components/Gastos/AttachmentViewerModal.vue';
+import AttachmentViewerModal from '@/Components/AttachmentViewerModal.vue';
 import CameraCaptureModal from '@/Components/CameraCaptureModal.vue';
 import { useExpenseAiDraft } from '@/composables/useExpenseAiDraft';
 import { localToday } from '@/utils/date';
