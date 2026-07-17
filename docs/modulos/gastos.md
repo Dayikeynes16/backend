@@ -45,7 +45,8 @@ expense_categories  (tenant_id, name, description?, aliases?, status, created_by
 | Crear/editar categorías y subcategorías | ✅ | ✅ | ✅ **si** la empresa habilita el toggle de su sucursal | ❌ |
 | Eliminar categorías y subcategorías | ✅ | ✅ | ❌ (reservado a empresa) | ❌ |
 | Crear categoría con IA | ✅ | ✅ | ✅ **si** la empresa habilita el toggle de su sucursal | ❌ |
-| Descargar / previsualizar adjuntos | ✅ | ✅ todas | ✅ sólo de su sucursal | ❌ |
+| Descargar / previsualizar adjuntos | ✅ | ✅ todas | ✅ sólo de su sucursal | ✅ sólo de gastos propios de su sucursal |
+| Eliminar adjuntos | ✅ | ✅ todas | ✅ sólo de su sucursal | ✅ sólo propios y con turno abierto |
 
 Implementación: middleware `role:...` en cada grupo de rutas + checks manuales `tenant_id`/`branch_id` en cada controller (igual que `WithdrawalController`).
 
@@ -124,7 +125,8 @@ DELETE /{tenant}/sucursal/gastos/{gasto}/adjuntos/{attachment}  sucursal.gastos.
   - `preview` — `Storage::get()` con `Content-Disposition: inline` (visualiza en `<img>` o `<iframe>` sin descargar).
 - Ambos validan `tenant_id` y, para `admin-sucursal`, también `branch_id`.
 - Eliminación física: hook `deleting` en `ExpenseAttachment` borra el archivo. El soft-delete del gasto **no** borra archivos (auditoría).
-- Frontend: `Components/Gastos/AttachmentViewerModal.vue` usa el endpoint `preview` para imagen (img tag) y PDF (iframe). Botón secundario "Descargar" usa el endpoint `download`.
+- Frontend: `Components/AttachmentViewerModal.vue` usa el endpoint `preview` para imagen (img tag) y PDF (iframe). Botón secundario "Descargar" usa el endpoint `download`.
+- **Caja (cajero), desde 2026-07-17:** rutas propias `caja.gastos.adjuntos.{download,preview,destroy}` (mismo `ExpenseAttachmentController`, sin clases nuevas). `authorizeView()` (usada por `download`/`preview`) acota al cajero a `branch_id` **y** `user_id` (dueño del gasto) — mismo filtro que ya aplica `Caja\GastoController@index`; `authorizeMutation()` (usada por `destroy`) exige además que el gasto siga ligado a su turno abierto (`cash_register_shift_id`). Antes de esto, el wiring de Caja apuntaba por error a rutas de listado/alta (`caja.gastos.index`/`caja.gastos.store`) en vez de rutas de adjuntos reales, así que un cajero no podía ver adjuntos de sus propios gastos.
 
 ## UI
 
@@ -144,9 +146,9 @@ KPIs + filtros (DateField rango, categoría, subcategoría, búsqueda). Si el te
 ### Componentes reutilizables
 
 - `Components/DateField.vue` — selector de fecha tipo iOS, popover, sin dependencias. Modos `single` y `range`. Presets integrados (Hoy/Ayer en single; Hoy/Ayer/7 días/Este mes/Mes pasado/Este año en range). **Reemplaza el input nativo `<input type="date">` en todo el sistema** — también lo usa `Metrics/DateRangeFilter.vue`.
-- `Components/Gastos/GastoFormModal.vue` — form crear/editar con cascada categoría → subcategoría, fecha (sólo día), multi-upload con validación cliente, eliminación de adjuntos existentes.
+- `Components/Gastos/GastoFormModal.vue` — form crear/editar con cascada categoría → subcategoría, fecha (sólo día), multi-upload con validación cliente, eliminación de adjuntos existentes. Desde 2026-07-17 el picker de adjuntos (cámara, arrastrar y soltar, miniaturas, estado vacío) se delega al componente compartido `Components/AttachmentsPicker.vue` (`mode="staged"`) — ya no es una implementación bespoke de este módulo; el mismo componente lo usan Comprobantes de pago ([comprobantes-pago.md](comprobantes-pago.md)) y Compras ([compras.md](compras.md)).
 - `Components/Gastos/GastoDetailModal.vue` — detalle con monto destacado y grid de adjuntos como thumbnails. Click abre el viewer.
-- `Components/Gastos/AttachmentViewerModal.vue` — visor inline para imagen (img) y PDF (iframe). Navegación prev/next, descarga secundaria, atajos de teclado (Esc, ArrowLeft, ArrowRight).
+- `Components/AttachmentViewerModal.vue` — visor inline para imagen (img) y PDF (iframe). Navegación prev/next, descarga secundaria, atajos de teclado (Esc, ArrowLeft, ArrowRight). Se movió de `Components/Gastos/` a `Components/` el 2026-07-17 para ser compartido por Comprobantes de pago, Gastos y Compras.
 
 ## Auditoría y trazabilidad
 

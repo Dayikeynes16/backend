@@ -1,7 +1,7 @@
 # Adjuntos unificados: visor + componente compartido de subida (comprobantes de pago, Gastos, Compras)
 
 **Fecha:** 2026-07-17
-**Estado:** Aprobado — pendiente de plan
+**Estado:** Implementado (2026-07-17) — ver docs/modulos/comprobantes-pago.md, docs/modulos/gastos.md, docs/modulos/compras.md
 **Alcance:** frontend (Vue) + rutas backend nuevas de solo-lectura (preview inline) + una corrección de autorización en 2 controladores existentes. Toca `PaymentReceiptsPanel.vue` (comprobantes de pago), `GastoFormModal.vue` (Gastos), `CompraFormModal.vue` (Compras), `CompraDetailModal.vue` y `GastoDetailModal.vue` (swap/arreglo de visor), las páginas `Pages/Empresa/Compras/Index.vue` y `Pages/Sucursal/Compras/Index.vue` (agregar wiring de rutas de adjuntos que hoy no existe para ningún rol — usa rutas backend ya existentes, sin cambios de backend ahí), y las páginas `Pages/Caja/Compras/Index.vue` / `Pages/Caja/Gastos/Index.vue` (corrección de rutas de adjuntos — ver "Caja: el visor debe funcionar ahí también", hallazgo en vivo del usuario + bugs preexistentes encontrados al investigarlo, backend nuevo). Fuera de alcance: los flujos de "captura con IA" (`GastoCapturaIAModal.vue`, `CompraCapturaIAModal.vue` — ya son consistentes entre sí y no se tocan), fotos de producto (`Productos/Create.vue`/`Edit.vue`), logo de marca (`Empresa/Personalizacion.vue`), adjuntos del chat del asistente (`ChatInputBar.vue`). El hub (Electron) queda fuera — es un proyecto aparte con su propia paridad visual pendiente.
 
 ## Problema

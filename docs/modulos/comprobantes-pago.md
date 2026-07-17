@@ -2,6 +2,8 @@
 
 Adjuntos de evidencia (imagen o PDF) para pagos por transferencia — tanto pagos de venta (`Payment`) como cobros globales de fiado (`CustomerPayment`). Resuelve un problema operativo real: cuando un cliente paga por transferencia, la captura del comprobante vivía en el WhatsApp del cajero o del dueño, sin liga con el pago registrado.
 
+**Actualización 2026-07-17:** el panel de ver/gestionar (`Components/PaymentReceiptsPanel.vue`) dejó de mostrar una lista de texto (nombre + tamaño) — ahora renderiza miniaturas reales (foto o ícono de PDF) y abre un visor de pantalla completa mediante los componentes compartidos `Components/AttachmentsPicker.vue` (modo `immediate`) y `Components/AttachmentViewerModal.vue`, los mismos que usan Gastos y Compras (ver [gastos.md](gastos.md), [compras.md](compras.md)). Las miniaturas y el visor se sirven desde un nuevo endpoint `preview()` (`Content-Disposition: inline`) agregado a `PaymentReceiptController`/`CustomerPaymentReceiptController` — espejo de `ExpenseAttachmentController@preview`. Ver la sección Frontend y las tablas de Rutas más abajo.
+
 ## Responsabilidades
 
 - Permitir adjuntar uno o más comprobantes a un pago por transferencia, en el momento del cobro o después.
@@ -108,9 +110,11 @@ Comparten prefijo/rol con los pagos existentes. `{tenant}` se omite (resuelto po
 |---|---|---|
 | POST | `sucursal/pagos/{payment}/comprobantes` | `sucursal.pagos.receipts.store` |
 | GET | `sucursal/pagos/{payment}/comprobantes/{receipt}` | `sucursal.pagos.receipts.download` |
+| GET | `sucursal/pagos/{payment}/comprobantes/{receipt}/preview` | `sucursal.pagos.receipts.preview` |
 | DELETE | `sucursal/pagos/{payment}/comprobantes/{receipt}` | `sucursal.pagos.receipts.destroy` |
 | POST | `caja/pagos/{payment}/comprobantes` | `caja.pagos.receipts.store` |
 | GET | `caja/pagos/{payment}/comprobantes/{receipt}` | `caja.pagos.receipts.download` |
+| GET | `caja/pagos/{payment}/comprobantes/{receipt}/preview` | `caja.pagos.receipts.preview` |
 | DELETE | `caja/pagos/{payment}/comprobantes/{receipt}` | `caja.pagos.receipts.destroy` |
 
 ### Comprobantes de cobro global
@@ -119,11 +123,13 @@ Comparten prefijo/rol con los pagos existentes. `{tenant}` se omite (resuelto po
 |---|---|---|
 | POST | `sucursal/cobros/{customerPayment}/comprobantes` | `sucursal.cobros.receipts.store` |
 | GET | `sucursal/cobros/{customerPayment}/comprobantes/{receipt}` | `sucursal.cobros.receipts.download` |
+| GET | `sucursal/cobros/{customerPayment}/comprobantes/{receipt}/preview` | `sucursal.cobros.receipts.preview` |
 | DELETE | `sucursal/cobros/{customerPayment}/comprobantes/{receipt}` | `sucursal.cobros.receipts.destroy` |
 | POST | `caja/cobros/{customerPayment}/comprobantes` | `caja.cobros.receipts.store` |
 | GET | `caja/cobros/{customerPayment}/comprobantes/{receipt}` | `caja.cobros.receipts.download` |
+| GET | `caja/cobros/{customerPayment}/comprobantes/{receipt}/preview` | `caja.cobros.receipts.preview` |
 
-El grupo `caja` **no** expone `destroy` para comprobantes de cobro global: el cajero no crea cobros globales por la web (solo vía asistente IA), así que puede adjuntar/descargar los suyos pero no eliminarlos — verificado con `route:list --name=receipts` (11 rutas totales: 3+3 en `sucursal`, 3+2 en `caja`).
+El grupo `caja` **no** expone `destroy` para comprobantes de cobro global: el cajero no crea cobros globales por la web (solo vía asistente IA), así que puede adjuntar/descargar/previsualizar los suyos pero no eliminarlos — verificado con `route:list --name=receipts` (15 rutas totales: 4+4 en `sucursal`, 4+3 en `caja`, tras agregar `preview` a los 4 endpoints existentes).
 
 Controladores: `App\Http\Controllers\Sucursal\PaymentReceiptController` y `App\Http\Controllers\Sucursal\CustomerPaymentReceiptController` (bajo el namespace `Sucursal` mismo para las rutas de `caja`, igual que `PaymentController`).
 
@@ -138,7 +144,7 @@ Mensajes: `"Máximo 3 comprobantes por pago."`, `"Solo se permiten imágenes (jp
 
 ## Frontend
 
-- **`Components/PaymentReceiptsPanel.vue`** — panel reutilizable (se monta dentro de `Components/Modal.vue` existente) para ver/agregar/descargar/eliminar comprobantes de un pago o cobro global ya creado. Usa **Inertia `router.post`/`router.delete`** (no axios) porque los endpoints de T5/T6 responden `back()->with('success', ...)` / `back()->withErrors(...)` — el flujo estándar de Inertia. Props: `receipts`, `parentType` (`payment` | `customer-payment`), `parentId`, `canManage`, `tenantSlug`, `routePrefix` (`sucursal` | `caja`). `canDelete` se apaga automáticamente si `routePrefix === 'caja' && parentType === 'customer-payment'` (sin ruta `destroy` ahí).
+- **`Components/PaymentReceiptsPanel.vue`** — panel reutilizable (se monta dentro de `Components/Modal.vue` existente) para ver/agregar/descargar/eliminar comprobantes de un pago o cobro global ya creado. Usa **Inertia `router.post`/`router.delete`** (no axios) porque los endpoints de T5/T6 responden `back()->with('success', ...)` / `back()->withErrors(...)` — el flujo estándar de Inertia. Props: `receipts`, `parentType` (`payment` | `customer-payment`), `parentId`, `canManage`, `tenantSlug`, `routePrefix` (`sucursal` | `caja`). `canDelete` se apaga automáticamente si `routePrefix === 'caja' && parentType === 'customer-payment'` (sin ruta `destroy` ahí). Desde 2026-07-17 delega el renderizado de miniaturas/subida al componente compartido `Components/AttachmentsPicker.vue` (`mode="immediate"`: cada selección/soltado sube al instante) y el visor de pantalla completa a `Components/AttachmentViewerModal.vue` — mismos componentes que usan Gastos y Compras; el panel sigue siendo dueño de las llamadas `router.post`/`router.delete` y de mapear `canManage`/`canDelete` a las props `can-add`/`can-delete` del picker.
 - **Clips `📎 {count}`** — visibles cuando `method === 'transfer' && (branchInfo.payment_receipts_enabled || payment_receipts_required)`, en: `Components/Sucursal/SaleDetail.vue` y `Components/Caja/SaleDetail.vue` (filas de "Pagos"), `Pages/Sucursal/Pagos/Index.vue` y `Pages/Caja/Pagos/Index.vue` (filas de lista y detalle de pago), `Components/Clientes/CustomerFinancesTab.vue` (solo filas de cobro global en el ledger de cliente).
 - **Input de comprobante al cobrar** — implementado inline (no vía un componente de formulario compartido) en `Components/Sucursal/SaleDetail.vue`, `Components/Caja/SaleDetail.vue` y `Components/Clientes/CustomerPaymentModal.vue`: aparece cuando el método es `transfer` y el flag está prendido; con `required`, el botón "Cobrar" se deshabilita sin archivo y muestra la ayuda `"Adjunta el comprobante para poder cobrar."`.
 - **`Components/PaymentForm.vue`** — componente standalone que **no se importa en ningún lugar de la app** (código muerto, confirmado por `grep`); se actualizó por consistencia con el resto del módulo pero el flujo real de cobro vive inline en los `SaleDetail.vue` y en `CustomerPaymentModal.vue`.
