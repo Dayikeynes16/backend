@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-07-17
 **Estado:** Aprobado — pendiente de plan
-**Alcance:** frontend (Vue) + 4 rutas backend nuevas de solo-lectura (preview inline). Toca `PaymentReceiptsPanel.vue` (comprobantes de pago), `GastoFormModal.vue` (Gastos) y `CompraFormModal.vue` (Compras). Fuera de alcance: los flujos de "captura con IA" (`GastoCapturaIAModal.vue`, `CompraCapturaIAModal.vue` — ya son consistentes entre sí y no se tocan), fotos de producto (`Productos/Create.vue`/`Edit.vue`), logo de marca (`Empresa/Personalizacion.vue`), adjuntos del chat del asistente (`ChatInputBar.vue`). El hub (Electron) queda fuera — es un proyecto aparte con su propia paridad visual pendiente.
+**Alcance:** frontend (Vue) + 4 rutas backend nuevas de solo-lectura (preview inline). Toca `PaymentReceiptsPanel.vue` (comprobantes de pago), `GastoFormModal.vue` (Gastos), `CompraFormModal.vue` (Compras) y `CompraDetailModal.vue` (Compras — ver más abajo, hallazgo del review de esta spec). Fuera de alcance: los flujos de "captura con IA" (`GastoCapturaIAModal.vue`, `CompraCapturaIAModal.vue` — ya son consistentes entre sí y no se tocan), fotos de producto (`Productos/Create.vue`/`Edit.vue`), logo de marca (`Empresa/Personalizacion.vue`), adjuntos del chat del asistente (`ChatInputBar.vue`). El hub (Electron) queda fuera — es un proyecto aparte con su propia paridad visual pendiente.
 
 ## Problema
 
@@ -23,7 +23,8 @@ El usuario pidió explícitamente unificar: un solo componente, mismo comportami
 | Decisión | Valor |
 |---|---|
 | Punto de entrada del clip 📎 en las listas de pagos (Pagos, Historial, Mesa de trabajo, ficha de cliente) | **Sin cambios.** Se queda el badge chico "📎 N" tal cual — el usuario lo aprobó explícitamente y pidió enfocar el trabajo en lo que hay *dentro* del panel |
-| Alcance de la unificación | 3 consumidores: `GastoFormModal.vue` (refactor), `CompraFormModal.vue` (se pone al día), `PaymentReceiptsPanel.vue` (ya construido, se adapta al componente compartido) |
+| Alcance de la unificación | 4 consumidores del visor/picker: `GastoFormModal.vue` (refactor), `CompraFormModal.vue` (se pone al día), `PaymentReceiptsPanel.vue` (ya construido, se adapta al componente compartido), y `CompraDetailModal.vue` (swap de visor, ver fila siguiente) |
+| `CompraDetailModal.vue` tiene su propio visor duplicado | Hallazgo del review de esta spec: el modal "Ver compra" ya muestra los adjuntos con su propio lightbox hecho a mano (`viewer`/`openViewer`/`closeViewer`, líneas ~276-286), **no** usa `AttachmentViewerModal.vue` — a diferencia de `GastoDetailModal.vue`, que sí lo usa (línea 3 y 163). Sin corregir esto, Compras se quedaría con dos UIs de adjuntos distintas después del cambio, contradiciendo el objetivo de unificar. Se incluye en el alcance: reemplazar el lightbox inline de `CompraDetailModal.vue` por el `AttachmentViewerModal.vue` compartido, igual que ya hace `GastoDetailModal.vue` |
 | Flujos de "captura con IA" (Gastos/Compras) | Fuera de alcance — ya comparten `CameraCaptureModal.vue` entre sí y tienen un propósito distinto (extracción por IA, no solo adjuntar) |
 | Componente nuevo | `resources/js/Components/AttachmentsPicker.vue` — reemplaza la UI de adjuntos en los 3 lugares. Presentacional/"tonto": no hace peticiones de red, no decide permisos, no conoce rutas — el padre sigue siendo dueño de esa lógica (mismo principio ya usado en `ConfirmDialog.vue` y en el flujo draft+confirm del asistente) |
 | Modos de operación | `mode="staged"` (Gastos, Compras: los archivos nuevos se acumulan localmente y se envían junto con el resto del formulario al guardar) y `mode="immediate"` (Comprobantes de pago: cada selección/soltado sube al instante, sin paso de "guardar" alrededor) |
@@ -69,7 +70,8 @@ El componente valida localmente (tipo, tamaño, cupo restante) antes de emitir �
 
 - **`PaymentReceiptsPanel.vue`**: pasa a usar `AttachmentsPicker` con `mode="immediate"`. La lógica de `router.post`/`router.delete`, manejo de `onError`, y el comentario sobre el fallback al modal de error de Inertia en 403 **no cambian** — solo cambia qué renderiza (miniaturas + visor en vez de lista de texto).
 - **`GastoFormModal.vue`**: refactor para consumir `AttachmentsPicker` con `mode="staged"` en vez de su implementación inline actual (~150 líneas de grid/queue/preview se remueven del archivo y se delegan al componente). Sin cambios de comportamiento visible salvo las 3 mejoras (drag&drop, estado vacío; "subiendo" no aplica en modo staged).
-- **`CompraFormModal.vue`**: reemplaza el `<input type="file">` nativo por `AttachmentsPicker` con `mode="staged"` — gana cámara, miniaturas y visor por primera vez. Backend de Compras ya tiene ruta de preview (`ExpenseAttachmentController`-equivalente de Compras, a confirmar nombre exacto en el plan) — se reutiliza tal cual.
+- **`CompraFormModal.vue`**: reemplaza el `<input type="file">` nativo por `AttachmentsPicker` con `mode="staged"` — gana cámara, miniaturas y visor por primera vez. Backend de Compras ya tiene su endpoint de preview: `PurchaseAttachmentController@preview`, rutas `{sucursal,empresa,caja}.compras.adjuntos.preview` (mismo patrón exacto que `ExpenseAttachmentController@preview`) — se reutiliza tal cual, sin cambios backend. Nota para el plan: hoy `CompraFormModal.vue` solo recibe `routes: {store, update}` como prop y **no muestra los adjuntos ya existentes en modo edición** — a diferencia de `GastoFormModal.vue`, que sí recibe `attachmentPreviewRouteName`/`attachmentDownloadRouteName`/`attachmentDestroyRouteName` y renderiza `existingAttachments`. Hay que agregarle esas mismas props (u equivalentes) a `CompraFormModal.vue` para que edición gane paridad con Gastos.
+- **`CompraDetailModal.vue`**: reemplaza su lightbox inline (`viewer`/`openViewer`/`closeViewer` + el `<div v-if="viewer">` de las líneas ~276-286) por `AttachmentViewerModal` (compartido), igual que ya hace `GastoDetailModal.vue`. Es un swap de visor únicamente — no toca su lista de miniaturas existente ni el botón eliminar, que ya funcionan.
 
 ## Backend: endpoints de vista previa para comprobantes de pago
 
@@ -91,7 +93,7 @@ Rutas nuevas (4), mismo prefijo/agrupación que las de `download`/`destroy` ya e
 - No toca las rutas ni la validación backend de adjuntos de Gastos/Compras (mismos endpoints `store`/`destroy`/`preview`/`download` de siempre).
 - Solo reemplaza la capa de presentación de "elegir/ver archivos" por el componente compartido.
 - Mitigación: el submit final sigue mandando el mismo shape de datos (`File[]` en `form.attachments`/`form.<campo>`) — el componente no cambia el contrato con el backend, solo cómo se juntan los archivos en el cliente.
-- No hay test runner de JS en el proyecto (frontend se verifica por build + click-through manual, igual que en T8/T9 de este mismo feature) — se hará una pasada manual de "crear gasto con foto", "crear compra con PDF", "editar gasto existente y borrar un adjunto" tras el refactor.
+- No hay test runner de JS en el proyecto (frontend se verifica por build + click-through manual, igual que en T8/T9 de este mismo feature) — se hará una pasada manual de "crear gasto con foto", "crear compra con PDF", "editar gasto existente y borrar un adjunto", "editar compra existente y ver adjuntos" y "abrir 'Ver compra' y usar el visor" tras el refactor.
 
 ## Pruebas
 
