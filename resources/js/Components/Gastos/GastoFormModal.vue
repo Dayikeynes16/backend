@@ -1,12 +1,10 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import DateField from '@/Components/DateField.vue';
-import AttachmentViewerModal from '@/Components/AttachmentViewerModal.vue';
-import CameraCaptureModal from '@/Components/CameraCaptureModal.vue';
+import AttachmentsPicker from '@/Components/AttachmentsPicker.vue';
 import { useExpenseAiDraft } from '@/composables/useExpenseAiDraft';
 import { localToday } from '@/utils/date';
-import { isMobileDevice } from '@/utils/device';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -43,8 +41,6 @@ const props = defineProps({
 const emit = defineEmits(['close', 'success']);
 
 const MAX_ATTACHMENTS = 5;
-const MAX_BYTES = 5 * 1024 * 1024;
-const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 const form = useForm({
     concept: '',
@@ -65,14 +61,9 @@ const aiDraftAttachments = ref([]);
 
 const { applyProposalToForm } = useExpenseAiDraft();
 
-const fileInput = ref(null);
-const cameraInput = ref(null);
+// Archivos nuevos en cola (mode="staged" de AttachmentsPicker) — se envían
+// junto con el resto del form al guardar.
 const newFiles = ref([]);
-// URLs locales para previsualizar imágenes recién agregadas; se revocan al
-// quitarlas y al cerrar/limpiar para no fugar memoria (URL.createObjectURL
-// retiene el blob hasta revoke).
-const newFilePreviews = ref(new Map());
-const fileError = ref('');
 
 const subcategories = computed(() => {
     const cat = props.categories.find(c => c.id === Number(form.expense_category_id));
@@ -81,32 +72,15 @@ const subcategories = computed(() => {
 
 const existingAttachments = computed(() => props.expense?.attachments || []);
 
-const remainingSlots = computed(() => {
-    const used = (existingAttachments.value?.length || 0)
-        + aiDraftAttachments.value.length
-        + newFiles.value.length;
-    return Math.max(0, MAX_ATTACHMENTS - used);
-});
-
-const totalAttachments = computed(() =>
-    (existingAttachments.value?.length || 0)
-    + aiDraftAttachments.value.length
-    + newFiles.value.length
-);
-
-const revokeAllPreviews = () => {
-    newFilePreviews.value.forEach(url => URL.revokeObjectURL(url));
-    newFilePreviews.value.clear();
-};
+// El picker limita por su cuenta (attachments + newFiles vs maxCount), pero
+// los chips del draft IA (aiDraftAttachments) también ocupan cupo y el
+// picker no los conoce — se restan aquí para pasarle un tope efectivo.
+const pickerMaxCount = computed(() => Math.max(0, MAX_ATTACHMENTS - aiDraftAttachments.value.length));
 
 const reset = () => {
     form.reset();
     form.clearErrors();
-    revokeAllPreviews();
     newFiles.value = [];
-    fileError.value = '';
-    if (fileInput.value) fileInput.value.value = '';
-    if (cameraInput.value) cameraInput.value.value = '';
 };
 
 const populateFromExpense = () => {
@@ -180,61 +154,7 @@ watch(() => form.expense_category_id, (newVal, oldVal) => {
     }
 });
 
-onBeforeUnmount(() => revokeAllPreviews());
-
-const addFiles = (files) => {
-    fileError.value = '';
-    if (!files.length) return;
-    for (const f of files) {
-        if (!ALLOWED_MIMES.includes(f.type)) {
-            fileError.value = `Tipo no permitido: ${f.name}. Solo imágenes (jpg, png, webp) o PDF.`;
-            return;
-        }
-        if (f.size > MAX_BYTES) {
-            fileError.value = `Archivo demasiado grande (máx 5 MB): ${f.name}`;
-            return;
-        }
-    }
-    if (files.length > remainingSlots.value) {
-        fileError.value = `Solo puedes adjuntar hasta ${MAX_ATTACHMENTS} archivos por gasto.`;
-        return;
-    }
-    files.forEach(f => {
-        newFiles.value.push(f);
-        if (f.type.startsWith('image/')) {
-            newFilePreviews.value.set(f, URL.createObjectURL(f));
-        }
-    });
-};
-
-const onFileSelect = (e) => {
-    addFiles(Array.from(e.target.files || []));
-    e.target.value = '';
-};
-
-// "Tomar foto": móvil → cámara nativa (input capture); desktop → webcam (getUserMedia).
-const cameraModalOpen = ref(false);
-const onTakePhoto = () => {
-    if (isMobileDevice()) {
-        cameraInput.value?.click();
-    } else {
-        cameraModalOpen.value = true;
-    }
-};
-const onCameraCapture = (file) => addFiles([file]);
-
-const removeNewFile = (i) => {
-    const file = newFiles.value[i];
-    const url = newFilePreviews.value.get(file);
-    if (url) {
-        URL.revokeObjectURL(url);
-        newFilePreviews.value.delete(file);
-    }
-    newFiles.value = newFiles.value.filter((_, idx) => idx !== i);
-};
-
 const removeExistingAttachment = (att) => {
-    if (!confirm(`¿Eliminar adjunto "${att.original_name}"?`)) return;
     router.delete(route(props.attachmentDestroyRouteName, [props.tenantSlug, props.expense.id, att.id]), {
         preserveScroll: true,
         preserveState: true,
@@ -242,13 +162,6 @@ const removeExistingAttachment = (att) => {
 };
 
 // --- Adjunto preview (modo edit) ---
-const viewerOpen = ref(false);
-const viewerIndex = ref(0);
-const openAttachmentViewer = (i) => {
-    if (!props.attachmentPreviewRouteName) return;
-    viewerIndex.value = i;
-    viewerOpen.value = true;
-};
 const previewUrlBuilder = (att) =>
     route(props.attachmentPreviewRouteName, [props.tenantSlug, props.expense?.id, att.id]);
 const downloadUrlBuilder = (att) =>
@@ -293,14 +206,6 @@ const submit = () => {
         }
     }
 };
-
-const fmtSize = (b) => {
-    if (b < 1024) return `${b} B`;
-    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
-    return `${(b / (1024 * 1024)).toFixed(1)} MB`;
-};
-
-const isImageMime = (mime) => mime?.startsWith('image/');
 </script>
 
 <template>
@@ -411,71 +316,16 @@ const isImageMime = (mime) => mime?.startsWith('image/');
                                     </span>
                                 </div>
 
-                                <!-- Triggers: cámara + archivo -->
-                                <div v-if="remainingSlots > 0" class="grid grid-cols-2 gap-2">
-                                    <button type="button" @click="onTakePhoto"
-                                        class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-red-200 bg-red-50/40 px-4 py-3 text-center transition hover:border-red-400 hover:bg-red-50">
-                                        <svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
-                                        </svg>
-                                        <span class="text-sm font-semibold text-red-700">Tomar foto</span>
-                                    </button>
-                                    <label class="group flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 px-4 py-3 text-center transition hover:border-gray-300 hover:bg-gray-50">
-                                        <svg class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
-                                        </svg>
-                                        <span class="text-sm font-semibold text-gray-700">Adjuntar archivo</span>
-                                        <input ref="fileInput" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" @change="onFileSelect" class="hidden" />
-                                    </label>
-                                </div>
-                                <input ref="cameraInput" type="file" accept="image/*" capture="environment" @change="onFileSelect" class="hidden" />
+                                <AttachmentsPicker
+                                    mode="staged"
+                                    :attachments="existingAttachments"
+                                    v-model:new-files="newFiles"
+                                    :max-count="pickerMaxCount"
+                                    :preview-url="attachmentPreviewRouteName ? previewUrlBuilder : null"
+                                    :download-url="attachmentDownloadRouteName ? downloadUrlBuilder : null"
+                                    @remove-existing="removeExistingAttachment" />
 
-                                <!-- Grid de miniaturas (existentes + nuevas) -->
-                                <div v-if="totalAttachments > 0" class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                                    <!-- Existentes -->
-                                    <div v-for="(att, i) in existingAttachments" :key="`ex-${att.id}`"
-                                        class="group relative aspect-square overflow-hidden rounded-xl bg-gray-50 ring-1 ring-gray-200">
-                                        <button v-if="attachmentPreviewRouteName && isImageMime(att.mime_type)"
-                                            type="button" @click="openAttachmentViewer(i)" class="block h-full w-full">
-                                            <img :src="previewUrlBuilder(att)" :alt="att.original_name" loading="lazy"
-                                                class="h-full w-full object-cover transition group-hover:scale-105" />
-                                        </button>
-                                        <button v-else-if="attachmentPreviewRouteName"
-                                            type="button" @click="openAttachmentViewer(i)"
-                                            class="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-gray-500 transition hover:bg-gray-100">
-                                            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                            </svg>
-                                            <span class="line-clamp-2 text-[10px] font-medium">{{ att.original_name }}</span>
-                                        </button>
-                                        <button type="button" @click="removeExistingAttachment(att)"
-                                            class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow ring-1 ring-gray-200 transition hover:bg-red-600 hover:text-white">
-                                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                                        </button>
-                                    </div>
-
-                                    <!-- Nuevos (queue) -->
-                                    <div v-for="(f, i) in newFiles" :key="`new-${i}`"
-                                        class="group relative aspect-square overflow-hidden rounded-xl bg-amber-50 ring-1 ring-amber-200">
-                                        <img v-if="newFilePreviews.get(f)" :src="newFilePreviews.get(f)" :alt="f.name"
-                                            class="h-full w-full object-cover" />
-                                        <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-amber-700">
-                                            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                            </svg>
-                                            <span class="line-clamp-2 text-[10px] font-medium">{{ f.name }}</span>
-                                        </div>
-                                        <span class="absolute bottom-1 left-1 rounded-md bg-amber-600 px-1.5 py-0.5 text-[9px] font-bold text-white">{{ fmtSize(f.size) }}</span>
-                                        <button type="button" @click="removeNewFile(i)"
-                                            class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow ring-1 ring-gray-200 transition hover:bg-red-600 hover:text-white">
-                                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <p class="mt-2 text-[11px] text-gray-400">{{ totalAttachments }} / {{ MAX_ATTACHMENTS }} archivos</p>
-                                <p v-if="fileError" class="mt-1 text-xs text-red-600">{{ fileError }}</p>
+                                <p class="mt-2 text-[11px] text-gray-400">{{ existingAttachments.length + aiDraftAttachments.length + newFiles.length }} / {{ MAX_ATTACHMENTS }} archivos</p>
                                 <p v-if="form.errors.attachments" class="mt-1 text-xs text-red-600">{{ form.errors.attachments }}</p>
                                 <p v-for="(err, key) in Object.fromEntries(Object.entries(form.errors).filter(([k]) => k.startsWith('attachments.')))"
                                     :key="key" class="mt-1 text-xs text-red-600">{{ err }}</p>
@@ -592,17 +442,5 @@ const isImageMime = (mime) => mime?.startsWith('image/');
                 </div>
             </div>
         </Transition>
-
-        <!-- Viewer in edit mode -->
-        <AttachmentViewerModal v-if="attachmentPreviewRouteName"
-            :show="viewerOpen"
-            :attachments="existingAttachments"
-            :initial-index="viewerIndex"
-            :preview-url="previewUrlBuilder"
-            :download-url="downloadUrlBuilder"
-            @close="viewerOpen = false" />
     </Teleport>
-
-    <!-- Webcam (desktop): captura con getUserMedia cuando `capture` no aplica -->
-    <CameraCaptureModal v-model:open="cameraModalOpen" @capture="onCameraCapture" />
 </template>
