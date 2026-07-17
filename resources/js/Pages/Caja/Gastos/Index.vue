@@ -233,7 +233,9 @@ const fmtTime = (v) => v ? new Date(v).toLocaleTimeString('es-MX', { hour: '2-di
             :ai-attachments="aiAttachments"
             :ai-transcription="aiTranscription"
             :submit-route-name="editId ? 'caja.gastos.update' : 'caja.gastos.store'"
-            attachment-destroy-route-name="caja.gastos.store"
+            attachment-preview-route-name="caja.gastos.adjuntos.preview"
+            attachment-download-route-name="caja.gastos.adjuntos.download"
+            attachment-destroy-route-name="caja.gastos.adjuntos.destroy"
             @close="formOpen = false; editId = null; resetAi()"
             @success="formOpen = false; editId = null; resetAi()" />
 
@@ -241,8 +243,8 @@ const fmtTime = (v) => v ? new Date(v).toLocaleTimeString('es-MX', { hour: '2-di
             :show="detailOpen"
             :expense="selected"
             :tenant-slug="tenant.slug"
-            preview-route-name="caja.gastos.index"
-            download-route-name="caja.gastos.index"
+            preview-route-name="caja.gastos.adjuntos.preview"
+            download-route-name="caja.gastos.adjuntos.download"
             :can-edit="selected?.can_manage ?? false"
             :can-delete="selected?.can_manage ?? false"
             :payment-methods="paymentMethods"
