@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseAttachment;
 use App\Services\ExpenseAttachmentService;
@@ -15,15 +16,15 @@ class ExpenseAttachmentController extends Controller
 {
     /**
      * Descarga autenticada de un adjunto. Valida tenant ownership
-     * (y branch ownership si el usuario es admin-sucursal) antes de
-     * servir el archivo desde el disco privado.
+     * (y branch ownership si el usuario es admin-sucursal, o branch+dueño
+     * si es cajero) antes de servir el archivo desde el disco privado.
      *
      * Acepta el gasto soft-deleted (withTrashed) para que la auditoría
      * pueda seguir consultando los archivos.
      */
     public function download(Expense $gasto, ExpenseAttachment $attachment): StreamedResponse
     {
-        $this->authorizeAccess($gasto, $attachment);
+        $this->authorizeView($gasto, $attachment);
 
         if (! Storage::disk(ExpenseAttachmentService::disk())->exists($attachment->path)) {
             abort(404, 'Archivo no encontrado.');
@@ -42,7 +43,7 @@ class ExpenseAttachmentController extends Controller
      */
     public function preview(Expense $gasto, ExpenseAttachment $attachment): Response
     {
-        $this->authorizeAccess($gasto, $attachment);
+        $this->authorizeView($gasto, $attachment);
 
         $disk = Storage::disk(ExpenseAttachmentService::disk());
         if (! $disk->exists($attachment->path)) {
@@ -65,7 +66,7 @@ class ExpenseAttachmentController extends Controller
 
     public function destroy(Expense $gasto, ExpenseAttachment $attachment): RedirectResponse
     {
-        $this->authorizeAccess($gasto, $attachment);
+        $this->authorizeMutation($gasto, $attachment);
 
         // El hook 'deleting' del modelo borra el archivo físico.
         $attachment->delete();
@@ -73,7 +74,13 @@ class ExpenseAttachmentController extends Controller
         return back()->with('success', 'Adjunto eliminado.');
     }
 
-    private function authorizeAccess(Expense $expense, ExpenseAttachment $attachment): void
+    /**
+     * Ver/descargar/previsualizar. admin-empresa/superadmin: cualquiera de
+     * su tenant. admin-sucursal: solo de su sucursal. cajero: solo de su
+     * sucursal Y sus propios gastos (mismo filtro que ya usa
+     * Caja\GastoController@index: branch_id + user_id).
+     */
+    private function authorizeView(Expense $expense, ExpenseAttachment $attachment): void
     {
         $tenant = app('tenant');
         $user = Auth::user();
@@ -86,10 +93,35 @@ class ExpenseAttachmentController extends Controller
             abort(403);
         }
 
-        // Admin-sucursal sólo puede acceder a adjuntos de gastos de su sucursal.
         if ($user->hasRole('admin-sucursal') && ! $user->hasRole('superadmin')) {
             if ($expense->branch_id !== $user->branch_id) {
                 abort(403);
+            }
+
+            return;
+        }
+
+        if ($user->hasRole('cajero') && ! $user->hasRole('superadmin')) {
+            if ($expense->branch_id !== $user->branch_id || $expense->user_id !== $user->id) {
+                abort(403);
+            }
+        }
+    }
+
+    /**
+     * Eliminar. Además de authorizeView, el cajero solo puede sobre gastos
+     * ligados a su turno abierto (mismo campo que ya calcula `can_manage`
+     * en Caja\GastoController@index: cash_register_shift_id).
+     */
+    private function authorizeMutation(Expense $expense, ExpenseAttachment $attachment): void
+    {
+        $this->authorizeView($expense, $attachment);
+
+        $user = Auth::user();
+        if ($user->hasRole('cajero') && ! $user->hasRole('superadmin')) {
+            $shift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->first();
+            if (! $shift || $expense->cash_register_shift_id !== $shift->id) {
+                abort(403, 'Solo puedes eliminar adjuntos de tus gastos del turno abierto.');
             }
         }
     }

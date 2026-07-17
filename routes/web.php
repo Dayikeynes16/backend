@@ -575,9 +575,20 @@ Route::prefix('{tenant}')
                 Route::post('compras/{compra}/pagos', [CajaPurchaseController::class, 'storePayment'])->whereNumber('compra')->name('compras.pagos.store');
                 Route::delete('compras/{compra}/pagos/{pago}', [CajaPurchaseController::class, 'destroyPayment'])->whereNumber('compra')->whereNumber('pago')->name('compras.pagos.destroy');
 
+                // Adjuntos de compras propias (ver: sucursal; eliminar: turno abierto).
+                Route::get('compras/{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'download'])->whereNumber('compra')->whereNumber('attachment')->name('compras.adjuntos.download');
+                Route::get('compras/{compra}/adjuntos/{attachment}/preview', [PurchaseAttachmentController::class, 'preview'])->whereNumber('compra')->whereNumber('attachment')->name('compras.adjuntos.preview');
+                Route::delete('compras/{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'destroy'])->whereNumber('compra')->whereNumber('attachment')->name('compras.adjuntos.destroy');
+
                 // Corrección de gastos propios (turno abierto): editar, cancelar.
                 Route::put('gastos/{gasto}', [CajaGastoController::class, 'update'])->whereNumber('gasto')->name('gastos.update');
                 Route::delete('gastos/{gasto}', [CajaGastoController::class, 'destroy'])->whereNumber('gasto')->name('gastos.destroy');
+
+                // Adjuntos de gastos propios (ver: sucursal + dueño; eliminar: turno abierto).
+                Route::get('gastos/{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'download'])->whereNumber('gasto')->whereNumber('attachment')->name('gastos.adjuntos.download');
+                Route::get('gastos/{gasto}/adjuntos/{attachment}/preview', [ExpenseAttachmentController::class, 'preview'])->whereNumber('gasto')->whereNumber('attachment')->name('gastos.adjuntos.preview');
+                Route::delete('gastos/{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'destroy'])->whereNumber('gasto')->whereNumber('attachment')->name('gastos.adjuntos.destroy');
+
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
             });
