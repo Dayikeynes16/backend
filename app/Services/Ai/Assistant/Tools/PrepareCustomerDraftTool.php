@@ -35,6 +35,22 @@ class PrepareCustomerDraftTool extends AbstractPrepareDraftTool
         return ['admin-empresa', 'admin-sucursal', 'cajero'];
     }
 
+    /**
+     * Cajero: además del rol, su sucursal debe tener habilitado el toggle de
+     * clientes/cobros — el mismo que expone el alta de clientes en la web.
+     */
+    public function authorize(User $user, array $params): bool
+    {
+        if (! parent::authorize($user, $params)) {
+            return false;
+        }
+        if ($user->hasRole('cajero')) {
+            return (bool) Branch::query()->find($user->branch_id)?->cashier_customers_enabled;
+        }
+
+        return true;
+    }
+
     public function jsonSchema(): array
     {
         return [

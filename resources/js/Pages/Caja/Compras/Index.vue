@@ -32,6 +32,9 @@ const cajaCompraRoutes = {
     cancel: 'caja.compras.cancel',
     pagoStore: 'caja.compras.pagos.store',
     pagoDestroy: 'caja.compras.pagos.destroy',
+    adjuntoDownload: 'caja.compras.adjuntos.download',
+    adjuntoPreview: 'caja.compras.adjuntos.preview',
+    adjuntoDestroy: 'caja.compras.adjuntos.destroy',
 };
 
 const openDetail = (p) => { selected.value = p; detailOpen.value = true; };
@@ -173,6 +176,9 @@ const fmtDate = (v) => v ? new Date(v).toLocaleDateString('es-MX', { day: '2-dig
             :providers="providers" :purchase-products="purchaseProducts"
             :fixed-branch-id="branchId" :ai-result="compraAiResult"
             :routes="{ store: 'caja.compras.store', update: 'caja.compras.update' }"
+            attachment-preview-route-name="caja.compras.adjuntos.preview"
+            attachment-download-route-name="caja.compras.adjuntos.download"
+            attachment-destroy-route-name="caja.compras.adjuntos.destroy"
             @close="compraOpen = false; compraAiResult = null; editFromDetail = false" />
 
         <CompraDetailModal :open="detailOpen" :purchase="selected"

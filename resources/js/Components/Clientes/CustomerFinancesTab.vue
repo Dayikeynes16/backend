@@ -19,6 +19,11 @@ const props = defineProps({
     allowedPaymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
     saleItemEditReasonMode: { type: String, default: 'optional' },
     paymentReceiptsEnabled: { type: Boolean, default: false },
+    /** 'sucursal' (admin de sucursal) o 'caja' (cajero). */
+    routePrefix: { type: String, default: 'sucursal' },
+    /** El cajero no edita items de venta ni cancela cobros. */
+    allowItemEdits: { type: Boolean, default: true },
+    canCancelPayment: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['load', 'register-payment']);
@@ -40,7 +45,7 @@ const loadMoreSales = async () => {
     salesError.value = '';
     try {
         const url = new URL(
-            route('sucursal.clientes.historial', [props.tenantSlug, props.customerId]),
+            route(`${props.routePrefix}.clientes.historial`, [props.tenantSlug, props.customerId]),
             window.location.origin,
         );
         url.searchParams.set('per_page', PER_PAGE);
@@ -155,9 +160,10 @@ const openMovement = (m) => {
 };
 
 // --- Comprobantes de un cobro global por transferencia (ver/gestionar) ---
-// `canManage` se pasa fijo en `true`: esta pestaña solo la ve admin-sucursal
-// (siempre puede gestionar comprobantes de su sucursal) — ver comentario en
-// PaymentReceiptsPanel.vue para el caso general (cajero + turno).
+// `canManage` se pasa fijo en `true`: ambos roles que ven esta pestaña
+// (admin-sucursal y, con el módulo habilitado, cajero) pueden gestionar
+// comprobantes de su sucursal. El panel resuelve por sí mismo que el cajero
+// no elimine comprobantes de cobros globales — ver PaymentReceiptsPanel.vue.
 const receiptsMovementId = ref(null);
 const receiptsMovement = computed(() => movements.value.find(m => m.type === 'global' && m.id === receiptsMovementId.value) || null);
 const openReceipts = (m) => { if (m.type === 'global') receiptsMovementId.value = m.id; };
@@ -337,8 +343,10 @@ const refreshAll = () => {
         <SaleDetailModal :show="!!selectedSaleId" :tenant-slug="tenantSlug" :customer-id="customerId" :sale-id="selectedSaleId"
             :products="products" :allowed-payment-methods="allowedPaymentMethods"
             :sale-item-edit-reason-mode="saleItemEditReasonMode"
+            :route-prefix="routePrefix" :allow-item-edits="allowItemEdits"
             @close="selectedSaleId = null" @sale-changed="refreshAll" />
         <GlobalPaymentDetailModal :show="!!selectedGlobalId" :tenant-slug="tenantSlug" :customer-id="customerId" :customer-payment-id="selectedGlobalId"
+            :route-prefix="routePrefix" :can-cancel="canCancelPayment"
             @close="selectedGlobalId = null"
             @open-sale="(id) => { selectedGlobalId = null; selectedSaleId = id; }"
             @cancelled="refreshAll" />
@@ -351,7 +359,7 @@ const refreshAll = () => {
                 :parent-id="receiptsMovement.id"
                 :can-manage="true"
                 :tenant-slug="tenantSlug"
-                route-prefix="sucursal"
+                :route-prefix="routePrefix"
                 @changed="onReceiptsChanged"
                 @close="closeReceipts" />
         </Modal>

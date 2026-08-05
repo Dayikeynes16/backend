@@ -38,6 +38,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 ### Clientes y dinero
 - [Clientes — Dashboard](modulos/clientes-dashboard.md) — perfil, estadísticas, precios preferenciales
 - [Clientes — Cobro Global](modulos/clientes-cobro-global.md) — abonos distribuidos FIFO sobre ventas pendientes
+- [Clientes en Caja](modulos/clientes-caja.md) — módulo opcional del cajero (`cashier_customers_enabled`): cartera, alta/edición y cobro FIFO, sin descuentos
 - [Comprobantes de pago](modulos/comprobantes-pago.md) — adjuntos de transferencias en pagos de venta y cobros globales, toggles por sucursal
 - [Gastos](modulos/gastos.md) — categorías/subcategorías, captura con IA (foto+voz+texto), adjuntos, turno
 - [Compras + Proveedores](modulos/compras.md) — CMV, cuentas por pagar, pagos FIFO, catálogo de insumos, captura IA
@@ -75,7 +76,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 |------|--------|
 | Núcleo (auth, roles, tenancy, CRUD, API básculas, tiempo real, cajero, paneles) | ✅ Completo (fases 1–7 originales) |
 | Pedidos web / Menú online | ✅ Completo · **oculto tras `FEATURE_WEB_ORDERS` (off por default)** desde 2026-07-08 |
-| Clientes (fiado, precios preferenciales, cobro global FIFO) | ✅ Completo |
+| Clientes (fiado, precios preferenciales, cobro global FIFO) | ✅ Completo · desde 2026-08-05 el cajero tiene su propio módulo opcional por sucursal (sin precios preferenciales) |
 | Comprobantes de pago (transferencias) | ✅ Completo · web (Sucursal y Caja) · paridad con hub pendiente |
 | Gastos (con captura IA) | ✅ Completo |
 | Compras + Proveedores + CxP (con captura IA) | ✅ Completo (sin inventario activo, por diseño) |

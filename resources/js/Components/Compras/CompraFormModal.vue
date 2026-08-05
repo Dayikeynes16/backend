@@ -1,7 +1,10 @@
 <script setup>
 import { usePurchaseAiDraft } from '@/composables/usePurchaseAiDraft';
-import { useForm, usePage } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import AttachmentsPicker from '@/Components/AttachmentsPicker.vue';
+
+const MAX_ATTACHMENTS = 5;
 
 const props = defineProps({
     open: { type: Boolean, default: false },
@@ -19,6 +22,10 @@ const props = defineProps({
         required: true,
         validator: (v) => v.store && v.update,
     },
+    /** Rutas de adjuntos ya existentes en modo edición. Vacías = no se muestran (paridad con GastoFormModal). */
+    attachmentPreviewRouteName: { type: String, default: '' },
+    attachmentDownloadRouteName: { type: String, default: '' },
+    attachmentDestroyRouteName: { type: String, default: '' },
 });
 const emit = defineEmits(['close']);
 
@@ -66,6 +73,19 @@ const form = useForm({
     ai_draft_id: null,
     paid_amount: 0,
 });
+
+const existingAttachments = computed(() => props.purchase?.attachments || []);
+
+const previewUrlBuilder = (att) =>
+    route(props.attachmentPreviewRouteName, { tenant: slug.value, compra: props.purchase.id, attachment: att.id });
+const downloadUrlBuilder = (att) =>
+    route(props.attachmentDownloadRouteName, { tenant: slug.value, compra: props.purchase.id, attachment: att.id });
+
+const removeExistingAttachment = (att) => {
+    router.delete(route(props.attachmentDestroyRouteName, { tenant: slug.value, compra: props.purchase.id, attachment: att.id }), {
+        preserveScroll: true,
+    });
+};
 
 watch(() => props.open, (open) => {
     if (!open) return;
@@ -115,8 +135,6 @@ const lineSubtotal = (line) => Number(line.quantity || 0) * Number(line.unit_pri
 const total = computed(() => form.items.reduce((s, l) => s + lineSubtotal(l), 0));
 
 const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const onFiles = (e) => { form.attachments = Array.from(e.target.files || []); };
 
 const close = () => { form.clearErrors(); emit('close'); };
 
@@ -308,10 +326,20 @@ const onConceptInput = (line) => {
 
                         <!-- Adjuntos -->
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Adjuntar factura / comprobantes</label>
-                            <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" @change="onFiles"
-                                class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-orange-700 hover:file:bg-orange-100" />
-                            <p class="mt-1 text-xs text-gray-500">Hasta 5 archivos · jpg/png/webp/pdf · 5 MB c/u</p>
+                            <div class="mb-1 flex items-center justify-between">
+                                <label class="block text-sm font-medium text-gray-700">Adjuntar factura / comprobantes</label>
+                                <span class="text-xs text-gray-500">jpg/png/webp/pdf · 5 MB · {{ MAX_ATTACHMENTS }} máx</span>
+                            </div>
+                            <AttachmentsPicker
+                                mode="staged"
+                                :attachments="existingAttachments"
+                                v-model:new-files="form.attachments"
+                                :max-count="MAX_ATTACHMENTS"
+                                :preview-url="attachmentPreviewRouteName ? previewUrlBuilder : null"
+                                :download-url="attachmentDownloadRouteName ? downloadUrlBuilder : null"
+                                :can-delete="!!attachmentDestroyRouteName"
+                                @remove-existing="removeExistingAttachment" />
+                            <p v-if="form.errors.attachments" class="mt-1 text-xs text-red-600">{{ form.errors.attachments }}</p>
                         </div>
 
                         <datalist id="catalogo-compra">

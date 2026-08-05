@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Sucursal;
 
+use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseAttachment;
 use App\Models\ExpenseCategory;
@@ -169,6 +170,108 @@ class GastoControllerTest extends TestCase
 
         Storage::disk('local')->assertMissing($path);
         $this->assertNull(ExpenseAttachment::find($att->id));
+    }
+
+    public function test_caja_can_only_view_own_expense_attachments_in_own_branch(): void
+    {
+        Storage::fake('local');
+
+        $shift = CashRegisterShift::create([
+            'user_id' => $this->cajero->id,
+            'branch_id' => $this->branch->id,
+            'tenant_id' => $this->tenant->id,
+            'opened_at' => now(),
+            'opening_amount' => 0,
+        ]);
+
+        $own = Expense::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'cash_register_shift_id' => $shift->id,
+            'expense_subcategory_id' => $this->sub->id,
+            'user_id' => $this->cajero->id,
+            'concept' => 'Mío', 'amount' => 100, 'expense_at' => now(),
+        ]);
+        $ownAtt = ExpenseAttachment::create([
+            'tenant_id' => $this->tenant->id,
+            'expense_id' => $own->id,
+            'original_name' => 'propio.jpg',
+            'path' => "tenants/{$this->tenant->id}/expenses/{$own->id}/propio.jpg",
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 10,
+        ]);
+        Storage::disk('local')->put($ownAtt->path, 'fake');
+
+        $otherCajero = $this->makeUser('caja2@test.local', 'cajero', $this->branch->id);
+        $othersExpense = Expense::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'expense_subcategory_id' => $this->sub->id,
+            'user_id' => $otherCajero->id,
+            'concept' => 'De otro cajero', 'amount' => 100, 'expense_at' => now(),
+        ]);
+        $othersAtt = ExpenseAttachment::create([
+            'tenant_id' => $this->tenant->id,
+            'expense_id' => $othersExpense->id,
+            'original_name' => 'ajeno.jpg',
+            'path' => "tenants/{$this->tenant->id}/expenses/{$othersExpense->id}/ajeno.jpg",
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 10,
+        ]);
+        Storage::disk('local')->put($othersAtt->path, 'fake');
+
+        $this->actingAs($this->cajero);
+
+        // Puede ver el suyo.
+        $this->get(route('caja.gastos.adjuntos.download', [$this->tenant->slug, $own->id, $ownAtt->id]))
+            ->assertOk();
+        $this->get(route('caja.gastos.adjuntos.preview', [$this->tenant->slug, $own->id, $ownAtt->id]))
+            ->assertOk();
+
+        // NO puede ver el de otro cajero de su misma sucursal.
+        $this->get(route('caja.gastos.adjuntos.download', [$this->tenant->slug, $othersExpense->id, $othersAtt->id]))
+            ->assertForbidden();
+        $this->get(route('caja.gastos.adjuntos.preview', [$this->tenant->slug, $othersExpense->id, $othersAtt->id]))
+            ->assertForbidden();
+
+        // Puede eliminar el suyo (dentro de su turno abierto).
+        $this->delete(route('caja.gastos.adjuntos.destroy', [$this->tenant->slug, $own->id, $ownAtt->id]))
+            ->assertSessionHasNoErrors();
+        Storage::disk('local')->assertMissing($ownAtt->path);
+
+        // NO puede eliminar el de otro cajero.
+        $this->delete(route('caja.gastos.adjuntos.destroy', [$this->tenant->slug, $othersExpense->id, $othersAtt->id]))
+            ->assertForbidden();
+    }
+
+    public function test_admin_sucursal_access_to_expense_attachments_unaffected_by_caja_routes(): void
+    {
+        Storage::fake('local');
+
+        $exp = Expense::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'expense_subcategory_id' => $this->sub->id,
+            'user_id' => $this->cajero->id,
+            'concept' => 'De cajero', 'amount' => 100, 'expense_at' => now(),
+        ]);
+        $att = ExpenseAttachment::create([
+            'tenant_id' => $this->tenant->id,
+            'expense_id' => $exp->id,
+            'original_name' => 'x.jpg',
+            'path' => "tenants/{$this->tenant->id}/expenses/{$exp->id}/x.jpg",
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 10,
+        ]);
+        Storage::disk('local')->put($att->path, 'fake');
+
+        // admin-sucursal sigue pudiendo ver/borrar cualquier adjunto de su sucursal,
+        // sin importar quién lo creó ni si tiene turno abierto.
+        $this->actingAs($this->adminSucursal);
+        $this->get(route('sucursal.gastos.adjuntos.download', [$this->tenant->slug, $exp->id, $att->id]))->assertOk();
+        $this->delete(route('sucursal.gastos.adjuntos.destroy', [$this->tenant->slug, $exp->id, $att->id]))
+            ->assertSessionHasNoErrors();
+        Storage::disk('local')->assertMissing($att->path);
     }
 
     public function test_subcategory_with_expenses_cannot_be_deleted(): void

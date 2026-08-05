@@ -26,6 +26,14 @@ const props = defineProps({
     products: { type: Array, default: () => [] },
     allowedPaymentMethods: { type: Array, default: () => ['cash', 'card', 'transfer'] },
     saleItemEditReasonMode: { type: String, default: 'optional' },
+    /** 'sucursal' (admin de sucursal) o 'caja' (cajero). */
+    routePrefix: { type: String, default: 'sucursal' },
+    /**
+     * Editar items de una venta es del admin de sucursal. En Caja el detalle
+     * es de solo lectura y ni siquiera se toma el lock: sin edición no hay
+     * nada que proteger de la concurrencia.
+     */
+    allowItemEdits: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['close', 'sale-changed']);
@@ -47,7 +55,7 @@ const load = async () => {
     errorMsg.value = '';
     try {
         const res = await fetch(
-            route('sucursal.clientes.venta-detalle', [props.tenantSlug, props.customerId, props.saleId]),
+            route(`${props.routePrefix}.clientes.venta-detalle`, [props.tenantSlug, props.customerId, props.saleId]),
             { signal: abortCtl.signal, headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -62,10 +70,10 @@ const load = async () => {
 const isEditable = computed(() => sale.value && ['active', 'pending'].includes(sale.value.status));
 
 const acquireLock = async () => {
-    if (!sale.value || !isEditable.value) return;
+    if (!sale.value || !isEditable.value || !props.allowItemEdits) return;
     lockError.value = '';
     try {
-        await axios.post(route('sucursal.sale.lock', [props.tenantSlug, sale.value.id]));
+        await axios.post(route(`${props.routePrefix}.sale.lock`, [props.tenantSlug, sale.value.id]));
     } catch (e) {
         if (e.response?.status === 409) {
             lockError.value = `Esta venta está siendo operada por ${e.response.data?.locked_by_name || 'otro usuario'}.`;
@@ -74,9 +82,9 @@ const acquireLock = async () => {
 };
 
 const releaseLock = async () => {
-    if (!sale.value || !isEditable.value) return;
+    if (!sale.value || !isEditable.value || !props.allowItemEdits) return;
     try {
-        await axios.post(route('sucursal.sale.unlock', [props.tenantSlug, sale.value.id]));
+        await axios.post(route(`${props.routePrefix}.sale.unlock`, [props.tenantSlug, sale.value.id]));
     } catch (e) { /* silencioso */ }
 };
 
@@ -98,6 +106,7 @@ watch(() => [props.show, props.saleId], async ([show]) => {
 });
 
 const canEditItems = computed(() => {
+    if (!props.allowItemEdits) return false;
     if (!sale.value || !isEditable.value) return false;
     if (sale.value.locked_by && sale.value.locked_by !== currentUserId.value) return false;
 
@@ -198,7 +207,7 @@ const refreshAfterItemChange = async () => {
 
                             <div v-else-if="sale" class="space-y-5">
                                 <!-- Banners -->
-                                <div v-if="sale.status === 'completed'" class="rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+                                <div v-if="allowItemEdits && sale.status === 'completed'" class="rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
                                     <div class="flex items-start gap-2.5">
                                         <svg class="h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.732 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
                                         <p class="text-xs font-medium text-amber-800">
@@ -272,7 +281,7 @@ const refreshAfterItemChange = async () => {
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div v-if="hasItemHistory" class="border-t border-gray-100 bg-gray-50/40 px-5 py-2 text-right">
+                                    <div v-if="allowItemEdits && hasItemHistory" class="border-t border-gray-100 bg-gray-50/40 px-5 py-2 text-right">
                                         <button type="button" @click="showHistory = true"
                                             class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-700">
                                             <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
@@ -343,8 +352,10 @@ const refreshAfterItemChange = async () => {
             </div>
         </Transition>
 
-        <!-- Modales hijos para edición de items -->
-        <SaleItemAddModal v-if="sale"
+        <!-- Modales hijos para edición de items. No se montan en Caja: el
+             cajero no edita items y estos componentes resuelven rutas
+             `sucursal.*` que no existen en su grupo. -->
+        <SaleItemAddModal v-if="sale && allowItemEdits"
             :show="showAddItem"
             :tenant-slug="tenantSlug"
             :sale="sale"
@@ -352,7 +363,7 @@ const refreshAfterItemChange = async () => {
             :reason-mode="saleItemEditReasonMode"
             @close="showAddItem = false"
             @success="refreshAfterItemChange" />
-        <SaleItemEditModal v-if="sale"
+        <SaleItemEditModal v-if="sale && allowItemEdits"
             :show="!!editingItem"
             :tenant-slug="tenantSlug"
             :sale="sale"
@@ -360,14 +371,14 @@ const refreshAfterItemChange = async () => {
             :reason-mode="saleItemEditReasonMode"
             @close="editingItem = null"
             @success="refreshAfterItemChange" />
-        <SaleItemDeleteDialog v-if="sale"
+        <SaleItemDeleteDialog v-if="sale && allowItemEdits"
             :show="!!deletingItem"
             :tenant-slug="tenantSlug"
             :sale="sale"
             :item="deletingItem"
             @close="deletingItem = null"
             @success="refreshAfterItemChange" />
-        <SaleItemHistoryModal v-if="sale"
+        <SaleItemHistoryModal v-if="sale && allowItemEdits"
             :show="showHistory"
             :tenant-slug="tenantSlug"
             :sale="sale"

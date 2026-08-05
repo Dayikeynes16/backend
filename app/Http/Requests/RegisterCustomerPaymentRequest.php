@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\Auth;
 
 class RegisterCustomerPaymentRequest extends FormRequest
 {
+    /**
+     * El cajero entra desde `/caja/clientes/...`, un grupo que ya exige el rol
+     * y la bandera `cashier_customers_enabled` de su sucursal. Aquí solo se
+     * descarta a quien no tenga ningún rol operativo.
+     */
     public function authorize(): bool
     {
         $user = Auth::user();
@@ -18,6 +23,7 @@ class RegisterCustomerPaymentRequest extends FormRequest
 
         return $user->hasRole('admin-sucursal')
             || $user->hasRole('admin-empresa')
+            || $user->hasRole('cajero')
             || $user->hasRole('superadmin');
     }
 

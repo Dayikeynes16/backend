@@ -200,6 +200,9 @@ const iaRoutes = { iaStore: 'sucursal.compras.ia.store' };
             :fixed-branch-id="branch?.id"
             :ai-result="aiResult"
             :routes="formRoutes"
+            attachment-preview-route-name="sucursal.compras.adjuntos.preview"
+            attachment-download-route-name="sucursal.compras.adjuntos.download"
+            attachment-destroy-route-name="sucursal.compras.adjuntos.destroy"
             @close="formOpen = false; aiResult = null"
         />
         <CompraCapturaIAModal

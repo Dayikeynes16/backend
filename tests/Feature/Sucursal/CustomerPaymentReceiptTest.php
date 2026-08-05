@@ -74,10 +74,10 @@ class CustomerPaymentReceiptTest extends TestCase
     }
 
     /**
-     * CG creado directamente por modelo (no por endpoint): el cajero no tiene
-     * ruta para crear cobros globales (eso es exclusivo de admin-sucursal en
-     * la web; el cajero solo los crea vía el asistente IA). Espejo del
-     * CustomerPayment::create inline usado en PaymentReceiptTest.
+     * CG creado directamente por modelo (no por endpoint): así el fixture no
+     * depende de qué superficie lo originó — el cajero puede crearlos desde
+     * `/caja/clientes` (con `cashier_customers_enabled`) o vía el asistente IA.
+     * Espejo del CustomerPayment::create inline usado en PaymentReceiptTest.
      */
     private function makeCustomerPayment(User $owner, array $overrides = []): CustomerPayment
     {
@@ -174,6 +174,52 @@ class CustomerPaymentReceiptTest extends TestCase
         )->assertSessionHas('success');
 
         $this->assertSame(1, $cg->receipts()->count());
+    }
+
+    public function test_preview_returns_inline_disposition(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $cg = $this->makeCustomerPayment($this->adminSucursal);
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.cobros.receipts.store', [$this->tenant->slug, $cg->id]),
+            ['receipts' => [UploadedFile::fake()->image('tarde.jpg')]],
+        )->assertSessionHas('success');
+
+        $receipt = $cg->receipts()->firstOrFail();
+
+        $response = $this->actingAs($this->adminSucursal)->get(
+            route('sucursal.cobros.receipts.preview', [$this->tenant->slug, $cg->id, $receipt->id]),
+        );
+        $response->assertOk();
+        $this->assertStringContainsString('inline', $response->headers->get('content-disposition') ?? '');
+    }
+
+    // preview() llama a authorizeView (igual que download), NO a
+    // authorizeMutation: no exige turno abierto ni dueño del CG. Espejo de
+    // test_cajero_cannot_mutate_another_users_cg, pero afirmando éxito: un
+    // cajero SIN turno abierto y que NO es dueño del cobro global puede
+    // previsualizar su comprobante igualmente (gap detectado por el
+    // revisor: este caso no existía para CustomerPaymentReceiptController).
+    public function test_cajero_can_preview_another_users_cg_receipt(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $otherCajero = $this->makeUser('caja3@test.local', 'cajero', $this->branch->id);
+        $cg = $this->makeCustomerPayment($otherCajero);
+        $receipt = app(PaymentReceiptService::class)->attach(
+            $cg,
+            [UploadedFile::fake()->image('c.jpg')],
+            $otherCajero->id,
+        )[0];
+
+        // $this->cajero no tiene turno abierto y no es dueño de $cg:
+        // store/destroy (authorizeMutation) lo rechazarían con 403, pero
+        // preview (authorizeView) no exige ninguna de las dos condiciones.
+        $response = $this->actingAs($this->cajero)->get(
+            route('caja.cobros.receipts.preview', [$this->tenant->slug, $cg->id, $receipt->id]),
+        );
+        $response->assertOk();
+        $this->assertStringContainsString('inline', $response->headers->get('content-disposition') ?? '');
     }
 
     // NOTA: el actor cajero solo puede usar el prefijo /caja

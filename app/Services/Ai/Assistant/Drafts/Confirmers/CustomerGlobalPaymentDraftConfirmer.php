@@ -38,8 +38,17 @@ final class CustomerGlobalPaymentDraftConfirmer implements DraftConfirmer
         return AssistantDraftType::CustomerGlobalPayment;
     }
 
+    /**
+     * Cajero: su sucursal debe tener habilitado el toggle de clientes/cobros.
+     * Se revalida aquí (y no solo en la tool) porque el borrador pudo prepararse
+     * antes de que la empresa apagara el módulo.
+     */
     public function authorize(User $user, AssistantDraft $draft): bool
     {
+        if ($user->hasRole('cajero')) {
+            return (bool) Branch::query()->find($user->branch_id)?->cashier_customers_enabled;
+        }
+
         return true;
     }
 

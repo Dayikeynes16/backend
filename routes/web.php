@@ -11,6 +11,9 @@ use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
 use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController;
 use App\Http\Controllers\Asistente\AssistantAppController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
+use App\Http\Controllers\Caja\CustomerController as CajaCustomerController;
+use App\Http\Controllers\Caja\CustomerPaymentController as CajaCustomerPaymentController;
+use App\Http\Controllers\Caja\CustomerStatsController as CajaCustomerStatsController;
 use App\Http\Controllers\Caja\GastoController as CajaGastoController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
@@ -356,9 +359,10 @@ Route::prefix('{tenant}')
                 Route::put('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'update'])->name('workbench.payment.update');
                 Route::delete('mesa-de-trabajo/ventas/{sale}/pagos/{payment}', [PaymentController::class, 'destroy'])->name('workbench.payment.destroy');
 
-                // Comprobantes de pago (adjuntar después / descargar / eliminar)
+                // Comprobantes de pago (adjuntar después / descargar / previsualizar / eliminar)
                 Route::post('pagos/{payment}/comprobantes', [PaymentReceiptController::class, 'store'])->whereNumber('payment')->name('pagos.receipts.store');
                 Route::get('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'download'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.download');
+                Route::get('pagos/{payment}/comprobantes/{receipt}/preview', [PaymentReceiptController::class, 'preview'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.preview');
                 Route::delete('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'destroy'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.destroy');
 
                 // Items de una venta — solo admin-sucursal+ (gated por el grupo).
@@ -397,9 +401,10 @@ Route::prefix('{tenant}')
                 Route::get('clientes/{customer}/cobros-globales/{customerPayment}', [CustomerPaymentController::class, 'show'])->name('clientes.cobro-global.show');
                 Route::delete('clientes/{customer}/cobros-globales/{customerPayment}', [CustomerPaymentController::class, 'destroy'])->name('clientes.cobro-global.cancel');
 
-                // Comprobantes de cobro global (adjuntar después / descargar / eliminar)
+                // Comprobantes de cobro global (adjuntar después / descargar / previsualizar / eliminar)
                 Route::post('cobros/{customerPayment}/comprobantes', [CustomerPaymentReceiptController::class, 'store'])->whereNumber('customerPayment')->name('cobros.receipts.store');
                 Route::get('cobros/{customerPayment}/comprobantes/{receipt}', [CustomerPaymentReceiptController::class, 'download'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.download');
+                Route::get('cobros/{customerPayment}/comprobantes/{receipt}/preview', [CustomerPaymentReceiptController::class, 'preview'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.preview');
                 Route::delete('cobros/{customerPayment}/comprobantes/{receipt}', [CustomerPaymentReceiptController::class, 'destroy'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.destroy');
 
                 // Assign customer to sale
@@ -529,18 +534,20 @@ Route::prefix('{tenant}')
                 }
                 Route::post('ventas/{sale}/pagos', [PaymentController::class, 'store'])->name('payment.store');
 
-                // Comprobantes de pago (adjuntar después / descargar / eliminar)
+                // Comprobantes de pago (adjuntar después / descargar / previsualizar / eliminar)
                 Route::post('pagos/{payment}/comprobantes', [PaymentReceiptController::class, 'store'])->whereNumber('payment')->name('pagos.receipts.store');
                 Route::get('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'download'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.download');
+                Route::get('pagos/{payment}/comprobantes/{receipt}/preview', [PaymentReceiptController::class, 'preview'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.preview');
                 Route::delete('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'destroy'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.destroy');
 
-                // Comprobantes de cobro global (adjuntar después / descargar). El
-                // cajero no crea cobros globales por esta ruta (eso es exclusivo de
-                // admin-sucursal en la web), pero SÍ puede crearlos vía el asistente
-                // IA y necesita adjuntar/descargar comprobantes de los suyos. No
-                // elimina: no hay ruta destroy en este grupo.
+                // Comprobantes de cobro global (adjuntar después / descargar).
+                // Deliberadamente FUERA del gate `cashier_customers_enabled`: si la
+                // empresa apaga el módulo, el cajero debe poder seguir adjuntando el
+                // comprobante de un cobro que ya registró. No elimina: no hay ruta
+                // destroy en este grupo.
                 Route::post('cobros/{customerPayment}/comprobantes', [CustomerPaymentReceiptController::class, 'store'])->whereNumber('customerPayment')->name('cobros.receipts.store');
                 Route::get('cobros/{customerPayment}/comprobantes/{receipt}', [CustomerPaymentReceiptController::class, 'download'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.download');
+                Route::get('cobros/{customerPayment}/comprobantes/{receipt}/preview', [CustomerPaymentReceiptController::class, 'preview'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.preview');
 
                 Route::post('ventas/{sale}/lock', [SaleLockController::class, 'lock'])->name('sale.lock');
                 Route::post('ventas/{sale}/unlock', [SaleLockController::class, 'unlock'])->name('sale.unlock');
@@ -576,11 +583,49 @@ Route::prefix('{tenant}')
                 Route::post('compras/{compra}/pagos', [CajaPurchaseController::class, 'storePayment'])->whereNumber('compra')->name('compras.pagos.store');
                 Route::delete('compras/{compra}/pagos/{pago}', [CajaPurchaseController::class, 'destroyPayment'])->whereNumber('compra')->whereNumber('pago')->name('compras.pagos.destroy');
 
+                // Adjuntos de compras propias (ver: sucursal; eliminar: turno abierto).
+                Route::get('compras/{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'download'])->whereNumber('compra')->whereNumber('attachment')->name('compras.adjuntos.download');
+                Route::get('compras/{compra}/adjuntos/{attachment}/preview', [PurchaseAttachmentController::class, 'preview'])->whereNumber('compra')->whereNumber('attachment')->name('compras.adjuntos.preview');
+                Route::delete('compras/{compra}/adjuntos/{attachment}', [PurchaseAttachmentController::class, 'destroy'])->whereNumber('compra')->whereNumber('attachment')->name('compras.adjuntos.destroy');
+
                 // Corrección de gastos propios (turno abierto): editar, cancelar.
                 Route::put('gastos/{gasto}', [CajaGastoController::class, 'update'])->whereNumber('gasto')->name('gastos.update');
                 Route::delete('gastos/{gasto}', [CajaGastoController::class, 'destroy'])->whereNumber('gasto')->name('gastos.destroy');
+
+                // Adjuntos de gastos propios (ver: sucursal + dueño; eliminar: turno abierto).
+                Route::get('gastos/{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'download'])->whereNumber('gasto')->whereNumber('attachment')->name('gastos.adjuntos.download');
+                Route::get('gastos/{gasto}/adjuntos/{attachment}/preview', [ExpenseAttachmentController::class, 'preview'])->whereNumber('gasto')->whereNumber('attachment')->name('gastos.adjuntos.preview');
+                Route::delete('gastos/{gasto}/adjuntos/{attachment}', [ExpenseAttachmentController::class, 'destroy'])->whereNumber('gasto')->whereNumber('attachment')->name('gastos.adjuntos.destroy');
+
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
+
+                // Clientes y cobros — módulo opcional, la empresa lo habilita por
+                // sucursal. El cajero consulta la cartera, da de alta/edita clientes
+                // y registra cobros globales FIFO.
+                //
+                // Ausentes a propósito frente al grupo de admin-sucursal:
+                //  - `clientes/{customer}/precios/*`: los precios preferenciales
+                //    (descuentos por cliente) son decisión del admin-sucursal.
+                //  - `clientes/{customer}` DELETE: no da de baja clientes.
+                //  - `cobros-globales/{cp}` DELETE: no cancela cobros.
+                Route::middleware('branch.feature:cashier_customers_enabled')->group(function () {
+                    Route::get('clientes', [CajaCustomerController::class, 'index'])->name('clientes.index');
+                    Route::post('clientes', [CajaCustomerController::class, 'store'])->name('clientes.store');
+                    Route::get('clientes/{customer}', [CajaCustomerController::class, 'show'])->whereNumber('customer')->name('clientes.show');
+                    Route::put('clientes/{customer}', [CajaCustomerController::class, 'update'])->whereNumber('customer')->name('clientes.update');
+
+                    // Stats de la ficha (JSON, lazy-loaded por pestaña)
+                    Route::get('clientes/{customer}/stats', [CajaCustomerStatsController::class, 'stats'])->whereNumber('customer')->name('clientes.stats');
+                    Route::get('clientes/{customer}/historial', [CajaCustomerStatsController::class, 'history'])->whereNumber('customer')->name('clientes.historial');
+                    Route::get('clientes/{customer}/productos-top', [CajaCustomerStatsController::class, 'topProducts'])->whereNumber('customer')->name('clientes.productos-top');
+                    Route::get('clientes/{customer}/pagos', [CajaCustomerStatsController::class, 'payments'])->whereNumber('customer')->name('clientes.pagos');
+                    Route::get('clientes/{customer}/ventas/{sale}', [CajaCustomerStatsController::class, 'saleDetail'])->whereNumber('customer')->whereNumber('sale')->name('clientes.venta-detalle');
+
+                    // Cobro global (registrar y consultar; nunca cancelar)
+                    Route::post('clientes/{customer}/cobro-global', [CajaCustomerPaymentController::class, 'store'])->whereNumber('customer')->name('clientes.cobro-global');
+                    Route::get('clientes/{customer}/cobros-globales/{customerPayment}', [CajaCustomerPaymentController::class, 'show'])->whereNumber('customer')->whereNumber('customerPayment')->name('clientes.cobro-global.show');
+                });
             });
 
         // Mini-app del asistente (compartida por empresa, sucursal y cajero

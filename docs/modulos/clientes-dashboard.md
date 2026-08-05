@@ -50,7 +50,9 @@ Todos retornan JSON. El `Accept: application/json` se envía desde `useCustomerS
 ### Backend
 - `database/migrations/2026_04_14_000001_add_original_unit_price_to_sale_items_table.php`
 - `app/Models/SaleItem.php` — fillable + cast de `original_unit_price`
-- `app/Http/Controllers/Sucursal/CustomerStatsController.php`
+- `app/Http/Controllers/Sucursal/CustomerStatsController.php` — desde 2026-08-05 es
+  el trait `Concerns/HandlesCustomerStats`, compartido con la versión de Caja
+  (ver [clientes-caja.md](clientes-caja.md))
 - `app/Http/Controllers/Sucursal/WorkbenchController.php` — snapshot al crear
 - `app/Http/Controllers/Api/SaleController.php` — snapshot al crear desde API
 - `routes/web.php` — 4 rutas nuevas

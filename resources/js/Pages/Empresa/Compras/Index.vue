@@ -222,6 +222,9 @@ const iaRoutes = { iaStore: 'empresa.compras.ia.store' };
             :branches="branches"
             :ai-result="aiResult"
             :routes="formRoutes"
+            attachment-preview-route-name="empresa.compras.adjuntos.preview"
+            attachment-download-route-name="empresa.compras.adjuntos.download"
+            attachment-destroy-route-name="empresa.compras.adjuntos.destroy"
             @close="formOpen = false; aiResult = null"
         />
         <CompraDetailModal

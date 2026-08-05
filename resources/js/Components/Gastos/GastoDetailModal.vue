@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import AttachmentViewerModal from '@/Components/Gastos/AttachmentViewerModal.vue';
+import AttachmentViewerModal from '@/Components/AttachmentViewerModal.vue';
 import HistorialTimeline from '@/Components/Historial/HistorialTimeline.vue';
 
 const props = defineProps({

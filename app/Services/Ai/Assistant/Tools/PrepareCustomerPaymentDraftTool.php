@@ -6,6 +6,7 @@ use App\Enums\AssistantDraftType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Models\AssistantDraft;
+use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\User;
@@ -47,6 +48,22 @@ class PrepareCustomerPaymentDraftTool extends AbstractPrepareDraftTool
     public function rolesAllowed(): array
     {
         return ['admin-empresa', 'admin-sucursal', 'cajero'];
+    }
+
+    /**
+     * Cajero: además del rol, su sucursal debe tener habilitado el toggle de
+     * clientes/cobros (mismo gate que Caja\CustomerPaymentController en la web).
+     */
+    public function authorize(User $user, array $params): bool
+    {
+        if (! parent::authorize($user, $params)) {
+            return false;
+        }
+        if ($user->hasRole('cajero')) {
+            return (bool) Branch::query()->find($user->branch_id)?->cashier_customers_enabled;
+        }
+
+        return true;
     }
 
     public function jsonSchema(): array

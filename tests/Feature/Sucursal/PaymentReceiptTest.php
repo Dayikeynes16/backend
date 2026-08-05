@@ -344,4 +344,59 @@ class PaymentReceiptTest extends TestCase
             ['receipts' => [UploadedFile::fake()->image('x.jpg')]],
         )->assertStatus(403);
     }
+
+    public function test_preview_returns_inline_disposition(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        [, $payment] = $this->makeSaleWithTransferPayment();
+
+        $this->actingAs($this->adminSucursal)->post(
+            route('sucursal.pagos.receipts.store', [$this->tenant->slug, $payment->id]),
+            ['receipts' => [UploadedFile::fake()->image('captura.jpg')]],
+        )->assertSessionHas('success');
+
+        $receipt = $payment->receipts()->firstOrFail();
+
+        $response = $this->actingAs($this->adminSucursal)->get(
+            route('sucursal.pagos.receipts.preview', [$this->tenant->slug, $payment->id, $receipt->id]),
+        );
+        $response->assertOk();
+        $this->assertStringContainsString('inline', $response->headers->get('content-disposition') ?? '');
+    }
+
+    // preview() llama a authorizeView (igual que download), NO a
+    // authorizeMutation: no exige turno abierto ni dueño del pago. Prueba
+    // real de esa propiedad (a diferencia del caso removido que pegaba a
+    // sucursal.pagos.receipts.preview con un cajero, lo que 403ea por el
+    // gate de rol del grupo antes de llegar al controlador y no probaba
+    // nada — ver NOTA T5 arriba). Espejo de
+    // test_cajero_cannot_mutate_another_users_payment, pero afirmando éxito:
+    // un cajero SIN turno abierto y que NO es dueño del pago puede
+    // previsualizar su comprobante igualmente.
+    public function test_cajero_can_preview_another_users_payment_receipt(): void
+    {
+        Storage::fake(PaymentReceiptService::disk());
+        $otherCajero = $this->makeUser('caja2@test.local', 'cajero', $this->branch->id);
+        $sale = $this->makeActiveSale();
+        $payment = Payment::create([
+            'sale_id' => $sale->id,
+            'user_id' => $otherCajero->id,
+            'method' => 'transfer',
+            'amount' => 100,
+        ]);
+        $receipt = app(PaymentReceiptService::class)->attach(
+            $payment,
+            [UploadedFile::fake()->image('c.jpg')],
+            $otherCajero->id,
+        )[0];
+
+        // $this->cajero no tiene turno abierto y no es dueño de $payment:
+        // store/destroy (authorizeMutation) lo rechazarían con 403, pero
+        // preview (authorizeView) no exige ninguna de las dos condiciones.
+        $response = $this->actingAs($this->cajero)->get(
+            route('caja.pagos.receipts.preview', [$this->tenant->slug, $payment->id, $receipt->id]),
+        );
+        $response->assertOk();
+        $this->assertStringContainsString('inline', $response->headers->get('content-disposition') ?? '');
+    }
 }

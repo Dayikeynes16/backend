@@ -12,6 +12,8 @@ const props = defineProps({
     shiftOpen: { type: Boolean, default: true },
     receiptsEnabled: { type: Boolean, default: false },
     receiptsRequired: { type: Boolean, default: false },
+    /** 'sucursal' (admin de sucursal) o 'caja' (cajero). */
+    routePrefix: { type: String, default: 'sucursal' },
 });
 
 const emit = defineEmits(['close', 'success']);
@@ -153,7 +155,7 @@ const submit = async () => {
             receiptFiles.value.forEach((f) => fd.append('receipts[]', f));
 
             res = await fetch(
-                route('sucursal.clientes.cobro-global', [props.tenantSlug, props.customer.id]),
+                route(`${props.routePrefix}.clientes.cobro-global`, [props.tenantSlug, props.customer.id]),
                 {
                     method: 'POST',
                     headers: {
@@ -167,7 +169,7 @@ const submit = async () => {
             );
         } else {
             res = await fetch(
-                route('sucursal.clientes.cobro-global', [props.tenantSlug, props.customer.id]),
+                route(`${props.routePrefix}.clientes.cobro-global`, [props.tenantSlug, props.customer.id]),
                 {
                     method: 'POST',
                     headers: {

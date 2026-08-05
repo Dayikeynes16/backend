@@ -1,6 +1,7 @@
 <script setup>
 import PagoProveedorModal from './PagoProveedorModal.vue';
 import HistorialTimeline from '@/Components/Historial/HistorialTimeline.vue';
+import AttachmentViewerModal from '@/Components/AttachmentViewerModal.vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -76,10 +77,10 @@ const downloadUrl = (att) => route(props.routes.adjuntoDownload, { tenant: slug.
 const previewUrl = (att) => route(props.routes.adjuntoPreview, { tenant: slug.value, compra: props.purchase.id, attachment: att.id });
 const isImage = (att) => (att.mime_type || '').startsWith('image/');
 
-// Visor de adjunto (lightbox)
-const viewer = ref(null);
-const openViewer = (att) => { viewer.value = att; };
-const closeViewer = () => { viewer.value = null; };
+// Visor de adjunto (AttachmentViewerModal compartido — mismo patrón que GastoDetailModal.vue)
+const viewerOpen = ref(false);
+const viewerIndex = ref(0);
+const openViewer = (i) => { viewerIndex.value = i; viewerOpen.value = true; };
 
 const deleteAttachment = (att) => {
     if (!confirm(`¿Eliminar adjunto "${att.original_name}"?`)) return;
@@ -211,8 +212,8 @@ const isCancelled = computed(() => props.purchase?.status === 'cancelled');
                         <div v-if="purchase.attachments?.length && routes.adjuntoPreview">
                             <h3 class="mb-2 text-sm font-bold uppercase tracking-wide text-gray-700">Adjuntos</h3>
                             <ul class="space-y-2">
-                                <li v-for="att in purchase.attachments" :key="att.id" class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
-                                    <button type="button" @click="openViewer(att)" class="shrink-0" :title="`Ver ${att.original_name}`">
+                                <li v-for="(att, i) in purchase.attachments" :key="att.id" class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                                    <button type="button" @click="openViewer(i)" class="shrink-0" :title="`Ver ${att.original_name}`">
                                         <img v-if="isImage(att)" :src="previewUrl(att)" :alt="att.original_name" loading="lazy"
                                             class="h-12 w-12 rounded-lg border border-gray-200 object-cover transition hover:opacity-80" />
                                         <span v-else class="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-400 transition hover:bg-gray-100">
@@ -221,7 +222,7 @@ const isCancelled = computed(() => props.purchase?.status === 'cancelled');
                                             </svg>
                                         </span>
                                     </button>
-                                    <button type="button" @click="openViewer(att)" class="flex-1 truncate text-left text-orange-700 hover:underline">{{ att.original_name }}</button>
+                                    <button type="button" @click="openViewer(i)" class="flex-1 truncate text-left text-orange-700 hover:underline">{{ att.original_name }}</button>
                                     <span class="text-xs text-gray-500">{{ Math.ceil(att.size_bytes / 1024) }} KB</span>
                                     <a :href="downloadUrl(att)" class="text-xs font-medium text-gray-600 hover:text-gray-900">Descargar</a>
                                     <button v-if="!isCancelled" @click="deleteAttachment(att)" class="text-xs font-medium text-red-600 hover:text-red-800">Eliminar</button>
@@ -272,23 +273,17 @@ const isCancelled = computed(() => props.purchase?.status === 'cancelled');
                     </div>
                 </div>
 
-                <!-- Visor de adjunto (lightbox) -->
-                <div v-if="viewer" class="fixed inset-0 z-[70] flex flex-col bg-black/80" @click.self="closeViewer">
-                    <div class="flex items-center justify-between gap-3 px-4 py-3 text-white">
-                        <span class="truncate text-sm font-medium">{{ viewer.original_name }}</span>
-                        <div class="flex shrink-0 items-center gap-4">
-                            <a :href="downloadUrl(viewer)" class="text-sm hover:underline">Descargar</a>
-                            <button @click="closeViewer" class="rounded-full bg-white/10 px-3 py-1 text-sm hover:bg-white/20">✕</button>
-                        </div>
-                    </div>
-                    <div class="flex flex-1 items-center justify-center overflow-auto p-4" @click.self="closeViewer">
-                        <img v-if="isImage(viewer)" :src="previewUrl(viewer)" :alt="viewer.original_name" class="max-h-full max-w-full object-contain" />
-                        <iframe v-else :src="previewUrl(viewer)" :title="viewer.original_name" class="h-full w-full rounded bg-white"></iframe>
-                    </div>
-                </div>
             </div>
         </Transition>
     </Teleport>
+
+    <AttachmentViewerModal v-if="purchase"
+        :show="viewerOpen"
+        :attachments="purchase.attachments || []"
+        :initial-index="viewerIndex"
+        :preview-url="previewUrl"
+        :download-url="downloadUrl"
+        @close="viewerOpen = false" />
 
     <PagoProveedorModal
         v-if="purchase"

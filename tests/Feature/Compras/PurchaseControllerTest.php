@@ -3,6 +3,7 @@
 namespace Tests\Feature\Compras;
 
 use App\Models\Branch;
+use App\Models\CashRegisterShift;
 use App\Models\Provider;
 use App\Models\Purchase;
 use App\Models\Tenant;
@@ -191,6 +192,88 @@ class PurchaseControllerTest extends TestCase
 
         Storage::disk('local')->assertMissing($att->path);
         $this->assertSame(0, $purchase->attachments()->count());
+    }
+
+    public function test_caja_can_only_view_own_purchase_attachments_in_own_branch(): void
+    {
+        Storage::fake('local');
+
+        $shift = CashRegisterShift::create([
+            'user_id' => $this->cajero->id,
+            'branch_id' => $this->branch->id,
+            'tenant_id' => $this->tenant->id,
+            'opened_at' => now(),
+            'opening_amount' => 0,
+        ]);
+
+        $own = $this->makePurchase([
+            'created_by' => $this->cajero->id,
+            'cash_register_shift_id' => $shift->id,
+        ]);
+        $ownAtt = $own->attachments()->create([
+            'tenant_id' => $own->tenant_id,
+            'original_name' => 'propio.pdf',
+            'path' => "tenants/{$own->tenant_id}/purchases/{$own->id}/propio.pdf",
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 10,
+        ]);
+        Storage::disk('local')->put($ownAtt->path, 'fake');
+
+        $otherCajero = $this->makeUser('caja2@test.local', 'cajero', $this->branch->id);
+        $othersPurchase = $this->makePurchase(['created_by' => $otherCajero->id]);
+        $othersAtt = $othersPurchase->attachments()->create([
+            'tenant_id' => $othersPurchase->tenant_id,
+            'original_name' => 'ajeno.pdf',
+            'path' => "tenants/{$othersPurchase->tenant_id}/purchases/{$othersPurchase->id}/ajeno.pdf",
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 10,
+        ]);
+        Storage::disk('local')->put($othersAtt->path, 'fake');
+
+        $this->actingAs($this->cajero);
+
+        // Puede ver el suyo.
+        $this->get(route('caja.compras.adjuntos.download', [$this->tenant->slug, $own->id, $ownAtt->id]))
+            ->assertOk();
+        $this->get(route('caja.compras.adjuntos.preview', [$this->tenant->slug, $own->id, $ownAtt->id]))
+            ->assertOk();
+
+        // NO puede ver el de otro cajero: Compras exige sucursal Y dueño
+        // (created_by), misma regla que Gastos — Caja\PurchaseController@index
+        // también filtra su listado por branch_id + created_by.
+        $this->get(route('caja.compras.adjuntos.download', [$this->tenant->slug, $othersPurchase->id, $othersAtt->id]))
+            ->assertForbidden();
+        $this->get(route('caja.compras.adjuntos.preview', [$this->tenant->slug, $othersPurchase->id, $othersAtt->id]))
+            ->assertForbidden();
+
+        // Puede eliminar el suyo (dentro de su turno abierto).
+        $this->delete(route('caja.compras.adjuntos.destroy', [$this->tenant->slug, $own->id, $ownAtt->id]))
+            ->assertSessionHasNoErrors();
+        Storage::disk('local')->assertMissing($ownAtt->path);
+
+        // NO puede eliminar el de otro cajero.
+        $this->delete(route('caja.compras.adjuntos.destroy', [$this->tenant->slug, $othersPurchase->id, $othersAtt->id]))
+            ->assertForbidden();
+    }
+
+    public function test_admin_empresa_access_to_purchase_attachments_unaffected_by_caja_routes(): void
+    {
+        Storage::fake('local');
+        $purchase = $this->makePurchase(['created_by' => $this->cajero->id]);
+        $att = $purchase->attachments()->create([
+            'tenant_id' => $purchase->tenant_id,
+            'original_name' => 'x.pdf',
+            'path' => "tenants/{$purchase->tenant_id}/purchases/{$purchase->id}/x.pdf",
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 10,
+        ]);
+        Storage::disk('local')->put($att->path, 'fake');
+
+        $this->actingAs($this->adminEmpresa);
+        $this->get(route('empresa.compras.adjuntos.download', [$this->tenant->slug, $purchase->id, $att->id]))->assertOk();
+        $this->delete(route('empresa.compras.adjuntos.destroy', [$this->tenant->slug, $purchase->id, $att->id]))
+            ->assertRedirect();
+        Storage::disk('local')->assertMissing($att->path);
     }
 
     public function test_admin_sucursal_cannot_access_empresa_routes(): void

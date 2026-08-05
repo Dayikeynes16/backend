@@ -75,7 +75,8 @@ ai_purchase_drafts                 ← propuesta IA pendiente de confirmar
 | Pago a cuenta (FIFO) | ✅ | FIFO sobre todas | FIFO sobre las de su sucursal | ❌ |
 | Cancelar pago | ✅ | ✅ (con motivo) | Solo de su sucursal | ❌ |
 | Captura con IA | ✅ | ✅ | ✅ | ❌ |
-| Adjuntos (download/preview/delete) | ✅ | Todas | Solo de su sucursal | ❌ |
+| Adjuntos: ver/descargar/previsualizar | ✅ | Todas | Solo de su sucursal | ✅ sólo de compras que **él mismo** registró en su sucursal |
+| Adjuntos: eliminar | ✅ | Todas | Solo de su sucursal | ✅ sólo propios y con turno abierto |
 
 Implementación: middleware `role:...` en cada grupo de rutas + checks manuales `tenant_id`/`branch_id` en cada controller (mismo patrón que Gastos).
 
@@ -205,6 +206,7 @@ nota por línea, IA) es trabajo aparte.
   - `preview` — `Storage::get()` con `Content-Disposition: inline` (para `<img>`/`<iframe>`).
 - Ambos validan `tenant_id` y, para `admin-sucursal`, también `branch_id`.
 - Eliminación física: hook `deleting` en `PurchaseAttachment` borra el archivo. Soft-delete de la compra **no** borra archivos (auditoría).
+- **Caja (cajero), desde 2026-07-17:** rutas propias `caja.compras.adjuntos.{download,preview,destroy}` (mismo `PurchaseAttachmentController`, sin clases nuevas). `authorizeView()` (usada por `download`/`preview`) acota al cajero a `branch_id` **y** `created_by` (dueño de la compra) — mismo filtro que ya aplica `Caja\PurchaseController@index` ("Solo ves las compras que tú registraste"); `authorizeMutation()` (usada por `destroy`) exige además que la compra siga ligada a su turno abierto (`cash_register_shift_id`). Antes de esto, `Pages/Caja/Compras/Index.vue` no pasaba rutas de adjuntos a `CompraDetailModal.vue`, así que la sección de adjuntos simplemente no se mostraba para un cajero.
 
 ## UI
 
@@ -241,8 +243,8 @@ Idéntico a empresa, sucursal forzada (sin selector), sin CRUD de proveedores (s
 
 ### Componentes reutilizables
 
-- `Components/Compras/CompraFormModal.vue` — form con líneas editables, autocomplete de unidad, recibe propuesta IA opcional (`aiResult` prop) con badges ✨ y banner tricolor.
-- `Components/Compras/CompraDetailModal.vue` — detalle + sub-modal `PagoProveedorModal` integrado.
+- `Components/Compras/CompraFormModal.vue` — form con líneas editables, autocomplete de unidad, recibe propuesta IA opcional (`aiResult` prop) con badges ✨ y banner tricolor. Desde 2026-07-17 el picker de adjuntos se delega al componente compartido `Components/AttachmentsPicker.vue` (`mode="staged"`, mismo componente que Gastos y Comprobantes de pago) y, por primera vez, muestra los adjuntos ya existentes al editar una compra (antes el modal solo aceptaba archivos nuevos, para ningún rol).
+- `Components/Compras/CompraDetailModal.vue` — detalle + sub-modal `PagoProveedorModal` integrado. Desde 2026-07-17 el visor de adjuntos usa el componente compartido `Components/AttachmentViewerModal.vue` en vez de un lightbox propio (`viewer`/`openViewer`/`closeViewer`) — mismo visor que ya usaba `GastoDetailModal.vue`.
 - `Components/Compras/CompraCapturaIAModal.vue` — captura por foto + voz + texto.
 - `Components/Compras/PagoProveedorModal.vue` — registrar pago (3 botones de método, atajo "Saldar total").
 - `Components/Proveedores/ProveedorFormModal.vue` — CRUD proveedor.
