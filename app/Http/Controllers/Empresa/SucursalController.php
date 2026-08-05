@@ -123,6 +123,7 @@ class SucursalController extends Controller
             'pickup_enabled' => 'sometimes|boolean',
             'cashier_expenses_enabled' => 'sometimes|boolean',
             'cashier_purchases_enabled' => 'sometimes|boolean',
+            'cashier_customers_enabled' => 'sometimes|boolean',
             'branch_admin_providers_enabled' => 'sometimes|boolean',
             'branch_admin_expense_categories_enabled' => 'sometimes|boolean',
             'payment_receipts_enabled' => 'sometimes|boolean',

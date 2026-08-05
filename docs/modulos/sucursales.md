@@ -24,6 +24,29 @@ Unidad operativa dentro de una empresa. Cada sucursal tiene su propio catálogo 
 
 **Usa `BelongsToTenant`** — filtrado automático por tenant.
 
+## Feature flags por sucursal
+
+Además de los campos de la tabla anterior, `branches` guarda banderas booleanas
+con las que el admin-empresa habilita capacidades **sucursal por sucursal**
+desde Empresa → Sucursales → Editar. Se aplican con el middleware
+`branch.feature:{flag}` (`EnsureBranchFeature`) y se exponen al frontend en
+`auth.branch` (`HandleInertiaRequests`).
+
+| Flag | Default | Qué habilita |
+|---|:--:|---|
+| `cashier_expenses_enabled` | `true` | Módulo de Gastos del cajero |
+| `cashier_purchases_enabled` | `true` | Módulo de Compras del cajero |
+| `cashier_customers_enabled` | `true` | Módulo de Clientes del cajero: cartera, alta/edición y cobro global FIFO — **sin** precios preferenciales. Ver [clientes-caja.md](clientes-caja.md) |
+| `branch_admin_providers_enabled` | `false` | Que el admin-sucursal cree/edite proveedores (catálogo tenant-wide) |
+| `branch_admin_expense_categories_enabled` | `false` | Que el admin-sucursal cree/edite categorías de gasto |
+| `payment_receipts_enabled` | `false` | Adjuntar comprobantes de transferencia. Ver [comprobantes-pago.md](comprobantes-pago.md) |
+| `payment_receipts_required` | `false` | Exigir el comprobante para cobrar por transferencia |
+| `online_ordering_enabled`, `delivery_enabled`, `pickup_enabled` | — | Menú QR y modalidades de pedido web |
+
+Los toggles del cajero nacen en `true` para no quitarle capacidades a
+sucursales existentes al desplegar; los de admin-sucursal nacen en `false`
+porque tocan catálogos compartidos por todo el tenant.
+
 ## Controller (`app/Http/Controllers/Empresa/SucursalController.php`)
 
 Accesible por admin-empresa. Rutas bajo `/{tenant}/empresa/sucursales`.

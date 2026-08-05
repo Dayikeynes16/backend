@@ -173,7 +173,13 @@ class CustomerPaymentController extends Controller
         ]);
     }
 
-    /** Cobro global FIFO. Solo admin-sucursal (paridad con RegisterCustomerPaymentRequest web). Requiere turno abierto. */
+    /**
+     * Cobro global FIFO. Solo admin-sucursal. Requiere turno abierto.
+     *
+     * Nota: desde 2026-08-05 la web sí permite al cajero registrar cobros
+     * globales cuando su sucursal tiene `cashier_customers_enabled`. El hub
+     * todavía no replica esa paridad — se trata por separado.
+     */
     public function store(Request $request, int $customer): JsonResponse
     {
         $user = $request->user();

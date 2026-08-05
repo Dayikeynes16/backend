@@ -11,6 +11,9 @@ use App\Http\Controllers\Ai\ExpenseDraftController as AiExpenseDraftController;
 use App\Http\Controllers\Ai\PurchaseDraftController as AiPurchaseDraftController;
 use App\Http\Controllers\Asistente\AssistantAppController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
+use App\Http\Controllers\Caja\CustomerController as CajaCustomerController;
+use App\Http\Controllers\Caja\CustomerPaymentController as CajaCustomerPaymentController;
+use App\Http\Controllers\Caja\CustomerStatsController as CajaCustomerStatsController;
 use App\Http\Controllers\Caja\GastoController as CajaGastoController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
@@ -532,11 +535,11 @@ Route::prefix('{tenant}')
                 Route::get('pagos/{payment}/comprobantes/{receipt}/preview', [PaymentReceiptController::class, 'preview'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.preview');
                 Route::delete('pagos/{payment}/comprobantes/{receipt}', [PaymentReceiptController::class, 'destroy'])->whereNumber('payment')->whereNumber('receipt')->name('pagos.receipts.destroy');
 
-                // Comprobantes de cobro global (adjuntar después / descargar). El
-                // cajero no crea cobros globales por esta ruta (eso es exclusivo de
-                // admin-sucursal en la web), pero SÍ puede crearlos vía el asistente
-                // IA y necesita adjuntar/descargar comprobantes de los suyos. No
-                // elimina: no hay ruta destroy en este grupo.
+                // Comprobantes de cobro global (adjuntar después / descargar).
+                // Deliberadamente FUERA del gate `cashier_customers_enabled`: si la
+                // empresa apaga el módulo, el cajero debe poder seguir adjuntando el
+                // comprobante de un cobro que ya registró. No elimina: no hay ruta
+                // destroy en este grupo.
                 Route::post('cobros/{customerPayment}/comprobantes', [CustomerPaymentReceiptController::class, 'store'])->whereNumber('customerPayment')->name('cobros.receipts.store');
                 Route::get('cobros/{customerPayment}/comprobantes/{receipt}', [CustomerPaymentReceiptController::class, 'download'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.download');
                 Route::get('cobros/{customerPayment}/comprobantes/{receipt}/preview', [CustomerPaymentReceiptController::class, 'preview'])->whereNumber('customerPayment')->whereNumber('receipt')->name('cobros.receipts.preview');
@@ -591,6 +594,33 @@ Route::prefix('{tenant}')
 
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
+
+                // Clientes y cobros — módulo opcional, la empresa lo habilita por
+                // sucursal. El cajero consulta la cartera, da de alta/edita clientes
+                // y registra cobros globales FIFO.
+                //
+                // Ausentes a propósito frente al grupo de admin-sucursal:
+                //  - `clientes/{customer}/precios/*`: los precios preferenciales
+                //    (descuentos por cliente) son decisión del admin-sucursal.
+                //  - `clientes/{customer}` DELETE: no da de baja clientes.
+                //  - `cobros-globales/{cp}` DELETE: no cancela cobros.
+                Route::middleware('branch.feature:cashier_customers_enabled')->group(function () {
+                    Route::get('clientes', [CajaCustomerController::class, 'index'])->name('clientes.index');
+                    Route::post('clientes', [CajaCustomerController::class, 'store'])->name('clientes.store');
+                    Route::get('clientes/{customer}', [CajaCustomerController::class, 'show'])->whereNumber('customer')->name('clientes.show');
+                    Route::put('clientes/{customer}', [CajaCustomerController::class, 'update'])->whereNumber('customer')->name('clientes.update');
+
+                    // Stats de la ficha (JSON, lazy-loaded por pestaña)
+                    Route::get('clientes/{customer}/stats', [CajaCustomerStatsController::class, 'stats'])->whereNumber('customer')->name('clientes.stats');
+                    Route::get('clientes/{customer}/historial', [CajaCustomerStatsController::class, 'history'])->whereNumber('customer')->name('clientes.historial');
+                    Route::get('clientes/{customer}/productos-top', [CajaCustomerStatsController::class, 'topProducts'])->whereNumber('customer')->name('clientes.productos-top');
+                    Route::get('clientes/{customer}/pagos', [CajaCustomerStatsController::class, 'payments'])->whereNumber('customer')->name('clientes.pagos');
+                    Route::get('clientes/{customer}/ventas/{sale}', [CajaCustomerStatsController::class, 'saleDetail'])->whereNumber('customer')->whereNumber('sale')->name('clientes.venta-detalle');
+
+                    // Cobro global (registrar y consultar; nunca cancelar)
+                    Route::post('clientes/{customer}/cobro-global', [CajaCustomerPaymentController::class, 'store'])->whereNumber('customer')->name('clientes.cobro-global');
+                    Route::get('clientes/{customer}/cobros-globales/{customerPayment}', [CajaCustomerPaymentController::class, 'show'])->whereNumber('customer')->whereNumber('customerPayment')->name('clientes.cobro-global.show');
+                });
             });
 
         // Mini-app del asistente (compartida por empresa, sucursal y cajero

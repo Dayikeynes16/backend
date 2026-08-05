@@ -4,6 +4,8 @@ namespace Tests\Feature\Ai;
 
 use App\Models\CashRegisterShift;
 use App\Services\Ai\Assistant\ToolRegistry;
+use App\Services\Ai\Assistant\Tools\PrepareCustomerDraftTool;
+use App\Services\Ai\Assistant\Tools\PrepareCustomerPaymentDraftTool;
 use App\Services\Ai\Assistant\Tools\PrepareExpenseDraftTool;
 use App\Services\Ai\Assistant\Tools\PreparePurchaseDraftTool;
 use App\Services\Ai\Assistant\Tools\ShiftStatusTool;
@@ -67,6 +69,20 @@ class AssistantCajeroAccessTest extends TestCase
         // Los admins no dependen del toggle.
         $this->branch->update(['cashier_expenses_enabled' => false]);
         $this->assertTrue(app(PrepareExpenseDraftTool::class)->authorize($this->adminSucursal, []));
+    }
+
+    public function test_customer_tools_gated_by_branch_toggle(): void
+    {
+        // Por defecto el módulo está activo: el cajero conserva lo que ya tenía.
+        $this->assertTrue(app(PrepareCustomerPaymentDraftTool::class)->authorize($this->cajero, []));
+        $this->assertTrue(app(PrepareCustomerDraftTool::class)->authorize($this->cajero, []));
+
+        $this->branch->update(['cashier_customers_enabled' => false]);
+        $this->assertFalse(app(PrepareCustomerPaymentDraftTool::class)->authorize($this->cajero, []));
+        $this->assertFalse(app(PrepareCustomerDraftTool::class)->authorize($this->cajero, []));
+
+        // El admin de sucursal no depende del toggle.
+        $this->assertTrue(app(PrepareCustomerPaymentDraftTool::class)->authorize($this->adminSucursal, []));
     }
 
     public function test_cajero_shift_status_only_shows_own_shifts(): void

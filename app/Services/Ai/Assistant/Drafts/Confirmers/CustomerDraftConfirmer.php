@@ -4,6 +4,7 @@ namespace App\Services\Ai\Assistant\Drafts\Confirmers;
 
 use App\Enums\AssistantDraftType;
 use App\Models\AssistantDraft;
+use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\User;
 use App\Services\Ai\Assistant\Drafts\AssistantDraftService;
@@ -24,8 +25,17 @@ final class CustomerDraftConfirmer implements DraftConfirmer
         return AssistantDraftType::Customer;
     }
 
+    /**
+     * Cajero: su sucursal debe tener habilitado el toggle de clientes/cobros.
+     * Se revalida aquí porque el borrador pudo prepararse antes de que la
+     * empresa apagara el módulo.
+     */
     public function authorize(User $user, AssistantDraft $draft): bool
     {
+        if ($user->hasRole('cajero')) {
+            return (bool) Branch::query()->find($user->branch_id)?->cashier_customers_enabled;
+        }
+
         return true;
     }
 

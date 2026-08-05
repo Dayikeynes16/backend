@@ -3,8 +3,12 @@ import { ref, watch } from 'vue';
 /**
  * Lazy-loads customer dashboard data per section with request cancellation
  * when the selected customer changes.
+ *
+ * `routePrefix` elige el grupo de rutas: 'sucursal' (admin de sucursal) o
+ * 'caja' (cajero, cuando su sucursal tiene `cashier_customers_enabled`).
+ * Ambos exponen los mismos endpoints JSON.
  */
-export function useCustomerStats(selectedCustomerRef, tenantSlug) {
+export function useCustomerStats(selectedCustomerRef, tenantSlug, routePrefix = 'sucursal') {
     const stats = ref(null);
     const history = ref(null);
     const topProducts = ref(null);
@@ -63,14 +67,14 @@ export function useCustomerStats(selectedCustomerRef, tenantSlug) {
     const loadStats = async () => {
         const c = selectedCustomerRef.value;
         if (!c) return;
-        const data = await fetchJson('stats', route('sucursal.clientes.stats', [tenantSlug, c.id]));
+        const data = await fetchJson('stats', route(`${routePrefix}.clientes.stats`, [tenantSlug, c.id]));
         if (data) stats.value = data;
     };
 
     const loadHistory = async (params = {}) => {
         const c = selectedCustomerRef.value;
         if (!c) return;
-        const url = new URL(route('sucursal.clientes.historial', [tenantSlug, c.id]), window.location.origin);
+        const url = new URL(route(`${routePrefix}.clientes.historial`, [tenantSlug, c.id]), window.location.origin);
         Object.entries(params).forEach(([k, v]) => {
             if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
         });
@@ -81,7 +85,7 @@ export function useCustomerStats(selectedCustomerRef, tenantSlug) {
     const loadTopProducts = async (limit = 10) => {
         const c = selectedCustomerRef.value;
         if (!c) return;
-        const url = new URL(route('sucursal.clientes.productos-top', [tenantSlug, c.id]), window.location.origin);
+        const url = new URL(route(`${routePrefix}.clientes.productos-top`, [tenantSlug, c.id]), window.location.origin);
         url.searchParams.set('limit', limit);
         const data = await fetchJson('topProducts', url.toString());
         if (data) topProducts.value = data;
@@ -90,7 +94,7 @@ export function useCustomerStats(selectedCustomerRef, tenantSlug) {
     const loadPayments = async () => {
         const c = selectedCustomerRef.value;
         if (!c) return;
-        const data = await fetchJson('payments', route('sucursal.clientes.pagos', [tenantSlug, c.id]));
+        const data = await fetchJson('payments', route(`${routePrefix}.clientes.pagos`, [tenantSlug, c.id]));
         if (data) payments.value = data;
     };
 
@@ -98,7 +102,7 @@ export function useCustomerStats(selectedCustomerRef, tenantSlug) {
         const c = selectedCustomerRef.value;
         if (!c) throw new Error('Sin cliente seleccionado');
 
-        const res = await fetch(route('sucursal.clientes.cobro-global', [tenantSlug, c.id]), {
+        const res = await fetch(route(`${routePrefix}.clientes.cobro-global`, [tenantSlug, c.id]), {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',

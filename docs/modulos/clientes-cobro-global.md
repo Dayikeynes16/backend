@@ -14,13 +14,14 @@ Esto preserva la trazabilidad (en historial aparece un cobro agrupado, no N pago
 La distribución FIFO vive en **`App\Services\CustomerGlobalPaymentService`**
 (`preview()` de solo lectura + `apply()` transaccional con advisory lock +
 `broadcastSaleUpdates()`), extraída del código que antes estaba duplicado
-inline en los dos controllers. Tres consumidores:
+inline en los dos controllers. Cuatro consumidores:
 
 | Consumidor | Turno abierto | Notas |
 |---|---|---|
-| `Sucursal\CustomerPaymentController@store` (web) | 403 si no | check de branch + `RegisterCustomerPaymentRequest` |
-| `Api\Hub\CustomerPaymentController@store` (hub) | 409 si no | validación inline con métodos habilitados de la sucursal |
-| `CustomerGlobalPaymentDraftConfirmer` (asistente IA, tool `preparar_cobro_cliente`) | 403 si no | el cliente debe ser de la sucursal del turno; `apply()` re-calcula al confirmar. Ver [asistente-ia.md](asistente-ia.md) |
+| `Sucursal\CustomerPaymentController@store` (web, admin-sucursal) | 403 si no | vía `HandlesCustomerGlobalPayments` + `RegisterCustomerPaymentRequest` |
+| `Caja\CustomerPaymentController@store` (web, cajero — desde 2026-08-05) | 403 si no | mismo trait; además exige `cashier_customers_enabled` en la sucursal. Ver [clientes-caja.md](clientes-caja.md) |
+| `Api\Hub\CustomerPaymentController@store` (hub) | 409 si no | validación inline con métodos habilitados de la sucursal. **Sigue restringido a admin-sucursal**: la paridad con el cajero está pendiente |
+| `CustomerGlobalPaymentDraftConfirmer` (asistente IA, tool `preparar_cobro_cliente`) | 403 si no | el cliente debe ser de la sucursal del turno; `apply()` re-calcula al confirmar. Para cajero exige el mismo toggle. Ver [asistente-ia.md](asistente-ia.md) |
 
 El servicio usa `withoutGlobalScopes` + filtros explícitos de tenant/cliente/
 sucursal para comportarse igual con y sin tenant resuelto (hub). `amount_paid`
@@ -104,7 +105,7 @@ payments (columna nueva)
 
 ## Reglas de negocio
 
-- **Rol requerido**: `admin-sucursal | admin-empresa | superadmin` (consistente con `PaymentController@store`).
+- **Rol requerido**: `admin-sucursal | admin-empresa | superadmin`, y desde 2026-08-05 también `cajero` cuando su sucursal tiene `cashier_customers_enabled` (ver [clientes-caja.md](clientes-caja.md)). El cajero **registra y consulta**, nunca cancela.
 - **Turno abierto obligatorio**: 403 si el user no tiene un `CashRegisterShift` con `closed_at = null`.
 - **Branch scope**: `customer.branch_id === auth.user.branch_id`; 403 cross-branch.
 - **Método habilitado**: debe estar en `branches.payment_methods_enabled`.

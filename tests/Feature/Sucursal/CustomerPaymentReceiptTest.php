@@ -74,10 +74,10 @@ class CustomerPaymentReceiptTest extends TestCase
     }
 
     /**
-     * CG creado directamente por modelo (no por endpoint): el cajero no tiene
-     * ruta para crear cobros globales (eso es exclusivo de admin-sucursal en
-     * la web; el cajero solo los crea vía el asistente IA). Espejo del
-     * CustomerPayment::create inline usado en PaymentReceiptTest.
+     * CG creado directamente por modelo (no por endpoint): así el fixture no
+     * depende de qué superficie lo originó — el cajero puede crearlos desde
+     * `/caja/clientes` (con `cashier_customers_enabled`) o vía el asistente IA.
+     * Espejo del CustomerPayment::create inline usado en PaymentReceiptTest.
      */
     private function makeCustomerPayment(User $owner, array $overrides = []): CustomerPayment
     {
