@@ -132,6 +132,27 @@ Se gestionan en una **pestaña "Categorías"** dentro de la pantalla *Productos 
 
 Cada producto de compra registra su historial de cambios en `audit_logs` (vía el trait `RecordsHistory` + servicio `AuditLogger`, igual que Compras/Gastos): se loguean los eventos **`created`** y **`updated`** (con diff de Nombre, Unidad, Categoría y Estado — la desactivación queda como cambio de `status`). Se consulta bajo demanda en `…/productos-compra/{producto}/historial` (JSON) y se muestra con `HistorialTimeline`. El `destroy` de empresa no borra las filas de auditoría (son inmutables; quedan huérfanas e inofensivas).
 
+#### Fusión de productos de compra duplicados (2026-07-15)
+
+Solo **admin-empresa**. En la pantalla Productos de compra, el botón **"Fusionar
+duplicados"** abre un modal (`Components/Compras/FusionarProductosModal.vue`):
+buscas las fichas duplicadas, las seleccionas, eliges la **canónica** y fusionas.
+La lógica vive en `App\Services\Purchases\PurchaseProductMergeService`:
+
+- Reapunta las `purchase_items` de las fichas absorbidas a la canónica.
+- Normaliza el `concept` de cada línea al nombre canónico y **mueve el dato
+  variable a `notes`** (ej. "Canal de res 111" → concept "Canal de res", nota
+  "111"). Si el texto viejo no era un sufijo limpio del canónico, se preserva
+  completo en la nota; nunca se pierde información.
+- Da de baja (soft-delete) las fichas absorbidas.
+- Registra un evento de auditoría `merged` sobre la canónica.
+
+Endpoints (solo empresa): `GET productos-compra/fusionar/candidatos`,
+`POST productos-compra/fusionar/preview` (impacto sin ejecutar),
+`POST productos-compra/fusionar`. Sucursal y hub no la tienen. Sin migraciones.
+La **prevención** de nuevos duplicados (sugerir producto existente al capturar,
+nota por línea, IA) es trabajo aparte.
+
 ## Validaciones
 
 ### Purchase
@@ -188,6 +209,16 @@ Cada producto de compra registra su historial de cambios en `audit_logs` (vía e
 - **Caja (cajero), desde 2026-07-17:** rutas propias `caja.compras.adjuntos.{download,preview,destroy}` (mismo `PurchaseAttachmentController`, sin clases nuevas). `authorizeView()` (usada por `download`/`preview`) acota al cajero a `branch_id` **y** `created_by` (dueño de la compra) — mismo filtro que ya aplica `Caja\PurchaseController@index` ("Solo ves las compras que tú registraste"); `authorizeMutation()` (usada por `destroy`) exige además que la compra siga ligada a su turno abierto (`cash_register_shift_id`). Antes de esto, `Pages/Caja/Compras/Index.vue` no pasaba rutas de adjuntos a `CompraDetailModal.vue`, así que la sección de adjuntos simplemente no se mostraba para un cajero.
 
 ## UI
+
+### Navegación unificada (2026-07-15)
+
+El sidebar tiene **una sola entrada "Compras"** (Empresa y Sucursal). Dentro, el
+componente `Components/Compras/ComprasTabs.vue` muestra 3 tabs de navegación
+(Compras | Productos de compra | Proveedores); cada tab es un `<Link>` de
+Inertia a la ruta existente de su sección — las rutas y controladores no
+cambiaron. El detalle de proveedor conserva la barra con "Proveedores" activo.
+El segmented Productos/Categorías sigue viviendo dentro de *Productos de
+compra*. Spec: `docs/superpowers/specs/2026-07-15-compras-tabs-unificacion-design.md`.
 
 ### `/{tenant}/empresa/proveedores`
 

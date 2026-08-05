@@ -1,5 +1,6 @@
 <script setup>
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
+import ComprasTabs from '@/Components/Compras/ComprasTabs.vue';
 import PurchaseProductsManager from '@/Components/Compras/PurchaseProductsManager.vue';
 import { Head } from '@inertiajs/vue3';
 
@@ -17,6 +18,8 @@ defineProps({
     <EmpresaLayout>
         <template #header><h1 class="text-lg font-bold text-gray-900">Productos de compra</h1></template>
 
+        <ComprasTabs active="productos-compra" />
+
         <PurchaseProductsManager
             :products="products"
             :filters="filters"
@@ -25,6 +28,7 @@ defineProps({
             :stats="stats"
             route-prefix="empresa"
             :can-delete="true"
+            :can-merge="true"
         />
     </EmpresaLayout>
 </template>

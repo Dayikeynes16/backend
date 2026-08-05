@@ -9,6 +9,7 @@ enum AuditEvent: string
     case Cancelled = 'cancelled';
     case PaymentAdded = 'payment_added';
     case PaymentCancelled = 'payment_cancelled';
+    case Merged = 'merged';
 
     public function label(): string
     {
@@ -18,6 +19,7 @@ enum AuditEvent: string
             self::Cancelled => 'Canceló',
             self::PaymentAdded => 'Registró pago',
             self::PaymentCancelled => 'Canceló pago',
+            self::Merged => 'Fusionó',
         };
     }
 }

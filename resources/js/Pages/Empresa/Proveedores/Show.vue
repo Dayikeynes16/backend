@@ -1,5 +1,6 @@
 <script setup>
 import EmpresaLayout from '@/Layouts/EmpresaLayout.vue';
+import ComprasTabs from '@/Components/Compras/ComprasTabs.vue';
 import ProviderDetail from '@/Components/Proveedores/ProviderDetail.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -23,6 +24,8 @@ const slug = computed(() => page.props.auth.tenant_slug);
                 <h1 class="text-lg font-bold text-gray-900">{{ provider.name }}</h1>
             </div>
         </template>
+
+        <ComprasTabs active="proveedores" />
 
         <ProviderDetail :provider="provider" :seed="seed" :purchase-products="purchaseProducts" route-prefix="empresa" :can-register-payment="true" />
     </EmpresaLayout>

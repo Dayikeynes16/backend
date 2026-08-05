@@ -2,6 +2,7 @@
 import ProductoCompraFormModal from '@/Components/Compras/ProductoCompraFormModal.vue';
 import ProductoCompraHistorialDrawer from '@/Components/Compras/ProductoCompraHistorialDrawer.vue';
 import PurchaseProductCategoriesManager from '@/Components/Compras/PurchaseProductCategoriesManager.vue';
+import FusionarProductosModal from '@/Components/Compras/FusionarProductosModal.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
@@ -13,6 +14,7 @@ const props = defineProps({
     stats: { type: Object, default: () => ({ total: 0, active: 0, inactive: 0, uncategorized: 0 }) },
     routePrefix: { type: String, default: 'empresa' },
     canDelete: { type: Boolean, default: false },
+    canMerge: { type: Boolean, default: false },
 });
 
 const activeTab = ref('productos');
@@ -51,6 +53,10 @@ const openHistory = (p) => { historyProduct.value = { id: p.id, name: p.name }; 
 // Menú ⋯
 const openKebab = ref(null);
 const toggleKebab = (id) => { openKebab.value = openKebab.value === id ? null : id; };
+
+// Fusionar duplicados
+const showMerge = ref(false);
+const onMerged = () => router.reload({ only: ['products', 'stats'] });
 
 // Confirmación de borrado
 const confirmDelete = ref(null);
@@ -148,10 +154,16 @@ const relTime = (iso) => {
                     <option value="">Todas las categorías</option>
                     <option v-for="c in categories" :key="c.value" :value="c.value">{{ c.label }}</option>
                 </select>
-                <button @click="openCreate"
-                    class="ml-auto rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-red-700">
-                    + Nuevo producto
-                </button>
+                <div class="ml-auto flex gap-2">
+                    <button v-if="canMerge" @click="showMerge = true"
+                        class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50">
+                        Fusionar duplicados
+                    </button>
+                    <button @click="openCreate"
+                        class="rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-red-700">
+                        + Nuevo producto
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -248,6 +260,7 @@ const relTime = (iso) => {
 
         <ProductoCompraFormModal :open="formOpen" :product="editing" :categories="categories" :route-prefix="routePrefix" @close="formOpen = false" />
         <ProductoCompraHistorialDrawer :open="historyOpen" :product="historyProduct" :route-prefix="routePrefix" @close="historyOpen = false" />
+        <FusionarProductosModal :open="showMerge" :tenant-slug="slug" @close="showMerge = false" @merged="onMerged" />
 
         <!-- Confirmación de borrado -->
         <Teleport to="body">
