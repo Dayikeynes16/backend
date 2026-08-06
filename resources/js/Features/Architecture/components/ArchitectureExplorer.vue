@@ -46,6 +46,12 @@ const connectionKinds = computed(() => (
 const entityNames = computed(() => Object.fromEntries(
     [...graph.entitiesById].map(([id, entity]) => [id, entity.name ?? id]),
 ));
+const entityApplicationIds = computed(() => Object.fromEntries(
+    [...graph.entitiesById].map(([id, entity]) => [
+        id,
+        graph.applicationsById.has(id) ? id : (entity.applicationId ?? null),
+    ]),
+));
 
 function selectRelated(id) {
     if (graph.modulesById.has(id)) {
@@ -79,7 +85,7 @@ function selectRelated(id) {
         />
 
         <div class="p-4 sm:p-6">
-            <div class="grid items-start gap-5" :class="selectedModule ? 'lg:grid-cols-[minmax(0,1fr)_23.75rem]' : ''">
+            <div class="grid items-start gap-5" :class="selectedModule ? '2xl:grid-cols-[minmax(0,1fr)_23.75rem]' : ''">
                 <section aria-label="Exploración de arquitectura" class="min-w-0">
                     <ArchitectureListView
                         v-if="view === 'list'"
@@ -108,6 +114,7 @@ function selectRelated(id) {
                         :layout="manifest.visualLayout"
                         :statuses="manifest.statuses"
                         :entity-names="entityNames"
+                        :entity-application-ids="entityApplicationIds"
                         :selected-id="selectedModule?.id ?? null"
                         :mode="mode"
                         @select-module="selectModule"

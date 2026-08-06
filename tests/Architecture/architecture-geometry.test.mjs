@@ -8,12 +8,40 @@ import {
     getRoomGeometry,
 } from '../../resources/js/Features/Architecture/lib/architectureGeometry.js';
 import {
+    CONNECTION_VISUAL_TOKENS,
+    STATUS_VISUAL_TOKENS,
+} from '../../resources/js/Features/Architecture/lib/architectureVisualTokens.js';
+import {
     createArchitectureGraph,
     getVisibleConnections,
 } from '../../resources/js/Features/Architecture/lib/architectureGraph.js';
 
 const manifestPath = new URL(
     '../../resources/js/Features/Architecture/data/system-architecture.json',
+    import.meta.url,
+);
+const applicationScenePath = new URL(
+    '../../resources/js/Features/Architecture/components/ApplicationScene.vue',
+    import.meta.url,
+);
+const architectureExplorerPath = new URL(
+    '../../resources/js/Features/Architecture/components/ArchitectureExplorer.vue',
+    import.meta.url,
+);
+const architectureDetailPanelPath = new URL(
+    '../../resources/js/Features/Architecture/components/ArchitectureDetailPanel.vue',
+    import.meta.url,
+);
+const moduleRoomPath = new URL(
+    '../../resources/js/Features/Architecture/components/ModuleRoom.vue',
+    import.meta.url,
+);
+const connectionLayerPath = new URL(
+    '../../resources/js/Features/Architecture/components/ConnectionLayer.vue',
+    import.meta.url,
+);
+const architectureLegendPath = new URL(
+    '../../resources/js/Features/Architecture/components/ArchitectureLegend.vue',
     import.meta.url,
 );
 
@@ -94,6 +122,18 @@ test('every application scene renders exactly its filtered modules and declared 
 test('dynamic application routes are finite, deterministic and unique', async () => {
     const manifest = await loadManifest();
     const graph = createArchitectureGraph(manifest);
+    const entityApplicationIds = Object.fromEntries(
+        [...graph.entitiesById].map(([id, entity]) => [
+            id,
+            graph.applicationsById.has(id) ? id : (entity.applicationId ?? null),
+        ]),
+    );
+    const expectedCounts = {
+        'app.saas': { dependencies: 5, data: 7, sync: 2 },
+        'app.hub': { dependencies: 4, data: 5, sync: 3 },
+        'app.scale-web': { dependencies: 1, data: 1, sync: 0 },
+        'app.scale-android': { dependencies: 5, data: 4, sync: 1 },
+    };
 
     for (const application of manifest.applications) {
         for (const mode of ['dependencies', 'data', 'sync']) {
@@ -102,9 +142,11 @@ test('dynamic application routes are finite, deterministic and unique', async ()
                 modules: manifest.modules,
                 roomLayouts: manifest.visualLayout.rooms,
                 connections: getVisibleConnections(graph, application.id, mode),
+                entityApplicationIds,
             });
             const routeIds = scene.routes.map(({ connectionId }) => connectionId);
 
+            assert.equal(scene.routes.length, expectedCounts[application.id][mode]);
             assert.equal(new Set(routeIds).size, routeIds.length, `${application.id}/${mode}`);
             for (const route of scene.routes) {
                 assert.equal(/NaN|undefined|null/.test(route.path), false, route.path);
@@ -115,6 +157,88 @@ test('dynamic application routes are finite, deterministic and unique', async ()
 
     assert.equal(buildConnectionPath({ x: 10, y: 20 }, { x: 30, y: 40 }), 'M 10 20 C 20 20, 20 40, 30 40');
     assert.equal(buildConnectionPath({ x: Number.NaN, y: 20 }, { x: 30, y: 40 }), null);
+});
+
+test('same-application endpoints do not become gateways while cross-app and service endpoints do', async () => {
+    const manifest = await loadManifest();
+    const graph = createArchitectureGraph(manifest);
+    const entityApplicationIds = Object.fromEntries(
+        [...graph.entitiesById].map(([id, entity]) => [
+            id,
+            graph.applicationsById.has(id) ? id : (entity.applicationId ?? null),
+        ]),
+    );
+    const scene = buildApplicationScene({
+        applicationId: 'app.saas',
+        modules: manifest.modules,
+        roomLayouts: manifest.visualLayout.rooms,
+        connections: getVisibleConnections(graph, 'app.saas', 'dependencies'),
+        entityApplicationIds,
+    });
+    const gatewayIds = scene.gateways.map(({ id }) => id);
+    const routedConnectionIds = scene.routes.map(({ connectionId }) => connectionId);
+
+    assert.equal(gatewayIds.includes('component.saas.public-menu'), false);
+    assert.equal(routedConnectionIds.includes('conn.public-menu.saas'), false);
+    assert.ok(gatewayIds.includes('hub.shared-online-flows'), 'cross-application module has a gateway');
+    assert.ok(gatewayIds.includes('component.external.openai'), 'external service has a gateway');
+
+    const androidScene = buildApplicationScene({
+        applicationId: 'app.scale-android',
+        modules: manifest.modules,
+        roomLayouts: manifest.visualLayout.rooms,
+        connections: getVisibleConnections(graph, 'app.scale-android', 'dependencies'),
+        entityApplicationIds,
+    });
+    assert.ok(androidScene.gateways.some(({ id }) => id === 'device.scale.usb'));
+});
+
+test('rooms, legend and conductors share exact visual tokens', async () => {
+    assert.deepEqual(
+        Object.fromEntries(Object.entries(STATUS_VISUAL_TOKENS).map(([id, token]) => [id, token.pattern])),
+        {
+            implemented: 'solid',
+            partial: 'diagonal',
+            pending: 'horizontal',
+            'in-review': 'vertical',
+            issues: 'cross',
+            'requires-review': 'dots',
+            unknown: 'dense',
+            'not-responsible': 'wide',
+        },
+    );
+    assert.equal(CONNECTION_VISUAL_TOKENS['usb-serial'].dash, '14 3 2 3');
+    assert.equal(CONNECTION_VISUAL_TOKENS.websocket.color, '#38bdf8');
+
+    const [moduleRoom, connectionLayer, legend] = await Promise.all([
+        readFile(moduleRoomPath, 'utf8'),
+        readFile(connectionLayerPath, 'utf8'),
+        readFile(architectureLegendPath, 'utf8'),
+    ]);
+    assert.match(moduleRoom, /architectureVisualTokens\.js/);
+    assert.match(moduleRoom, /ArchitectureStatusPattern/);
+    assert.match(connectionLayer, /architectureVisualTokens\.js/);
+    assert.match(legend, /architectureVisualTokens\.js/);
+    assert.match(legend, /ArchitectureStatusPattern/);
+});
+
+test('application scene uses its tested routes and reserves the side panel for wide screens', async () => {
+    const [applicationScene, explorer, detailPanel, moduleRoom] = await Promise.all([
+        readFile(applicationScenePath, 'utf8'),
+        readFile(architectureExplorerPath, 'utf8'),
+        readFile(architectureDetailPanelPath, 'utf8'),
+        readFile(moduleRoomPath, 'utf8'),
+    ]);
+
+    assert.match(applicationScene, /:routes="scene\.routes"/);
+    assert.match(applicationScene, /min-width: 58rem/);
+    assert.match(moduleRoom, /font-size: 14px/);
+    assert.match(moduleRoom, /font-size: 9\.5px/);
+    assert.match(explorer, /2xl:grid-cols-\[minmax\(0,1fr\)_23\.75rem\]/);
+    assert.doesNotMatch(explorer, /lg:grid-cols-\[minmax\(0,1fr\)_23\.75rem\]/);
+    assert.match(detailPanel, /2xl:sticky/);
+    assert.match(detailPanel, /2xl:max-h-/);
+    assert.doesNotMatch(detailPanel, /lg:max-h-/);
 });
 
 test('ecosystem declarative routes retain the audited mode coverage', async () => {

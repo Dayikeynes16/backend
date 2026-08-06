@@ -104,6 +104,7 @@ export function buildApplicationScene({
     roomLayouts = [],
     connections = [],
     entityNames = {},
+    entityApplicationIds = {},
 }) {
     const modulesById = new Map(
         modules
@@ -158,6 +159,8 @@ export function buildApplicationScene({
         if (!localNode) continue;
 
         const externalId = fromNode ? connection.toId : connection.fromId;
+        if (entityApplicationIds[externalId] === applicationId) continue;
+
         const previous = pendingGateways.get(externalId) ?? {
             id: externalId,
             label: gatewayLabel(externalId, entityNames),

@@ -41,6 +41,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    entityApplicationIds: {
+        type: Object,
+        default: () => ({}),
+    },
     selectedId: {
         type: String,
         default: null,
@@ -68,6 +72,7 @@ const scene = computed(() => buildApplicationScene({
     roomLayouts: props.layout.rooms,
     connections: props.connections,
     entityNames: props.entityNames,
+    entityApplicationIds: props.entityApplicationIds,
 }));
 const statusesById = computed(() => new Map(
     props.statuses.map((status) => [status.id, status]),
@@ -184,6 +189,7 @@ function gatewayLabelLines(label) {
 
                 <ConnectionLayer
                     :connections="scene.connections"
+                    :routes="scene.routes"
                     :nodes="scene.nodes"
                     :mode="mode"
                     :selected-entity-id="selectedId"
@@ -334,7 +340,7 @@ function gatewayLabelLines(label) {
 .application-scene__svg {
     display: block;
     width: 100%;
-    min-width: 46rem;
+    min-width: 58rem;
     height: auto;
     aspect-ratio: 5 / 3;
 }
@@ -349,7 +355,7 @@ function gatewayLabelLines(label) {
 .application-scene__floor-label {
     fill: #94a3b8;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 900;
     letter-spacing: 0.14em;
 }
@@ -363,7 +369,7 @@ function gatewayLabelLines(label) {
 .application-scene__gateway-label {
     fill: #e2e8f0;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.05em;
 }

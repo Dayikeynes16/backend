@@ -1,6 +1,8 @@
 <script setup>
 import { computed } from 'vue';
+import ArchitectureStatusPattern from './ArchitectureStatusPattern.vue';
 import { getRoomGeometry } from '../lib/architectureGeometry.js';
+import { statusVisualToken } from '../lib/architectureVisualTokens.js';
 
 const props = defineProps({
     module: {
@@ -41,21 +43,10 @@ const emit = defineEmits({
     select: (id) => typeof id === 'string',
 });
 
-const statusStyles = {
-    implemented: { fill: '#dcfce7', stroke: '#22c55e', pattern: 'solid', dash: '' },
-    partial: { fill: '#fef3c7', stroke: '#f59e0b', pattern: 'diagonal', dash: '8 3' },
-    pending: { fill: '#e2e8f0', stroke: '#94a3b8', pattern: 'horizontal', dash: '3 4' },
-    'in-review': { fill: '#dbeafe', stroke: '#3b82f6', pattern: 'vertical', dash: '10 3' },
-    issues: { fill: '#fee2e2', stroke: '#ef4444', pattern: 'cross', dash: '2 2' },
-    'requires-review': { fill: '#ffedd5', stroke: '#f97316', pattern: 'dots', dash: '1 4' },
-    unknown: { fill: '#e5e7eb', stroke: '#6b7280', pattern: 'dense', dash: '6 5' },
-    'not-responsible': { fill: '#ede9fe', stroke: '#8b5cf6', pattern: 'wide', dash: '12 3 2 3' },
-};
-
 const geometry = computed(() => getRoomGeometry(props.layout));
 const statusId = computed(() => props.module.status?.id ?? 'unknown');
 const statusLabel = computed(() => props.status?.label ?? 'Sin estado');
-const style = computed(() => statusStyles[statusId.value] ?? statusStyles.unknown);
+const style = computed(() => statusVisualToken(statusId.value));
 const patternId = computed(() => (
     `atlas-room-${props.module.id.replace(/[^a-z0-9-]/gi, '-')}-${style.value.pattern}`
 ));
@@ -130,16 +121,7 @@ function onKeydown(event) {
         @keydown="onKeydown"
     >
         <defs v-if="style.pattern !== 'solid'">
-            <pattern :id="patternId" width="12" height="12" patternUnits="userSpaceOnUse">
-                <rect width="12" height="12" :fill="style.fill" />
-                <path v-if="style.pattern === 'diagonal'" d="M -3 12 L 12 -3 M 3 15 L 15 3" :stroke="style.stroke" stroke-width="2" opacity="0.42" />
-                <path v-else-if="style.pattern === 'horizontal'" d="M 0 3 H 12 M 0 9 H 12" :stroke="style.stroke" stroke-width="1.5" opacity="0.46" />
-                <path v-else-if="style.pattern === 'vertical'" d="M 3 0 V 12 M 9 0 V 12" :stroke="style.stroke" stroke-width="1.5" opacity="0.42" />
-                <path v-else-if="style.pattern === 'cross'" d="M 0 0 L 12 12 M 12 0 L 0 12" :stroke="style.stroke" stroke-width="1.4" opacity="0.34" />
-                <circle v-else-if="style.pattern === 'dots'" cx="3" cy="3" r="1.5" :fill="style.stroke" opacity="0.58" />
-                <path v-else-if="style.pattern === 'dense'" d="M 0 2 H 12 M 0 6 H 12 M 0 10 H 12" :stroke="style.stroke" stroke-width="1" opacity="0.44" />
-                <path v-else d="M -6 12 L 12 -6 M 0 18 L 18 0" :stroke="style.stroke" stroke-width="3" opacity="0.3" />
-            </pattern>
+            <ArchitectureStatusPattern :pattern-id="patternId" :token="style" />
         </defs>
 
         <rect
@@ -274,7 +256,7 @@ function onKeydown(event) {
 
 .module-room__name {
     fill: #0f172a;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 900;
     letter-spacing: 0.01em;
     pointer-events: none;
@@ -283,7 +265,7 @@ function onKeydown(event) {
 .module-room__status {
     fill: #334155;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 8px;
+    font-size: 9.5px;
     font-weight: 800;
     letter-spacing: 0.09em;
     text-transform: uppercase;
@@ -298,7 +280,7 @@ function onKeydown(event) {
 .module-room__offline text {
     fill: #f8fafc;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 7px;
+    font-size: 7.5px;
     font-weight: 900;
     letter-spacing: 0.08em;
 }

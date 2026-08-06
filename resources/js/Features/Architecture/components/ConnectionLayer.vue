@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { buildConnectionPath } from '../lib/architectureGeometry.js';
+import { connectionVisualToken } from '../lib/architectureVisualTokens.js';
 
 const props = defineProps({
     connections: {
@@ -44,21 +45,6 @@ const props = defineProps({
     },
 });
 
-const connectionStyles = {
-    http: { dash: '', color: '#cbd5e1', linecap: 'square' },
-    websocket: { dash: '18 4', color: '#38bdf8', linecap: 'round' },
-    polling: { dash: '7 9', color: '#f59e0b', linecap: 'butt' },
-    ipc: { dash: '2 5', color: '#c084fc', linecap: 'round' },
-    'usb-serial': { dash: '14 3 2 3', color: '#fb923c', linecap: 'butt' },
-    mdns: { dash: '1 8', color: '#2dd4bf', linecap: 'round' },
-    database: { dash: '2 2', color: '#a78bfa', linecap: 'butt' },
-    'sync-outbox': { dash: '12 6', color: '#22c55e', linecap: 'square' },
-    cache: { dash: '4 5', color: '#eab308', linecap: 'butt' },
-    'external-link': { dash: '8 8', color: '#94a3b8', linecap: 'square' },
-};
-
-const fallbackStyle = connectionStyles['external-link'];
-
 const visibleRoutes = computed(() => {
     const uniqueConnections = [...new Map(
         props.connections.map((connection) => [connection.id, connection]),
@@ -98,7 +84,7 @@ const usedKinds = computed(() => [...new Set(
 )]);
 
 function styleFor(kind) {
-    return connectionStyles[kind] ?? fallbackStyle;
+    return connectionVisualToken(kind);
 }
 
 function markerId(kind) {
