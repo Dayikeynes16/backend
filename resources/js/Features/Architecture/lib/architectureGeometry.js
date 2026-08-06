@@ -1,8 +1,13 @@
+import {
+    GATEWAY_LAYOUT,
+    SCENE_LABEL_TYPOGRAPHY_UNITS,
+} from './architectureSceneTokens.js';
+
 export const APPLICATION_VIEW_BOX = Object.freeze({
     minX: 0,
     minY: 0,
     width: 1200,
-    height: 720,
+    height: 780,
 });
 
 export const CELL_WIDTH = 150;
@@ -18,7 +23,6 @@ const MAX_ROWS = 3;
 const ROOM_GUTTER = 12;
 const ROOM_HEIGHT = 72;
 const ROOM_DEPTH = 10;
-const GATEWAY_Y = Object.freeze({ top: 48, bottom: 686 });
 
 function finiteNumber(value, fallback = 0) {
     return Number.isFinite(value) ? value : fallback;
@@ -84,8 +88,78 @@ function gatewayLabel(id, entityNames) {
 
 function gatewayPosition(side, index, count) {
     return {
-        x: APPLICATION_VIEW_BOX.width * ((index + 1) / (count + 1)),
-        y: GATEWAY_Y[side],
+        x: APPLICATION_VIEW_BOX.minX
+            + APPLICATION_VIEW_BOX.width * ((index + 1) / (count + 1)),
+        y: side === 'top'
+            ? APPLICATION_VIEW_BOX.minY + GATEWAY_LAYOUT.topOffset
+            : APPLICATION_VIEW_BOX.minY + APPLICATION_VIEW_BOX.height - GATEWAY_LAYOUT.bottomInset,
+    };
+}
+
+function truncateGatewayLabel(label) {
+    const maxCharacters = GATEWAY_LAYOUT.label.maxCharacters;
+    if (label.length <= maxCharacters) return label;
+
+    return `${label.slice(0, maxCharacters - 1).trim()}…`;
+}
+
+export function getGatewayLabelLines(label) {
+    const words = String(label ?? '').trim().split(/\s+/).filter(Boolean);
+    const lines = [];
+
+    for (const word of words) {
+        const current = lines.at(-1);
+        const candidate = current ? `${current} ${word}` : word;
+
+        if (!current || candidate.length <= GATEWAY_LAYOUT.label.maxCharacters) {
+            if (lines.length === 0) lines.push(word);
+            else lines[lines.length - 1] = candidate;
+        } else if (lines.length < 2) {
+            lines.push(word);
+        } else {
+            lines[1] = `${lines[1]} ${word}`;
+        }
+    }
+
+    return (lines.length ? lines : [''])
+        .slice(0, 2)
+        .map(truncateGatewayLabel);
+}
+
+function gatewayVisualGeometry(position, labelLines) {
+    const nodeHalfSize = GATEWAY_LAYOUT.nodeSize / 2;
+    const fontSize = SCENE_LABEL_TYPOGRAPHY_UNITS.gateway;
+    const firstBaseline = position.y + (
+        position.side === 'top'
+            ? GATEWAY_LAYOUT.label.topBaselineOffset
+            : GATEWAY_LAYOUT.label.bottomBaselineOffset
+    );
+    const labelBaselines = labelLines.map((_, index) => (
+        firstBaseline + index * GATEWAY_LAYOUT.label.lineHeight
+    ));
+    const estimatedLabelWidth = Math.max(
+        1,
+        ...labelLines.map((line) => (
+            line.length * fontSize * GATEWAY_LAYOUT.label.estimatedGlyphWidthRatio
+        )),
+    );
+    const labelTop = firstBaseline - fontSize;
+    const labelBottom = labelBaselines.at(-1) + fontSize * GATEWAY_LAYOUT.label.descentRatio;
+
+    return {
+        nodeBox: {
+            x: position.x - nodeHalfSize,
+            y: position.y - nodeHalfSize,
+            width: GATEWAY_LAYOUT.nodeSize,
+            height: GATEWAY_LAYOUT.nodeSize,
+        },
+        labelBaselines,
+        labelBox: {
+            x: position.x - estimatedLabelWidth / 2,
+            y: labelTop,
+            width: estimatedLabelWidth,
+            height: labelBottom - labelTop,
+        },
     };
 }
 
@@ -182,13 +256,22 @@ export function buildApplicationScene({
     }
 
     const gateways = Object.entries(gatewaysBySide).flatMap(([side, sideGateways]) => (
-        sideGateways.map((gateway, index) => ({
-            ...gatewayPosition(side, index, sideGateways.length),
-            id: gateway.id,
-            label: gateway.label,
-            gateway: true,
-            side,
-        }))
+        sideGateways.map((gateway, index) => {
+            const position = {
+                ...gatewayPosition(side, index, sideGateways.length),
+                side,
+            };
+            const labelLines = getGatewayLabelLines(gateway.label);
+
+            return {
+                ...position,
+                ...gatewayVisualGeometry(position, labelLines),
+                id: gateway.id,
+                label: gateway.label,
+                labelLines,
+                gateway: true,
+            };
+        })
     ));
     const allNodes = [...nodes, ...gateways];
     const nodesById = new Map(allNodes.map((node) => [node.id, node]));

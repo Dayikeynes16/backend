@@ -54,6 +54,24 @@ async function loadManifest() {
     return JSON.parse(await readFile(manifestPath, 'utf8'));
 }
 
+function boxesIntersect(left, right) {
+    return (
+        left.x < right.x + right.width
+        && left.x + left.width > right.x
+        && left.y < right.y + right.height
+        && left.y + left.height > right.y
+    );
+}
+
+function boxIsInside(inner, outer) {
+    return (
+        inner.x >= outer.x
+        && inner.y >= outer.y
+        && inner.x + inner.width <= outer.x + outer.width
+        && inner.y + inner.height <= outer.y + outer.height
+    );
+}
+
 test('room geometry respects floor, row, column and span inside the application viewBox', () => {
     const first = getRoomGeometry({ floor: 1, column: 1, row: 1, columnSpan: 1 });
     const spanning = getRoomGeometry({ floor: 1, column: 2, row: 2, columnSpan: 2 });
@@ -198,6 +216,104 @@ test('same-application endpoints do not become gateways while cross-app and serv
     assert.ok(androidScene.gateways.some(({ id }) => id === 'device.scale.usb'));
 });
 
+test('every real gateway label occupies a safe band without intersecting rooms or its node', async () => {
+    const manifest = await loadManifest();
+    const graph = createArchitectureGraph(manifest);
+    const entityNames = Object.fromEntries(
+        [...graph.entitiesById].map(([id, entity]) => [id, entity.name ?? id]),
+    );
+    const entityApplicationIds = Object.fromEntries(
+        [...graph.entitiesById].map(([id, entity]) => [
+            id,
+            graph.applicationsById.has(id) ? id : (entity.applicationId ?? null),
+        ]),
+    );
+    const viewBox = {
+        x: APPLICATION_VIEW_BOX.minX,
+        y: APPLICATION_VIEW_BOX.minY,
+        width: APPLICATION_VIEW_BOX.width,
+        height: APPLICATION_VIEW_BOX.height,
+    };
+    let checkedGateways = 0;
+    let checkedTopGateways = 0;
+    let checkedBottomGateways = 0;
+
+    assert.equal(APPLICATION_VIEW_BOX.width, 1200);
+    assert.equal(APPLICATION_VIEW_BOX.height, 780);
+
+    for (const application of manifest.applications) {
+        for (const mode of ['dependencies', 'data', 'sync']) {
+            const scene = buildApplicationScene({
+                applicationId: application.id,
+                modules: manifest.modules,
+                roomLayouts: manifest.visualLayout.rooms,
+                connections: getVisibleConnections(graph, application.id, mode),
+                entityNames,
+                entityApplicationIds,
+            });
+            const minimumRoomTop = Math.min(
+                ...scene.rooms.map((room) => room.geometry.y),
+            );
+            const maximumRoomBottom = Math.max(
+                ...scene.rooms.map((room) => (
+                    room.geometry.y + room.geometry.height + room.geometry.depth
+                )),
+            );
+
+            for (const gateway of scene.gateways) {
+                checkedGateways += 1;
+                assert.ok(gateway.labelLines.length >= 1 && gateway.labelLines.length <= 2);
+                assert.equal(gateway.labelBaselines.length, gateway.labelLines.length);
+                assert.ok(boxIsInside(gateway.labelBox, viewBox), `${gateway.id} label leaves viewBox`);
+                assert.ok(boxIsInside(gateway.nodeBox, viewBox), `${gateway.id} node leaves viewBox`);
+                assert.equal(
+                    boxesIntersect(gateway.labelBox, gateway.nodeBox),
+                    false,
+                    `${gateway.id} label intersects its node`,
+                );
+
+                for (const room of scene.rooms) {
+                    const roomBox = {
+                        x: room.geometry.x,
+                        y: room.geometry.y,
+                        width: room.geometry.width + room.geometry.depth,
+                        height: room.geometry.height + room.geometry.depth,
+                    };
+
+                    assert.equal(
+                        boxesIntersect(gateway.labelBox, roomBox),
+                        false,
+                        `${gateway.id} label intersects ${room.module.id}`,
+                    );
+                }
+
+                if (gateway.side === 'top') {
+                    checkedTopGateways += 1;
+                    assert.ok(
+                        gateway.labelBox.y + gateway.labelBox.height <= minimumRoomTop,
+                        `${gateway.id} top label leaves its safe band`,
+                    );
+                } else {
+                    checkedBottomGateways += 1;
+                    assert.equal(gateway.y, 746);
+                    assert.equal(gateway.labelBaselines[0], 708);
+                    assert.ok(
+                        gateway.labelBox.y >= maximumRoomBottom,
+                        `${gateway.id} bottom label leaves its safe band`,
+                    );
+                    if (gateway.labelBaselines.length === 2) {
+                        assert.equal(gateway.labelBaselines[1], 724);
+                    }
+                }
+            }
+        }
+    }
+
+    assert.ok(checkedGateways > 0);
+    assert.ok(checkedTopGateways > 0);
+    assert.ok(checkedBottomGateways > 0);
+});
+
 test('rooms, legend and conductors share exact visual tokens', async () => {
     assert.deepEqual(
         Object.fromEntries(Object.entries(STATUS_VISUAL_TOKENS).map(([id, token]) => [id, token.pattern])),
@@ -271,7 +387,13 @@ test('application scene uses tested routes, readable tokens and the 1792px side-
     ]);
 
     assert.match(applicationScene, /:routes="scene\.routes"/);
-    assert.match(applicationScene, /:style="\{ minWidth: `\$\{APPLICATION_SCENE_MIN_WIDTH_PX\}px` \}"/);
+    assert.match(applicationScene, /:style="sceneStyle"/);
+    assert.match(applicationScene, /:width="sceneBounds\.width"/);
+    assert.match(applicationScene, /:height="sceneBounds\.height"/);
+    assert.match(applicationScene, /:width="terrainBounds\.width"/);
+    assert.match(applicationScene, /:height="terrainBounds\.height"/);
+    assert.match(applicationScene, /:y="gateway\.labelBaselines\[index\]"/);
+    assert.doesNotMatch(applicationScene, /\b(?:680|720)\b|5 \/ 3/);
     assert.match(moduleRoom, /:font-size="ROOM_TYPOGRAPHY_UNITS\.name"/);
     assert.match(moduleRoom, /:font-size="ROOM_TYPOGRAPHY_UNITS\.status"/);
     assert.match(moduleRoom, /:font-size="ROOM_TYPOGRAPHY_UNITS\.offline"/);

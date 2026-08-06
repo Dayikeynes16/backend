@@ -11,6 +11,20 @@ export const SCENE_LABEL_TYPOGRAPHY_UNITS = Object.freeze({
     gateway: 15,
 });
 
+export const GATEWAY_LAYOUT = Object.freeze({
+    nodeSize: 16,
+    topOffset: 48,
+    bottomInset: 34,
+    label: Object.freeze({
+        maxCharacters: 18,
+        lineHeight: 16,
+        topBaselineOffset: 30,
+        bottomBaselineOffset: -38,
+        estimatedGlyphWidthRatio: 0.65,
+        descentRatio: 0.25,
+    }),
+});
+
 export const ROOM_LABEL_LAYOUT = Object.freeze({
     horizontalInset: 10,
     offlineNameReserve: 32,

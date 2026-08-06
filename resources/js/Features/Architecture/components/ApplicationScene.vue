@@ -81,7 +81,19 @@ const scene = computed(() => buildApplicationScene({
 const statusesById = computed(() => new Map(
     props.statuses.map((status) => [status.id, status]),
 ));
-const viewBox = `${APPLICATION_VIEW_BOX.minX} ${APPLICATION_VIEW_BOX.minY} ${APPLICATION_VIEW_BOX.width} ${APPLICATION_VIEW_BOX.height}`;
+const sceneBounds = APPLICATION_VIEW_BOX;
+const terrainInset = 20;
+const terrainBounds = Object.freeze({
+    x: sceneBounds.minX + terrainInset,
+    y: sceneBounds.minY + terrainInset,
+    width: sceneBounds.width - terrainInset * 2,
+    height: sceneBounds.height - terrainInset * 2,
+});
+const viewBox = `${sceneBounds.minX} ${sceneBounds.minY} ${sceneBounds.width} ${sceneBounds.height}`;
+const sceneStyle = Object.freeze({
+    minWidth: `${APPLICATION_SCENE_MIN_WIDTH_PX}px`,
+    aspectRatio: `${sceneBounds.width} / ${sceneBounds.height}`,
+});
 const currentModeCopy = computed(() => modeCopy[props.mode] ?? modeCopy.dependencies);
 const sceneTitleId = computed(() => `${props.application.id.replaceAll('.', '-')}-plant-title`);
 const sceneDescriptionId = computed(() => `${props.application.id.replaceAll('.', '-')}-plant-description`);
@@ -92,28 +104,6 @@ function statusFor(module) {
 
 function isDimmed(moduleId) {
     return Boolean(props.selectedId) && moduleId !== props.selectedId;
-}
-
-function gatewayLabelY(gateway) {
-    return gateway.side === 'top' ? gateway.y + 30 : gateway.y - 36;
-}
-
-function gatewayLabelLines(label) {
-    const words = label.split(/\s+/);
-    const lines = [''];
-
-    for (const word of words) {
-        const current = lines.at(-1);
-        if (current && current.length + word.length + 1 > 18 && lines.length < 2) {
-            lines.push(word);
-        } else {
-            lines[lines.length - 1] = current ? `${current} ${word}` : word;
-        }
-    }
-
-    if (lines[1]?.length > 18) lines[1] = `${lines[1].slice(0, 17).trim()}…`;
-
-    return lines;
 }
 </script>
 
@@ -156,7 +146,7 @@ function gatewayLabelLines(label) {
                 role="group"
                 :aria-labelledby="`${sceneTitleId} ${sceneDescriptionId}-map`"
                 preserveAspectRatio="xMidYMid meet"
-                :style="{ minWidth: `${APPLICATION_SCENE_MIN_WIDTH_PX}px` }"
+                :style="sceneStyle"
             >
                 <desc :id="`${sceneDescriptionId}-map`">
                     Planta técnica de {{ application.name }} con habitaciones seleccionables y conexiones del modo {{ mode }}.
@@ -168,8 +158,24 @@ function gatewayLabelLines(label) {
                     </pattern>
                 </defs>
 
-                <rect width="1200" height="720" fill="#07111f" />
-                <rect x="20" y="20" width="1160" height="680" rx="12" fill="url(#atlas-application-grid)" stroke="#475569" stroke-width="2" vector-effect="non-scaling-stroke" />
+                <rect
+                    :x="sceneBounds.minX"
+                    :y="sceneBounds.minY"
+                    :width="sceneBounds.width"
+                    :height="sceneBounds.height"
+                    fill="#07111f"
+                />
+                <rect
+                    :x="terrainBounds.x"
+                    :y="terrainBounds.y"
+                    :width="terrainBounds.width"
+                    :height="terrainBounds.height"
+                    rx="12"
+                    fill="url(#atlas-application-grid)"
+                    stroke="#475569"
+                    stroke-width="2"
+                    vector-effect="non-scaling-stroke"
+                />
 
                 <g class="application-scene__floors" aria-hidden="true">
                     <g v-for="floor in scene.floors" :key="floor.floor">
@@ -211,25 +217,24 @@ function gatewayLabelLines(label) {
                         <title>Salida hacia {{ gateway.label }}</title>
                         <rect
                             class="application-scene__gateway-node"
-                            :x="gateway.x - 8"
-                            :y="gateway.y - 8"
-                            width="16"
-                            height="16"
+                            :x="gateway.nodeBox.x"
+                            :y="gateway.nodeBox.y"
+                            :width="gateway.nodeBox.width"
+                            :height="gateway.nodeBox.height"
                             rx="2"
                             vector-effect="non-scaling-stroke"
                         />
                         <text
                             class="application-scene__gateway-label"
                             :x="gateway.x"
-                            :y="gatewayLabelY(gateway)"
                             :font-size="SCENE_LABEL_TYPOGRAPHY_UNITS.gateway"
                             text-anchor="middle"
                         >
                             <tspan
-                                v-for="(line, index) in gatewayLabelLines(gateway.label)"
+                                v-for="(line, index) in gateway.labelLines"
                                 :key="`${gateway.id}-label-${index}`"
                                 :x="gateway.x"
-                                :dy="index === 0 ? 0 : 16"
+                                :y="gateway.labelBaselines[index]"
                             >{{ line }}</tspan>
                         </text>
                     </g>
@@ -348,7 +353,6 @@ function gatewayLabelLines(label) {
     display: block;
     width: 100%;
     height: auto;
-    aspect-ratio: 5 / 3;
 }
 
 .application-scene__floor-plate {
