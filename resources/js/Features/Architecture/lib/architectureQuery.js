@@ -26,8 +26,8 @@ export function serializeArchitectureQuery(state) {
 
     if (state.applicationId) params.set('app', state.applicationId);
     if (state.moduleId) params.set('module', state.moduleId);
-    if (state.mode && state.mode !== 'dependencies') params.set('mode', state.mode);
-    if (state.view && state.view !== 'map') params.set('view', state.view);
+    if (MODES.has(state.mode) && state.mode !== 'dependencies') params.set('mode', state.mode);
+    if (VIEWS.has(state.view) && state.view !== 'map') params.set('view', state.view);
 
     const query = params.toString();
 

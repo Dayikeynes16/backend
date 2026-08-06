@@ -13,7 +13,7 @@ const manifest = {
     repositories: [{ id: 'repo.saas', webUrl: 'https://github.com/acme/saas/', commit: 'abc123' }],
     applications: [
         { id: 'app.saas', name: 'SaaS', description: 'Núcleo central' },
-        { id: 'app.hub', name: 'Hub', description: 'Sucursal local' },
+        { id: 'app.hub', name: 'Carnicería Hub', description: 'Sucursal local' },
     ],
     modules: [
         {
@@ -33,13 +33,26 @@ const manifest = {
             description: 'Cola local',
             status: { id: 'implemented' },
             searchTerms: [],
-            endpointIds: [],
-            sourceFileIds: [],
+            endpointIds: ['endpoint.scale.sales.create'],
+            eventIds: ['event.saas.sale-updated'],
+            sourceFileIds: ['file.hub-sync'],
         },
     ],
-    endpoints: [{ id: 'endpoint.customers', applicationId: 'app.saas', method: 'GET', path: '/clientes especiales' }],
-    events: [],
-    components: [],
+    endpoints: [
+        { id: 'endpoint.customers', applicationId: 'app.saas', method: 'GET', path: '/clientes especiales' },
+        { id: 'endpoint.scale.sales.create', applicationId: 'app.hub', method: 'POST', path: '/api/v1/sales' },
+    ],
+    events: [{
+        id: 'event.saas.sale-updated',
+        applicationId: 'app.saas',
+        name: 'SaleUpdated',
+        channel: 'sucursal.{branchId}',
+    }],
+    components: [
+        { id: 'component.saas.api', applicationId: 'app.saas' },
+        { id: 'component.hub.sync', applicationId: 'app.hub' },
+        { id: 'component.saas.cache', applicationId: 'app.saas' },
+    ],
     dataSources: [],
     databaseTables: [],
     devices: [],
@@ -48,11 +61,16 @@ const manifest = {
     featureFlags: [],
     risks: [],
     evidence: [],
-    sourceFiles: [{ id: 'file.customers', repositoryId: 'repo.saas', path: 'app/Domain/Clientes y fiado.php' }],
+    sourceFiles: [
+        { id: 'file.customers', repositoryId: 'repo.saas', path: 'app/Domain/Clientes y fiado.php' },
+        { id: 'file.hub-sync', repositoryId: 'repo.saas', path: 'app/Hub/Sync.php' },
+    ],
     connections: [
         { id: 'conn.dependency', fromId: 'app.saas', toId: 'saas.customers', kind: 'http', viewModes: ['dependencies'] },
         { id: 'conn.sync', fromId: 'hub.sync', toId: 'app.saas', kind: 'polling', viewModes: ['sync'] },
         { id: 'conn.data', fromId: 'saas.customers', toId: 'app.hub', kind: 'database', viewModes: ['data'] },
+        { id: 'conn.components', fromId: 'component.saas.api', toId: 'component.hub.sync', kind: 'http', viewModes: ['dependencies'] },
+        { id: 'conn.internal-components', fromId: 'component.saas.api', toId: 'component.saas.cache', kind: 'http', viewModes: ['dependencies'] },
     ],
 };
 
@@ -66,6 +84,17 @@ test('search is case and accent insensitive across terms, endpoints and source p
     assert.deepEqual(searchEntities(graph, 'COBRÁNZA', {}).map(({ id }) => id), ['saas.customers']);
     assert.deepEqual(searchEntities(graph, 'CLIENTES ESPECIALES', {}).map(({ id }) => id), ['saas.customers']);
     assert.deepEqual(searchEntities(graph, 'FIADO.PHP', {}).map(({ id }) => id), ['saas.customers']);
+});
+
+test('searches a module through its application, related endpoint and related event', () => {
+    const graph = createArchitectureGraph(manifest);
+
+    for (const query of [
+        'Carnicería Hub',
+        'app.hub',
+        'event.saas.sale-updated',
+        'endpoint.scale.sales.create',
+    ]) assert.deepEqual(searchEntities(graph, query, {}).map(({ id }) => id), ['hub.sync']);
 });
 
 test('filters modules by application, status and adjacent connection kind', () => {
@@ -84,9 +113,23 @@ test('keeps adjacency isolated from the manifest and filters visible connection 
     const graph = createArchitectureGraph(manifest);
 
     assert.equal(JSON.stringify(manifest), before);
-    assert.deepEqual(getVisibleConnections(graph, 'app.saas', 'dependencies').map(({ id }) => id), ['conn.dependency']);
+    assert.deepEqual(getVisibleConnections(graph, 'app.saas', 'dependencies').map(({ id }) => id), [
+        'conn.dependency',
+        'conn.components',
+        'conn.internal-components',
+    ]);
     assert.deepEqual(getVisibleConnections(graph, 'saas.customers', 'data').map(({ id }) => id), ['conn.data']);
     assert.deepEqual(getVisibleConnections(graph, 'app.saas', 'sync').map(({ id }) => id), ['conn.sync']);
+});
+
+test('finds component connections when an owning application is selected without duplicates', () => {
+    const graph = createArchitectureGraph(manifest);
+
+    assert.deepEqual(getVisibleConnections(graph, 'app.hub', 'dependencies').map(({ id }) => id), ['conn.components']);
+    assert.equal(
+        getVisibleConnections(graph, 'app.saas', 'dependencies').filter(({ id }) => id === 'conn.internal-components').length,
+        1,
+    );
 });
 
 test('does not expose connections for an unknown selection', () => {
@@ -107,4 +150,28 @@ test('builds a source URL pinned to the audit commit and encodes each path segme
         buildSourceUrl(manifest.repositories[0], manifest.sourceFiles[0]),
         'https://github.com/acme/saas/blob/abc123/app/Domain/Clientes%20y%20fiado.php',
     );
+    assert.equal(
+        buildSourceUrl(
+            { webUrl: 'https://github.com/acme/saas', commit: 'abc123' },
+            { path: 'app/Éxito #? archivo.php' },
+        ),
+        'https://github.com/acme/saas/blob/abc123/app/%C3%89xito%20%23%3F%20archivo.php',
+    );
+});
+
+test('rejects unsafe repository URLs and source locations', () => {
+    const sourceFile = { path: 'app/Customer.php' };
+
+    for (const repository of [
+        { webUrl: 'http://github.com/acme/saas', commit: 'abc123' },
+        { webUrl: 'https://gitlab.com/acme/saas', commit: 'abc123' },
+        { webUrl: 'https://token@github.com/acme/saas', commit: 'abc123' },
+        { webUrl: 'https://github.com/acme/saas?ref=main', commit: 'abc123' },
+        { webUrl: 'https://github.com/acme/saas#readme', commit: 'abc123' },
+        { webUrl: 'https://github.com/acme/saas', commit: '' },
+    ]) assert.throws(() => buildSourceUrl(repository, sourceFile));
+
+    for (const path of ['', '/app/Customer.php', 'app//Customer.php', './app/Customer.php', 'app/../Customer.php']) {
+        assert.throws(() => buildSourceUrl({ webUrl: 'https://github.com/acme/saas', commit: 'abc123' }, { path }));
+    }
 });

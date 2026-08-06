@@ -50,4 +50,10 @@ test('serializes only non-default defined values in deterministic order', () => 
         ignored: undefined,
     }), '?app=app.hub&module=hub.sync.scale-sales&mode=sync&view=list');
     assert.equal(serializeArchitectureQuery({ applicationId: null, moduleId: undefined, mode: 'dependencies', view: 'map' }), '');
+    assert.equal(serializeArchitectureQuery({
+        applicationId: 'app.hub',
+        moduleId: null,
+        mode: 'unsupported',
+        view: 'table',
+    }), '?app=app.hub');
 });
