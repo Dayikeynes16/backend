@@ -113,17 +113,151 @@ test('the MVP inventory covers the audited ecosystem', async () => {
 
 test('the MVP graph covers audited connections', async () => {
     const manifest = await loadManifest();
-    const connectionIds = new Set(manifest.connections.map(({ id }) => id));
-
-    assert.ok(manifest.connections.length >= 18);
-
-    for (const id of [
+    const auditedConnectionIds = [
+        'conn.web.saas-inertia',
+        'conn.saas.postgresql',
+        'conn.saas.redis',
+        'conn.saas.reverb-web',
+        'conn.hub.renderer-ipc',
+        'conn.hub.saas-sanctum',
+        'conn.hub.reverb',
+        'conn.hub.polling-fallback',
+        'conn.hub.sqlite',
+        'conn.hub.saas-sync',
         'conn.android.usb-scale',
         'conn.android.hub-lan',
-        'conn.hub.saas-sync',
-        'conn.saas.postgresql',
-        'conn.saas.reverb-web',
-    ]) assert.ok(connectionIds.has(id), `missing connection ${id}`);
+        'conn.android.saas-cloud',
+        'conn.android.hub-discovery',
+        'conn.scale-web.saas',
+        'conn.saas.openai',
+        'conn.saas.google-maps',
+        'conn.saas.object-storage',
+        'conn.android.apk-update',
+        'conn.public-menu.saas',
+    ];
+
+    assert.deepEqual(manifest.connections.map(({ id }) => id), auditedConnectionIds);
+    assert.deepEqual(
+        manifest.visualLayout.connectionRoutes.map(({ connectionId }) => connectionId),
+        auditedConnectionIds,
+    );
+    assert.equal(new Set(manifest.visualLayout.connectionRoutes.map(({ id }) => id)).size, 20);
+    for (const route of manifest.visualLayout.connectionRoutes) {
+        assert.ok(route.path, `${route.id} has no declarative path`);
+    }
+
+    for (const connection of manifest.connections) {
+        for (const field of [
+            'direction', 'auth', 'onlineRequired', 'durable', 'status',
+            'endpointIds', 'eventIds', 'evidenceIds', 'viewModes',
+        ]) assert.ok(Object.hasOwn(connection, field), `${connection.id} is missing ${field}`);
+
+        assert.ok(Array.isArray(connection.endpointIds));
+        assert.ok(Array.isArray(connection.eventIds));
+        assert.ok(Array.isArray(connection.evidenceIds));
+        assert.ok(connection.evidenceIds.length > 0, `${connection.id} has no evidence`);
+        assert.ok(Array.isArray(connection.viewModes));
+    }
+});
+
+test('the technical graph records audited sources, surfaces, tables and controls', async () => {
+    const manifest = await loadManifest();
+    const ids = (collection) => new Set(manifest[collection].map(({ id }) => id));
+
+    for (const [collection, expectedIds] of Object.entries({
+        components: [
+            'component.saas.laravel', 'component.saas.vue-inertia', 'component.saas.postgresql',
+            'component.saas.redis', 'component.saas.reverb', 'component.hub.electron-main',
+            'component.hub.vue-renderer', 'component.hub.fastify', 'component.hub.sqlite',
+            'component.android.usb-driver', 'component.external.openai',
+            'component.external.google-maps', 'component.external.object-storage',
+            'component.external.apk-distribution',
+        ],
+        dataSources: [
+            'data.saas.postgresql.business', 'data.saas.laravel-rules',
+            'data.hub.sqlite.unsynced-sales', 'data.hub.sqlite.catalog-cache',
+            'data.hub.sqlite.scale-devices', 'data.hub.electron-store', 'data.android.datastore',
+            'data.scale-web.local-storage', 'data.device.physical-weight',
+        ],
+        devices: [
+            'device.scale.usb', 'device.android-terminal', 'device.camera.qr',
+            'device.printer.system', 'device.reader.unverified',
+        ],
+        endpoints: [
+            'endpoint.saas.scale.branch-me', 'endpoint.saas.scale.categories',
+            'endpoint.saas.scale.products', 'endpoint.saas.scale.sales-create',
+            'endpoint.saas.scale.sales-index', 'endpoint.saas.scale.sales-show',
+            'endpoint.hub.local.branch-me', 'endpoint.hub.local.categories',
+            'endpoint.hub.local.products', 'endpoint.hub.local.sales-create',
+            'endpoint.hub.local.sales-status', 'endpoint.saas.hub.surface',
+            'endpoint.saas.public.surface', 'endpoint.saas.web.admin',
+            'endpoint.saas.web.empresa', 'endpoint.saas.web.sucursal',
+            'endpoint.saas.web.caja', 'endpoint.saas.web.assistant',
+            'endpoint.saas.web.agenda', 'endpoint.hub.local.pair-request',
+            'endpoint.hub.local.pair-status',
+        ],
+        events: [
+            'event.saas.new-external-sale', 'event.saas.sale-updated',
+            'event.saas.sale-locked', 'event.saas.sale-unlocked',
+            'event.saas.agenda-item-assigned',
+        ],
+        permissions: [
+            'permission.role.superadmin', 'permission.role.admin-empresa',
+            'permission.role.admin-sucursal', 'permission.role.cajero',
+            'permission.hub.roles',
+        ],
+        featureFlags: [
+            'flag.saas.web-orders', 'flag.branch.cashier-customers',
+            'flag.branch.cashier-expenses', 'flag.branch.cashier-purchases',
+            'flag.branch.admin-providers', 'flag.branch.admin-expense-categories',
+            'flag.branch.admin-purchase-products', 'flag.branch.payment-receipts',
+        ],
+    })) {
+        const actualIds = ids(collection);
+        for (const id of expectedIds) assert.ok(actualIds.has(id), `missing ${collection} entity ${id}`);
+    }
+
+    const sources = new Map(manifest.dataSources.map((source) => [source.id, source]));
+    assert.equal(sources.get('data.saas.postgresql.business').authoritative, true);
+    assert.equal(sources.get('data.saas.laravel-rules').authoritative, true);
+    assert.equal(sources.get('data.hub.sqlite.catalog-cache').authoritative, false);
+    assert.equal(sources.get('data.scale-web.local-storage').authoritative, false);
+
+    const physicalTableNames = new Set(manifest.databaseTables.map(({ name }) => name));
+    for (const name of [
+        'tenants', 'branches', 'users', 'categories', 'products', 'product_presentations',
+        'sales', 'sale_items', 'payments', 'payment_receipts', 'cash_register_shifts',
+        'cash_withdrawals', 'customers', 'customer_product_prices', 'customer_payments',
+        'expense_categories', 'expense_subcategories', 'expenses', 'expense_attachments',
+        'providers', 'purchases', 'purchase_items', 'purchase_attachments',
+        'provider_payments', 'purchase_products', 'purchase_product_categories',
+        'agenda_items', 'ai_assistant_sessions', 'ai_assistant_messages',
+        'assistant_drafts', 'audit_logs', 'personal_access_tokens', 'roles', 'permissions',
+        'model_has_roles', 'model_has_permissions', 'role_has_permissions',
+        'outbox_sales', 'catalog_snapshots', 'scale_devices',
+    ]) assert.ok(physicalTableNames.has(name), `missing physical table ${name}`);
+
+    for (const name of physicalTableNames) {
+        assert.doesNotMatch(name, /inventor|stock|warehouse|movement/i);
+    }
+});
+
+test('Task 3A evidence and declarative module references stay intact', async () => {
+    const manifest = await loadManifest();
+
+    assert.equal(manifest.modules.length, 47);
+    assert.equal(manifest.sourceFiles.length, 44);
+    assert.equal(manifest.evidence.length, 44);
+    assert.equal(manifest.risks.length, 10);
+    assert.equal(manifest.visualLayout.rooms.length, 47);
+
+    for (const module of manifest.modules) {
+        for (const field of [
+            'sourceOfTruthIds', 'endpointIds', 'eventIds', 'dependencyIds',
+            'sourceFileIds', 'riskIds', 'featureFlagIds', 'permissionIds',
+            'databaseTableIds', 'componentIds', 'deviceIds',
+        ]) assert.ok(Array.isArray(module[field]), `${module.id} must declare ${field}`);
+    }
 });
 
 test('disabled features and delegated responsibility are not reported as pending', async () => {
