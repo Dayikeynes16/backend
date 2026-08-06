@@ -18,6 +18,7 @@
 - No añadir Three.js, canvas, imágenes generadas, motor de física ni librería de grafos.
 - No añadir un framework de pruebas Vue. La lógica comprobable vive en módulos JavaScript puros probados con `node:test`; la UI se verifica con build y recorrido manual.
 - Usar Composition API y `<script setup>`; mantener las páginas de ruta como superficies de composición.
+- Usar `shallowRef()` para estado primitivo de Vue; reservar `ref()` para valores que requieran reactividad profunda.
 - Seguir el JavaScript existente del repositorio. No introducir TypeScript solo para esta herramienta.
 - Todo estado concluyente del manifiesto requiere evidencia con archivo, commit y fecha.
 - Los estados se comunican con texto, color y forma/patrón; nunca solo por color.
@@ -1165,7 +1166,7 @@ git commit -m "feat(atlas): agrega grafo busqueda y enlaces compartibles"
 `useArchitectureExplorer.js` debe importar el grafo/query helpers y exponer:
 
 ```js
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, shallowRef, watch } from 'vue';
 import { createArchitectureGraph, getVisibleConnections, searchEntities } from '../lib/architectureGraph.js';
 import { parseArchitectureQuery, serializeArchitectureQuery } from '../lib/architectureQuery.js';
 
@@ -1175,13 +1176,13 @@ export function useArchitectureExplorer(manifest) {
         ? { applicationId: null, moduleId: null, mode: 'dependencies', view: 'map' }
         : parseArchitectureQuery(window.location.search, graph);
 
-    const selectedApplicationId = ref(initial.applicationId);
-    const selectedModuleId = ref(initial.moduleId);
-    const mode = ref(initial.mode);
-    const view = ref(initial.view);
-    const query = ref('');
-    const statusId = ref('');
-    const connectionKind = ref('');
+    const selectedApplicationId = shallowRef(initial.applicationId);
+    const selectedModuleId = shallowRef(initial.moduleId);
+    const mode = shallowRef(initial.mode);
+    const view = shallowRef(initial.view);
+    const query = shallowRef('');
+    const statusId = shallowRef('');
+    const connectionKind = shallowRef('');
 
     const selectedApplication = computed(() => graph.applicationsById.get(selectedApplicationId.value) ?? null);
     const selectedModule = computed(() => graph.modulesById.get(selectedModuleId.value) ?? null);
@@ -1347,7 +1348,7 @@ Manual:
 2. Buscar `client_reference`, `SaleUpdated`, `UsbScaleAdapter` y `fiado`.
 3. Filtrar por `pending` y comprobar inventario, offline web y pairing Android.
 4. Abrir un módulo y verificar que el enlace contiene el commit auditado.
-5. Recorrer toolbar, lista y panel usando solo Tab/Enter/Escape.
+5. Recorrer toolbar, lista y panel usando Tab/Enter y el botón accesible de cierre.
 
 Expected: sin errores de consola, URL actualizada y toda la información
 disponible sin mapa.
@@ -1608,7 +1609,7 @@ Manual:
 
 1. Ecosistema → Hub → sincronización de ventas.
 2. Cambiar dependencias/datos/sync y comprobar conexiones distintas.
-3. Cerrar detalle con el botón y con Escape.
+3. Cerrar detalle con el botón; el cierre global con Escape se incorpora y verifica en Task 8.
 4. Breadcrumb aplicación vuelve a la planta; ecosistema vuelve al campus.
 5. Recargar la URL profunda y recuperar la selección.
 6. Cambiar a lista conservando filtros y selección.
@@ -1793,7 +1794,7 @@ datos; cero errores de consola.
 - [ ] **Step 5: auditar alcance antes del commit final**
 
 ```bash
-git diff --name-only HEAD~8..HEAD
+git diff --name-only 10dc8d0..HEAD
 git status --short
 ```
 
