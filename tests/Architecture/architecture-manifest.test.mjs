@@ -29,6 +29,13 @@ test('duplicate ids and broken references are rejected', async () => {
     assert.ok(errors.some((error) => error.includes('app.missing')));
 });
 
+test('duplicate status ids are rejected', async () => {
+    const manifest = await loadManifest();
+    manifest.statuses.push({ ...manifest.statuses[0] });
+
+    assert.ok(validateManifest(manifest).some((error) => error.includes('duplicate id: implemented')));
+});
+
 test('a conclusive status requires evidence', async () => {
     const manifest = await loadManifest();
     manifest.modules[0].status.evidenceIds = [];
@@ -74,6 +81,7 @@ test('the schema defines closed building and room contracts for the checked-in l
 
     assert.equal(layout.buildings.items.$ref, '#/$defs/building');
     assert.equal(layout.rooms.items.$ref, '#/$defs/room');
+    assert.ok(schema.$defs.connection.required.includes('status'));
     assert.equal(schema.$defs.building.additionalProperties, false);
     assert.equal(schema.$defs.room.additionalProperties, false);
 

@@ -129,7 +129,7 @@
     },
     "connection": {
       "type": "object",
-      "required": ["id", "fromId", "toId", "kind"],
+      "required": ["id", "fromId", "toId", "kind", "status"],
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "fromId": { "$ref": "#/$defs/id" },

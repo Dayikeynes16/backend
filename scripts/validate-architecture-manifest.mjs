@@ -44,7 +44,11 @@ export function validateManifest(manifest) {
         }
     }
 
-    const statusIds = new Set((manifest.statuses ?? []).map((status) => status.id));
+    const statusIds = new Set();
+    for (const status of manifest.statuses ?? []) {
+        if (statusIds.has(status.id)) errors.push(`duplicate id: ${status.id}`);
+        statusIds.add(status.id);
+    }
     const evidenceIds = new Set((manifest.evidence ?? []).map((entry) => entry.id));
     const requireEntity = (ownerId, field, referencedId) => {
         if (referencedId && !allEntities.has(referencedId)) {
