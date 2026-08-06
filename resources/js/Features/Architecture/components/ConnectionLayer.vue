@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { buildConnectionPath } from '../lib/architectureGeometry.js';
 
 const props = defineProps({
     connections: {
@@ -11,12 +12,26 @@ const props = defineProps({
     },
     routes: {
         type: Array,
-        required: true,
+        default: () => [],
         validator: (value) => value.every((route) => (
             typeof route.id === 'string'
             && typeof route.connectionId === 'string'
             && typeof route.path === 'string'
         )),
+    },
+    nodes: {
+        type: Array,
+        default: () => [],
+        validator: (value) => value.every((node) => (
+            typeof node.id === 'string'
+            && Number.isFinite(node.x)
+            && Number.isFinite(node.y)
+        )),
+    },
+    mode: {
+        type: String,
+        default: null,
+        validator: (value) => value === null || ['dependencies', 'data', 'sync'].includes(value),
     },
     selectedEntityId: {
         type: String,
@@ -45,16 +60,37 @@ const connectionStyles = {
 const fallbackStyle = connectionStyles['external-link'];
 
 const visibleRoutes = computed(() => {
-    const connectionsById = new Map(
+    const uniqueConnections = [...new Map(
         props.connections.map((connection) => [connection.id, connection]),
-    );
-
-    return props.routes
+    ).values()].filter((connection) => (
+        !props.mode || (connection.viewModes ?? ['dependencies']).includes(props.mode)
+    ));
+    const connectionsById = new Map(uniqueConnections.map((connection) => [connection.id, connection]));
+    const declaredConnectionIds = new Set();
+    const declaredRoutes = props.routes
         .filter((route) => connectionsById.has(route.connectionId))
-        .map((route) => ({
-            ...route,
-            connection: connectionsById.get(route.connectionId),
-        }));
+        .filter((route) => {
+            if (declaredConnectionIds.has(route.connectionId)) return false;
+
+            declaredConnectionIds.add(route.connectionId);
+            return true;
+        })
+        .map((route) => ({ ...route, connection: connectionsById.get(route.connectionId) }));
+    const nodesById = new Map(props.nodes.map((node) => [node.id, node]));
+    const dynamicRoutes = uniqueConnections
+        .filter((connection) => !declaredConnectionIds.has(connection.id))
+        .map((connection) => ({
+            id: `dynamic.${connection.id}`,
+            connectionId: connection.id,
+            connection,
+            path: buildConnectionPath(
+                nodesById.get(connection.fromId),
+                nodesById.get(connection.toId),
+            ),
+        }))
+        .filter((route) => route.path);
+
+    return [...declaredRoutes, ...dynamicRoutes];
 });
 
 const usedKinds = computed(() => [...new Set(

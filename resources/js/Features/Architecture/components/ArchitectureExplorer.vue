@@ -2,10 +2,11 @@
 import { computed } from 'vue';
 import ArchitectureBreadcrumbs from './ArchitectureBreadcrumbs.vue';
 import ArchitectureDetailPanel from './ArchitectureDetailPanel.vue';
-import EcosystemScene from './EcosystemScene.vue';
 import ArchitectureLegend from './ArchitectureLegend.vue';
 import ArchitectureListView from './ArchitectureListView.vue';
 import ArchitectureToolbar from './ArchitectureToolbar.vue';
+import ApplicationScene from './ApplicationScene.vue';
+import EcosystemScene from './EcosystemScene.vue';
 import { useArchitectureExplorer } from '../composables/useArchitectureExplorer.js';
 
 const props = defineProps({
@@ -42,6 +43,9 @@ const {
 const connectionKinds = computed(() => (
     [...new Set(props.manifest.connections.map((connection) => connection.kind))].sort()
 ));
+const entityNames = computed(() => Object.fromEntries(
+    [...graph.entitiesById].map(([id, entity]) => [id, entity.name ?? id]),
+));
 
 function selectRelated(id) {
     if (graph.modulesById.has(id)) {
@@ -75,7 +79,7 @@ function selectRelated(id) {
         />
 
         <div class="p-4 sm:p-6">
-            <div class="grid items-start gap-5" :class="selectedModule ? 'xl:grid-cols-[minmax(0,1fr)_26rem]' : ''">
+            <div class="grid items-start gap-5" :class="selectedModule ? 'lg:grid-cols-[minmax(0,1fr)_23.75rem]' : ''">
                 <section aria-label="Exploración de arquitectura" class="min-w-0">
                     <ArchitectureListView
                         v-if="view === 'list'"
@@ -96,21 +100,18 @@ function selectRelated(id) {
                         @select-application="selectApplication"
                     />
 
-                    <div v-else class="rounded-3xl border border-gray-200 bg-slate-950 p-4 text-white shadow-sm">
-                        <div class="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-[linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:24px_24px] p-8 text-center">
-                            <div>
-                                <p class="font-mono text-xs uppercase tracking-[0.2em] text-red-300">Planta de aplicación · Hito 7</p>
-                                <p class="mt-3 text-sm text-slate-300">Las habitaciones técnicas se incorporan en el siguiente hito.</p>
-                                <button
-                                    type="button"
-                                    class="mt-5 min-h-11 rounded-lg border border-white/25 px-4 text-sm font-bold text-white outline-none transition hover:border-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white"
-                                    @click="view = 'list'"
-                                >
-                                    Explorar en lista
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <ApplicationScene
+                        v-else-if="selectedApplication"
+                        :application="selectedApplication"
+                        :modules="filteredModules"
+                        :connections="visibleConnections"
+                        :layout="manifest.visualLayout"
+                        :statuses="manifest.statuses"
+                        :entity-names="entityNames"
+                        :selected-id="selectedModule?.id ?? null"
+                        :mode="mode"
+                        @select-module="selectModule"
+                    />
                 </section>
 
                 <ArchitectureDetailPanel
@@ -127,6 +128,7 @@ function selectRelated(id) {
                 class="mt-5"
                 :statuses="manifest.statuses"
                 :connection-types="connectionKinds"
+                :mode="mode"
             />
         </div>
     </div>
