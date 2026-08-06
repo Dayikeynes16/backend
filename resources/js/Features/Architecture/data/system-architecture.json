@@ -1,0 +1,159 @@
+{
+  "$schema": "./system-architecture.schema.json",
+  "metadata": {
+    "schemaVersion": "1.0.0",
+    "verifiedAt": "2026-08-06",
+    "snapshotRefs": {
+      "repo.saas": "098daec985d4baac0627da9e3552bf498c26f76a",
+      "repo.hub": "cd663a6b97551c212aaf3671cbb02c2660090d5b",
+      "repo.scale-web": "a5a54da567b3048a2026e682f51a2dd0d425b3b2",
+      "repo.scale-android": "8828dae77ba5ad8f5e4baa26e5b01685ab52f70b"
+    },
+    "defaultView": "ecosystem",
+    "caveats": ["Este manifiesto es documentación derivada del código y no una fuente de verdad operativa."]
+  },
+  "statuses": [
+    { "id": "implemented", "label": "Implementado", "description": "La capacidad fue verificada en el snapshot auditado." },
+    { "id": "partial", "label": "Parcial", "description": "La capacidad existe, pero su cobertura o integración es incompleta." },
+    { "id": "pending", "label": "Pendiente", "description": "La capacidad no está implementada." },
+    { "id": "in-review", "label": "En revisión", "description": "Hay trabajo auditado que aún requiere consolidación o validación." },
+    { "id": "issues", "label": "Con incidencias", "description": "La capacidad existe pero presenta un problema conocido." },
+    { "id": "requires-review", "label": "Requiere revisión", "description": "La evidencia disponible no permite una conclusión." },
+    { "id": "unknown", "label": "Desconocido", "description": "No se encontró evidencia suficiente para determinar el estado." },
+    { "id": "not-responsible", "label": "No responsable", "description": "La capacidad pertenece deliberadamente a otra aplicación." }
+  ],
+  "repositories": [
+    { "id": "repo.saas", "name": "carniceria-saas", "webUrl": "https://github.com/Dayikeynes16/backend", "commit": "098daec985d4baac0627da9e3552bf498c26f76a" },
+    { "id": "repo.hub", "name": "carniceria-hub", "webUrl": "https://github.com/Dayikeynes16/carniceria-hub", "commit": "cd663a6b97551c212aaf3671cbb02c2660090d5b" },
+    { "id": "repo.scale-web", "name": "bascula", "webUrl": "https://github.com/Dayikeynes16/bascula", "commit": "a5a54da567b3048a2026e682f51a2dd0d425b3b2" },
+    { "id": "repo.scale-android", "name": "bascula-android", "webUrl": "https://github.com/Dayikeynes16/bascula-android", "commit": "8828dae77ba5ad8f5e4baa26e5b01685ab52f70b" }
+  ],
+  "applications": [
+    { "id": "app.saas", "repositoryId": "repo.saas", "name": "Carnicería SaaS", "description": "Autoridad central del dominio, administración y APIs." },
+    { "id": "app.hub", "repositoryId": "repo.hub", "name": "Carnicería Hub", "description": "Cliente de sucursal y puente local para básculas." },
+    { "id": "app.scale-web", "repositoryId": "repo.scale-web", "name": "Báscula web", "description": "Kiosco web de referencia para captura de ventas." },
+    { "id": "app.scale-android", "repositoryId": "repo.scale-android", "name": "Báscula Android", "description": "Terminal productiva de pesaje con hardware USB serial." }
+  ],
+  "modules": [
+    {
+      "id": "saas.core.tenancy-auth",
+      "applicationId": "app.saas",
+      "name": "Autenticación, roles y multi-tenancy",
+      "description": "Resuelve el tenant, autentica usuarios y aplica los cuatro roles del sistema.",
+      "status": {
+        "id": "implemented",
+        "determination": "verified",
+        "confidence": "high",
+        "evidenceIds": ["ev.saas.routes-web"]
+      },
+      "responsibleApplicationId": "app.saas",
+      "sourceOfTruthIds": [],
+      "internetRequirement": { "requiredForUse": true, "notes": "Se ejecuta en el backend central." },
+      "offlineCapability": { "supported": false, "scope": "none" },
+      "implementedCapabilities": ["Resolución de tenant", "Autenticación", "Roles"],
+      "pendingCapabilities": [],
+      "endpointIds": [],
+      "eventIds": [],
+      "dependencyIds": [],
+      "sourceFileIds": ["file.saas.routes-web"],
+      "riskIds": [],
+      "searchTerms": ["tenant", "roles", "login", "ResolveTenant"]
+    },
+    {
+      "id": "hub.shell-ipc",
+      "applicationId": "app.hub",
+      "name": "Shell Electron y seguridad IPC",
+      "description": "Aísla el renderer y expone una superficie IPC explícita para el Hub.",
+      "status": { "id": "implemented", "determination": "verified", "confidence": "high", "evidenceIds": ["ev.hub.local-api-server"] },
+      "responsibleApplicationId": "app.hub",
+      "sourceOfTruthIds": [],
+      "internetRequirement": { "requiredForUse": false, "notes": "La shell se ejecuta localmente." },
+      "offlineCapability": { "supported": true, "scope": "local-shell" },
+      "implementedCapabilities": ["Proceso local", "Límite IPC"],
+      "pendingCapabilities": [],
+      "endpointIds": [],
+      "eventIds": [],
+      "dependencyIds": [],
+      "sourceFileIds": ["file.hub.local-api-server"],
+      "riskIds": [],
+      "searchTerms": ["Electron", "IPC", "contextIsolation"]
+    },
+    {
+      "id": "scale-web.setup",
+      "applicationId": "app.scale-web",
+      "name": "Configuración por QR/manual",
+      "description": "Configura URL, clave y dispositivo del kiosco web.",
+      "status": { "id": "implemented", "determination": "verified", "confidence": "high", "evidenceIds": ["ev.scale-web.dashboard"] },
+      "responsibleApplicationId": "app.scale-web",
+      "sourceOfTruthIds": [],
+      "internetRequirement": { "requiredForUse": true, "notes": "La operación posterior requiere la API configurada." },
+      "offlineCapability": { "supported": false, "scope": "none" },
+      "implementedCapabilities": ["Configuración manual", "Configuración por QR"],
+      "pendingCapabilities": [],
+      "endpointIds": [],
+      "eventIds": [],
+      "dependencyIds": [],
+      "sourceFileIds": ["file.scale-web.dashboard"],
+      "riskIds": [],
+      "searchTerms": ["QR", "configuración", "localStorage"]
+    },
+    {
+      "id": "scale-android.hardware.usb-serial",
+      "applicationId": "app.scale-android",
+      "name": "USB serial",
+      "description": "Integra adaptadores USB serial para básculas físicas compatibles.",
+      "status": { "id": "implemented", "determination": "verified", "confidence": "high", "evidenceIds": ["ev.scale-android.usb-scale-adapter"] },
+      "responsibleApplicationId": "app.scale-android",
+      "sourceOfTruthIds": [],
+      "internetRequirement": { "requiredForUse": false, "notes": "La lectura del dispositivo ocurre localmente." },
+      "offlineCapability": { "supported": true, "scope": "weight-capture" },
+      "implementedCapabilities": ["USB serial", "Lectura de báscula"],
+      "pendingCapabilities": [],
+      "endpointIds": [],
+      "eventIds": [],
+      "dependencyIds": [],
+      "sourceFileIds": ["file.scale-android.usb-scale-adapter"],
+      "riskIds": [],
+      "searchTerms": ["USB", "serial", "CH340", "báscula"]
+    }
+  ],
+  "components": [],
+  "connections": [],
+  "dataSources": [],
+  "endpoints": [],
+  "events": [],
+  "databaseTables": [],
+  "devices": [],
+  "dependencies": [],
+  "permissions": [],
+  "featureFlags": [],
+  "sourceFiles": [
+    { "id": "file.saas.routes-web", "repositoryId": "repo.saas", "path": "routes/web.php", "role": "Jerarquía de rutas web y roles." },
+    { "id": "file.hub.local-api-server", "repositoryId": "repo.hub", "path": "src/main/server/localApiServer.js", "role": "API LAN y autenticación de básculas." },
+    { "id": "file.scale-web.dashboard", "repositoryId": "repo.scale-web", "path": "src/views/DashboardView.vue", "role": "Operación y configuración del kiosco." },
+    { "id": "file.scale-android.usb-scale-adapter", "repositoryId": "repo.scale-android", "path": "app/src/main/java/com/bascula/app/scale/UsbScaleAdapter.kt", "role": "Adaptador USB serial de básculas." }
+  ],
+  "risks": [],
+  "evidence": [
+    { "id": "ev.saas.routes-web", "sourceFileId": "file.saas.routes-web", "symbol": "routes/web.php", "commit": "098daec985d4baac0627da9e3552bf498c26f76a", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Define rutas protegidas, jerarquía de roles y resolución de tenant." },
+    { "id": "ev.hub.local-api-server", "sourceFileId": "file.hub.local-api-server", "symbol": "localApiServer", "commit": "cd663a6b97551c212aaf3671cbb02c2660090d5b", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Expone la API local del Hub para básculas en la red de sucursal." },
+    { "id": "ev.scale-web.dashboard", "sourceFileId": "file.scale-web.dashboard", "symbol": "DashboardView", "commit": "a5a54da567b3048a2026e682f51a2dd0d425b3b2", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Implementa la pantalla operativa y configuración del kiosco web." },
+    { "id": "ev.scale-android.usb-scale-adapter", "sourceFileId": "file.scale-android.usb-scale-adapter", "symbol": "UsbScaleAdapter", "commit": "8828dae77ba5ad8f5e4baa26e5b01685ab52f70b", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Implementa la comunicación USB serial con básculas físicas." }
+  ],
+  "visualLayout": {
+    "viewBox": "0 0 1200 720",
+    "buildings": [
+      { "applicationId": "app.saas", "x": 600, "y": 170, "width": 250, "depth": 130, "height": 210, "tone": "red" },
+      { "applicationId": "app.hub", "x": 275, "y": 330, "width": 210, "depth": 110, "height": 150, "tone": "amber" },
+      { "applicationId": "app.scale-android", "x": 850, "y": 380, "width": 175, "depth": 90, "height": 115, "tone": "sky" },
+      { "applicationId": "app.scale-web", "x": 930, "y": 175, "width": 150, "depth": 76, "height": 90, "tone": "slate" }
+    ],
+    "rooms": [
+      { "moduleId": "saas.core.tenancy-auth", "floor": 1, "column": 1, "row": 1, "columnSpan": 1 },
+      { "moduleId": "hub.shell-ipc", "floor": 1, "column": 1, "row": 1, "columnSpan": 1 },
+      { "moduleId": "scale-web.setup", "floor": 1, "column": 1, "row": 1, "columnSpan": 1 },
+      { "moduleId": "scale-android.hardware.usb-serial", "floor": 1, "column": 1, "row": 1, "columnSpan": 1 }
+    ],
+    "connectionRoutes": []
+  }
+}

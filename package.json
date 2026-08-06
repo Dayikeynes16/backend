@@ -4,7 +4,9 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:architecture": "node --test tests/Architecture/*.test.mjs",
+        "validate:architecture": "node scripts/validate-architecture-manifest.mjs"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^2.0.0",

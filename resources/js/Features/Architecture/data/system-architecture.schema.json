@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Dayikeynes16/backend/blob/098daec985d4baac0627da9e3552bf498c26f76a/resources/js/Features/Architecture/data/system-architecture.schema.json",
+  "title": "Atlas vivo system architecture manifest",
+  "type": "object",
+  "required": ["metadata", "statuses", "repositories", "applications", "modules", "components", "connections", "dataSources", "endpoints", "events", "databaseTables", "devices", "dependencies", "permissions", "featureFlags", "sourceFiles", "risks", "evidence", "visualLayout"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "statuses": { "type": "array", "items": { "$ref": "#/$defs/status" } },
+    "repositories": { "type": "array", "items": { "$ref": "#/$defs/repository" } },
+    "applications": { "type": "array", "items": { "$ref": "#/$defs/application" } },
+    "modules": { "type": "array", "items": { "$ref": "#/$defs/module" } },
+    "components": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "connections": { "type": "array", "items": { "$ref": "#/$defs/connection" } },
+    "dataSources": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "endpoints": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "databaseTables": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "devices": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "dependencies": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "permissions": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "featureFlags": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "sourceFiles": { "type": "array", "items": { "$ref": "#/$defs/sourceFile" } },
+    "risks": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+    "visualLayout": { "$ref": "#/$defs/visualLayout" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "evidenceReference": { "$ref": "#/$defs/id" },
+    "metadata": {
+      "type": "object",
+      "required": ["schemaVersion", "verifiedAt", "snapshotRefs", "defaultView", "caveats"],
+      "properties": {
+        "schemaVersion": { "const": "1.0.0" },
+        "verifiedAt": { "type": "string", "format": "date" },
+        "snapshotRefs": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{40}$" } },
+        "defaultView": { "type": "string" },
+        "caveats": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "required": ["id", "label", "description"],
+      "properties": {
+        "id": { "enum": ["implemented", "partial", "pending", "in-review", "issues", "requires-review", "unknown", "not-responsible"] },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "statusReference": {
+      "type": "object",
+      "required": ["id", "determination", "confidence", "evidenceIds"],
+      "properties": {
+        "id": { "enum": ["implemented", "partial", "pending", "in-review", "issues", "requires-review", "unknown", "not-responsible"] },
+        "determination": { "enum": ["verified", "inferred", "declared", "requires-review"] },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "evidenceIds": { "type": "array", "items": { "$ref": "#/$defs/evidenceReference" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "id": { "not": { "enum": ["requires-review", "unknown"] } } }, "required": ["id"] },
+          "then": { "properties": { "evidenceIds": { "minItems": 1 } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "entity": {
+      "type": "object",
+      "required": ["id"],
+      "properties": { "id": { "$ref": "#/$defs/id" } },
+      "additionalProperties": true
+    },
+    "repository": {
+      "type": "object",
+      "required": ["id", "name", "webUrl", "commit"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "webUrl": { "type": "string", "format": "uri" },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      },
+      "additionalProperties": true
+    },
+    "application": {
+      "type": "object",
+      "required": ["id", "repositoryId", "name", "description"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "repositoryId": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "module": {
+      "type": "object",
+      "required": ["id", "applicationId", "name", "description", "status", "responsibleApplicationId", "sourceOfTruthIds", "internetRequirement", "offlineCapability", "implementedCapabilities", "pendingCapabilities", "endpointIds", "eventIds", "dependencyIds", "sourceFileIds", "riskIds", "searchTerms"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "applicationId": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/statusReference" },
+        "responsibleApplicationId": { "$ref": "#/$defs/id" },
+        "sourceOfTruthIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "internetRequirement": { "type": "object", "minProperties": 1 },
+        "offlineCapability": { "type": "object", "minProperties": 1 },
+        "syncProfile": { "type": "object" },
+        "implementedCapabilities": { "type": "array", "items": { "type": "string" } },
+        "pendingCapabilities": { "type": "array", "items": { "type": "string" } },
+        "endpointIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "eventIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "dependencyIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "sourceFileIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "riskIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "featureFlagIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "permissionIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "databaseTableIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "componentIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "deviceIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "searchTerms": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "connection": {
+      "type": "object",
+      "required": ["id", "fromId", "toId", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "fromId": { "$ref": "#/$defs/id" },
+        "toId": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["http", "websocket", "polling", "ipc", "usb-serial", "mdns", "database", "sync-outbox", "cache", "external-link"] },
+        "direction": { "type": "string" },
+        "auth": { "type": "string" },
+        "onlineRequired": { "type": "boolean" },
+        "durable": { "type": "boolean" },
+        "status": { "$ref": "#/$defs/statusReference" },
+        "viewModes": { "type": "array", "items": { "type": "string" } },
+        "endpointIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "eventIds": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "evidenceIds": { "type": "array", "items": { "$ref": "#/$defs/evidenceReference" } }
+      },
+      "additionalProperties": false
+    },
+    "sourceFile": {
+      "type": "object",
+      "required": ["id", "repositoryId", "path", "role"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "repositoryId": { "$ref": "#/$defs/id" },
+        "path": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["id", "sourceFileId", "symbol", "commit", "verifiedAt", "confidence", "summary"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "sourceFileId": { "$ref": "#/$defs/id" },
+        "symbol": { "type": "string", "minLength": 1 },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "verifiedAt": { "type": "string", "format": "date" },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "summary": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "visualLayout": {
+      "type": "object",
+      "required": ["viewBox", "buildings", "rooms", "connectionRoutes"],
+      "properties": {
+        "viewBox": { "type": "string", "minLength": 1 },
+        "buildings": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+        "rooms": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+        "connectionRoutes": { "type": "array", "items": { "$ref": "#/$defs/entity" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}
