@@ -1,6 +1,8 @@
 <script setup>
 import { Head } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import ArchitectureExplorer from '@/Features/Architecture/components/ArchitectureExplorer.vue';
+import manifest from '@/Features/Architecture/data/system-architecture.json';
 </script>
 
 <template>
@@ -14,8 +16,6 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
             </div>
         </template>
 
-        <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <p class="text-sm text-gray-600">Cargando mapa del ecosistema…</p>
-        </section>
+        <ArchitectureExplorer :manifest="manifest" />
     </AdminLayout>
 </template>
