@@ -170,7 +170,7 @@ function entityLabels(ids) {
     <aside
         v-if="open && entity"
         aria-labelledby="architecture-detail-title"
-        class="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-xl shadow-slate-900/10 2xl:sticky 2xl:top-4"
+        class="architecture-detail-panel overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-xl shadow-slate-900/10"
     >
         <header class="relative border-b border-slate-700 bg-slate-950 px-5 py-5 text-white">
             <div aria-hidden="true" class="absolute inset-y-0 left-0 w-1 bg-red-600" />
@@ -191,7 +191,7 @@ function entityLabels(ids) {
             </div>
         </header>
 
-        <div class="space-y-6 px-5 py-5 2xl:max-h-[calc(100vh-8rem)] 2xl:overflow-y-auto">
+        <div class="architecture-detail-panel__body space-y-6 px-5 py-5">
             <section aria-labelledby="detail-verification-title">
                 <h3 id="detail-verification-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Verificación</h3>
                 <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -409,3 +409,17 @@ function entityLabels(ids) {
         </div>
     </aside>
 </template>
+
+<style scoped>
+@media (min-width: 112rem) {
+    .architecture-detail-panel {
+        position: sticky;
+        top: 1rem;
+    }
+
+    .architecture-detail-panel__body {
+        max-height: calc(100vh - 8rem);
+        overflow-y: auto;
+    }
+}
+</style>

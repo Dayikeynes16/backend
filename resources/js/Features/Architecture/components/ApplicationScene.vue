@@ -6,6 +6,10 @@ import {
     APPLICATION_VIEW_BOX,
     buildApplicationScene,
 } from '../lib/architectureGeometry.js';
+import {
+    APPLICATION_SCENE_MIN_WIDTH_PX,
+    SCENE_LABEL_TYPOGRAPHY_UNITS,
+} from '../lib/architectureSceneTokens.js';
 
 const props = defineProps({
     application: {
@@ -91,7 +95,7 @@ function isDimmed(moduleId) {
 }
 
 function gatewayLabelY(gateway) {
-    return gateway.side === 'top' ? gateway.y - 26 : gateway.y + 18;
+    return gateway.side === 'top' ? gateway.y + 30 : gateway.y - 36;
 }
 
 function gatewayLabelLines(label) {
@@ -152,6 +156,7 @@ function gatewayLabelLines(label) {
                 role="group"
                 :aria-labelledby="`${sceneTitleId} ${sceneDescriptionId}-map`"
                 preserveAspectRatio="xMidYMid meet"
+                :style="{ minWidth: `${APPLICATION_SCENE_MIN_WIDTH_PX}px` }"
             >
                 <desc :id="`${sceneDescriptionId}-map`">
                     Planta técnica de {{ application.name }} con habitaciones seleccionables y conexiones del modo {{ mode }}.
@@ -181,6 +186,7 @@ function gatewayLabelLines(label) {
                             class="application-scene__floor-label"
                             :x="floor.labelX"
                             :y="floor.labelY"
+                            :font-size="SCENE_LABEL_TYPOGRAPHY_UNITS.floor"
                         >
                             PISO {{ floor.floor.toString().padStart(2, '0') }}
                         </text>
@@ -216,13 +222,14 @@ function gatewayLabelLines(label) {
                             class="application-scene__gateway-label"
                             :x="gateway.x"
                             :y="gatewayLabelY(gateway)"
+                            :font-size="SCENE_LABEL_TYPOGRAPHY_UNITS.gateway"
                             text-anchor="middle"
                         >
                             <tspan
                                 v-for="(line, index) in gatewayLabelLines(gateway.label)"
                                 :key="`${gateway.id}-label-${index}`"
                                 :x="gateway.x"
-                                :dy="index === 0 ? 0 : 10"
+                                :dy="index === 0 ? 0 : 16"
                             >{{ line }}</tspan>
                         </text>
                     </g>
@@ -340,7 +347,6 @@ function gatewayLabelLines(label) {
 .application-scene__svg {
     display: block;
     width: 100%;
-    min-width: 58rem;
     height: auto;
     aspect-ratio: 5 / 3;
 }
@@ -355,7 +361,6 @@ function gatewayLabelLines(label) {
 .application-scene__floor-label {
     fill: #94a3b8;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 10px;
     font-weight: 900;
     letter-spacing: 0.14em;
 }
@@ -369,7 +374,6 @@ function gatewayLabelLines(label) {
 .application-scene__gateway-label {
     fill: #e2e8f0;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.05em;
 }

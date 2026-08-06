@@ -12,6 +12,11 @@ import {
     STATUS_VISUAL_TOKENS,
 } from '../../resources/js/Features/Architecture/lib/architectureVisualTokens.js';
 import {
+    APPLICATION_SCENE_MIN_WIDTH_PX,
+    ROOM_LABEL_LAYOUT,
+    ROOM_TYPOGRAPHY_UNITS,
+} from '../../resources/js/Features/Architecture/lib/architectureSceneTokens.js';
+import {
     createArchitectureGraph,
     getVisibleConnections,
 } from '../../resources/js/Features/Architecture/lib/architectureGraph.js';
@@ -222,7 +227,42 @@ test('rooms, legend and conductors share exact visual tokens', async () => {
     assert.match(legend, /ArchitectureStatusPattern/);
 });
 
-test('application scene uses its tested routes and reserves the side panel for wide screens', async () => {
+test('room typography stays at or above 12 effective pixels at the minimum scene width', () => {
+    const minimumScale = APPLICATION_SCENE_MIN_WIDTH_PX / APPLICATION_VIEW_BOX.width;
+    const effectiveSizes = Object.fromEntries(
+        Object.entries(ROOM_TYPOGRAPHY_UNITS).map(([label, units]) => [
+            label,
+            Number((units * minimumScale).toFixed(2)),
+        ]),
+    );
+
+    assert.equal(APPLICATION_SCENE_MIN_WIDTH_PX, 960);
+    assert.deepEqual(effectiveSizes, {
+        name: 13.6,
+        status: 12,
+        offline: 12,
+    });
+    for (const [label, effectivePixels] of Object.entries(effectiveSizes)) {
+        assert.ok(effectivePixels >= 12, `${label} renders at only ${effectivePixels}px`);
+    }
+
+    const room = getRoomGeometry({ floor: 1, column: 1, row: 1, columnSpan: 1 });
+    const badge = ROOM_LABEL_LAYOUT.offlineBadge;
+    const nameRight = room.x + room.width
+        - ROOM_LABEL_LAYOUT.horizontalInset
+        - ROOM_LABEL_LAYOUT.offlineNameReserve;
+    const badgeLeft = room.x + room.width - badge.width - badge.rightInset;
+    const badgeBottom = room.y + badge.topInset + badge.height;
+    const statusTop = room.y + room.height
+        - ROOM_LABEL_LAYOUT.statusBottomInset
+        - ROOM_TYPOGRAPHY_UNITS.status;
+
+    assert.ok(nameRight < badgeLeft, 'offline badge must not overlap the wrapped name');
+    assert.ok(badgeBottom <= statusTop, 'offline badge must not overlap the status line');
+    assert.ok(badge.textLength <= badge.height - (badge.textInset * 2));
+});
+
+test('application scene uses tested routes, readable tokens and the 1792px side-panel breakpoint', async () => {
     const [applicationScene, explorer, detailPanel, moduleRoom] = await Promise.all([
         readFile(applicationScenePath, 'utf8'),
         readFile(architectureExplorerPath, 'utf8'),
@@ -231,14 +271,21 @@ test('application scene uses its tested routes and reserves the side panel for w
     ]);
 
     assert.match(applicationScene, /:routes="scene\.routes"/);
-    assert.match(applicationScene, /min-width: 58rem/);
-    assert.match(moduleRoom, /font-size: 14px/);
-    assert.match(moduleRoom, /font-size: 9\.5px/);
-    assert.match(explorer, /2xl:grid-cols-\[minmax\(0,1fr\)_23\.75rem\]/);
-    assert.doesNotMatch(explorer, /lg:grid-cols-\[minmax\(0,1fr\)_23\.75rem\]/);
-    assert.match(detailPanel, /2xl:sticky/);
-    assert.match(detailPanel, /2xl:max-h-/);
-    assert.doesNotMatch(detailPanel, /lg:max-h-/);
+    assert.match(applicationScene, /:style="\{ minWidth: `\$\{APPLICATION_SCENE_MIN_WIDTH_PX\}px` \}"/);
+    assert.match(moduleRoom, /:font-size="ROOM_TYPOGRAPHY_UNITS\.name"/);
+    assert.match(moduleRoom, /:font-size="ROOM_TYPOGRAPHY_UNITS\.status"/);
+    assert.match(moduleRoom, /:font-size="ROOM_TYPOGRAPHY_UNITS\.offline"/);
+    assert.match(moduleRoom, /module-room__content-clip/);
+    assert.match(moduleRoom, /rotate\(90 12 22\)/);
+    assert.match(explorer, /architecture-explorer__layout--with-detail/);
+    assert.match(explorer, /@media \(min-width: 112rem\)/);
+    assert.match(explorer, /grid-template-columns: minmax\(0, 1fr\) 23\.75rem/);
+    assert.doesNotMatch(explorer, /2xl:grid-cols-\[minmax\(0,1fr\)_23\.75rem\]/);
+    assert.match(detailPanel, /architecture-detail-panel__body/);
+    assert.match(detailPanel, /@media \(min-width: 112rem\)/);
+    assert.match(detailPanel, /position: sticky/);
+    assert.match(detailPanel, /max-height: calc\(100vh - 8rem\)/);
+    assert.doesNotMatch(detailPanel, /2xl:max-h-/);
 });
 
 test('ecosystem declarative routes retain the audited mode coverage', async () => {

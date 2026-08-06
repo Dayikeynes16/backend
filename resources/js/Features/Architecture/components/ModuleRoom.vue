@@ -2,6 +2,10 @@
 import { computed } from 'vue';
 import ArchitectureStatusPattern from './ArchitectureStatusPattern.vue';
 import { getRoomGeometry } from '../lib/architectureGeometry.js';
+import {
+    ROOM_LABEL_LAYOUT,
+    ROOM_TYPOGRAPHY_UNITS,
+} from '../lib/architectureSceneTokens.js';
 import { statusVisualToken } from '../lib/architectureVisualTokens.js';
 
 const props = defineProps({
@@ -50,6 +54,9 @@ const style = computed(() => statusVisualToken(statusId.value));
 const patternId = computed(() => (
     `atlas-room-${props.module.id.replace(/[^a-z0-9-]/gi, '-')}-${style.value.pattern}`
 ));
+const safeModuleId = computed(() => props.module.id.replace(/[^a-z0-9-]/gi, '-'));
+const nameClipId = computed(() => `atlas-room-${safeModuleId.value}-name-clip`);
+const statusClipId = computed(() => `atlas-room-${safeModuleId.value}-status-clip`);
 const roomFill = computed(() => (
     style.value.pattern === 'solid' ? style.value.fill : `url(#${patternId.value})`
 ));
@@ -59,11 +66,33 @@ const ariaLabel = computed(() => (
     `${props.module.name}. ${props.module.description}. Estado: ${statusLabel.value}. `
     + `${isOffline.value ? 'Tiene capacidad offline. ' : ''}Presiona Enter o Espacio para abrir el detalle técnico.`
 ));
+const nameContentWidth = computed(() => (
+    geometry.value.width
+    - (ROOM_LABEL_LAYOUT.horizontalInset * 2)
+    - (isOffline.value ? ROOM_LABEL_LAYOUT.offlineNameReserve : 0)
+));
+const statusContentWidth = computed(() => (
+    geometry.value.width - (ROOM_LABEL_LAYOUT.horizontalInset * 2)
+));
+
+function maximumCharacters(width, fontSize) {
+    return Math.max(
+        4,
+        Math.floor(width / (fontSize * ROOM_LABEL_LAYOUT.estimatedGlyphWidthRatio)),
+    );
+}
+
+function truncateLabel(label, maxCharacters) {
+    if (label.length <= maxCharacters) return label;
+
+    return `${label.slice(0, maxCharacters - 1).trim()}…`;
+}
 
 const labelLines = computed(() => {
-    const maxCharacters = isOffline.value
-        ? (props.layout.columnSpan > 1 ? 30 : 11)
-        : (props.layout.columnSpan > 1 ? 38 : 20);
+    const maxCharacters = maximumCharacters(
+        nameContentWidth.value,
+        ROOM_TYPOGRAPHY_UNITS.name,
+    );
     const words = props.module.name.split(/\s+/);
     const lines = [];
 
@@ -77,17 +106,22 @@ const labelLines = computed(() => {
     }
 
     if (lines.length > 2) {
-        lines[1] = `${lines.slice(1).join(' ').slice(0, maxCharacters - 1).trim()}…`;
+        lines[1] = truncateLabel(lines.slice(1).join(' '), maxCharacters);
         lines.length = 2;
-    } else if (lines[1]?.length > maxCharacters) {
-        lines[1] = `${lines[1].slice(0, maxCharacters - 1).trim()}…`;
     }
 
-    return lines.map((line) => (
-        line.length > maxCharacters
-            ? `${line.slice(0, maxCharacters - 1).trim()}…`
-            : line
-    ));
+    return lines.map((line) => truncateLabel(line, maxCharacters));
+});
+const statusDisplayLabel = computed(() => truncateLabel(
+    statusLabel.value,
+    maximumCharacters(statusContentWidth.value, ROOM_TYPOGRAPHY_UNITS.status),
+));
+const offlineBadgeTransform = computed(() => {
+    const badge = ROOM_LABEL_LAYOUT.offlineBadge;
+    const x = geometry.value.x + geometry.value.width - badge.width - badge.rightInset;
+    const y = geometry.value.y + badge.topInset;
+
+    return `translate(${x}, ${y})`;
 });
 
 const bevelPoints = computed(() => ({
@@ -120,8 +154,30 @@ function onKeydown(event) {
         @click="select"
         @keydown="onKeydown"
     >
-        <defs v-if="style.pattern !== 'solid'">
-            <ArchitectureStatusPattern :pattern-id="patternId" :token="style" />
+        <defs>
+            <ArchitectureStatusPattern
+                v-if="style.pattern !== 'solid'"
+                :pattern-id="patternId"
+                :token="style"
+            />
+            <clipPath :id="nameClipId">
+                <rect
+                    class="module-room__content-clip"
+                    :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
+                    :y="geometry.y + 3"
+                    :width="nameContentWidth"
+                    height="43"
+                />
+            </clipPath>
+            <clipPath :id="statusClipId">
+                <rect
+                    class="module-room__content-clip"
+                    :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
+                    :y="geometry.y + 48"
+                    :width="statusContentWidth"
+                    height="23"
+                />
+            </clipPath>
         </defs>
 
         <rect
@@ -165,31 +221,48 @@ function onKeydown(event) {
 
         <text
             class="module-room__name"
-            :x="geometry.x + 12"
-            :y="geometry.y + 24"
+            :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
+            :y="geometry.y + ROOM_LABEL_LAYOUT.nameFirstBaseline"
+            :font-size="ROOM_TYPOGRAPHY_UNITS.name"
+            :clip-path="`url(#${nameClipId})`"
         >
             <tspan
                 v-for="(line, index) in labelLines"
                 :key="`${module.id}-line-${index}`"
-                :x="geometry.x + 12"
-                :dy="index === 0 ? 0 : 16"
+                :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
+                :dy="index === 0 ? 0 : ROOM_LABEL_LAYOUT.nameLineHeight"
             >{{ line }}</tspan>
         </text>
         <text
             class="module-room__status"
-            :x="geometry.x + 12"
-            :y="geometry.y + geometry.height - 9"
+            :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
+            :y="geometry.y + geometry.height - ROOM_LABEL_LAYOUT.statusBottomInset"
+            :font-size="ROOM_TYPOGRAPHY_UNITS.status"
+            :clip-path="`url(#${statusClipId})`"
         >
-            {{ statusLabel }}
+            {{ statusDisplayLabel }}
         </text>
 
         <g
             v-if="isOffline"
             class="module-room__offline"
-            :transform="`translate(${geometry.x + geometry.width - 58}, ${geometry.y + 7})`"
+            :transform="offlineBadgeTransform"
         >
-            <rect width="50" height="18" rx="2" />
-            <text x="25" y="12" text-anchor="middle">OFFLINE</text>
+            <rect
+                :width="ROOM_LABEL_LAYOUT.offlineBadge.width"
+                :height="ROOM_LABEL_LAYOUT.offlineBadge.height"
+                rx="3"
+            />
+            <text
+                :x="ROOM_LABEL_LAYOUT.offlineBadge.textCenterX"
+                :y="ROOM_LABEL_LAYOUT.offlineBadge.textCenterY"
+                :font-size="ROOM_TYPOGRAPHY_UNITS.offline"
+                :textLength="ROOM_LABEL_LAYOUT.offlineBadge.textLength"
+                lengthAdjust="spacingAndGlyphs"
+                text-anchor="middle"
+                dominant-baseline="middle"
+                transform="rotate(90 12 22)"
+            >OFFLINE</text>
         </g>
     </g>
 </template>
@@ -256,7 +329,6 @@ function onKeydown(event) {
 
 .module-room__name {
     fill: #0f172a;
-    font-size: 14px;
     font-weight: 900;
     letter-spacing: 0.01em;
     pointer-events: none;
@@ -265,9 +337,8 @@ function onKeydown(event) {
 .module-room__status {
     fill: #334155;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 9.5px;
     font-weight: 800;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
 }
 
@@ -280,8 +351,7 @@ function onKeydown(event) {
 .module-room__offline text {
     fill: #f8fafc;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 7.5px;
     font-weight: 900;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.04em;
 }
 </style>

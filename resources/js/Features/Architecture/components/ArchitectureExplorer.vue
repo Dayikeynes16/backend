@@ -85,7 +85,10 @@ function selectRelated(id) {
         />
 
         <div class="p-4 sm:p-6">
-            <div class="grid items-start gap-5" :class="selectedModule ? '2xl:grid-cols-[minmax(0,1fr)_23.75rem]' : ''">
+            <div
+                class="architecture-explorer__layout grid items-start gap-5"
+                :class="{ 'architecture-explorer__layout--with-detail': selectedModule }"
+            >
                 <section aria-label="Exploración de arquitectura" class="min-w-0">
                     <ArchitectureListView
                         v-if="view === 'list'"
@@ -140,3 +143,11 @@ function selectRelated(id) {
         </div>
     </div>
 </template>
+
+<style scoped>
+@media (min-width: 112rem) {
+    .architecture-explorer__layout--with-detail {
+        grid-template-columns: minmax(0, 1fr) 23.75rem;
+    }
+}
+</style>
