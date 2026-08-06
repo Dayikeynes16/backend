@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import ArchitectureBreadcrumbs from './ArchitectureBreadcrumbs.vue';
 import ArchitectureDetailPanel from './ArchitectureDetailPanel.vue';
+import EcosystemScene from './EcosystemScene.vue';
 import ArchitectureLegend from './ArchitectureLegend.vue';
 import ArchitectureListView from './ArchitectureListView.vue';
 import ArchitectureToolbar from './ArchitectureToolbar.vue';
@@ -86,11 +87,20 @@ function selectRelated(id) {
                         @select-module="selectModule"
                     />
 
+                    <EcosystemScene
+                        v-else-if="level === 'ecosystem'"
+                        :applications="manifest.applications"
+                        :connections="visibleConnections"
+                        :layout="manifest.visualLayout"
+                        :selected-id="selectedApplication?.id ?? null"
+                        @select-application="selectApplication"
+                    />
+
                     <div v-else class="rounded-3xl border border-gray-200 bg-slate-950 p-4 text-white shadow-sm">
                         <div class="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-[linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:24px_24px] p-8 text-center">
                             <div>
-                                <p class="font-mono text-xs uppercase tracking-[0.2em] text-red-300">Plano reservado · Hito 6</p>
-                                <p class="mt-3 text-sm text-slate-300">La escena visual se incorpora en el siguiente hito.</p>
+                                <p class="font-mono text-xs uppercase tracking-[0.2em] text-red-300">Planta de aplicación · Hito 7</p>
+                                <p class="mt-3 text-sm text-slate-300">Las habitaciones técnicas se incorporan en el siguiente hito.</p>
                                 <button
                                     type="button"
                                     class="mt-5 min-h-11 rounded-lg border border-white/25 px-4 text-sm font-bold text-white outline-none transition hover:border-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white"
