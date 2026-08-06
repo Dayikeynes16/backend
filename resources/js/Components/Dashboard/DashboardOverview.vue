@@ -55,12 +55,27 @@ const splitAmount = (n) => {
     return [Number(i).toLocaleString('en-US'), d];
 };
 
-const sparkPath = (values, width = 120, height = 28) => {
+/*
+ * Mini-gráfico de las tarjetas KPI.
+ *
+ * Se dibuja sobre un lienzo ANCHO (600 unidades) a propósito. Antes eran 120 y
+ * el SVG se estiraba al ancho real de la tarjeta con preserveAspectRatio="none":
+ * un factor de ~6,5x que aplastaba cualquier pico hasta convertirlo en un bulto
+ * suave. Con 600 el estiramiento es mínimo y la forma del día se reconoce.
+ *
+ * La escala arranca SIEMPRE en cero, no en el mínimo de la serie. Normalizando
+ * entre min y max, una jornada plana se dibujaba tan dramática como una con un
+ * pico real, y las dos tarjetas —ventas y gastos, que se leen juntas— sugerían
+ * magnitudes comparables aunque difirieran en dos órdenes de magnitud.
+ */
+const SPARK_W = 600, SPARK_H = 44;
+
+const sparkPath = (values, width = SPARK_W, height = SPARK_H) => {
     if (!values?.length) return { line: '', area: '' };
-    const max = Math.max(...values), min = Math.min(...values);
-    const range = max - min || 1;
+    const max = Math.max(...values, 0);
+    const range = max || 1;
     const step = width / Math.max(values.length - 1, 1);
-    const pts = values.map((v, i) => [i * step, height - ((v - min) / range) * (height - 4) - 2]);
+    const pts = values.map((v, i) => [i * step, height - (Math.max(v, 0) / range) * (height - 6) - 3]);
     let d = `M ${pts[0][0]} ${pts[0][1]}`;
     for (let i = 1; i < pts.length; i++) {
         const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
@@ -71,13 +86,46 @@ const sparkPath = (values, width = 120, height = 28) => {
     return { line: d, area };
 };
 
-const salesSpark = computed(() => sparkPath(props.hoursData?.map(d => d.sales) ?? []));
+/**
+ * Lee una serie horaria y devuelve, además del trazo, lo que hace falta para
+ * explicarlo: dónde está el pico (en % del ancho, para colocar el marcador en
+ * HTML y que no se deforme), cuánto vale y qué horas cubre.
+ */
+const buildSpark = (rows, valueKey) => {
+    const data = (rows ?? []).filter(r => r && r.h !== undefined);
+    const values = data.map(r => Number(r[valueKey]) || 0);
+    const { line, area } = sparkPath(values);
+    const hasData = values.some(v => v > 0);
+    if (!hasData) {
+        return { line, area, hasData: false, peak: null, from: null, to: null };
+    }
+    let peakIdx = 0;
+    values.forEach((v, i) => { if (v > values[peakIdx]) peakIdx = i; });
+    const max = values[peakIdx];
+    return {
+        line,
+        area,
+        hasData: true,
+        // Posición en % para el marcador HTML (el SVG se estira; el texto no debe).
+        peak: {
+            leftPct: (peakIdx / Math.max(values.length - 1, 1)) * 100,
+            topPct: (1 - max / (max || 1)) * 100,
+            hour: `${data[peakIdx].h}h`,
+            value: max,
+        },
+        from: `${data[0].h}h`,
+        to: `${data[data.length - 1].h}h`,
+        points: data.map((r, i) => ({ hour: `${r.h}h`, value: values[i] })),
+    };
+};
+
+const salesSpark = computed(() => buildSpark(props.hoursData, 'sales'));
+const expensesSparkData = computed(() => buildSpark(props.expenses?.hourly, 'amount'));
 const trxSpark = computed(() => sparkPath(props.hoursData?.map(d => d.trx) ?? []));
 const cumulativeCashiers = computed(() => {
     const hrs = props.hoursData?.map(() => props.activeCashierCount ?? 0) ?? [];
     return sparkPath(hrs.length ? hrs : [0, 0, 0]);
 });
-const expensesSpark = computed(() => sparkPath(props.expenses?.hourly?.map(d => d.amount) ?? []));
 
 // === Ventas por hora chart ===
 const chartW = 720, chartH = 240;
@@ -223,10 +271,31 @@ const scopeLabel = computed(() => {
                 <div class="cn-kpi__sub">
                     {{ totals.sale_count }} {{ totals.sale_count === 1 ? 'venta' : 'ventas' }} · ticket promedio ${{ fmt(avgTicket) }}
                 </div>
-                <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-                    <path :d="salesSpark.area" fill="#F8DDE0" opacity="0.5"/>
-                    <path :d="salesSpark.line" fill="none" stroke="#C9374A" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
+                <!-- Mini-gráfico del día. El pico va marcado y etiquetado: sin eso,
+                     la curva no decía ni cuánto ni cuándo. -->
+                <figure v-if="salesSpark.hasData" class="cn-spark">
+                    <figcaption class="cn-spark__head">
+                        <span class="cn-spark__what">Ventas por hora</span>
+                        <span class="cn-spark__peak-label">
+                            <span class="cn-spark__dot" style="background:#C9374A"></span>
+                            Pico {{ salesSpark.peak.hour }} · {{ fmtK(salesSpark.peak.value) }}
+                        </span>
+                    </figcaption>
+                    <div class="cn-spark__plot">
+                        <svg class="cn-kpi__spark" :viewBox="`0 0 ${SPARK_W} ${SPARK_H}`" preserveAspectRatio="none" aria-hidden="true">
+                            <path :d="salesSpark.area" fill="#F8DDE0" opacity="0.55"/>
+                            <path :d="salesSpark.line" fill="none" stroke="#C9374A" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+                        </svg>
+                        <!-- El marcador va en HTML: dentro del SVG estirado, un círculo
+                             se deformaría en elipse y el texto se ensancharía. -->
+                        <span class="cn-spark__marker" :style="{ left: salesSpark.peak.leftPct + '%', background: '#C9374A' }"></span>
+                    </div>
+                    <div class="cn-spark__axis">
+                        <span>{{ salesSpark.from }}</span>
+                        <span>{{ salesSpark.to }}</span>
+                    </div>
+                </figure>
+                <p v-else class="cn-spark__empty">Aún no hay ventas registradas hoy.</p>
             </div>
 
             <!-- KPI: Gastos hoy -->
@@ -246,10 +315,32 @@ const scopeLabel = computed(() => {
                     <span v-if="expenses.count > 0">{{ expenses.count }} {{ expenses.count === 1 ? 'movimiento' : 'movimientos' }} de caja</span>
                     <span v-else>Sin gastos registrados</span>
                 </div>
-                <svg class="cn-kpi__spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-                    <path :d="expensesSpark.area" fill="#FCE9DD" opacity="0.5"/>
-                    <path :d="expensesSpark.line" fill="none" stroke="#D97706" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
+                <!-- Barras, no curva: son movimientos puntuales de caja. Una línea
+                     continua sugería un gasto que fluye durante todo el día. -->
+                <figure v-if="expensesSparkData.hasData" class="cn-spark">
+                    <figcaption class="cn-spark__head">
+                        <span class="cn-spark__what">Salidas por hora</span>
+                        <span class="cn-spark__peak-label">
+                            <span class="cn-spark__dot" style="background:#D97706"></span>
+                            Mayor {{ expensesSparkData.peak.hour }} · {{ fmtK(expensesSparkData.peak.value) }}
+                        </span>
+                    </figcaption>
+                    <div class="cn-spark__plot cn-spark__plot--bars">
+                        <span
+                            v-for="(pt, i) in expensesSparkData.points"
+                            :key="i"
+                            class="cn-spark__bar"
+                            :class="{ 'is-peak': pt.hour === expensesSparkData.peak.hour }"
+                            :style="{ height: Math.max((pt.value / expensesSparkData.peak.value) * 100, pt.value > 0 ? 8 : 0) + '%' }"
+                            :title="`${pt.hour}: $${fmt(pt.value)}`"
+                        ></span>
+                    </div>
+                    <div class="cn-spark__axis">
+                        <span>{{ expensesSparkData.from }}</span>
+                        <span>{{ expensesSparkData.to }}</span>
+                    </div>
+                </figure>
+                <p v-else class="cn-spark__empty">Sin salidas de caja hoy.</p>
             </div>
         </div>
 
@@ -745,7 +836,78 @@ const scopeLabel = computed(() => {
     margin-top: 4px;
     font-weight: 500;
 }
-.cn-kpi__spark { margin-top: 8px; height: 28px; width: 100%; }
+/* ===== Mini-gráficos de las tarjetas KPI ===== */
+.cn-spark { margin: 10px 0 0; }
+
+.cn-spark__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+/* Qué se está mirando. Antes la curva aparecía sin decir de qué era. */
+.cn-spark__what {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--cn-ink-3);
+}
+/* Etiqueta directa del pico: el único valor rotulado. Un número en cada punto
+   sería ruido; éste es el dato que la tarjeta no daba. */
+.cn-spark__peak-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--cn-ink-2);
+    font-variant-numeric: tabular-nums;
+}
+.cn-spark__dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+.cn-spark__plot { position: relative; height: 44px; }
+.cn-kpi__spark { display: block; height: 100%; width: 100%; }
+
+/* El marcador vive fuera del SVG: dentro se deformaría con el estirado. */
+.cn-spark__marker {
+    position: absolute;
+    top: -3px;
+    width: 7px;
+    height: 7px;
+    margin-left: -3.5px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+/* Gastos: barras separadas por un hueco de superficie, no un borde. */
+.cn-spark__plot--bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+}
+.cn-spark__bar {
+    flex: 1;
+    min-height: 0;
+    border-radius: 3px 3px 0 0;
+    background: #F3D9BE;
+}
+.cn-spark__bar.is-peak { background: #D97706; }
+
+.cn-spark__axis {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3px;
+    font-size: 10px;
+    color: var(--cn-ink-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.cn-spark__empty {
+    margin: 12px 0 0;
+    font-size: 11px;
+    color: var(--cn-ink-3);
+}
 
 .cn-status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .cn-status--on { background: var(--cn-green); box-shadow: 0 0 0 3px var(--cn-green-bg); }
