@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ArchitectureAtlasController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
@@ -138,6 +139,9 @@ Route::prefix('admin')
     ->name('admin.')
     ->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+
+        Route::get('arquitectura', ArchitectureAtlasController::class)
+            ->name('arquitectura.index');
 
         Route::resource('empresas', EmpresaController::class)
             ->except('show');
