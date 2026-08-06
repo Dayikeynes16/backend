@@ -51,6 +51,18 @@ export function validateManifest(manifest) {
             errors.push(`${ownerId}.${field} references missing id ${referencedId}`);
         }
     };
+    const validateStatusEvidence = (ownerId, status) => {
+        const statusId = status?.id;
+        if (!statusIds.has(statusId)) errors.push(`${ownerId} has unknown status ${statusId}`);
+
+        const refs = status?.evidenceIds ?? [];
+        if (!inconclusiveStatuses.has(statusId) && refs.length === 0) {
+            errors.push(`${ownerId} requires evidence for status ${statusId}`);
+        }
+        for (const evidenceId of refs) {
+            if (!evidenceIds.has(evidenceId)) errors.push(`${ownerId} references missing evidence ${evidenceId}`);
+        }
+    };
 
     for (const application of manifest.applications ?? []) {
         requireEntity(application.id, 'repositoryId', application.repositoryId);
@@ -58,16 +70,8 @@ export function validateManifest(manifest) {
 
     for (const module of manifest.modules ?? []) {
         requireEntity(module.id, 'applicationId', module.applicationId);
-        const statusId = module.status?.id;
-        if (!statusIds.has(statusId)) errors.push(`${module.id} has unknown status ${statusId}`);
-
-        const refs = module.status?.evidenceIds ?? [];
-        if (!inconclusiveStatuses.has(statusId) && refs.length === 0) {
-            errors.push(`${module.id} requires evidence for status ${statusId}`);
-        }
-        for (const evidenceId of refs) {
-            if (!evidenceIds.has(evidenceId)) errors.push(`${module.id} references missing evidence ${evidenceId}`);
-        }
+        requireEntity(module.id, 'responsibleApplicationId', module.responsibleApplicationId);
+        validateStatusEvidence(module.id, module.status);
         for (const field of [
             'sourceOfTruthIds', 'endpointIds', 'eventIds', 'dependencyIds',
             'sourceFileIds', 'riskIds', 'featureFlagIds', 'permissionIds',
@@ -83,8 +87,14 @@ export function validateManifest(manifest) {
         if (!allowedConnectionKinds.has(connection.kind)) {
             errors.push(`${connection.id} has unknown connection kind ${connection.kind}`);
         }
-        for (const field of ['endpointIds', 'eventIds', 'evidenceIds']) {
+        validateStatusEvidence(connection.id, connection.status);
+        for (const field of ['endpointIds', 'eventIds']) {
             for (const id of connection[field] ?? []) requireEntity(connection.id, field, id);
+        }
+        for (const evidenceId of connection.evidenceIds ?? []) {
+            if (!evidenceIds.has(evidenceId)) {
+                errors.push(`${connection.id} references missing evidence ${evidenceId}`);
+            }
         }
     }
 

@@ -177,9 +177,35 @@
       "required": ["viewBox", "buildings", "rooms", "connectionRoutes"],
       "properties": {
         "viewBox": { "type": "string", "minLength": 1 },
-        "buildings": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
-        "rooms": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+        "buildings": { "type": "array", "items": { "$ref": "#/$defs/building" } },
+        "rooms": { "type": "array", "items": { "$ref": "#/$defs/room" } },
         "connectionRoutes": { "type": "array", "items": { "$ref": "#/$defs/entity" } }
+      },
+      "additionalProperties": false
+    },
+    "building": {
+      "type": "object",
+      "required": ["applicationId", "x", "y", "width", "depth", "height", "tone"],
+      "properties": {
+        "applicationId": { "$ref": "#/$defs/id" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "depth": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "tone": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "room": {
+      "type": "object",
+      "required": ["moduleId", "floor", "column", "row", "columnSpan"],
+      "properties": {
+        "moduleId": { "$ref": "#/$defs/id" },
+        "floor": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 },
+        "row": { "type": "integer", "minimum": 1 },
+        "columnSpan": { "type": "integer", "minimum": 1 }
       },
       "additionalProperties": false
     }
