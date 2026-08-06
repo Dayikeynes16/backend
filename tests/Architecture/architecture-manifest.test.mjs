@@ -92,3 +92,46 @@ test('the schema defines closed building and room contracts for the checked-in l
         assert.deepEqual(Object.keys(room).sort(), Object.keys(schema.$defs.room.properties).sort());
     }
 });
+
+test('the MVP inventory covers the audited ecosystem', async () => {
+    const manifest = await loadManifest();
+    const moduleIds = new Set(manifest.modules.map(({ id }) => id));
+
+    assert.equal(manifest.applications.length, 4);
+    assert.equal(manifest.modules.length, 47);
+
+    for (const id of [
+        'saas.sales.workbench',
+        'saas.inventory.stock',
+        'hub.sync.scale-sales',
+        'hub.pairing.scale-devices',
+        'scale-web.hardware.adapter',
+        'scale-android.hardware.usb-serial',
+        'scale-android.sales.via-hub',
+    ]) assert.ok(moduleIds.has(id), `missing module ${id}`);
+});
+
+test('the MVP graph covers audited connections', async () => {
+    const manifest = await loadManifest();
+    const connectionIds = new Set(manifest.connections.map(({ id }) => id));
+
+    assert.ok(manifest.connections.length >= 18);
+
+    for (const id of [
+        'conn.android.usb-scale',
+        'conn.android.hub-lan',
+        'conn.hub.saas-sync',
+        'conn.saas.postgresql',
+        'conn.saas.reverb-web',
+    ]) assert.ok(connectionIds.has(id), `missing connection ${id}`);
+});
+
+test('disabled features and delegated responsibility are not reported as pending', async () => {
+    const manifest = await loadManifest();
+    const modules = new Map(manifest.modules.map((module) => [module.id, module]));
+
+    assert.equal(modules.get('saas.web-orders').status.id, 'implemented');
+    assert.deepEqual(modules.get('saas.web-orders').featureFlagIds, ['flag.saas.web-orders']);
+    assert.equal(modules.get('hub.users').status.id, 'not-responsible');
+    assert.equal(modules.get('saas.inventory.stock').status.id, 'pending');
+});
