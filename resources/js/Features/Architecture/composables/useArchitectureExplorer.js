@@ -16,6 +16,12 @@ const DEFAULT_STATE = {
     view: 'map',
 };
 
+export function filterConnectionsByKind(connections, connectionKind = '') {
+    if (!connectionKind) return connections;
+
+    return connections.filter((connection) => connection.kind === connectionKind);
+}
+
 export function useArchitectureExplorer(manifest) {
     const graph = createArchitectureGraph(manifest);
     const initial = typeof window === 'undefined'
@@ -47,10 +53,13 @@ export function useArchitectureExplorer(manifest) {
         statusId: statusId.value,
         connectionKind: connectionKind.value,
     }));
-    const visibleConnections = computed(() => getVisibleConnections(
-        graph,
-        selectedModuleId.value ?? selectedApplicationId.value,
-        mode.value,
+    const visibleConnections = computed(() => filterConnectionsByKind(
+        getVisibleConnections(
+            graph,
+            selectedModuleId.value ?? selectedApplicationId.value,
+            mode.value,
+        ),
+        connectionKind.value,
     ));
 
     function selectApplication(id) {

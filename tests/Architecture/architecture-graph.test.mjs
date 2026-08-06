@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
     buildSourceUrl,
@@ -7,6 +8,12 @@ import {
     normalizeSearchText,
     searchEntities,
 } from '../../resources/js/Features/Architecture/lib/architectureGraph.js';
+import { filterConnectionsByKind } from '../../resources/js/Features/Architecture/composables/useArchitectureExplorer.js';
+
+const checkedInManifestPath = new URL(
+    '../../resources/js/Features/Architecture/data/system-architecture.json',
+    import.meta.url,
+);
 
 const manifest = {
     statuses: [{ id: 'implemented', label: 'Implementado' }],
@@ -143,6 +150,35 @@ test('shows every connection in a selected mode when nothing is selected', () =>
     const graph = createArchitectureGraph(manifest);
 
     assert.deepEqual(getVisibleConnections(graph, null, 'sync').map(({ id }) => id), ['conn.sync']);
+});
+
+test('filters every ecosystem mode and route by the selected connection kind', async () => {
+    const checkedInManifest = JSON.parse(await readFile(checkedInManifestPath, 'utf8'));
+    const graph = createArchitectureGraph(checkedInManifest);
+    const kinds = [...new Set(checkedInManifest.connections.map(({ kind }) => kind))];
+
+    for (const mode of ['dependencies', 'data', 'sync']) {
+        const modeConnections = getVisibleConnections(graph, null, mode);
+
+        assert.equal(filterConnectionsByKind(modeConnections, ''), modeConnections);
+
+        for (const kind of kinds) {
+            const filtered = filterConnectionsByKind(modeConnections, kind);
+            const filteredIds = filtered.map(({ id }) => id).sort();
+            const expectedIds = modeConnections
+                .filter((connection) => connection.kind === kind)
+                .map(({ id }) => id)
+                .sort();
+            const routedIds = checkedInManifest.visualLayout.connectionRoutes
+                .filter((route) => filteredIds.includes(route.connectionId))
+                .map(({ connectionId }) => connectionId)
+                .sort();
+
+            assert.deepEqual(filteredIds, expectedIds, `${mode}/${kind} filtra conexiones`);
+            assert.deepEqual(routedIds, expectedIds, `${mode}/${kind} filtra rutas`);
+            assert.ok(filtered.every((connection) => connection.kind === kind));
+        }
+    }
 });
 
 test('builds a source URL pinned to the audit commit and encodes each path segment', () => {

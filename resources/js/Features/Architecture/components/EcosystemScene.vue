@@ -3,6 +3,13 @@ import { computed } from 'vue';
 import ApplicationBuilding from './ApplicationBuilding.vue';
 import ConnectionLayer from './ConnectionLayer.vue';
 
+const FALLBACK_VIEW_BOX = Object.freeze({
+    minX: 0,
+    minY: 0,
+    width: 1200,
+    height: 720,
+});
+
 const props = defineProps({
     applications: {
         type: Array,
@@ -48,13 +55,33 @@ const buildings = computed(() => props.layout.buildings
 const viewBoxMetrics = computed(() => {
     const values = props.layout.viewBox.trim().split(/\s+/).map(Number);
 
-    if (values.length !== 4 || values.some((value) => !Number.isFinite(value))) {
-        return { minX: 0, minY: 0, width: 1200, height: 720 };
+    if (
+        values.length !== 4
+        || values.some((value) => !Number.isFinite(value))
+        || values[2] <= 0
+        || values[3] <= 0
+    ) {
+        return FALLBACK_VIEW_BOX;
     }
 
     const [minX, minY, width, height] = values;
     return { minX, minY, width, height };
 });
+
+const safeViewBox = computed(() => {
+    const {
+        minX,
+        minY,
+        width,
+        height,
+    } = viewBoxMetrics.value;
+
+    return `${minX} ${minY} ${width} ${height}`;
+});
+
+const sceneStyle = computed(() => ({
+    aspectRatio: `${viewBoxMetrics.value.width} / ${viewBoxMetrics.value.height}`,
+}));
 
 const terrainInset = computed(() => ({
     x: viewBoxMetrics.value.minX + 24,
@@ -82,8 +109,9 @@ function isDimmed(applicationId) {
         <div class="ecosystem-scene__viewport">
             <svg
                 class="ecosystem-scene__svg"
-                :viewBox="layout.viewBox"
-                role="img"
+                :viewBox="safeViewBox"
+                :style="sceneStyle"
+                role="group"
                 aria-labelledby="ecosystem-map-title ecosystem-map-description"
                 preserveAspectRatio="xMidYMid meet"
             >
@@ -221,7 +249,6 @@ function isDimmed(applicationId) {
     width: 100%;
     min-width: 46rem;
     height: auto;
-    aspect-ratio: 5 / 3;
 }
 
 .ecosystem-scene__axis-line {
