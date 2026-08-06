@@ -83,7 +83,7 @@
       "applicationId": "app.scale-web",
       "name": "Configuración por QR/manual",
       "description": "Configura URL, clave y dispositivo del kiosco web.",
-      "status": { "id": "implemented", "determination": "verified", "confidence": "high", "evidenceIds": ["ev.scale-web.dashboard"] },
+      "status": { "id": "implemented", "determination": "verified", "confidence": "high", "evidenceIds": ["ev.scale-web.setup"] },
       "responsibleApplicationId": "app.scale-web",
       "sourceOfTruthIds": [],
       "internetRequirement": { "requiredForUse": true, "notes": "La operación posterior requiere la API configurada." },
@@ -93,7 +93,7 @@
       "endpointIds": [],
       "eventIds": [],
       "dependencyIds": [],
-      "sourceFileIds": ["file.scale-web.dashboard"],
+      "sourceFileIds": ["file.scale-web.setup"],
       "riskIds": [],
       "searchTerms": ["QR", "configuración", "localStorage"]
     },
@@ -130,14 +130,14 @@
   "sourceFiles": [
     { "id": "file.saas.routes-web", "repositoryId": "repo.saas", "path": "routes/web.php", "role": "Jerarquía de rutas web y roles." },
     { "id": "file.hub.ipc", "repositoryId": "repo.hub", "path": "src/main/ipc.js", "role": "Límite IPC explícito entre el proceso principal y el renderer." },
-    { "id": "file.scale-web.dashboard", "repositoryId": "repo.scale-web", "path": "src/views/DashboardView.vue", "role": "Operación y configuración del kiosco." },
+    { "id": "file.scale-web.setup", "repositoryId": "repo.scale-web", "path": "src/views/SetupView.vue", "role": "Configuración manual y por QR del kiosco." },
     { "id": "file.scale-android.usb-scale-adapter", "repositoryId": "repo.scale-android", "path": "app/src/main/java/com/bascula/app/scale/UsbScaleAdapter.kt", "role": "Adaptador USB serial de básculas." }
   ],
   "risks": [],
   "evidence": [
     { "id": "ev.saas.routes-web", "sourceFileId": "file.saas.routes-web", "symbol": "routes/web.php", "commit": "098daec985d4baac0627da9e3552bf498c26f76a", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Define rutas protegidas, jerarquía de roles y resolución de tenant." },
     { "id": "ev.hub.ipc", "sourceFileId": "file.hub.ipc", "symbol": "registerIpc", "commit": "cd663a6b97551c212aaf3671cbb02c2660090d5b", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Registra la superficie IPC explícita que conecta el renderer con el proceso principal de Electron." },
-    { "id": "ev.scale-web.dashboard", "sourceFileId": "file.scale-web.dashboard", "symbol": "DashboardView", "commit": "a5a54da567b3048a2026e682f51a2dd0d425b3b2", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Implementa la pantalla operativa y configuración del kiosco web." },
+    { "id": "ev.scale-web.setup", "sourceFileId": "file.scale-web.setup", "symbol": "SetupView", "commit": "a5a54da567b3048a2026e682f51a2dd0d425b3b2", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Implementa la configuración manual y por QR del kiosco web." },
     { "id": "ev.scale-android.usb-scale-adapter", "sourceFileId": "file.scale-android.usb-scale-adapter", "symbol": "UsbScaleAdapter", "commit": "8828dae77ba5ad8f5e4baa26e5b01685ab52f70b", "verifiedAt": "2026-08-06", "confidence": "high", "summary": "Implementa la comunicación USB serial con básculas físicas." }
   ],
   "visualLayout": {
