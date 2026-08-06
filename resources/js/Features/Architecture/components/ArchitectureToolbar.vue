@@ -100,9 +100,9 @@ function formatConnectionKind(kind) {
         </div>
 
         <div class="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Lectura de conexiones</p>
-                <div class="flex flex-wrap gap-2" aria-label="Modo de conexiones">
+            <div role="group" aria-labelledby="architecture-mode-label">
+                <p id="architecture-mode-label" class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Lectura de conexiones</p>
+                <div class="flex flex-wrap gap-2">
                     <button
                         v-for="item in modes"
                         :key="item.id"
@@ -117,9 +117,9 @@ function formatConnectionKind(kind) {
                 </div>
             </div>
 
-            <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Representación</p>
-                <div class="inline-flex rounded-lg border border-slate-300 bg-white p-1" aria-label="Vista del Atlas">
+            <div role="group" aria-labelledby="architecture-view-label">
+                <p id="architecture-view-label" class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Representación</p>
+                <div class="inline-flex rounded-lg border border-slate-300 bg-white p-1">
                     <button
                         type="button"
                         class="min-h-11 rounded-md px-4 text-sm font-bold outline-none transition focus-visible:ring-2 focus-visible:ring-red-600"

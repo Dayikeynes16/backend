@@ -97,7 +97,7 @@ export function useArchitectureExplorer(manifest) {
                 });
 
                 window.history.replaceState(
-                    {},
+                    window.history.state,
                     '',
                     `${window.location.pathname}${architectureQuery}`,
                 );

@@ -2,7 +2,18 @@
 import { Head } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import ArchitectureExplorer from '@/Features/Architecture/components/ArchitectureExplorer.vue';
-import manifest from '@/Features/Architecture/data/system-architecture.json';
+
+defineProps({
+    manifest: {
+        type: Object,
+        required: true,
+        validator: (value) => (
+            Array.isArray(value.applications)
+            && Array.isArray(value.modules)
+            && Array.isArray(value.connections)
+        ),
+    },
+});
 </script>
 
 <template>

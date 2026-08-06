@@ -41,6 +41,11 @@ class ArchitectureAtlasAccessTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Admin/ArchitectureAtlas/Index')
+                ->where('manifest.metadata.schemaVersion', '1.0.0')
+                ->where('manifest.metadata.snapshotRefs', fn ($snapshotRefs) => $snapshotRefs['repo.saas'] === '098daec985d4baac0627da9e3552bf498c26f76a')
+                ->has('manifest.applications', 4)
+                ->has('manifest.modules', 47)
+                ->has('manifest.risks', 10)
                 ->missing('tenants')
                 ->missing('architecture'));
     }
@@ -48,9 +53,11 @@ class ArchitectureAtlasAccessTest extends TestCase
     public function test_tenant_roles_are_forbidden(): void
     {
         foreach (['admin-empresa', 'admin-sucursal', 'cajero'] as $role) {
-            $this->actingAs($this->userWithRole($role))
+            $response = $this->actingAs($this->userWithRole($role))
                 ->get('/admin/arquitectura')
                 ->assertForbidden();
+
+            $this->assertStringNotContainsString('risk.audit.', $response->getContent());
         }
     }
 }

@@ -58,7 +58,20 @@ const allEntitiesById = computed(() => byId([
     ...props.manifest.modules,
     ...props.manifest.components,
     ...props.manifest.dataSources,
+    ...props.manifest.endpoints,
+    ...props.manifest.events,
+    ...props.manifest.databaseTables,
     ...props.manifest.devices,
+    ...props.manifest.dependencies,
+    ...props.manifest.permissions,
+    ...props.manifest.featureFlags,
+    ...props.manifest.sourceFiles,
+    ...props.manifest.risks,
+]));
+
+const selectableEntityIds = computed(() => new Set([
+    ...props.manifest.applications.map((application) => application.id),
+    ...props.manifest.modules.map((module) => module.id),
 ]));
 
 function resolve(ids, index) {
@@ -133,13 +146,18 @@ function readableValue(value) {
     return String(value);
 }
 
-function relatedTarget(connection) {
-    if (!props.entity) return null;
+const relatedConnections = computed(() => props.related.map((connection) => {
+    const targetId = connection.fromId === props.entity?.id
+        ? connection.toId
+        : connection.fromId;
+    const target = allEntitiesById.value.get(targetId) ?? { id: targetId, name: targetId };
 
-    const targetId = connection.fromId === props.entity.id ? connection.toId : connection.fromId;
-
-    return allEntitiesById.value.get(targetId) ?? { id: targetId, name: targetId };
-}
+    return {
+        connection,
+        target,
+        navigable: selectableEntityIds.value.has(targetId),
+    };
+}));
 
 function entityLabels(ids) {
     return (ids ?? [])
@@ -316,9 +334,12 @@ function entityLabels(ids) {
                     <div v-if="featureFlags.length">
                         <dt class="font-bold text-slate-500">Feature flags</dt>
                         <dd class="mt-2 space-y-1">
-                            <p v-for="flag in featureFlags" :key="flag.id" class="font-mono text-xs text-slate-700">
-                                {{ flag.key }} · default {{ flag.enabledByDefault ? 'activo' : 'inactivo' }}
-                            </p>
+                            <div v-for="flag in featureFlags" :key="flag.id" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                                <p class="text-sm font-semibold text-slate-900">{{ flag.name }}</p>
+                                <p class="mt-1 font-mono text-xs text-slate-600">
+                                    {{ flag.key }} · default {{ flag.enabledByDefault ? 'activo' : 'inactivo' }}
+                                </p>
+                            </div>
                         </dd>
                     </div>
                 </dl>
@@ -342,18 +363,24 @@ function entityLabels(ids) {
                 </ul>
             </section>
 
-            <section v-if="related.length" aria-labelledby="detail-related-title">
+            <section v-if="relatedConnections.length" aria-labelledby="detail-related-title">
                 <h3 id="detail-related-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Conexiones visibles</h3>
                 <ul class="mt-3 space-y-2">
-                    <li v-for="connection in related" :key="connection.id">
+                    <li v-for="item in relatedConnections" :key="item.connection.id">
                         <button
+                            v-if="item.navigable"
                             type="button"
                             class="min-h-11 w-full rounded-lg border border-slate-200 px-3 py-2 text-left outline-none transition hover:border-red-300 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
-                            @click="emit('select-related', relatedTarget(connection).id)"
+                            @click="emit('select-related', item.target.id)"
                         >
-                            <span class="block text-sm font-bold text-slate-900">{{ relatedTarget(connection).name }}</span>
-                            <span class="mt-1 block font-mono text-xs text-slate-500">{{ connection.kind }} · {{ connection.direction }}</span>
+                            <span class="block text-sm font-bold text-slate-900">{{ item.target.name }}</span>
+                            <span class="mt-1 block font-mono text-xs text-slate-500">{{ item.connection.kind }} · {{ item.connection.direction }}</span>
                         </button>
+                        <div v-else class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                            <p class="text-sm font-bold text-slate-900">{{ item.target.name }}</p>
+                            <p class="mt-1 font-mono text-xs text-slate-500">{{ item.connection.kind }} · {{ item.connection.direction }}</p>
+                            <p class="mt-1 text-xs text-slate-500">Referencia técnica no navegable en esta vista.</p>
+                        </div>
                     </li>
                 </ul>
             </section>
