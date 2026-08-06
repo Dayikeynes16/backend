@@ -6,6 +6,84 @@ import { validateManifest } from '../../scripts/validate-architecture-manifest.m
 const manifestPath = new URL('../../resources/js/Features/Architecture/data/system-architecture.json', import.meta.url);
 const schemaPath = new URL('../../resources/js/Features/Architecture/data/system-architecture.schema.json', import.meta.url);
 
+const auditedModuleIds = [
+    'saas.core.tenancy-auth',
+    'saas.core.organizations',
+    'saas.catalog.products',
+    'saas.inventory.stock',
+    'saas.sales.workbench',
+    'saas.sales.payments',
+    'saas.cash.shifts',
+    'saas.customers.credit',
+    'saas.expenses',
+    'saas.purchases-providers',
+    'saas.metrics',
+    'saas.agenda',
+    'saas.ai-assistant',
+    'saas.web-orders',
+    'saas.realtime',
+    'saas.api.scales',
+    'saas.api.hub',
+    'saas.api.public',
+    'hub.shell-ipc',
+    'hub.shared-online-flows',
+    'hub.local-scale-api',
+    'hub.sqlite',
+    'hub.sync.scale-sales',
+    'hub.catalog-cache',
+    'hub.realtime',
+    'hub.printing',
+    'hub.discovery-mdns',
+    'hub.pairing.scale-devices',
+    'hub.users',
+    'scale-web.setup',
+    'scale-web.catalog-sales',
+    'scale-web.hardware.adapter',
+    'scale-web.hub-compatibility',
+    'scale-web.idempotency',
+    'scale-web.offline',
+    'scale-web.tests',
+    'scale-android.hardware.usb-serial',
+    'scale-android.weight-capture',
+    'scale-android.setup-qr',
+    'scale-android.discovery-mdns',
+    'scale-android.sales.direct-cloud',
+    'scale-android.sales.via-hub',
+    'scale-android.catalog-cache',
+    'scale-android.updates',
+    'scale-android.pairing',
+    'scale-android.printing',
+    'scale-android.product-scanner',
+];
+
+const auditedRiskIds = [
+    'risk.audit.direct-scale-idempotency',
+    'risk.audit.scale-web-hub-compatibility',
+    'risk.audit.hub-offline-scope',
+    'risk.audit.hub-offline-session-restoration',
+    'risk.audit.hub-sync-configuration',
+    'risk.audit.hub-local-growth',
+    'risk.audit.lan-security',
+    'risk.audit.realtime-coverage',
+    'risk.audit.documentation-drift',
+    'risk.audit.concurrent-pairing-work',
+];
+
+const auditedFeatureFlagIds = [
+    'flag.saas.web-orders',
+    'flag.branch.cashier-customers',
+    'flag.branch.cashier-expenses',
+    'flag.branch.cashier-purchases',
+    'flag.branch.admin-providers',
+    'flag.branch.admin-expense-categories',
+    'flag.branch.payment-receipts',
+    'flag.branch.payment-receipts-required',
+];
+
+function sortedIds(collection) {
+    return collection.map(({ id }) => id).sort();
+}
+
 async function loadManifest() {
     return JSON.parse(await readFile(manifestPath, 'utf8'));
 }
@@ -95,20 +173,14 @@ test('the schema defines closed building and room contracts for the checked-in l
 
 test('the MVP inventory covers the audited ecosystem', async () => {
     const manifest = await loadManifest();
-    const moduleIds = new Set(manifest.modules.map(({ id }) => id));
 
     assert.equal(manifest.applications.length, 4);
-    assert.equal(manifest.modules.length, 47);
+    assert.deepEqual(sortedIds(manifest.modules), [...auditedModuleIds].sort());
+    assert.deepEqual(sortedIds(manifest.risks), [...auditedRiskIds].sort());
 
-    for (const id of [
-        'saas.sales.workbench',
-        'saas.inventory.stock',
-        'hub.sync.scale-sales',
-        'hub.pairing.scale-devices',
-        'scale-web.hardware.adapter',
-        'scale-android.hardware.usb-serial',
-        'scale-android.sales.via-hub',
-    ]) assert.ok(moduleIds.has(id), `missing module ${id}`);
+    const roomModuleIds = manifest.visualLayout.rooms.map(({ moduleId }) => moduleId);
+    assert.equal(new Set(roomModuleIds).size, roomModuleIds.length, 'a module has more than one room');
+    assert.deepEqual([...roomModuleIds].sort(), [...auditedModuleIds].sort());
 });
 
 test('the MVP graph covers audited connections', async () => {
@@ -210,7 +282,7 @@ test('the technical graph records audited sources, surfaces, tables and controls
             'flag.saas.web-orders', 'flag.branch.cashier-customers',
             'flag.branch.cashier-expenses', 'flag.branch.cashier-purchases',
             'flag.branch.admin-providers', 'flag.branch.admin-expense-categories',
-            'flag.branch.admin-purchase-products', 'flag.branch.payment-receipts',
+            'flag.branch.payment-receipts', 'flag.branch.payment-receipts-required',
         ],
     })) {
         const actualIds = ids(collection);
@@ -242,14 +314,12 @@ test('the technical graph records audited sources, surfaces, tables and controls
     }
 });
 
-test('Task 3A evidence and declarative module references stay intact', async () => {
+test('Task 3 evidence and declarative module references stay intact', async () => {
     const manifest = await loadManifest();
 
-    assert.equal(manifest.modules.length, 47);
-    assert.equal(manifest.sourceFiles.length, 44);
-    assert.equal(manifest.evidence.length, 44);
-    assert.equal(manifest.risks.length, 10);
-    assert.equal(manifest.visualLayout.rooms.length, 47);
+    assert.deepEqual(sortedIds(manifest.modules), [...auditedModuleIds].sort());
+    assert.deepEqual(sortedIds(manifest.risks), [...auditedRiskIds].sort());
+    assert.deepEqual(sortedIds(manifest.featureFlags), [...auditedFeatureFlagIds].sort());
 
     for (const module of manifest.modules) {
         for (const field of [
@@ -257,6 +327,81 @@ test('Task 3A evidence and declarative module references stay intact', async () 
             'sourceFileIds', 'riskIds', 'featureFlagIds', 'permissionIds',
             'databaseTableIds', 'componentIds', 'deviceIds',
         ]) assert.ok(Array.isArray(module[field]), `${module.id} must declare ${field}`);
+    }
+});
+
+test('audited infrastructure, events and receipt controls use direct evidence', async () => {
+    const manifest = await loadManifest();
+    const byId = (collection) => new Map(manifest[collection].map((entity) => [entity.id, entity]));
+    const components = byId('components');
+    const connections = byId('connections');
+    const dependencies = byId('dependencies');
+    const events = byId('events');
+    const flags = byId('featureFlags');
+    const modules = byId('modules');
+
+    for (const entity of [
+        components.get('component.saas.redis'),
+        connections.get('conn.saas.redis'),
+        dependencies.get('dependency.saas.redis'),
+    ]) {
+        assert.ok(entity.evidenceIds.includes('ev.saas.database-redis'));
+        assert.ok(!entity.evidenceIds.includes('ev.saas.sale-queue'));
+    }
+
+    for (const [eventId, sourceFileId, evidenceId] of [
+        ['event.saas.new-external-sale', 'file.saas.event-new-external-sale', 'ev.saas.event-new-external-sale'],
+        ['event.saas.sale-updated', 'file.saas.event-sale-updated', 'ev.saas.event-sale-updated'],
+        ['event.saas.sale-locked', 'file.saas.event-sale-locked', 'ev.saas.event-sale-locked'],
+        ['event.saas.sale-unlocked', 'file.saas.event-sale-unlocked', 'ev.saas.event-sale-unlocked'],
+    ]) {
+        assert.equal(events.get(eventId).sourceFileId, sourceFileId);
+        assert.ok(events.get(eventId).evidenceIds.includes(evidenceId));
+    }
+
+    for (const flagId of ['flag.branch.payment-receipts', 'flag.branch.payment-receipts-required']) {
+        const flag = flags.get(flagId);
+        assert.equal(flag.sourceFileId, 'file.saas.branch-model');
+        assert.ok(flag.evidenceIds.includes('ev.saas.branch-payment-receipt-controls'));
+        assert.ok(flag.evidenceIds.includes('ev.saas.payment-receipt-enforcement'));
+        assert.ok(flag.evidenceIds.includes('ev.saas.customer-payment-receipt-enforcement'));
+    }
+
+    const affectedModuleIds = [
+        'saas.core.organizations',
+        'saas.sales.payments',
+        'saas.customers.credit',
+    ];
+    for (const flagId of ['flag.branch.payment-receipts', 'flag.branch.payment-receipts-required']) {
+        assert.deepEqual(
+            manifest.modules.filter((module) => module.featureFlagIds.includes(flagId)).map(({ id }) => id).sort(),
+            [...affectedModuleIds].sort(),
+        );
+    }
+});
+
+test('technical evidence references are valid and pinned to each repository snapshot', async () => {
+    const manifest = await loadManifest();
+    const evidenceIds = new Set(manifest.evidence.map(({ id }) => id));
+    const sources = new Map(manifest.sourceFiles.map((source) => [source.id, source]));
+    const repositories = new Map(manifest.repositories.map((repository) => [repository.id, repository]));
+
+    for (const evidence of manifest.evidence) {
+        const source = sources.get(evidence.sourceFileId);
+        assert.ok(source, `${evidence.id} references missing source ${evidence.sourceFileId}`);
+        assert.equal(evidence.commit, repositories.get(source.repositoryId).commit, `${evidence.id} is not pinned to its repository snapshot`);
+    }
+
+    for (const collection of [
+        'components', 'connections', 'dataSources', 'events', 'devices',
+        'dependencies', 'permissions', 'featureFlags',
+    ]) {
+        for (const entity of manifest[collection]) {
+            assert.ok(entity.evidenceIds.length > 0, `${entity.id} has no evidence`);
+            for (const evidenceId of entity.evidenceIds) {
+                assert.ok(evidenceIds.has(evidenceId), `${entity.id} references missing evidence ${evidenceId}`);
+            }
+        }
     }
 });
 
