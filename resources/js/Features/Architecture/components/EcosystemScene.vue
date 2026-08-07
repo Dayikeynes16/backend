@@ -2,6 +2,11 @@
 import { computed } from 'vue';
 import ApplicationBuilding from './ApplicationBuilding.vue';
 import ConnectionLayer from './ConnectionLayer.vue';
+import {
+    ECOSYSTEM_COLORS,
+    ECOSYSTEM_SCENE_MIN_WIDTH_PX,
+    ECOSYSTEM_TYPOGRAPHY_UNITS,
+} from '../lib/architectureSceneTokens.js';
 
 const FALLBACK_VIEW_BOX = Object.freeze({
     minX: 0,
@@ -80,6 +85,7 @@ const safeViewBox = computed(() => {
 });
 
 const sceneStyle = computed(() => ({
+    minWidth: `${ECOSYSTEM_SCENE_MIN_WIDTH_PX}px`,
     aspectRatio: `${viewBoxMetrics.value.width} / ${viewBoxMetrics.value.height}`,
 }));
 
@@ -145,7 +151,7 @@ function isDimmed(applicationId) {
                     :y="viewBoxMetrics.minY"
                     :width="viewBoxMetrics.width"
                     :height="viewBoxMetrics.height"
-                    fill="#07111f"
+                    :fill="ECOSYSTEM_COLORS.terrain"
                 />
                 <rect
                     :x="terrainInset.x"
@@ -170,8 +176,21 @@ function isDimmed(applicationId) {
                         :d="`M ${terrainInset.x + 42} ${terrainInset.y} V ${terrainInset.y + terrainInset.height}`"
                         vector-effect="non-scaling-stroke"
                     />
-                    <text class="ecosystem-scene__axis-label" :x="terrainInset.x + 55" :y="terrainInset.y + 30">EJE Y / SERVICIOS EXTERNOS</text>
-                    <text class="ecosystem-scene__axis-label" :x="terrainInset.x + terrainInset.width - 12" :y="terrainInset.y + 31" text-anchor="end">NORTE TÉCNICO ↑</text>
+                    <text
+                        class="ecosystem-scene__axis-label"
+                        :x="terrainInset.x + 55"
+                        :y="terrainInset.y + 30"
+                        :font-size="ECOSYSTEM_TYPOGRAPHY_UNITS.axis"
+                        :fill="ECOSYSTEM_COLORS.axisText"
+                    >EJE Y / SERVICIOS EXTERNOS</text>
+                    <text
+                        class="ecosystem-scene__axis-label"
+                        :x="terrainInset.x + terrainInset.width - 12"
+                        :y="terrainInset.y + 31"
+                        :font-size="ECOSYSTEM_TYPOGRAPHY_UNITS.axis"
+                        :fill="ECOSYSTEM_COLORS.axisText"
+                        text-anchor="end"
+                    >NORTE TÉCNICO ↑</text>
                 </g>
 
                 <ConnectionLayer
@@ -196,6 +215,7 @@ function isDimmed(applicationId) {
                     class="ecosystem-scene__empty"
                     :x="viewBoxMetrics.minX + viewBoxMetrics.width / 2"
                     :y="viewBoxMetrics.minY + viewBoxMetrics.height / 2"
+                    :font-size="ECOSYSTEM_TYPOGRAPHY_UNITS.empty"
                     text-anchor="middle"
                 >
                     No hay edificios ubicados en el manifiesto.
@@ -247,7 +267,6 @@ function isDimmed(applicationId) {
 .ecosystem-scene__svg {
     display: block;
     width: 100%;
-    min-width: 46rem;
     height: auto;
 }
 
@@ -259,16 +278,13 @@ function isDimmed(applicationId) {
 }
 
 .ecosystem-scene__axis-label {
-    fill: #64748b;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.12em;
 }
 
 .ecosystem-scene__empty {
     fill: #cbd5e1;
-    font-size: 16px;
     font-weight: 700;
 }
 

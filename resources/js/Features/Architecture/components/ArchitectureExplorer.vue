@@ -77,7 +77,7 @@ const currentLevelDescription = computed(() => {
 });
 
 function focusCurrentLevel() {
-    nextTick(() => sceneHeading.value?.focus({ preventScroll: true }));
+    nextTick(() => sceneHeading.value?.focus());
 }
 
 function handleSelectApplication(id) {

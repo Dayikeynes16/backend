@@ -29,7 +29,8 @@ test('level changes move focus to the visible current-level heading only', async
     assert.match(explorer, /ref="sceneHeading"/);
     assert.match(explorer, /tabindex="-1"/);
     assert.match(explorer, />Nivel actual</);
-    assert.match(explorer, /nextTick\(\(\) => sceneHeading\.value\?\.focus/);
+    assert.match(explorer, /nextTick\(\(\) => sceneHeading\.value\?\.focus\(\)\)/);
+    assert.doesNotMatch(explorer, /preventScroll/);
     assert.match(explorer, /handleSelectApplication/);
     assert.match(explorer, /handleSelectModule/);
     assert.match(explorer, /handleGoToEcosystem/);
@@ -101,5 +102,8 @@ test('Atlas controls and scenes preserve accessible contrast, targets and reduce
     assert.match(sources['ArchitectureDetailPanel.vue'], /aria-label="Cerrar detalle"[\s\S]*h-11 w-11/);
     assert.match(sources['ApplicationBuilding.vue'], /:focus-visible[\s\S]*stroke: #ffffff/);
     assert.match(sources['ModuleRoom.vue'], /:focus-visible[\s\S]*stroke: #ffffff/);
+    assert.match(sources['ModuleRoom.vue'], /module-room--dimmed/);
+    assert.doesNotMatch(sources['ModuleRoom.vue'], /--atlas-room-opacity|\.module-room\s*\{[^}]*opacity:/);
+    assert.doesNotMatch(sources['ApplicationBuilding.vue'], /--atlas-building-opacity|\.application-building\s*\{[^}]*opacity:/);
     assert.match(sources['ConnectionLayer.vue'], /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none/);
 });

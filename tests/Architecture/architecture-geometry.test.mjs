@@ -9,12 +9,17 @@ import {
 } from '../../resources/js/Features/Architecture/lib/architectureGeometry.js';
 import {
     CONNECTION_VISUAL_TOKENS,
+    ROOM_TEXT_COLORS,
     STATUS_VISUAL_TOKENS,
 } from '../../resources/js/Features/Architecture/lib/architectureVisualTokens.js';
 import {
     APPLICATION_SCENE_MIN_WIDTH_PX,
+    ECOSYSTEM_COLORS,
+    ECOSYSTEM_SCENE_MIN_WIDTH_PX,
+    ECOSYSTEM_TYPOGRAPHY_UNITS,
     ROOM_LABEL_LAYOUT,
     ROOM_TYPOGRAPHY_UNITS,
+    wrapRoomStatusLabel,
 } from '../../resources/js/Features/Architecture/lib/architectureSceneTokens.js';
 import {
     createArchitectureGraph,
@@ -27,6 +32,14 @@ const manifestPath = new URL(
 );
 const applicationScenePath = new URL(
     '../../resources/js/Features/Architecture/components/ApplicationScene.vue',
+    import.meta.url,
+);
+const ecosystemScenePath = new URL(
+    '../../resources/js/Features/Architecture/components/EcosystemScene.vue',
+    import.meta.url,
+);
+const applicationBuildingPath = new URL(
+    '../../resources/js/Features/Architecture/components/ApplicationBuilding.vue',
     import.meta.url,
 );
 const architectureExplorerPath = new URL(
@@ -52,6 +65,25 @@ const architectureLegendPath = new URL(
 
 async function loadManifest() {
     return JSON.parse(await readFile(manifestPath, 'utf8'));
+}
+
+function relativeLuminance(hexColor) {
+    const channels = hexColor.match(/[a-f\d]{2}/gi).map((channel) => {
+        const normalized = Number.parseInt(channel, 16) / 255;
+
+        return normalized <= 0.04045
+            ? normalized / 12.92
+            : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+
+    return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
+}
+
+function contrastRatio(first, second) {
+    const lighter = Math.max(relativeLuminance(first), relativeLuminance(second));
+    const darker = Math.min(relativeLuminance(first), relativeLuminance(second));
+
+    return (lighter + 0.05) / (darker + 0.05);
 }
 
 function boxesIntersect(left, right) {
@@ -378,6 +410,61 @@ test('room typography stays at or above 12 effective pixels at the minimum scene
     assert.ok(badge.textLength <= badge.height - (badge.textInset * 2));
 });
 
+test('campus typography stays at or above 12 effective pixels and axes meet WCAG AA', () => {
+    const ecosystemViewBoxWidth = 1200;
+    const minimumScale = ECOSYSTEM_SCENE_MIN_WIDTH_PX / ecosystemViewBoxWidth;
+    const effectiveSizes = Object.fromEntries(
+        Object.entries(ECOSYSTEM_TYPOGRAPHY_UNITS).map(([label, units]) => [
+            label,
+            Number((units * minimumScale).toFixed(2)),
+        ]),
+    );
+
+    assert.equal(ECOSYSTEM_SCENE_MIN_WIDTH_PX, 1056);
+    assert.deepEqual(effectiveSizes, {
+        applicationName: 12.32,
+        applicationId: 12.32,
+        axis: 12.32,
+        empty: 14.08,
+    });
+    for (const [label, effectivePixels] of Object.entries(effectiveSizes)) {
+        assert.ok(effectivePixels >= 12, `${label} renders at only ${effectivePixels}px`);
+    }
+    assert.ok(
+        contrastRatio(ECOSYSTEM_COLORS.axisText, ECOSYSTEM_COLORS.terrain) >= 4.5,
+        'axis labels must keep a 4.5:1 contrast ratio over the campus terrain',
+    );
+});
+
+test('room text meets WCAG AA on every status and current status labels remain complete', async () => {
+    const manifest = await loadManifest();
+    const room = getRoomGeometry({ floor: 1, column: 1, row: 1, columnSpan: 1 });
+    const contentWidth = room.width - (ROOM_LABEL_LAYOUT.horizontalInset * 2);
+    const maximumCharacters = Math.floor(
+        contentWidth
+        / (ROOM_TYPOGRAPHY_UNITS.status * ROOM_LABEL_LAYOUT.estimatedGlyphWidthRatio),
+    );
+
+    for (const status of manifest.statuses) {
+        const token = STATUS_VISUAL_TOKENS[status.id];
+        const lines = wrapRoomStatusLabel(
+            status.label,
+            contentWidth,
+            ROOM_TYPOGRAPHY_UNITS.status,
+        );
+
+        assert.ok(contrastRatio(ROOM_TEXT_COLORS.name, token.fill) >= 4.5, `${status.id} name`);
+        assert.ok(contrastRatio(ROOM_TEXT_COLORS.status, token.fill) >= 4.5, `${status.id} status`);
+        assert.ok(lines.length >= 1 && lines.length <= ROOM_LABEL_LAYOUT.statusMaxLines, status.id);
+        assert.equal(lines.join(' '), status.label, `${status.id} must not be truncated`);
+        assert.ok(lines.every((line) => !line.includes('…')), `${status.id} contains an ellipsis`);
+        assert.ok(
+            lines.every((line) => line.length <= maximumCharacters),
+            `${status.id} exceeds the visible status width`,
+        );
+    }
+});
+
 test('application scene uses tested routes, readable tokens and the 1792px side-panel breakpoint', async () => {
     const [applicationScene, explorer, detailPanel, moduleRoom] = await Promise.all([
         readFile(applicationScenePath, 'utf8'),
@@ -408,6 +495,19 @@ test('application scene uses tested routes, readable tokens and the 1792px side-
     assert.match(detailPanel, /position: sticky/);
     assert.match(detailPanel, /max-height: calc\(100vh - 8rem\)/);
     assert.doesNotMatch(detailPanel, /2xl:max-h-/);
+});
+
+test('ecosystem scene applies the tested minimum width and typography tokens', async () => {
+    const [ecosystemScene, applicationBuilding] = await Promise.all([
+        readFile(ecosystemScenePath, 'utf8'),
+        readFile(applicationBuildingPath, 'utf8'),
+    ]);
+
+    assert.match(ecosystemScene, /minWidth: `\$\{ECOSYSTEM_SCENE_MIN_WIDTH_PX\}px`/);
+    assert.match(ecosystemScene, /:font-size="ECOSYSTEM_TYPOGRAPHY_UNITS\.axis"/);
+    assert.match(ecosystemScene, /:fill="ECOSYSTEM_COLORS\.axisText"/);
+    assert.match(applicationBuilding, /:font-size="ECOSYSTEM_TYPOGRAPHY_UNITS\.applicationName"/);
+    assert.match(applicationBuilding, /:font-size="ECOSYSTEM_TYPOGRAPHY_UNITS\.applicationId"/);
 });
 
 test('ecosystem declarative routes retain the audited mode coverage', async () => {

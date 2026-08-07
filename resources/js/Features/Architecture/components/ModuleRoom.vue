@@ -5,8 +5,12 @@ import { getRoomGeometry } from '../lib/architectureGeometry.js';
 import {
     ROOM_LABEL_LAYOUT,
     ROOM_TYPOGRAPHY_UNITS,
+    wrapRoomStatusLabel,
 } from '../lib/architectureSceneTokens.js';
-import { statusVisualToken } from '../lib/architectureVisualTokens.js';
+import {
+    ROOM_TEXT_COLORS,
+    statusVisualToken,
+} from '../lib/architectureVisualTokens.js';
 
 const props = defineProps({
     module: {
@@ -60,7 +64,6 @@ const statusClipId = computed(() => `atlas-room-${safeModuleId.value}-status-cli
 const roomFill = computed(() => (
     style.value.pattern === 'solid' ? style.value.fill : `url(#${patternId.value})`
 ));
-const opacity = computed(() => (props.dimmed ? 0.28 : 1));
 const isOffline = computed(() => props.module.offlineCapability?.supported === true);
 const ariaLabel = computed(() => (
     `${props.module.name}. ${props.module.description}. Estado: ${statusLabel.value}. `
@@ -112,9 +115,16 @@ const labelLines = computed(() => {
 
     return lines.map((line) => truncateLabel(line, maxCharacters));
 });
-const statusDisplayLabel = computed(() => truncateLabel(
+const statusLines = computed(() => wrapRoomStatusLabel(
     statusLabel.value,
-    maximumCharacters(statusContentWidth.value, ROOM_TYPOGRAPHY_UNITS.status),
+    statusContentWidth.value,
+    ROOM_TYPOGRAPHY_UNITS.status,
+));
+const statusFirstBaseline = computed(() => (
+    geometry.value.y
+    + geometry.value.height
+    - ROOM_LABEL_LAYOUT.statusBottomInset
+    - ((statusLines.value.length - 1) * ROOM_LABEL_LAYOUT.statusLineHeight)
 ));
 const offlineBadgeTransform = computed(() => {
     const badge = ROOM_LABEL_LAYOUT.offlineBadge;
@@ -144,13 +154,15 @@ function onKeydown(event) {
 <template>
     <g
         class="module-room"
-        :class="{ 'module-room--selected': selected }"
+        :class="{
+            'module-room--selected': selected,
+            'module-room--dimmed': dimmed,
+        }"
         role="button"
         tabindex="0"
         :aria-label="ariaLabel"
         :data-module-id="module.id"
         :data-status="statusId"
-        :style="{ '--atlas-room-opacity': opacity }"
         @click="select"
         @keydown="onKeydown"
     >
@@ -173,9 +185,9 @@ function onKeydown(event) {
                 <rect
                     class="module-room__content-clip"
                     :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
-                    :y="geometry.y + 48"
+                    :y="geometry.y + ROOM_LABEL_LAYOUT.statusClipTop"
                     :width="statusContentWidth"
-                    height="23"
+                    :height="ROOM_LABEL_LAYOUT.statusClipHeight"
                 />
             </clipPath>
         </defs>
@@ -224,6 +236,7 @@ function onKeydown(event) {
             :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
             :y="geometry.y + ROOM_LABEL_LAYOUT.nameFirstBaseline"
             :font-size="ROOM_TYPOGRAPHY_UNITS.name"
+            :fill="ROOM_TEXT_COLORS.name"
             :clip-path="`url(#${nameClipId})`"
         >
             <tspan
@@ -236,11 +249,17 @@ function onKeydown(event) {
         <text
             class="module-room__status"
             :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
-            :y="geometry.y + geometry.height - ROOM_LABEL_LAYOUT.statusBottomInset"
+            :y="statusFirstBaseline"
             :font-size="ROOM_TYPOGRAPHY_UNITS.status"
+            :fill="ROOM_TEXT_COLORS.status"
             :clip-path="`url(#${statusClipId})`"
         >
-            {{ statusDisplayLabel }}
+            <tspan
+                v-for="(line, index) in statusLines"
+                :key="`${module.id}-status-line-${index}`"
+                :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
+                :dy="index === 0 ? 0 : ROOM_LABEL_LAYOUT.statusLineHeight"
+            >{{ line }}</tspan>
         </text>
 
         <g
@@ -270,12 +289,15 @@ function onKeydown(event) {
 <style scoped>
 .module-room {
     cursor: pointer;
-    opacity: var(--atlas-room-opacity, 1);
     outline: none;
 }
 
-.module-room:focus-visible {
-    opacity: 1;
+.module-room--dimmed .module-room__bevel {
+    opacity: 0.42;
+}
+
+.module-room--dimmed .module-room__body {
+    stroke-opacity: 0.38;
 }
 
 .module-room__hit-area {
@@ -317,6 +339,7 @@ function onKeydown(event) {
 .module-room:hover .module-room__body,
 .module-room:focus-visible .module-room__body {
     stroke: #ffffff;
+    stroke-opacity: 1;
     stroke-width: 3;
 }
 
@@ -328,14 +351,12 @@ function onKeydown(event) {
 }
 
 .module-room__name {
-    fill: #0f172a;
     font-weight: 900;
     letter-spacing: 0.01em;
     pointer-events: none;
 }
 
 .module-room__status {
-    fill: #334155;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-weight: 800;
     letter-spacing: 0.03em;

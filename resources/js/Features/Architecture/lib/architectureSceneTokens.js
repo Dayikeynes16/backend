@@ -1,4 +1,17 @@
 export const APPLICATION_SCENE_MIN_WIDTH_PX = 960;
+export const ECOSYSTEM_SCENE_MIN_WIDTH_PX = 1056;
+
+export const ECOSYSTEM_COLORS = Object.freeze({
+    terrain: '#07111f',
+    axisText: '#cbd5e1',
+});
+
+export const ECOSYSTEM_TYPOGRAPHY_UNITS = Object.freeze({
+    applicationName: 14,
+    applicationId: 14,
+    axis: 14,
+    empty: 16,
+});
 
 export const ROOM_TYPOGRAPHY_UNITS = Object.freeze({
     name: 17,
@@ -31,7 +44,11 @@ export const ROOM_LABEL_LAYOUT = Object.freeze({
     estimatedGlyphWidthRatio: 0.58,
     nameFirstBaseline: 21,
     nameLineHeight: 18,
-    statusBottomInset: 6,
+    statusBottomInset: 5,
+    statusLineHeight: 14,
+    statusMaxLines: 2,
+    statusClipTop: 38,
+    statusClipHeight: 33,
     offlineBadge: Object.freeze({
         width: 24,
         height: 44,
@@ -43,3 +60,30 @@ export const ROOM_LABEL_LAYOUT = Object.freeze({
         textLength: 36,
     }),
 });
+
+function maximumRoomLabelCharacters(width, fontSize) {
+    return Math.max(
+        4,
+        Math.floor(width / (fontSize * ROOM_LABEL_LAYOUT.estimatedGlyphWidthRatio)),
+    );
+}
+
+export function wrapRoomStatusLabel(label, width, fontSize) {
+    const maximumCharacters = maximumRoomLabelCharacters(width, fontSize);
+    const words = String(label ?? '').trim().split(/\s+/).filter(Boolean);
+    const lines = [];
+
+    for (const word of words) {
+        const current = lines.at(-1);
+        const candidate = current ? `${current} ${word}` : word;
+
+        if (!current || candidate.length <= maximumCharacters) {
+            if (lines.length === 0) lines.push(word);
+            else lines[lines.length - 1] = candidate;
+        } else {
+            lines.push(word);
+        }
+    }
+
+    return lines.length ? lines : [''];
+}

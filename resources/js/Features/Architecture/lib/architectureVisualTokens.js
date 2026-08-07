@@ -15,6 +15,11 @@ export const STATUS_VISUAL_TOKENS = freezeTokens({
     'not-responsible': { fill: '#ede9fe', stroke: '#8b5cf6', pattern: 'wide', dash: '12 3 2 3' },
 });
 
+export const ROOM_TEXT_COLORS = Object.freeze({
+    name: '#0f172a',
+    status: '#334155',
+});
+
 export const CONNECTION_VISUAL_TOKENS = freezeTokens({
     http: { dash: '', color: '#cbd5e1', linecap: 'square' },
     websocket: { dash: '18 4', color: '#38bdf8', linecap: 'round' },

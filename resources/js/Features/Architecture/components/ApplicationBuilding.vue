@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { ECOSYSTEM_TYPOGRAPHY_UNITS } from '../lib/architectureSceneTokens.js';
 
 const props = defineProps({
     application: {
@@ -70,8 +71,6 @@ const label = computed(() => (
     `${props.application.name}. ${props.application.description}. Presiona Enter o Espacio para explorar.`
 ));
 
-const opacity = computed(() => (props.dimmed ? 0.35 : 1));
-
 function select() {
     emit('select', props.application.id);
 }
@@ -87,12 +86,14 @@ function onKeydown(event) {
 <template>
     <g
         class="application-building"
-        :class="{ 'application-building--selected': selected }"
+        :class="{
+            'application-building--selected': selected,
+            'application-building--dimmed': dimmed,
+        }"
         role="button"
         tabindex="0"
         :aria-label="label"
         :data-application-id="application.id"
-        :style="{ '--atlas-building-opacity': opacity }"
         @click="select"
         @keydown="onKeydown"
     >
@@ -147,9 +148,9 @@ function onKeydown(event) {
                 class="application-building__label-plate"
                 :class="{ 'application-building__label-plate--selected': selected }"
                 x="-112"
-                y="-23"
+                y="-29"
                 width="224"
-                height="47"
+                height="58"
                 rx="4"
                 vector-effect="non-scaling-stroke"
             />
@@ -159,10 +160,20 @@ function onKeydown(event) {
                 d="M -100 -11 V 12 M -106 6 L -100 12 L -94 6"
                 vector-effect="non-scaling-stroke"
             />
-            <text class="application-building__name" text-anchor="middle" y="-2">
+            <text
+                class="application-building__name"
+                text-anchor="middle"
+                y="-5"
+                :font-size="ECOSYSTEM_TYPOGRAPHY_UNITS.applicationName"
+            >
                 {{ application.name }}
             </text>
-            <text class="application-building__id" text-anchor="middle" y="14">
+            <text
+                class="application-building__id"
+                text-anchor="middle"
+                y="16"
+                :font-size="ECOSYSTEM_TYPOGRAPHY_UNITS.applicationId"
+            >
                 {{ application.id }}
             </text>
         </g>
@@ -172,12 +183,14 @@ function onKeydown(event) {
 <style scoped>
 .application-building {
     cursor: pointer;
-    opacity: var(--atlas-building-opacity, 1);
     outline: none;
 }
 
-.application-building:focus-visible {
-    opacity: 1;
+.application-building--dimmed .application-building__ground,
+.application-building--dimmed .application-building__face,
+.application-building--dimmed .application-building__roof,
+.application-building--dimmed .application-building__structure-line {
+    opacity: 0.42;
 }
 
 .application-building__hit-area {
@@ -214,6 +227,7 @@ function onKeydown(event) {
 
 .application-building:hover .application-building__roof,
 .application-building:focus-visible .application-building__roof {
+    opacity: 1;
     stroke: #ffffff;
     stroke-width: 3;
 }
@@ -249,7 +263,6 @@ function onKeydown(event) {
 
 .application-building__name {
     fill: #f8fafc;
-    font-size: 14px;
     font-weight: 900;
     letter-spacing: 0.025em;
 }
@@ -261,7 +274,6 @@ function onKeydown(event) {
 .application-building__id {
     fill: #cbd5e1;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.08em;
 }
