@@ -3,8 +3,10 @@ import { computed } from 'vue';
 import ArchitectureStatusPattern from './ArchitectureStatusPattern.vue';
 import { getRoomGeometry } from '../lib/architectureGeometry.js';
 import {
+    getRoomLabelVerticalGeometry,
     ROOM_LABEL_LAYOUT,
     ROOM_TYPOGRAPHY_UNITS,
+    wrapRoomNameLabel,
     wrapRoomStatusLabel,
 } from '../lib/architectureSceneTokens.js';
 import {
@@ -78,54 +80,21 @@ const statusContentWidth = computed(() => (
     geometry.value.width - (ROOM_LABEL_LAYOUT.horizontalInset * 2)
 ));
 
-function maximumCharacters(width, fontSize) {
-    return Math.max(
-        4,
-        Math.floor(width / (fontSize * ROOM_LABEL_LAYOUT.estimatedGlyphWidthRatio)),
-    );
-}
-
-function truncateLabel(label, maxCharacters) {
-    if (label.length <= maxCharacters) return label;
-
-    return `${label.slice(0, maxCharacters - 1).trim()}…`;
-}
-
-const labelLines = computed(() => {
-    const maxCharacters = maximumCharacters(
-        nameContentWidth.value,
-        ROOM_TYPOGRAPHY_UNITS.name,
-    );
-    const words = props.module.name.split(/\s+/);
-    const lines = [];
-
-    for (const word of words) {
-        const current = lines.at(-1);
-        if (!current || (current.length + word.length + 1 > maxCharacters && lines.length < 2)) {
-            lines.push(word);
-        } else {
-            lines[lines.length - 1] = `${current} ${word}`;
-        }
-    }
-
-    if (lines.length > 2) {
-        lines[1] = truncateLabel(lines.slice(1).join(' '), maxCharacters);
-        lines.length = 2;
-    }
-
-    return lines.map((line) => truncateLabel(line, maxCharacters));
-});
+const labelLines = computed(() => wrapRoomNameLabel(
+    props.module.name,
+    nameContentWidth.value,
+    ROOM_TYPOGRAPHY_UNITS.name,
+));
 const statusLines = computed(() => wrapRoomStatusLabel(
     statusLabel.value,
     statusContentWidth.value,
     ROOM_TYPOGRAPHY_UNITS.status,
 ));
-const statusFirstBaseline = computed(() => (
-    geometry.value.y
-    + geometry.value.height
-    - ROOM_LABEL_LAYOUT.statusBottomInset
-    - ((statusLines.value.length - 1) * ROOM_LABEL_LAYOUT.statusLineHeight)
-));
+const labelGeometry = computed(() => getRoomLabelVerticalGeometry({
+    roomHeight: geometry.value.height,
+    nameLineCount: labelLines.value.length,
+    statusLineCount: statusLines.value.length,
+}));
 const offlineBadgeTransform = computed(() => {
     const badge = ROOM_LABEL_LAYOUT.offlineBadge;
     const x = geometry.value.x + geometry.value.width - badge.width - badge.rightInset;
@@ -176,9 +145,9 @@ function onKeydown(event) {
                 <rect
                     class="module-room__content-clip"
                     :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
-                    :y="geometry.y + 3"
+                    :y="geometry.y + ROOM_LABEL_LAYOUT.nameClipTop"
                     :width="nameContentWidth"
-                    height="43"
+                    :height="ROOM_LABEL_LAYOUT.nameClipHeight"
                 />
             </clipPath>
             <clipPath :id="statusClipId">
@@ -194,10 +163,10 @@ function onKeydown(event) {
 
         <rect
             class="module-room__hit-area"
-            :x="geometry.x - 5"
-            :y="geometry.y - 5"
-            :width="geometry.width + geometry.depth + 10"
-            :height="geometry.height + geometry.depth + 10"
+            :x="geometry.x - 2"
+            :y="geometry.y - 2"
+            :width="geometry.width + geometry.depth + 4"
+            :height="geometry.height + geometry.depth + 4"
             rx="6"
         />
         <polygon class="module-room__bevel module-room__bevel--bottom" :points="bevelPoints.bottom" />
@@ -234,7 +203,7 @@ function onKeydown(event) {
         <text
             class="module-room__name"
             :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
-            :y="geometry.y + ROOM_LABEL_LAYOUT.nameFirstBaseline"
+            :y="geometry.y + labelGeometry.nameBaselines[0]"
             :font-size="ROOM_TYPOGRAPHY_UNITS.name"
             :fill="ROOM_TEXT_COLORS.name"
             :clip-path="`url(#${nameClipId})`"
@@ -249,7 +218,7 @@ function onKeydown(event) {
         <text
             class="module-room__status"
             :x="geometry.x + ROOM_LABEL_LAYOUT.horizontalInset"
-            :y="statusFirstBaseline"
+            :y="geometry.y + labelGeometry.statusBaselines[0]"
             :font-size="ROOM_TYPOGRAPHY_UNITS.status"
             :fill="ROOM_TEXT_COLORS.status"
             :clip-path="`url(#${statusClipId})`"

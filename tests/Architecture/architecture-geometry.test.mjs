@@ -17,8 +17,10 @@ import {
     ECOSYSTEM_COLORS,
     ECOSYSTEM_SCENE_MIN_WIDTH_PX,
     ECOSYSTEM_TYPOGRAPHY_UNITS,
+    getRoomLabelVerticalGeometry,
     ROOM_LABEL_LAYOUT,
     ROOM_TYPOGRAPHY_UNITS,
+    wrapRoomNameLabel,
     wrapRoomStatusLabel,
 } from '../../resources/js/Features/Architecture/lib/architectureSceneTokens.js';
 import {
@@ -462,6 +464,50 @@ test('room text meets WCAG AA on every status and current status labels remain c
             lines.every((line) => line.length <= maximumCharacters),
             `${status.id} exceeds the visible status width`,
         );
+    }
+});
+
+test('real two-line room names and statuses occupy disjoint vertical regions', async () => {
+    const manifest = await loadManifest();
+    const statusesById = new Map(manifest.statuses.map((status) => [status.id, status]));
+    const collidingModuleIds = ['hub.users', 'scale-web.hub-compatibility'];
+
+    for (const moduleId of collidingModuleIds) {
+        const module = manifest.modules.find(({ id }) => id === moduleId);
+        const layout = manifest.visualLayout.rooms.find(({ moduleId: id }) => id === moduleId);
+        const room = getRoomGeometry(layout);
+        const nameContentWidth = room.width
+            - (ROOM_LABEL_LAYOUT.horizontalInset * 2)
+            - (module.offlineCapability?.supported ? ROOM_LABEL_LAYOUT.offlineNameReserve : 0);
+        const statusContentWidth = room.width - (ROOM_LABEL_LAYOUT.horizontalInset * 2);
+        const nameLines = wrapRoomNameLabel(
+            module.name,
+            nameContentWidth,
+            ROOM_TYPOGRAPHY_UNITS.name,
+        );
+        const statusLines = wrapRoomStatusLabel(
+            statusesById.get(module.status.id).label,
+            statusContentWidth,
+            ROOM_TYPOGRAPHY_UNITS.status,
+        );
+        const labels = getRoomLabelVerticalGeometry({
+            roomHeight: room.height,
+            nameLineCount: nameLines.length,
+            statusLineCount: statusLines.length,
+        });
+
+        assert.equal(nameLines.length, 2, `${moduleId} must exercise a two-line name`);
+        assert.equal(statusLines.length, 2, `${moduleId} must exercise a two-line status`);
+        assert.ok(
+            labels.nameBox.bottom < labels.statusBox.top,
+            `${moduleId} name ends at ${labels.nameBox.bottom}, status starts at ${labels.statusBox.top}`,
+        );
+        assert.ok(
+            ROOM_LABEL_LAYOUT.nameClipTop + ROOM_LABEL_LAYOUT.nameClipHeight
+                < ROOM_LABEL_LAYOUT.statusClipTop,
+            `${moduleId} clip regions overlap`,
+        );
+        assert.ok(labels.statusBox.bottom <= room.height, `${moduleId} status leaves the room`);
     }
 });
 

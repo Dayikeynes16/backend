@@ -21,8 +21,8 @@ const FLOOR_COLUMN_GAP = 70;
 const MAX_COLUMNS = 3;
 const MAX_ROWS = 3;
 const ROOM_GUTTER = 12;
-const ROOM_HEIGHT = 72;
-const ROOM_DEPTH = 10;
+const ROOM_HEIGHT = 82;
+const ROOM_DEPTH = 6;
 
 function finiteNumber(value, fallback = 0) {
     return Number.isFinite(value) ? value : fallback;
