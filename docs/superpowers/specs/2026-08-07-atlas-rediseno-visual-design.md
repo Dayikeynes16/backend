@@ -79,7 +79,9 @@ derivada, estados con evidencia, sin Three.js ni canvas.
 | `ArchitectureExplorer.vue` (270 líneas) | Monta `SceneCanvas` en lugar de las escenas viejas; asume el umbral responsive y el arranque en lista |
 | `ArchitectureListView.vue` | **Se amplía**, no solo se re-estiliza: hoy no expone conexiones, modos ni banda de red, y el diseño exige equivalencia con el mapa (ver contrato abajo) |
 | `system-architecture.schema.json` | Se reescribe: `schemaVersion`, `icon`, `layer`, `facadeColumns` y el nuevo `visualLayout` |
-| `ArchitectureToolbar`, `ArchitectureBreadcrumbs`, `ArchitectureDetailPanel`, `ArchitectureLegend`, `Pages/Admin/ArchitectureAtlas/Index.vue` | Re-estilizado; misma responsabilidad |
+| `ArchitectureLegend.vue` | **Se reescribe.** Importa `ArchitectureStatusPattern.vue` y `architectureVisualTokens.js`, ambos eliminados, y su contenido cambia entero: las tramas de estado pasan a ser las siete formas de ventana, los tipos de conexión pasan de cinco a nueve trazos y se suman las bandas de red |
+| `docs/frontend/atlas-vivo.md` | Doc viva: estructura de componentes, contrato del manifiesto, procedimiento de actualización y matriz responsive |
+| `ArchitectureToolbar`, `ArchitectureBreadcrumbs`, `ArchitectureDetailPanel`, `Pages/Admin/ArchitectureAtlas/Index.vue` | Re-estilizado; misma responsabilidad |
 
 ### Se reemplaza por completo
 
@@ -127,6 +129,24 @@ prototipo podía permitírselo porque no tenía accesibilidad; la implementació
 Cada primitiva es un objeto plano `{ id, kind, points, fill, stroke, strokeWidth }`.
 La `key` de cada grupo es el identificador de la entidad del manifiesto, estable
 entre fotogramas.
+
+**Dos capas: pintado y foco.** Evitar `innerHTML` es necesario pero no
+suficiente. En SVG no existe `z-index`, así que el painter's algorithm tiene que
+**reordenar físicamente los nodos del DOM**, y el diff con `key` de Vue lo hace
+con `insertBefore`. Mover un nodo enfocado lo desenfoca en los navegadores sin
+`moveBefore()` — justo el escenario de `camera.focusOn()` mientras algo tiene el
+foco, que es el motivo de toda esta decisión.
+
+Por eso el SVG tiene dos capas hermanas:
+
+| Capa | Orden DOM | Contenido |
+|---|---|---|
+| Pintado | por profundidad, se reordena cada fotograma | polígonos; `aria-hidden="true"`, `pointer-events: none` |
+| Foco e interacción | **estable**, orden de lectura, nunca se reordena | un rectángulo transparente por entidad, enfocable y clicable |
+
+La capa de foco no se reordena nunca, así que el foco sobrevive a cualquier
+recomposición de la escena. Sus rectángulos siguen la posición proyectada de su
+entidad, pero su posición en el DOM no depende de la profundidad.
 
 ### El motor de escena — `lib/scene/`
 
@@ -236,6 +256,11 @@ trazados SVG desaparecen porque las curvas se calculan en perspectiva.
 }
 ```
 
+`floors[].columns` y `applications[].facadeColumns` **son cosas distintas** pese
+a parecerse: el primero es la rejilla del suelo de la planta, el segundo las
+columnas de ventanas de la fachada en el campus. Pueden no coincidir — en el
+ejemplo, `app.saas` tiene `columns: 5` en planta mientras su fachada deriva 4.
+
 Reglas que el validador debe exigir:
 
 - `bands` tiene exactamente una entrada por cada valor de `layer`, sin solapes y
@@ -244,8 +269,13 @@ Reglas que el validador debe exigir:
   banda de su `layer`.
 - Toda aplicación tiene una entrada en `floors`, y los módulos de ese `floor` son
   exactamente los módulos de esa aplicación — ni sobran ni faltan.
+- `col` y `row` son **base 0** (el `rooms` anterior era base 1), con
+  `0 ≤ col < columns` y `row ≥ 0`. `gap > 0`.
 - Dentro de un `floor`, ningún par `(col, row)` se repite.
-- Todo `connectionRoutes[].connectionId` existe; `bow` es finito.
+- **Correspondencia 1:1 entre conexiones y rutas**: toda conexión tiene
+  exactamente una ruta y toda ruta apunta a una conexión existente. Hoy son 20 y
+  20; `architecture-graph.test.mjs` depende de que siga siendo así.
+- `bow` es finito.
 - Las cajas de dos aplicaciones no se solapan en planta.
 
 ### Reglas derivadas (no se declaran, se calculan)
@@ -284,15 +314,27 @@ escena (se conserva monoespaciada solo para identificadores técnicos).
   acentos y estado activo.
 - Estados con la paleta existente: verde implementado, ámbar parcial, gris
   pendiente, azul en revisión, rojo con incidencias.
+- **Los volúmenes son neutros.** El campo `visualLayout.buildings[].tone`, que
+  daba un color propio a cada edificio, desaparece y no se reemplaza: el color
+  vive únicamente en las ventanas, que es lo que exige la decisión 1. Un edificio
+  teñido competiría con la señal que sus propias ventanas transmiten. La identidad
+  de cada aplicación la lleva el objeto de su azotea, no su color.
 - Etiquetas **ancladas** al objeto con un conector visible. Nunca desancladas ni
   superpuestas al vecino.
 
 ### Rótulos y tamaño mínimo
 
 Los rótulos escalan por profundidad, pero **por debajo de 11 px reales se ocultan
-en lugar de encogerse**. Un rótulo de 7 px es ruido, no información. Los rótulos
-ocultos siguen alcanzables por teclado y presentes en la vista de lista, así que
-no se pierde acceso a ningún dato.
+en lugar de encogerse**. Un rótulo de 7 px —lo que produce el prototipo en el
+fondo de la escena— es ruido, no información. Los rótulos ocultos siguen
+alcanzables por teclado y presentes en la vista de lista, así que no se pierde
+acceso a ningún dato.
+
+El umbral baja de los 12 px que garantizaba el diseño anterior a 11 px porque
+aquél medía texto de tamaño fijo sobre una proyección paralela; aquí el tamaño es
+continuo y el umbral decide **qué se oculta**, no qué se dibuja pequeño. A 11 px
+el rótulo sigue siendo legible y el corte deja visible una fila más de
+profundidad.
 
 El texto que sí se muestra respeta 4.5:1 de contraste sobre su superficie real,
 incluidos rótulos sobre bandas de color.
@@ -412,14 +454,16 @@ y la planta del SaaS —**18 módulos**, no 17— ronda las 400.
 
 ### Se reescriben (no basta con ampliar)
 
-- `architecture-experience.test.mjs`: **3 de sus 5 pruebas leen el código fuente
+- `architecture-experience.test.mjs`: **2 de sus 5 pruebas leen el código fuente
   de componentes que desaparecen** (`EcosystemScene`, `ApplicationScene`,
   `ModuleRoom`, `ApplicationBuilding`, `ConnectionLayer`). Se reescriben contra
   `SceneCanvas`, `CampusLayer` y `FloorLayer`.
-- `architecture-manifest.test.mjs`: sus aserciones sobre `$defs.building` /
-  `$defs.room`, la igualdad exacta de claves con el schema y los 20
-  `connectionRoutes` con `path` SVG dejan de aplicar. Se reescribe esa sección
-  contra el `visualLayout` nuevo; el resto de la suite se conserva.
+- `architecture-manifest.test.mjs`: dejan de aplicar sus aserciones sobre
+  `$defs.building` / `$defs.room`, la igualdad exacta de claves con el schema, los
+  20 `connectionRoutes` con `path` SVG y la prueba *"the MVP inventory covers the
+  audited ecosystem"*, que mapea `visualLayout.rooms` contra los 47 módulos y
+  lanzará excepción en cuanto `rooms` desaparezca. Se reescriben contra el
+  `visualLayout` nuevo; el resto de la suite se conserva.
 
 ### Cobertura que hay que recuperar
 
@@ -432,7 +476,7 @@ que siguen vigentes. **No se pierden: cambian de casa.**
 | Tamaño de texto efectivo mínimo | `scene-labels.test.mjs`, ahora con el umbral de 11 px y la regla de ocultar |
 | Rótulos que no intersectan su nodo ni a otros | `scene-labels.test.mjs` |
 | Rutas finitas, sin `NaN` | `scene-projection.test.mjs` |
-| Las 20 conexiones cubren los tres modos | `architecture-manifest.test.mjs` (se conserva ahí) |
+| Conteo de conexiones visibles por modo (`dependencies` 18, `data` 19, `sync` 4) | **`architecture-graph.test.mjs`, ampliada.** Hoy esa aserción vive únicamente en `architecture-geometry.test.mjs:559`, que se elimina; `architecture-graph.test.mjs:155` solo cubre la correspondencia ruta↔conexión por modo y tipo, no los conteos |
 
 ### Suites nuevas, sobre el motor puro y sin montar componentes
 
@@ -460,6 +504,7 @@ dependen del manifiesto.
 | 47 iconos asignados a mano | Catálogo cerrado y validado; un icono ausente es error de validación, no fallo silencioso. **No hay icono genérico de reserva**: es deliberado, para que añadir un módulo obligue a decidir su objeto |
 | Migrar `visualLayout` a mano | `scene-layout.test.mjs` valida las reglas estructurales; una migración incompleta falla en rojo |
 | La metáfora envejece con el inventario | La altura se deriva con referencia fija; `visualLayout` se valida contra el conjunto de módulos |
+| **El canal de altura casi no informa fuera del SaaS** | Los módulos de peso cero son 1 de 18 en `app.saas`, pero 3 de 11 en el Hub, 4 de 7 en la báscula web y **7 de 11 en Android**: la mayoría de bloques quedan en el mínimo de 0.20 y la planta se ve plana. No se pierde información —el contrato de la lista expone los conteos en texto— pero conviene saber que "la altura comunica peso técnico" solo se lee de verdad en la planta del SaaS |
 | Deriva del manifiesto frente al código real | **No se resuelve aquí.** Es el objeto del spec de guardas de veracidad |
 | Percepción de "herramienta lúdica" | Decisión consciente y aceptada: es una herramienta interna de un solo usuario |
 
