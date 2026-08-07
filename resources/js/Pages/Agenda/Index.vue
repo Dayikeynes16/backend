@@ -44,6 +44,9 @@ const modalOpen = ref(false);
 const editing = ref(null);
 const prefill = ref(null);
 const iaOpen = ref(false);
+// El calendario carga su propio rango por fetch: tras guardar hay que pedirle
+// que se recargue, o el mes seguiría mostrando el estado anterior.
+const calendarRef = ref(null);
 
 const openCreate = () => {
     editing.value = null;
@@ -59,6 +62,9 @@ const closeModal = () => {
     modalOpen.value = false;
     editing.value = null;
     prefill.value = null;
+    // El calendario trae su rango por fetch, fuera del ciclo de Inertia: si no se
+    // le avisa, el mes sigue mostrando el estado de antes de guardar.
+    calendarRef.value?.refresh?.();
 };
 
 // La IA devolvió una propuesta: abrimos el modal de CREAR pre-rellenado. Nada
@@ -69,7 +75,10 @@ const onProposal = (proposal) => {
     prefill.value = proposal;
     modalOpen.value = true;
 };
-const complete = (item) => router.patch(route('agenda.complete', [props.tenant.slug, item.id]), {}, { preserveScroll: true });
+const complete = (item) => router.patch(route('agenda.complete', [props.tenant.slug, item.id]), {}, {
+    preserveScroll: true,
+    onSuccess: () => calendarRef.value?.refresh?.(),
+});
 const remove = (item) => {
     if (!confirm('¿Eliminar de la agenda?')) return;
     router.delete(route('agenda.destroy', [props.tenant.slug, item.id]), { preserveScroll: true });
@@ -189,7 +198,12 @@ const whatsappUrl = (alert) => {
             </div>
 
             <!-- CALENDARIO -->
-            <AgendaCalendar v-else-if="tab === 'calendar'" :tenant-slug="tenant.slug" />
+            <AgendaCalendar
+                v-else-if="tab === 'calendar'"
+                ref="calendarRef"
+                :tenant-slug="tenant.slug"
+                @open-item="openEdit"
+            />
 
             <!-- ALERTAS -->
             <div v-else-if="tab === 'alerts'" class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
