@@ -304,7 +304,7 @@ function isDimmed(moduleId) {
 .application-scene__description {
     margin-top: 0.35rem;
     max-width: 46rem;
-    color: #94a3b8;
+    color: #cbd5e1;
     font-size: 0.8rem;
     line-height: 1.5;
 }
@@ -324,7 +324,7 @@ function isDimmed(moduleId) {
 
 .application-scene__counter span {
     margin-top: 0.35rem;
-    color: #94a3b8;
+    color: #cbd5e1;
     letter-spacing: 0.08em;
 }
 
@@ -399,7 +399,7 @@ function isDimmed(moduleId) {
 .application-scene__empty span {
     display: block;
     margin-top: 0.35rem;
-    color: #94a3b8;
+    color: #cbd5e1;
     font-size: 0.82rem;
 }
 

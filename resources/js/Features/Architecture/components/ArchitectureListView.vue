@@ -89,7 +89,7 @@ function offlineLabel(module) {
     <div class="space-y-5" aria-live="polite">
         <div v-if="groups.length === 0" role="status" class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
             <p class="font-bold text-gray-900">No encontramos componentes</p>
-            <p class="mt-1 text-sm text-gray-500">Prueba otra búsqueda o limpia los filtros.</p>
+            <p class="mt-1 text-sm text-slate-700">Prueba otra búsqueda o limpia los filtros.</p>
         </div>
 
         <template v-else>
@@ -127,7 +127,7 @@ function offlineLabel(module) {
                     >
                         <span class="min-w-0">
                             <span class="flex flex-wrap items-center gap-2">
-                                <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-slate-400">{{ module.id }}</span>
+                                <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-slate-700">{{ module.id }}</span>
                                 <span
                                     class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-black uppercase tracking-wide"
                                     :class="statusClass(module)"
@@ -137,10 +137,10 @@ function offlineLabel(module) {
                                 </span>
                             </span>
                             <span class="mt-2 block text-base font-black text-slate-950 group-hover:text-red-800">{{ module.name }}</span>
-                            <span class="mt-1 block max-w-3xl text-sm leading-6 text-slate-600">{{ module.description }}</span>
+                            <span class="mt-1 block max-w-3xl text-sm leading-6 text-slate-700">{{ module.description }}</span>
                         </span>
 
-                        <span class="flex flex-wrap gap-2 text-xs font-semibold text-slate-600 sm:max-w-56 sm:justify-end">
+                        <span class="flex flex-wrap gap-2 text-xs font-semibold text-slate-700 sm:max-w-56 sm:justify-end">
                             <span class="rounded-md border border-slate-200 bg-white px-2 py-1.5">{{ internetLabel(module) }}</span>
                             <span class="rounded-md border border-slate-200 bg-white px-2 py-1.5">{{ offlineLabel(module) }}</span>
                             <span aria-hidden="true" class="ml-1 self-center text-lg text-red-700">→</span>
@@ -151,7 +151,7 @@ function offlineLabel(module) {
             </section>
         </template>
 
-        <p v-if="query && groups.length > 0" class="text-right font-mono text-xs text-slate-500">
+        <p v-if="query && groups.length > 0" class="text-right font-mono text-xs text-slate-700">
             {{ props.modules.length }} resultados para “{{ query }}”
         </p>
     </div>

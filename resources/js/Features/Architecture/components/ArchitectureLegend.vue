@@ -56,7 +56,7 @@ function statusPatternId(id) {
         <div class="border-b border-slate-200 pb-3">
             <p class="font-mono text-[11px] uppercase tracking-[0.18em] text-red-700">Clave de lectura</p>
             <h2 id="architecture-legend-title" class="mt-1 text-base font-black text-slate-950">Leyenda del manifiesto</h2>
-            <p class="mt-2 max-w-3xl text-sm text-slate-600">
+            <p class="mt-2 max-w-3xl text-sm text-slate-700">
                 <strong class="text-slate-900">Modo activo:</strong> {{ currentModeDescription }}.
                 El borde y la trama conservan el significado cuando el color no está disponible.
             </p>
@@ -64,7 +64,7 @@ function statusPatternId(id) {
 
         <div class="mt-4 grid gap-6 xl:grid-cols-2">
             <div>
-                <h3 class="text-xs font-black uppercase tracking-wide text-slate-500">Estados</h3>
+                <h3 class="text-xs font-black uppercase tracking-wide text-slate-700">Estados</h3>
                 <ul class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                     <li v-for="status in statuses" :key="status.id" class="flex gap-3 rounded-lg border border-slate-100 bg-slate-50 p-2.5">
                         <svg
@@ -92,14 +92,14 @@ function statusPatternId(id) {
                         </svg>
                         <span>
                             <span class="block text-xs font-black text-slate-900">{{ status.label }}</span>
-                            <span class="mt-0.5 block text-[11px] leading-4 text-slate-500">{{ status.description }}</span>
+                            <span class="mt-0.5 block text-[11px] leading-4 text-slate-700">{{ status.description }}</span>
                         </span>
                     </li>
                 </ul>
             </div>
 
             <div>
-                <h3 class="text-xs font-black uppercase tracking-wide text-slate-500">Conexiones presentes</h3>
+                <h3 class="text-xs font-black uppercase tracking-wide text-slate-700">Conexiones presentes</h3>
                 <ul class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                     <li v-for="kind in connectionTypes" :key="kind" class="flex min-h-11 items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
                         <svg

@@ -193,7 +193,7 @@ function entityLabels(ids) {
 
         <div class="architecture-detail-panel__body space-y-6 px-5 py-5">
             <section aria-labelledby="detail-verification-title">
-                <h3 id="detail-verification-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Verificación</h3>
+                <h3 id="detail-verification-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Verificación</h3>
                 <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <div class="col-span-2">
                         <span class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-black uppercase tracking-wide" :class="currentStatusClass">
@@ -202,33 +202,33 @@ function entityLabels(ids) {
                         </span>
                     </div>
                     <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <p class="text-xs font-bold text-slate-500">Determinación</p>
+                        <p class="text-xs font-bold text-slate-700">Determinación</p>
                         <p class="mt-1 font-semibold capitalize text-slate-900">{{ readableKey(entity.status?.determination ?? 'unknown') }}</p>
                     </div>
                     <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <p class="text-xs font-bold text-slate-500">Confianza</p>
+                        <p class="text-xs font-bold text-slate-700">Confianza</p>
                         <p class="mt-1 font-semibold capitalize text-slate-900">{{ readableKey(entity.status?.confidence ?? 'unknown') }}</p>
                     </div>
                     <div class="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <p class="text-xs font-bold text-slate-500">Verificado el</p>
+                        <p class="text-xs font-bold text-slate-700">Verificado el</p>
                         <p class="mt-1 font-mono text-sm text-slate-900">{{ manifest.metadata.verifiedAt }}</p>
                     </div>
                 </div>
             </section>
 
             <section v-if="responsibleApplication || dataSources.length" aria-labelledby="detail-responsibility-title">
-                <h3 id="detail-responsibility-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Responsabilidad y autoridad</h3>
+                <h3 id="detail-responsibility-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Responsabilidad y autoridad</h3>
                 <dl class="mt-3 space-y-3 text-sm">
                     <div v-if="responsibleApplication">
-                        <dt class="font-bold text-slate-500">Aplicación responsable</dt>
+                        <dt class="font-bold text-slate-700">Aplicación responsable</dt>
                         <dd class="mt-1 font-semibold text-slate-950">{{ responsibleApplication.name }}</dd>
                     </div>
                     <div v-if="dataSources.length">
-                        <dt class="font-bold text-slate-500">Fuentes de verdad</dt>
+                        <dt class="font-bold text-slate-700">Fuentes de verdad</dt>
                         <dd class="mt-2 space-y-2">
                             <div v-for="source in dataSources" :key="source.id" class="rounded-lg border-l-2 border-red-600 bg-slate-50 px-3 py-2">
                                 <p class="font-semibold text-slate-950">{{ source.name }}</p>
-                                <p v-if="source.authorityScope" class="mt-1 text-xs leading-5 text-slate-600">{{ source.authorityScope }}</p>
+                                <p v-if="source.authorityScope" class="mt-1 text-xs leading-5 text-slate-700">{{ source.authorityScope }}</p>
                             </div>
                         </dd>
                     </div>
@@ -236,18 +236,18 @@ function entityLabels(ids) {
             </section>
 
             <section v-if="entity.internetRequirement || entity.offlineCapability || entity.syncProfile" aria-labelledby="detail-connectivity-title">
-                <h3 id="detail-connectivity-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Internet, offline y sincronización</h3>
+                <h3 id="detail-connectivity-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Internet, offline y sincronización</h3>
                 <dl class="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 text-sm">
                     <div v-for="(value, key) in entity.internetRequirement" :key="`internet-${key}`" class="flex justify-between gap-4 px-3 py-2.5">
-                        <dt class="text-slate-600">{{ readableKey(key) }}</dt>
+                        <dt class="text-slate-700">{{ readableKey(key) }}</dt>
                         <dd class="font-bold text-slate-950">{{ readableValue(value) }}</dd>
                     </div>
                     <div v-for="(value, key) in entity.offlineCapability" :key="`offline-${key}`" class="flex justify-between gap-4 px-3 py-2.5">
-                        <dt class="text-slate-600">Offline: {{ readableKey(key) }}</dt>
+                        <dt class="text-slate-700">Offline: {{ readableKey(key) }}</dt>
                         <dd class="font-bold text-slate-950">{{ readableValue(value) }}</dd>
                     </div>
                     <div v-for="(value, key) in entity.syncProfile" :key="`sync-${key}`" class="flex justify-between gap-4 px-3 py-2.5">
-                        <dt class="text-slate-600">Sync: {{ readableKey(key) }}</dt>
+                        <dt class="text-slate-700">Sync: {{ readableKey(key) }}</dt>
                         <dd class="font-bold text-slate-950">{{ readableValue(value) }}</dd>
                     </div>
                 </dl>
@@ -274,31 +274,31 @@ function entityLabels(ids) {
             </section>
 
             <section v-if="endpoints.length" aria-labelledby="detail-endpoints-title">
-                <h3 id="detail-endpoints-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Endpoints</h3>
+                <h3 id="detail-endpoints-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Endpoints</h3>
                 <ul class="mt-3 space-y-2">
                     <li v-for="endpoint in endpoints" :key="endpoint.id" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
                         <p class="text-sm font-bold text-slate-950">{{ endpoint.name }}</p>
                         <p class="mt-1 break-all font-mono text-xs text-red-800">{{ endpoint.method }} {{ endpoint.path }}</p>
-                        <p v-if="endpoint.auth" class="mt-1 text-xs text-slate-500">{{ endpoint.auth }}</p>
+                        <p v-if="endpoint.auth" class="mt-1 text-xs text-slate-700">{{ endpoint.auth }}</p>
                     </li>
                 </ul>
             </section>
 
             <section v-if="events.length" aria-labelledby="detail-events-title">
-                <h3 id="detail-events-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Eventos</h3>
+                <h3 id="detail-events-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Eventos</h3>
                 <ul class="mt-3 space-y-2 text-sm">
                     <li v-for="event in events" :key="event.id" class="rounded-lg border border-slate-200 px-3 py-2.5">
                         <p class="font-bold text-slate-950">{{ event.name }}</p>
-                        <p v-if="event.channel" class="mt-1 break-all font-mono text-xs text-slate-500">{{ event.channel }}</p>
-                        <p v-if="event.delivery" class="mt-1 text-xs text-slate-500">Entrega: {{ event.delivery }}</p>
-                        <p v-if="event.emitterIds?.length" class="mt-1 text-xs text-slate-500">Emiten: {{ entityLabels(event.emitterIds) }}</p>
-                        <p v-if="event.listenerIds?.length" class="mt-1 text-xs text-slate-500">Escuchan: {{ entityLabels(event.listenerIds) }}</p>
+                        <p v-if="event.channel" class="mt-1 break-all font-mono text-xs text-slate-700">{{ event.channel }}</p>
+                        <p v-if="event.delivery" class="mt-1 text-xs text-slate-700">Entrega: {{ event.delivery }}</p>
+                        <p v-if="event.emitterIds?.length" class="mt-1 text-xs text-slate-700">Emiten: {{ entityLabels(event.emitterIds) }}</p>
+                        <p v-if="event.listenerIds?.length" class="mt-1 text-xs text-slate-700">Escuchan: {{ entityLabels(event.listenerIds) }}</p>
                     </li>
                 </ul>
             </section>
 
             <section v-if="databaseTables.length" aria-labelledby="detail-tables-title">
-                <h3 id="detail-tables-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Tablas y datos</h3>
+                <h3 id="detail-tables-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Tablas y datos</h3>
                 <ul class="mt-3 flex flex-wrap gap-2">
                     <li v-for="table in databaseTables" :key="table.id" class="rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 font-mono text-xs text-slate-700">
                         {{ table.name }}
@@ -307,36 +307,36 @@ function entityLabels(ids) {
             </section>
 
             <section v-if="components.length || dependencies.length || devices.length" aria-labelledby="detail-dependencies-title">
-                <h3 id="detail-dependencies-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Componentes y dependencias</h3>
+                <h3 id="detail-dependencies-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Componentes y dependencias</h3>
                 <dl class="mt-3 space-y-3 text-sm">
                     <div v-if="components.length">
-                        <dt class="font-bold text-slate-500">Componentes</dt>
+                        <dt class="font-bold text-slate-700">Componentes</dt>
                         <dd class="mt-1 text-slate-800">{{ components.map((item) => item.name).join(' · ') }}</dd>
                     </div>
                     <div v-if="dependencies.length">
-                        <dt class="font-bold text-slate-500">Dependencias</dt>
+                        <dt class="font-bold text-slate-700">Dependencias</dt>
                         <dd class="mt-1 text-slate-800">{{ dependencies.map((item) => item.name).join(' · ') }}</dd>
                     </div>
                     <div v-if="devices.length">
-                        <dt class="font-bold text-slate-500">Dispositivos</dt>
+                        <dt class="font-bold text-slate-700">Dispositivos</dt>
                         <dd class="mt-1 text-slate-800">{{ devices.map((item) => item.name).join(' · ') }}</dd>
                     </div>
                 </dl>
             </section>
 
             <section v-if="permissions.length || featureFlags.length" aria-labelledby="detail-controls-title">
-                <h3 id="detail-controls-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Controles de disponibilidad</h3>
+                <h3 id="detail-controls-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Controles de disponibilidad</h3>
                 <dl class="mt-3 space-y-3 text-sm">
                     <div v-if="permissions.length">
-                        <dt class="font-bold text-slate-500">Roles y permisos</dt>
+                        <dt class="font-bold text-slate-700">Roles y permisos</dt>
                         <dd class="mt-1 text-slate-800">{{ permissions.map((item) => item.name).join(' · ') }}</dd>
                     </div>
                     <div v-if="featureFlags.length">
-                        <dt class="font-bold text-slate-500">Feature flags</dt>
+                        <dt class="font-bold text-slate-700">Feature flags</dt>
                         <dd class="mt-2 space-y-1">
                             <div v-for="flag in featureFlags" :key="flag.id" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                                 <p class="text-sm font-semibold text-slate-900">{{ flag.name }}</p>
-                                <p class="mt-1 font-mono text-xs text-slate-600">
+                                <p class="mt-1 font-mono text-xs text-slate-700">
                                     {{ flag.key }} · default {{ flag.enabledByDefault ? 'activo' : 'inactivo' }}
                                 </p>
                             </div>
@@ -346,7 +346,7 @@ function entityLabels(ids) {
             </section>
 
             <section v-if="sourceFiles.length" aria-labelledby="detail-files-title">
-                <h3 id="detail-files-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Archivos relevantes</h3>
+                <h3 id="detail-files-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Archivos relevantes</h3>
                 <ul class="mt-3 space-y-2">
                     <li v-for="file in sourceFiles" :key="file.id">
                         <a
@@ -357,14 +357,14 @@ function entityLabels(ids) {
                             class="block min-h-11 rounded-lg border border-slate-200 px-3 py-2 outline-none transition hover:border-red-300 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
                         >
                             <span class="block break-all font-mono text-xs font-bold text-red-800">{{ file.path }}</span>
-                            <span class="mt-1 block text-xs text-slate-500">{{ file.repository?.name }} · {{ file.role }}</span>
+                            <span class="mt-1 block text-xs text-slate-700">{{ file.repository?.name }} · {{ file.role }}</span>
                         </a>
                     </li>
                 </ul>
             </section>
 
             <section v-if="relatedConnections.length" aria-labelledby="detail-related-title">
-                <h3 id="detail-related-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Conexiones visibles</h3>
+                <h3 id="detail-related-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Conexiones visibles</h3>
                 <ul class="mt-3 space-y-2">
                     <li v-for="item in relatedConnections" :key="item.connection.id">
                         <button
@@ -374,12 +374,12 @@ function entityLabels(ids) {
                             @click="emit('select-related', item.target.id)"
                         >
                             <span class="block text-sm font-bold text-slate-900">{{ item.target.name }}</span>
-                            <span class="mt-1 block font-mono text-xs text-slate-500">{{ item.connection.kind }} · {{ item.connection.direction }}</span>
+                            <span class="mt-1 block font-mono text-xs text-slate-700">{{ item.connection.kind }} · {{ item.connection.direction }}</span>
                         </button>
                         <div v-else class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                             <p class="text-sm font-bold text-slate-900">{{ item.target.name }}</p>
-                            <p class="mt-1 font-mono text-xs text-slate-500">{{ item.connection.kind }} · {{ item.connection.direction }}</p>
-                            <p class="mt-1 text-xs text-slate-500">Referencia técnica no navegable en esta vista.</p>
+                            <p class="mt-1 font-mono text-xs text-slate-700">{{ item.connection.kind }} · {{ item.connection.direction }}</p>
+                            <p class="mt-1 text-xs text-slate-700">Referencia técnica no navegable en esta vista.</p>
                         </div>
                     </li>
                 </ul>
@@ -396,13 +396,13 @@ function entityLabels(ids) {
             </section>
 
             <section v-if="evidence.length" aria-labelledby="detail-evidence-title">
-                <h3 id="detail-evidence-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Evidencia disponible</h3>
+                <h3 id="detail-evidence-title" class="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Evidencia disponible</h3>
                 <ol class="mt-3 space-y-3 border-l border-slate-300 pl-4">
                     <li v-for="item in evidence" :key="item.id" class="relative text-sm">
                         <span aria-hidden="true" class="absolute -left-[1.19rem] top-1.5 h-2 w-2 rotate-45 bg-red-600" />
                         <p class="font-bold text-slate-900">{{ item.symbol }}</p>
-                        <p class="mt-1 text-xs leading-5 text-slate-600">{{ item.summary }}</p>
-                        <p class="mt-1 break-all font-mono text-[11px] text-slate-400">{{ item.commit }}</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-700">{{ item.summary }}</p>
+                        <p class="mt-1 break-all font-mono text-[11px] text-slate-700">{{ item.commit }}</p>
                     </li>
                 </ol>
             </section>

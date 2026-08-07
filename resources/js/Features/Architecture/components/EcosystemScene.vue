@@ -232,7 +232,7 @@ function isDimmed(applicationId) {
     gap: 1rem;
     border-bottom: 1px solid #334155;
     padding: 0.6rem 1rem;
-    color: #94a3b8;
+    color: #cbd5e1;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.65rem;
     font-weight: 700;

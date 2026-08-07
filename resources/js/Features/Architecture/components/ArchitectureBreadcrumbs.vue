@@ -29,7 +29,7 @@ const emit = defineEmits({
             <li>
                 <button
                     type="button"
-                    class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-slate-600 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
+                    class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-slate-700 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
                     :aria-current="level === 'ecosystem' ? 'page' : undefined"
                     @click="emit('go-ecosystem')"
                 >
@@ -42,7 +42,7 @@ const emit = defineEmits({
                 <li>
                     <button
                         type="button"
-                        class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-slate-600 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
+                        class="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-slate-700 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
                         :aria-current="level === 'application' ? 'page' : undefined"
                         @click="emit('go-application')"
                     >

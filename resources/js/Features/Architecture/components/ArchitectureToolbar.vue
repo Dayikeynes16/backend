@@ -50,7 +50,7 @@ function formatConnectionKind(kind) {
                 <h2 id="architecture-tools-title" class="text-xs font-black uppercase tracking-[0.18em] text-red-700">
                     Mesa de inspección
                 </h2>
-                <p class="mt-1 text-sm text-slate-500">Busca evidencia y acota el plano técnico.</p>
+                <p class="mt-1 text-sm text-slate-700">Busca evidencia y acota el plano técnico.</p>
             </div>
             <button
                 type="button"
@@ -62,17 +62,17 @@ function formatConnectionKind(kind) {
         </div>
 
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1.5fr)_minmax(10rem,1fr)_minmax(10rem,1fr)]">
-            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600">
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-700">
                 Buscar en la arquitectura
                 <input
                     v-model="query"
                     type="search"
                     placeholder="Módulo, endpoint, evento o archivo"
-                    class="mt-1 min-h-11 w-full rounded-lg border-slate-300 bg-white text-sm font-normal normal-case tracking-normal text-slate-950 placeholder:text-slate-400 focus:border-red-500 focus:ring-red-500"
+                    class="mt-1 min-h-11 w-full rounded-lg border-slate-300 bg-white text-sm font-normal normal-case tracking-normal text-slate-950 placeholder:text-slate-700 focus:border-red-500 focus:ring-red-500"
                 >
             </label>
 
-            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600">
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-700">
                 Estado
                 <select
                     v-model="statusId"
@@ -85,7 +85,7 @@ function formatConnectionKind(kind) {
                 </select>
             </label>
 
-            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600">
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-700">
                 Tipo de conexión
                 <select
                     v-model="connectionKind"
@@ -101,7 +101,7 @@ function formatConnectionKind(kind) {
 
         <div class="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 lg:flex-row lg:items-center lg:justify-between">
             <div role="group" aria-labelledby="architecture-mode-label">
-                <p id="architecture-mode-label" class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Lectura de conexiones</p>
+                <p id="architecture-mode-label" class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-700">Lectura de conexiones</p>
                 <div class="flex flex-wrap gap-2">
                     <button
                         v-for="item in modes"
@@ -118,12 +118,12 @@ function formatConnectionKind(kind) {
             </div>
 
             <div role="group" aria-labelledby="architecture-view-label">
-                <p id="architecture-view-label" class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Representación</p>
+                <p id="architecture-view-label" class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-700">Representación</p>
                 <div class="inline-flex rounded-lg border border-slate-300 bg-white p-1">
                     <button
                         type="button"
                         class="min-h-11 rounded-md px-4 text-sm font-bold outline-none transition focus-visible:ring-2 focus-visible:ring-red-600"
-                        :class="view === 'map' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                        :class="view === 'map' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'"
                         :aria-pressed="view === 'map'"
                         @click="view = 'map'"
                     >
@@ -132,7 +132,7 @@ function formatConnectionKind(kind) {
                     <button
                         type="button"
                         class="min-h-11 rounded-md px-4 text-sm font-bold outline-none transition focus-visible:ring-2 focus-visible:ring-red-600"
-                        :class="view === 'list' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                        :class="view === 'list' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'"
                         :aria-pressed="view === 'list'"
                         @click="view = 'list'"
                     >

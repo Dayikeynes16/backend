@@ -1,4 +1,10 @@
-import { computed, onMounted, shallowRef, watch } from 'vue';
+import {
+    computed,
+    onBeforeUnmount,
+    onMounted,
+    shallowRef,
+    watch,
+} from 'vue';
 import {
     createArchitectureGraph,
     getVisibleConnections,
@@ -35,6 +41,7 @@ export function useArchitectureExplorer(manifest) {
     const query = shallowRef('');
     const statusId = shallowRef('');
     const connectionKind = shallowRef('');
+    let stopHistoryWatcher = null;
 
     const selectedApplication = computed(() => (
         graph.applicationsById.get(selectedApplicationId.value) ?? null
@@ -95,7 +102,7 @@ export function useArchitectureExplorer(manifest) {
     onMounted(() => {
         if (typeof window === 'undefined') return;
 
-        watch(
+        stopHistoryWatcher = watch(
             [selectedApplicationId, selectedModuleId, mode, view],
             () => {
                 const architectureQuery = serializeArchitectureQuery({
@@ -113,6 +120,11 @@ export function useArchitectureExplorer(manifest) {
             },
             { immediate: true },
         );
+    });
+
+    onBeforeUnmount(() => {
+        stopHistoryWatcher?.();
+        stopHistoryWatcher = null;
     });
 
     return {

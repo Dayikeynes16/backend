@@ -259,7 +259,7 @@ function onKeydown(event) {
 }
 
 .application-building__id {
-    fill: #94a3b8;
+    fill: #cbd5e1;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 9px;
     font-weight: 700;
