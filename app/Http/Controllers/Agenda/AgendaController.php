@@ -70,7 +70,7 @@ class AgendaController extends Controller
 
         $query = AgendaItem::visibleTo($user)
             ->whereNull('cancelled_at')
-            ->with(['assignedTo:id,name', 'user:id,name']);
+            ->with(['assignee:id,name', 'creator:id,name']);
 
         $occurrences = $calendar->expand($query, $from, $to->endOfDay());
 
@@ -92,10 +92,12 @@ class AgendaController extends Controller
                 'starts_at' => $o['starts_at']->toIso8601String(),
                 'ends_at' => optional($o['item']->ends_at)->toIso8601String(),
                 'remind_at' => optional($o['item']->remind_at)->toIso8601String(),
+                // `state` es un accessor del modelo ($appends), no una columna;
+                // el modal lo usa para decidir si se puede cancelar.
                 'state' => $o['item']->state,
                 'all_day' => $o['item']->all_day,
                 'completed_at' => optional($o['item']->completed_at)->toIso8601String(),
-                'owner' => $o['item']->assignedTo?->name ?? $o['item']->user?->name,
+                'owner' => $o['item']->assignee?->name ?? $o['item']->creator?->name,
             ])->values(),
         ]);
     }
