@@ -1,0 +1,150 @@
+<h2>Bloques limpios, cada uno con su oficio</h2>
+<p class="subtitle">La versión que te gustó, pero ahora cada módulo lleva encima <strong>un objeto que dice a qué se dedica</strong>: candado para autenticación, báscula para su API, antena para realtime, estantería para productos. El bloque sigue codificando estado (color) y peso técnico (altura); el objeto añade el tema. <strong>Arrastra para orbitar</strong>, <strong>Shift+arrastrar</strong> mueve, <strong>rueda</strong> acerca.</p>
+
+<div style="background:#eef3f9;border:1px solid #dbe4ee;border-radius:14px;overflow:hidden">
+  <div style="display:flex;gap:7px;padding:11px 14px;border-bottom:1px solid #dbe4ee;background:#fff;align-items:center;flex-wrap:wrap">
+    <button onclick="orb(-40)" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px">⟲</button>
+    <button onclick="orb(40)" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px">⟳</button>
+    <span style="width:8px"></span>
+    <button onclick="zm(1.2)" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 13px;cursor:pointer;font-size:13px">＋</button>
+    <button onclick="zm(0.83)" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 13px;cursor:pointer;font-size:13px">−</button>
+    <span style="width:8px"></span>
+    <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px">Altura de cámara
+      <input id="ev" type="range" min="14" max="76" value="34" style="width:118px">
+    </label>
+    <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:7px;margin-left:8px">
+      <input id="lb" type="checkbox" style="accent-color:#dc2626"> Nombres siempre visibles
+    </label>
+    <button onclick="rst()" style="margin-left:auto;border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px">Reencuadrar</button>
+  </div>
+  <div style="position:relative">
+    <svg id="sv" width="100%" height="500" viewBox="0 0 960 500" style="display:block;cursor:grab;touch-action:none">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fbfdff"/><stop offset="100%" stop-color="#e8eff8"/></linearGradient>
+        <filter id="sf" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6"/></filter>
+      </defs>
+      <rect width="960" height="500" fill="url(#sky)"/>
+      <g id="cam"></g>
+    </svg>
+    <div id="hud" style="position:absolute;left:16px;bottom:16px;background:rgba(255,255,255,.96);border:1px solid #e2e8f0;border-radius:11px;padding:11px 15px;font-size:12.5px;color:#64748b;box-shadow:0 6px 20px rgba(15,23,42,.09);pointer-events:none;min-width:260px">
+      <b style="color:#0f172a">Carnicería SaaS</b><br>17 módulos · arrastra para orbitar
+    </div>
+    <div style="position:absolute;right:16px;bottom:16px;display:flex;gap:13px;font-size:11.5px;color:#64748b;background:rgba(255,255,255,.96);border:1px solid #e2e8f0;border-radius:11px;padding:8px 13px">
+      <span><span style="display:inline-block;width:9px;height:9px;background:#4ade80;border-radius:2px;margin-right:5px"></span>implementado</span>
+      <span><span style="display:inline-block;width:9px;height:9px;background:#fbbf24;border-radius:2px;margin-right:5px"></span>parcial</span>
+      <span><span style="display:inline-block;width:9px;height:9px;background:#cbd5e1;border-radius:2px;margin-right:5px"></span>pendiente</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const P={
+    candado:[[0,0,.10,.24,.16,.19,40,85,58],[-.07,0,.27,.05,.05,.11,214,10,74],[.07,0,.27,.05,.05,.11,214,10,74],[0,0,.36,.19,.05,.05,214,10,74]],
+    tabla:[[0,0,0,.42,.30,.05,28,38,70],[0,-.03,.05,.26,.06,.02,214,8,93],[.12,-.03,.07,.03,.03,.11,214,12,58]],
+    caja_reg:[[0,0,0,.34,.26,.13,214,14,66],[0,-.05,.13,.30,.15,.05,214,12,82],[0,.07,.13,.19,.09,.11,40,82,60]],
+    reloj:[[0,0,0,.26,.06,.26,0,0,96],[0,-.036,.12,.028,.012,.10,214,20,34],[.045,-.036,.12,.08,.012,.025,214,20,34]],
+    tarjeta:[[0,0,.02,.30,.20,.025,200,58,54],[0,-.065,.05,.26,.045,.012,0,0,96],[-.08,.035,.05,.09,.06,.012,40,82,62]],
+    ticket:[[0,0,0,.22,.16,.022,0,0,97],[0,0,.022,.20,.14,.022,0,0,92],[0,0,.044,.18,.12,.022,0,0,97],[0,-.012,.066,.14,.03,.012,214,22,50]],
+    cajas:[[-.08,0,0,.22,.20,.18,28,48,62],[.11,.02,0,.17,.15,.14,28,48,69],[-.08,0,.18,.20,.18,.03,28,36,52]],
+    grafica:[[-.11,0,0,.075,.075,.14,200,72,60],[0,0,0,.075,.075,.25,200,72,52],[.11,0,0,.075,.075,.35,200,72,44]],
+    calendario:[[0,0,0,.30,.055,.30,0,0,96],[0,-.006,.235,.30,.065,.07,0,74,52]],
+    chip:[[0,0,0,.24,.24,.06,262,48,50],[0,0,.06,.14,.14,.035,262,36,72],[-.15,0,.015,.06,.02,.02,262,20,60],[.15,0,.015,.06,.02,.02,262,20,60]],
+    celular:[[0,0,0,.15,.035,.27,214,14,30],[0,-.023,.025,.115,.012,.20,200,62,62]],
+    antena:[[0,0,0,.06,.06,.33,214,12,58],[0,0,.33,.22,.22,.03,0,72,58],[0,0,.39,.15,.15,.03,0,72,64],[0,0,.45,.08,.08,.03,0,72,70]],
+    bascula:[[0,0,0,.31,.25,.06,214,10,76],[0,.07,.06,.06,.06,.21,214,10,60],[0,.07,.27,.19,.04,.12,142,62,52]],
+    servidor:[[0,0,0,.24,.22,.36,214,18,44],[0,-.12,.06,.20,.02,.04,142,72,55],[0,-.12,.16,.20,.02,.04,142,72,55],[0,-.12,.26,.20,.02,.04,40,82,58]],
+    qr:[[0,0,0,.28,.05,.28,0,0,97],[-.075,-.03,.19,.075,.015,.075,214,20,26],[.075,-.03,.19,.075,.015,.075,214,20,26],[-.075,-.03,.05,.075,.015,.075,214,20,26],[.045,-.03,.10,.045,.015,.045,214,20,26]],
+    estante:[[-.14,0,0,.05,.20,.34,28,32,60],[.14,0,0,.05,.20,.34,28,32,60],[0,0,.10,.32,.20,.03,28,32,73],[0,0,.22,.32,.20,.03,28,32,73],[-.06,0,.13,.10,.13,.07,0,58,55],[.08,0,.25,.09,.13,.06,0,52,58]],
+    vacio:[[-.14,0,0,.05,.20,.34,214,8,74],[.14,0,0,.05,.20,.34,214,8,74],[0,0,.10,.32,.20,.03,214,8,82],[0,0,.22,.32,.20,.03,214,8,82]],
+  };
+  const M=[
+    ['Autenticación y tenancy','ok',4,'candado'],['Mesa de trabajo','ok',5,'tabla'],
+    ['Pagos de venta','ok',5,'caja_reg'],['Turnos de caja','ok',4,'reloj'],
+    ['Clientes y crédito','ok',5,'tarjeta'],['Gastos','ok',4,'ticket'],
+    ['Compras y proveedores','ok',5,'cajas'],['Métricas','ok',3,'grafica'],
+    ['Agenda','ok',2,'calendario'],['Asistente IA','mid',5,'chip'],
+    ['Pedidos web','ok',3,'celular'],['Realtime (Reverb)','mid',2,'antena'],
+    ['API de básculas','ok',3,'bascula'],['API del Hub','ok',5,'servidor'],
+    ['Menú QR público','ok',3,'qr'],['Productos y categorías','ok',4,'estante'],
+    ['Inventario / stock','no',1,'vacio'],
+  ].map(([n,s,w,p])=>({n,s,w,p}));
+
+  const HU={ok:[142,58,'implementado'],mid:[40,90,'parcial'],no:[214,16,'pendiente']};
+  const COLS=5,ROWS=4,A=0.40,SC=80;
+  const sv=document.getElementById('sv'),cam=document.getElementById('cam'),hud=document.getElementById('hud');
+  const ev=document.getElementById('ev'),lb=document.getElementById('lb');
+  let az=.62,azT=.62,ph=34,phT=34,z=1,zT=1,px=480,py=270,hov=-1,spin=0;
+  const LT=(()=>{const v=[-.42,-.58,.70],m=Math.hypot(...v);return v.map(c=>c/m)})();
+
+  function Pr(x,y,zz){const c=Math.cos(az),s=Math.sin(az);const xr=x*c+y*s,yr=-x*s+y*c;const p=ph*Math.PI/180;
+    return [xr*SC,(yr*Math.sin(p)-zz*Math.cos(p))*SC];}
+  function dep(x,y){const c=Math.cos(az),s=Math.sin(az);return -x*s+y*c;}
+  function bx(x,y,z0,w,d,h,hue,sat,lum){
+    const c=Math.cos(az),s=Math.sin(az),hw=w/2,hd=d/2;
+    const b=[[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]],ed=[[0,1,[0,-1]],[1,2,[1,0]],[2,3,[0,1]],[3,0,[-1,0]]];
+    const st=`hsl(${hue} ${sat}% ${Math.max(10,lum-28)}%)`;let o='';
+    for(const [i,j,n] of ed){
+      const nx=n[0]*c+n[1]*s,ny=-n[0]*s+n[1]*c;
+      if(ny>-0.02) continue;
+      const k=Math.max(0,nx*LT[0]+ny*LT[1]),l=Math.max(7,lum*(0.57+0.35*k));
+      const p0=Pr(x+b[i][0],y+b[i][1],z0),p1=Pr(x+b[j][0],y+b[j][1],z0);
+      const q1=Pr(x+b[j][0],y+b[j][1],z0+h),q0=Pr(x+b[i][0],y+b[i][1],z0+h);
+      o+=`<polygon points="${p0} ${p1} ${q1} ${q0}" fill="hsl(${hue} ${sat}% ${l}%)" stroke="${st}" stroke-width=".65" stroke-linejoin="round"/>`;
+    }
+    o+=`<polygon points="${b.map(([dx,dy])=>Pr(x+dx,y+dy,z0+h).join(',')).join(' ')}" fill="hsl(${hue} ${sat}% ${Math.min(96,lum*1.07)}%)" stroke="${st}" stroke-width=".65" stroke-linejoin="round"/>`;
+    return o;
+  }
+
+  function draw(){
+    const c=Math.cos(az),s=Math.sin(az);
+    const items=M.map((m,k)=>{const i=k%COLS,j=Math.floor(k/COLS);
+      const x=(i-(COLS-1)/2)*1.16,y=(j-(ROWS-1)/2)*1.16;
+      return {m,k,x,y,H:.13+m.w*.07,dp:dep(x,y)};}).sort((a,b)=>a.dp-b.dp);
+    let o='';
+    const g=[[-3.4,-2.6],[3.4,-2.6],[3.4,2.6],[-3.4,2.6]].map(([a,b])=>Pr(a,b,0).join(',')).join(' ');
+    o+=`<polygon points="${g}" fill="#dfe8f2" stroke="#cfdae7" stroke-width="1.5"/>`;
+    for(let i=-2;i<=2;i++){const a=Pr(i*1.16+.58,-2.6,0),b=Pr(i*1.16+.58,2.6,0);o+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#cfdae7"/>`}
+    for(let j=-2;j<=2;j++){const a=Pr(-3.4,j*1.16+.58,0),b=Pr(3.4,j*1.16+.58,0);o+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#cfdae7"/>`}
+    for(const b of items){
+      const sh=[[-A,-A],[A,-A],[A,A],[-A,A]].map(([dx,dy])=>Pr(b.x+dx+.14,b.y+dy+.17,0).join(',')).join(' ');
+      o+=`<polygon points="${sh}" fill="#334155" opacity="${.05+b.H*.1}" filter="url(#sf)"/>`;
+    }
+    for(const b of items){
+      const on=hov===b.k,[hue,sat]=HU[b.m.s],z0=b.H+(on?.07:0);
+      let g2=bx(b.x,b.y,0,A*2,A*2,z0,hue,sat,on?86:74);
+      const props=(P[b.m.p]||[]).map(p=>({p,dp:dep(b.x+p[0],b.y+p[1])})).sort((u,v)=>u.dp-v.dp);
+      for(const {p} of props) g2+=bx(b.x+p[0],b.y+p[1],z0+p[2],p[3],p[4],p[5],p[6],p[7],p[8]);
+      o+=`<g class="hit" data-k="${b.k}" style="cursor:pointer">${g2}</g>`;
+      if(on||lb.checked){
+        const t=Pr(b.x,b.y,z0+.62),w=b.m.n.length*6.3+20;
+        o+=`<g pointer-events="none"><rect x="${t[0]-w/2}" y="${t[1]-19}" width="${w}" height="24" rx="6" fill="${on?'#0f172a':'#fff'}" stroke="${on?'#0f172a':'#dbe4ee'}"/>
+        <text x="${t[0]}" y="${t[1]-3}" text-anchor="middle" font-family="ui-sans-serif,system-ui" font-size="11.5" font-weight="${on?600:500}" fill="${on?'#fff':'#334155'}">${b.m.n}</text></g>`;
+      }
+    }
+    cam.innerHTML=o;
+    cam.setAttribute('transform',`translate(${px},${py}) scale(${z})`);
+    cam.querySelectorAll('.hit').forEach(el=>el.addEventListener('mouseenter',()=>{
+      const k=+el.dataset.k;if(k===hov)return;hov=k;const m=M[k];
+      hud.innerHTML=`<b style="color:#0f172a">${m.n}</b><br>${HU[m.s][2]} · peso técnico ${m.w}/5`;
+    }));
+  }
+  function tick(){const L=(a,b,f)=>a+(b-a)*f;
+    az=L(az,azT+spin,.13);ph=L(ph,phT,.13);z=L(z,zT,.16);
+    spin*=.9;if(Math.abs(spin)<.0004)spin=0;draw();requestAnimationFrame(tick);}
+  window.orb=d=>{azT+=d*Math.PI/180};
+  window.zm=f=>{zT=Math.min(2.8,Math.max(.4,zT*f))};
+  window.rst=()=>{azT=.62;phT=34;zT=1;px=480;py=270;ev.value=34;hov=-1;
+    hud.innerHTML='<b style="color:#0f172a">Carnicería SaaS</b><br>17 módulos · arrastra para orbitar'};
+  ev.addEventListener('input',e=>{phT=+e.target.value});
+  lb.addEventListener('change',draw);
+  let dg=null,lx=0;
+  sv.addEventListener('mousedown',e=>{dg={x:e.clientX,y:e.clientY,az:azT,ph:phT,px,py,sh:e.shiftKey};sv.style.cursor='grabbing';spin=0});
+  window.addEventListener('mousemove',e=>{if(!dg)return;const dx=e.clientX-dg.x,dy=e.clientY-dg.y;
+    if(dg.sh){px=dg.px+dx;py=dg.py+dy}else{const na=dg.az-dx*.007;spin=(na-azT)*.35;azT=na;
+      phT=Math.min(76,Math.max(14,dg.ph+dy*.15));ev.value=Math.round(phT)}lx=dx});
+  window.addEventListener('mouseup',()=>{if(dg&&!dg.sh)spin=-lx*.00016;dg=null;sv.style.cursor='grab'});
+  sv.addEventListener('wheel',e=>{e.preventDefault();zm(e.deltaY<0?1.09:.92)},{passive:false});
+  tick();
+})();
+</script>

@@ -1,0 +1,211 @@
+<h2>El campus completo · cuatro edificios, tres bandas</h2>
+<p class="subtitle"><strong>Arrastra para recorrerlo.</strong> Cada edificio es una aplicación y cada ventana un módulo, con su estado real. Las tres bandas del suelo son dónde vive cada cosa: <b>nube</b>, <b>sucursal (LAN)</b> y <b>dispositivos</b>. Los conductos son las conexiones del manifiesto — cruzar una banda es cruzar una frontera de red.</p>
+
+<div style="background:#eef3f9;border:1px solid #dbe4ee;border-radius:14px;overflow:hidden">
+  <div style="display:flex;gap:7px;padding:11px 14px;border-bottom:1px solid #dbe4ee;background:#fff;align-items:center;flex-wrap:wrap">
+    <span style="font-size:12px;color:#94a3b8">Arrastra para recorrer</span>
+    <span style="width:8px"></span>
+    <button onclick="dz(.9)" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 13px;cursor:pointer;font-size:13px">＋</button>
+    <button onclick="dz(1.11)" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 13px;cursor:pointer;font-size:13px">−</button>
+    <span style="width:8px"></span>
+    <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px">Altura de cámara
+      <input id="ev" type="range" min="16" max="60" value="28" style="width:110px">
+    </label>
+    <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px;margin-left:6px">Perspectiva
+      <input id="fv" type="range" min="9" max="34" value="17" style="width:100px">
+    </label>
+    <span style="width:8px"></span>
+    <span style="font-size:12px;color:#64748b">Modo:</span>
+    <button id="m0" onclick="mode(0)" style="border:1px solid #dc2626;background:#dc2626;color:#fff;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px">Dependencias</button>
+    <button id="m1" onclick="mode(1)" style="border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px">Datos</button>
+    <button id="m2" onclick="mode(2)" style="border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px">Sync</button>
+    <button onclick="rst()" style="margin-left:auto;border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px">Reencuadrar</button>
+  </div>
+  <div style="position:relative">
+    <svg id="sv" width="100%" height="540" viewBox="0 0 960 540" style="display:block;cursor:grab;touch-action:none">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e6eef8"/><stop offset="50%" stop-color="#f7fafd"/><stop offset="100%" stop-color="#edf3fa"/></linearGradient>
+        <filter id="sf" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6"/></filter>
+      </defs>
+      <rect width="960" height="540" fill="url(#sky)"/>
+      <g id="cam"></g>
+    </svg>
+    <div id="hud" style="position:absolute;left:16px;bottom:16px;background:rgba(255,255,255,.96);border:1px solid #e2e8f0;border-radius:11px;padding:11px 15px;font-size:12.5px;color:#64748b;box-shadow:0 6px 20px rgba(15,23,42,.09);pointer-events:none;min-width:270px">
+      <b style="color:#0f172a">Ecosistema completo</b><br>4 aplicaciones · 47 módulos · 20 conexiones
+    </div>
+    <div style="position:absolute;right:16px;bottom:16px;font-size:11px;color:#64748b;background:rgba(255,255,255,.96);border:1px solid #e2e8f0;border-radius:11px;padding:9px 13px;line-height:1.9">
+      <div><span style="display:inline-block;width:16px;height:3px;background:#94a3b8;vertical-align:middle;margin-right:6px"></span>HTTP</div>
+      <div><span style="display:inline-block;width:16px;height:3px;background:#38bdf8;vertical-align:middle;margin-right:6px"></span>WebSocket</div>
+      <div><span style="display:inline-block;width:16px;height:3px;background:#2dd4bf;vertical-align:middle;margin-right:6px"></span>mDNS</div>
+      <div><span style="display:inline-block;width:16px;height:3px;background:#fb923c;vertical-align:middle;margin-right:6px"></span>USB serial</div>
+      <div><span style="display:inline-block;width:16px;height:3px;background:#22c55e;vertical-align:middle;margin-right:6px"></span>Outbox</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const S={ok:[142,58],mid:[40,90],no:[214,16],rev:[214,70]};
+  const APPS=[
+    {id:0,n:'Carnicería SaaS',sub:'app.saas',x:0,y:-5.0,w:3.4,d:2.4,h:2.3,hue:0,
+     m:'ok,ok,ok,ok,ok,ok,ok,ok,ok,mid,ok,mid,ok,ok,ok,ok,no'.split(','),roof:'servidor'},
+    {id:1,n:'Carnicería Hub',sub:'app.hub',x:-0.4,y:0.4,w:2.7,d:2.0,h:1.6,hue:40,
+     m:'ok,ok,ok,ok,mid,ok,mid,mid,ok,rev,no,ok,ok'.split(','),roof:'antena'},
+    {id:2,n:'Báscula web',sub:'app.scale-web',x:-3.4,y:5.2,w:1.7,d:1.4,h:1.0,hue:200,
+     m:'ok,ok,mid,no,no,no,ok'.split(','),roof:'monitor'},
+    {id:3,n:'Báscula Android',sub:'app.scale-android',x:2.6,y:5.2,w:2.0,d:1.5,h:1.15,hue:150,
+     m:'ok,ok,ok,ok,ok,ok,no,ok,no,no'.split(','),roof:'celular'},
+  ];
+  const BANDS=[
+    {n:'NUBE',y0:-8.2,y1:-2.2,h:214,s:46,l:94},
+    {n:'SUCURSAL · LAN',y0:-2.2,y1:2.8,h:265,s:40,l:95},
+    {n:'DISPOSITIVOS',y0:2.8,y1:8.4,h:150,s:36,l:94},
+  ];
+  const CONN=[
+    {a:0,b:1,c:'#94a3b8',dash:'',   modes:[1,1,1],bow:0.5,lbl:'HTTP · Sanctum'},
+    {a:0,b:1,c:'#38bdf8',dash:'16 6',modes:[1,1,0],bow:-0.7,lbl:'WebSocket · Reverb'},
+    {a:1,b:0,c:'#22c55e',dash:'12 7',modes:[0,1,1],bow:1.3,lbl:'Outbox de ventas'},
+    {a:1,b:2,c:'#94a3b8',dash:'',   modes:[1,1,0],bow:0.5,lbl:'HTTP LAN'},
+    {a:1,b:3,c:'#2dd4bf',dash:'2 9',modes:[1,0,1],bow:-0.5,lbl:'mDNS · carnihub'},
+    {a:1,b:3,c:'#94a3b8',dash:'',   modes:[1,1,1],bow:0.6,lbl:'HTTP LAN'},
+    {a:0,b:3,c:'#94a3b8',dash:'7 6',modes:[1,1,1],bow:2.6,lbl:'HTTP directo a la nube'},
+  ];
+  const ROOF={
+    servidor:[[0,0,0,.5,.45,.6,214,18,44],[0,-.24,.1,.42,.03,.06,142,72,55],[0,-.24,.26,.42,.03,.06,142,72,55],[0,-.24,.42,.42,.03,.06,40,82,58]],
+    antena:[[0,0,0,.11,.11,.62,214,12,58],[0,0,.62,.44,.44,.05,0,72,58],[0,0,.73,.3,.3,.05,0,72,64],[0,0,.84,.16,.16,.05,0,72,70]],
+    monitor:[[0,0,0,.13,.13,.16,214,12,60],[0,0,.16,.62,.06,.4,200,58,58]],
+    celular:[[0,0,0,.3,.07,.55,214,14,32],[0,-.045,.04,.24,.02,.42,150,55,58]],
+  };
+
+  const AZ=0.60,CA=Math.cos(AZ),SA=Math.sin(AZ);
+  const sv=document.getElementById('sv'),cam=document.getElementById('cam'),hud=document.getElementById('hud');
+  const ev=document.getElementById('ev'),fv=document.getElementById('fv');
+  let ph=28,phT=28,D=17,DT=17,cx=0,cy=0,hov=-1,vx=0,vy=0,md=0;
+  const LT=(()=>{const v=[-.42,-.58,.70],m=Math.hypot(...v);return v.map(c=>c/m)})();
+  const FOC=780,VW=480,VH=300;
+
+  function pr(x,y,z){
+    const dx=x-cx,dy=y-cy,xr=dx*CA+dy*SA,yr=-dx*SA+dy*CA;
+    const p=ph*Math.PI/180,sp=Math.sin(p),cp=Math.cos(p);
+    const d=D+yr*cp-z*sp; if(d<1.3) return null;
+    return [VW+FOC*xr/d, VH-FOC*(yr*sp+z*cp)/d, d];
+  }
+  const pl=a=>a.some(p=>!p)?null:a.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  function dep(x,y){const dx=x-cx,dy=y-cy;return -dx*SA+dy*CA;}
+
+  function bx(x,y,z0,w,d,h,hue,sat,lum,noTop){
+    const hw=w/2,hd=d/2,b=[[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]];
+    const ed=[[0,1,[0,-1]],[1,2,[1,0]],[2,3,[0,1]],[3,0,[-1,0]]];
+    const st=`hsl(${hue} ${sat}% ${Math.max(10,lum-28)}%)`;let o='';
+    for(const [i,j,n] of ed){
+      const nx=n[0]*CA+n[1]*SA,ny=-n[0]*SA+n[1]*CA; if(ny>-.02) continue;
+      const k=Math.max(0,nx*LT[0]+ny*LT[1]),l=Math.max(7,lum*(.57+.35*k));
+      const q=pl([pr(x+b[i][0],y+b[i][1],z0),pr(x+b[j][0],y+b[j][1],z0),pr(x+b[j][0],y+b[j][1],z0+h),pr(x+b[i][0],y+b[i][1],z0+h)]);
+      if(q)o+=`<polygon points="${q}" fill="hsl(${hue} ${sat}% ${l}%)" stroke="${st}" stroke-width=".7" stroke-linejoin="round"/>`;
+    }
+    if(!noTop){const t=pl(b.map(([dx,dy])=>pr(x+dx,y+dy,z0+h)));
+      if(t)o+=`<polygon points="${t}" fill="hsl(${hue} ${sat}% ${Math.min(96,lum*1.07)}%)" stroke="${st}" stroke-width=".7" stroke-linejoin="round"/>`;}
+    return o;
+  }
+
+  function facade(a){
+    // reparte los módulos entre las dos caras visibles
+    const hw=a.w/2,hd=a.d/2,n=a.m.length,per=Math.ceil(n/2);
+    let o='',idx=0;
+    const faces=[
+      {nx:0,ny:-1,p0:[-hw,-hd],p1:[hw,-hd]},
+      {nx:-1,ny:0,p0:[-hw,hd],p1:[-hw,-hd]},
+    ];
+    for(const f of faces){
+      const rnx=f.nx*CA+f.ny*SA,rny=-f.nx*SA+f.ny*CA;
+      const vis=rny<-.02;
+      const cnt=Math.min(per,n-idx); if(cnt<=0) break;
+      const cols=Math.min(5,cnt),rows=Math.ceil(cnt/cols);
+      for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+        const k=r*cols+c; if(k>=cnt) continue;
+        const st=a.m[idx+k]; if(!vis) continue;
+        const [h2,s2]=S[st]||S.no;
+        const u0=(c+.28)/cols,u1=(c+.82)/cols;
+        const v0=a.h*(1-(r+.80)/rows*.86),v1=a.h*(1-(r+.24)/rows*.86);
+        const P=(u,v)=>{const px=f.p0[0]+(f.p1[0]-f.p0[0])*u, py=f.p0[1]+(f.p1[1]-f.p0[1])*u;
+          return pr(a.x+px*1.001,a.y+py*1.001,v);};
+        const q=pl([P(u0,v0),P(u1,v0),P(u1,v1),P(u0,v1)]);
+        if(q)o+=`<polygon points="${q}" fill="hsl(${h2} ${s2}% ${st==='no'?78:st==='rev'?72:68}%)" stroke="hsl(${h2} ${s2}% 40%)" stroke-width=".5"/>`;
+      }
+      idx+=cnt;
+    }
+    return o;
+  }
+
+  function curve(c){
+    const A=APPS[c.a],B=APPS[c.b];
+    const mx=(A.x+B.x)/2+c.bow*(B.y-A.y)*.12, my=(A.y+B.y)/2-c.bow*(B.x-A.x)*.12;
+    const pts=[];
+    for(let i=0;i<=26;i++){const t=i/26,u=1-t;
+      pts.push([u*u*A.x+2*u*t*mx+t*t*B.x, u*u*A.y+2*u*t*my+t*t*B.y]);}
+    let o='';
+    for(let i=0;i<pts.length-1;i++){
+      const p=pr(pts[i][0],pts[i][1],.03),q=pr(pts[i+1][0],pts[i+1][1],.03);
+      if(!p||!q)continue;
+      const w=Math.max(1.1,Math.min(7,FOC/p[2]/62));
+      o+=`<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}" stroke="${c.c}" stroke-width="${w.toFixed(1)}" stroke-linecap="round" ${c.dash?`stroke-dasharray="${c.dash}"`:''} opacity=".95"/>`;
+    }
+    return o;
+  }
+
+  function draw(){
+    let o='';
+    for(const b of BANDS){
+      const q=pl([pr(-11,b.y0,0),pr(11,b.y0,0),pr(11,b.y1,0),pr(-11,b.y1,0)]);
+      if(q)o+=`<polygon points="${q}" fill="hsl(${b.h} ${b.s}% ${b.l}%)" stroke="hsl(${b.h} ${b.s}% ${b.l-7}%)"/>`;
+      const t=pr(-9.4,(b.y0+b.y1)/2,.02);
+      if(t){const sc=Math.max(.5,Math.min(1.3,FOC/t[2]/56));
+        o+=`<text x="${t[0].toFixed(1)}" y="${t[1].toFixed(1)}" font-family="ui-sans-serif,system-ui" font-size="${(12*sc).toFixed(1)}" font-weight="700" letter-spacing="1.4" fill="hsl(${b.h} 34% 62%)">${b.n}</text>`;}
+    }
+    for(const c of CONN) if(c.modes[md]) o+=curve(c);
+    const order=APPS.map(a=>({a,d:dep(a.x,a.y)})).sort((p,q)=>q.d-p.d);
+    for(const {a} of order){
+      const on=hov===a.id;
+      const s=pl([[-a.w/2,-a.d/2],[a.w/2,-a.d/2],[a.w/2,a.d/2],[-a.w/2,a.d/2]].map(([dx,dy])=>pr(a.x+dx+.22,a.y+dy+.26,0)));
+      if(s)o+=`<polygon points="${s}" fill="#334155" opacity=".1" filter="url(#sf)"/>`;
+      let g=bx(a.x,a.y,0,a.w,a.d,a.h,a.hue,a.hue===0?30:34,on?96:90,true);
+      g+=facade(a);
+      const t=pl([[-a.w/2,-a.d/2],[a.w/2,-a.d/2],[a.w/2,a.d/2],[-a.w/2,a.d/2]].map(([dx,dy])=>pr(a.x+dx,a.y+dy,a.h)));
+      if(t)g+=`<polygon points="${t}" fill="hsl(${a.hue} 62% ${on?92:86}%)" stroke="hsl(${a.hue} 62% 46%)" stroke-width="1.6"/>`;
+      for(const p of ROOF[a.roof]||[]) g+=bx(a.x+p[0],a.y+p[1],a.h+p[2],p[3],p[4],p[5],p[6],p[7],p[8]);
+      o+=`<g class="hit" data-k="${a.id}" style="cursor:pointer">${g}</g>`;
+      const lt=pr(a.x,a.y,a.h+1.15);
+      if(lt){const sc=Math.max(.6,Math.min(1.3,FOC/lt[2]/54));
+        const w=(a.n.length*6.6+26)*sc,h=32*sc;
+        o+=`<g pointer-events="none"><line x1="${lt[0].toFixed(1)}" y1="${lt[1].toFixed(1)}" x2="${lt[0].toFixed(1)}" y2="${(lt[1]+14*sc).toFixed(1)}" stroke="#94a3b8"/>
+        <rect x="${(lt[0]-w/2).toFixed(1)}" y="${(lt[1]-h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${7*sc}" fill="${on?'#0f172a':'#fff'}" stroke="${on?'#0f172a':'#dbe4ee'}"/>
+        <text x="${lt[0].toFixed(1)}" y="${(lt[1]-h*.58).toFixed(1)}" text-anchor="middle" font-family="ui-sans-serif,system-ui" font-size="${(11.5*sc).toFixed(1)}" font-weight="600" fill="${on?'#fff':'#0f172a'}">${a.n}</text>
+        <text x="${lt[0].toFixed(1)}" y="${(lt[1]-h*.16).toFixed(1)}" text-anchor="middle" font-family="ui-monospace,monospace" font-size="${(9.5*sc).toFixed(1)}" fill="${on?'#94a3b8':'#94a3b8'}">${a.sub} · ${a.m.length} módulos</text></g>`;}
+    }
+    cam.innerHTML=o;
+    cam.querySelectorAll('.hit').forEach(el=>el.addEventListener('mouseenter',()=>{
+      const k=+el.dataset.k;if(k===hov)return;hov=k;const a=APPS[k];
+      const ok=a.m.filter(x=>x==='ok').length,mid=a.m.filter(x=>x==='mid').length,no=a.m.filter(x=>x==='no').length;
+      hud.innerHTML=`<b style="color:#0f172a">${a.n}</b><br>${a.m.length} módulos · ${ok} implementados · ${mid} parciales · ${no} pendientes<br><span style="color:#94a3b8">clic para entrar al edificio</span>`;
+    }));
+  }
+  function tick(){const L=(a,b,f)=>a+(b-a)*f;ph=L(ph,phT,.14);D=L(D,DT,.15);
+    if(!dg){cx+=vx;cy+=vy;vx*=.9;vy*=.9;if(Math.abs(vx)<1e-4)vx=0;if(Math.abs(vy)<1e-4)vy=0}
+    draw();requestAnimationFrame(tick);}
+  window.dz=f=>{DT=Math.min(46,Math.max(6,DT*f))};
+  window.mode=i=>{md=i;for(let k=0;k<3;k++){const b=document.getElementById('m'+k);
+    b.style.background=k===i?'#dc2626':'#fff';b.style.color=k===i?'#fff':'#334155';b.style.borderColor=k===i?'#dc2626':'#e2e8f0';}};
+  window.rst=()=>{cx=0;cy=0;vx=vy=0;DT=17;phT=28;ev.value=28;fv.value=17;hov=-1;
+    hud.innerHTML='<b style="color:#0f172a">Ecosistema completo</b><br>4 aplicaciones · 47 módulos · 20 conexiones'};
+  ev.addEventListener('input',e=>{phT=+e.target.value});
+  fv.addEventListener('input',e=>{DT=+e.target.value});
+  let dg=null,ldx=0,ldy=0;
+  sv.addEventListener('mousedown',e=>{dg={x:e.clientX,y:e.clientY,cx,cy};sv.style.cursor='grabbing';vx=vy=0});
+  window.addEventListener('mousemove',e=>{if(!dg)return;const k=D*.00016;
+    const dR=-(e.clientX-dg.x)*k,dF=(e.clientY-dg.y)*k;
+    const nx=dg.cx+dR*CA-dF*SA,ny=dg.cy+dR*SA+dF*CA;ldx=nx-cx;ldy=ny-cy;cx=nx;cy=ny});
+  window.addEventListener('mouseup',()=>{if(dg){vx=ldx*.7;vy=ldy*.7}dg=null;sv.style.cursor='grab'});
+  sv.addEventListener('wheel',e=>{e.preventDefault();dz(e.deltaY<0?.92:1.09)},{passive:false});
+  tick();
+})();
+</script>
