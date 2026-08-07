@@ -43,6 +43,23 @@ class AgendaCalendarService
             return ($base->betweenIncluded($from, $to)) ? [$base] : [];
         }
 
+        /*
+         * Una ocurrencia ya completada no se proyecta hacia el futuro.
+         *
+         * La recurrencia se materializa al completar: `AgendaController@complete`
+         * marca esta fila y clona la siguiente ocurrencia como fila nueva y viva.
+         * Cada fila representa, por tanto, UNA ocurrencia concreta. Expandir
+         * también las completadas ponía la misma tarea tachada en todos los días
+         * del calendario —pasados y futuros— y hacía que el mes entero se viera
+         * idéntico, con lo hecho una vez dándose por hecho para siempre.
+         *
+         * La fila viva sí se expande, así que lo pendiente se sigue viendo en los
+         * días que vienen. El pasado muestra lo que de verdad ocurrió.
+         */
+        if ($item->completed_at !== null) {
+            return ($base->betweenIncluded($from, $to)) ? [$base] : [];
+        }
+
         $until = $item->recurrence_until?->copy()->endOfDay();
         $cursor = $base->copy();
         $dates = [];

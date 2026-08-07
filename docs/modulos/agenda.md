@@ -30,7 +30,7 @@ Agenda interna del tenant: tareas, eventos y notas ligados al tiempo, con alcanc
 | Grupo de rutas único compartido por los 4 roles (`role:admin-empresa\|admin-sucursal\|cajero\|superadmin`) | La agenda es transversal; la separación se hace por **scope + policy**, no por prefijo de rol. La página resuelve el layout según el rol. |
 | Estado `state` **derivado** (accessor + `$appends`), no columna | `completed` / `cancelled` / `overdue` / `pending` se calculan de `completed_at`, `cancelled_at` y `starts_at` pasado. Sin jobs que marquen "vencida". |
 | Cancelar ≠ borrar | `cancelled_at` + `cancel_reason` (opcional, max 255) conservan historial; el soft delete queda para eliminación real. |
-| Recurrencia **sin materializar filas** | El calendario expande ocurrencias en memoria (`AgendaCalendarService`, guard de 1000 iteraciones). Al **completar** un ítem recurrente se clona la siguiente ocurrencia viva (respetando `recurrence_until` y desplazando `remind_at` con el mismo offset). |
+| Recurrencia **materializada al completar, expandida sólo hacia adelante** | El calendario expande ocurrencias en memoria (`AgendaCalendarService`, guard de 1000 iteraciones), pero **sólo las de ítems vivos**: una fila con `completed_at` aparece únicamente en su fecha. Al **completar** un ítem recurrente se clona la siguiente ocurrencia viva (respetando `recurrence_until` y desplazando `remind_at` con el mismo offset), así que cada fila representa UNA ocurrencia concreta. Antes se expandían también las completadas y la misma tarea salía tachada en los 42 días del mes, pasados y futuros (corregido 2026-08-06). |
 | Posponer = mover `remind_at`, no un estado | `snooze` suma minutos (1 – 10080 = 7 días) y limpia `reminder_seen_at`. |
 | Notificaciones por **polling HTTP cada 60s** (campana), no Echo | Sin cron ni consumidor Reverb en el MVP; ver "Riesgos y limitaciones". |
 | Captura IA **stateless** (sin tabla de drafts) | A diferencia de Gastos/Compras, la agenda no tiene adjuntos: el endpoint devuelve la propuesta directo y la "confirmación" es el `store` normal del modal. No persiste nada. |
@@ -135,7 +135,10 @@ Grupo `/{tenant}/agenda` (name `agenda.*`), middleware `role:admin-empresa|admin
 
 ```
 GET    /{tenant}/agenda                      agenda.index          ← Inertia Agenda/Index (atrasadas, hoy, próximas 7 días, notas, alertas)
-GET    /{tenant}/agenda/calendario           agenda.calendar       ← JSON ocurrencias expandidas (?from&to, default mes actual)
+GET    /{tenant}/agenda/calendario           agenda.calendar       ← JSON ocurrencias expandidas (?from&to, default mes actual).
+                                                                    Devuelve el ítem completo (scope, branch_id, assigned_to_user_id,
+                                                                    priority, recurrence, remind_at, state, body, owner) para que el
+                                                                    panel del día pueda mostrarlo y abrirlo en el modal de edición.
 GET    /{tenant}/agenda/alertas              agenda.alerts         ← JSON alertas derivadas (widget dashboards)
 GET    /{tenant}/agenda/completadas          agenda.completadas    ← JSON historial paginado (30/página)
 GET    /{tenant}/agenda/notificaciones       agenda.notificaciones ← JSON para la campana (polling)
@@ -164,7 +167,7 @@ GET    /{tenant}/agenda/{item}/ics           agenda.ics            ← descarga 
 
 ## Frontend
 
-Página única `resources/js/Pages/Agenda/Index.vue` con 4 pestañas (**Hoy · Calendario · Alertas · Completadas**). Resuelve el layout dinámicamente según `auth.role` (`EmpresaLayout` / `SucursalLayout` / `CajeroLayout`). "Hoy" muestra secciones Atrasadas (rojo, arriba), Hoy, Próximas y Notas (notas sin fecha). "Completadas" carga lazy vía fetch al abrir la pestaña. Botón WhatsApp en alertas de fiado (`wa.me`, prefija `52` a números de 10 dígitos).
+Página única `resources/js/Pages/Agenda/Index.vue` con 4 pestañas (**Hoy · Calendario · Alertas · Completadas**). El **calendario** (`AgendaCalendar.vue`) es inspeccionable desde 2026-08-06: cada celda muestra hasta 3 pendientes con hora y franja de prioridad, `+N más` si hay más, las completadas plegadas a un contador (`✓ 2 hechas`) y puntos de densidad junto al número del día. Pulsar una fecha abre su detalle en el panel lateral; pulsar una tarea abre `AgendaItemModal` para editarla. Antes pintaba todos los ítems truncados, sin hora ni prioridad, y no respondía al clic. El componente expone `refresh()` porque carga su rango por `fetch` fuera del ciclo de Inertia: la página lo llama al guardar o completar. Resuelve el layout dinámicamente según `auth.role` (`EmpresaLayout` / `SucursalLayout` / `CajeroLayout`). "Hoy" muestra secciones Atrasadas (rojo, arriba), Hoy, Próximas y Notas (notas sin fecha). "Completadas" carga lazy vía fetch al abrir la pestaña. Botón WhatsApp en alertas de fiado (`wa.me`, prefija `52` a números de 10 dígitos).
 
 Componentes (`resources/js/Components/Agenda/`):
 

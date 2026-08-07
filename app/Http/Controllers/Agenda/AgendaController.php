@@ -68,16 +68,34 @@ class AgendaController extends Controller
         $from = Carbon::parse($request->query('from', now()->startOfMonth()->toDateString()));
         $to = Carbon::parse($request->query('to', now()->endOfMonth()->toDateString()));
 
-        $occurrences = $calendar->expand(AgendaItem::visibleTo($user)->whereNull('cancelled_at'), $from, $to->endOfDay());
+        $query = AgendaItem::visibleTo($user)
+            ->whereNull('cancelled_at')
+            ->with(['assignedTo:id,name', 'user:id,name']);
 
+        $occurrences = $calendar->expand($query, $from, $to->endOfDay());
+
+        // El calendario dejó de ser sólo un título por día: al pulsar una fecha se
+        // inspecciona su detalle sin salir de la vista, así que la respuesta lleva
+        // lo que ese panel muestra (prioridad, recurrencia, responsable, nota).
         return response()->json([
             'occurrences' => collect($occurrences)->map(fn ($o) => [
                 'id' => $o['item']->id,
                 'title' => $o['item']->title,
+                'body' => $o['item']->body,
                 'type' => $o['item']->type->value,
+                'scope' => $o['item']->scope->value,
+                'branch_id' => $o['item']->branch_id,
+                'assigned_to_user_id' => $o['item']->assigned_to_user_id,
+                'priority' => $o['item']->priority,
+                'recurrence' => ($o['item']->recurrence ?? AgendaRecurrence::None)->value,
+                'recurrence_until' => optional($o['item']->recurrence_until)->toDateString(),
                 'starts_at' => $o['starts_at']->toIso8601String(),
+                'ends_at' => optional($o['item']->ends_at)->toIso8601String(),
+                'remind_at' => optional($o['item']->remind_at)->toIso8601String(),
+                'state' => $o['item']->state,
                 'all_day' => $o['item']->all_day,
                 'completed_at' => optional($o['item']->completed_at)->toIso8601String(),
+                'owner' => $o['item']->assignedTo?->name ?? $o['item']->user?->name,
             ])->values(),
         ]);
     }
