@@ -76,27 +76,62 @@ para no pagar 53 procesos.
 
 Para cada `evidence[].symbol`, en el contenido de su `sourceFileId` en ese commit.
 
-Esta es la guarda delicada, porque un `grep` literal produce ruido: `Api\Hub\SaleController`
-no aparece así escrito dentro del archivo, y `PaymentController::store` tampoco.
-La regla es:
+Esta es la guarda delicada. **La regla se diseñó ejecutándola contra las 53
+evidencias reales**, no sobre el papel: la primera versión —"parte el símbolo y
+busca el último segmento"— producía **13 fallos, de los cuales 10 eran falsos
+positivos**. Un verificador que grita en casos correctos se desactiva a la semana,
+así que la regla final distingue cuatro situaciones:
 
-1. Se normaliza el símbolo en **segmentos significativos**, partiendo por `\`, `::`,
-   `->` y `/`. `Api\Hub\SaleController` → `["Api","Hub","SaleController"]`.
-2. La evidencia pasa si **el último segmento** aparece literalmente en el archivo.
-3. Un campo opcional `evidence[].symbolMatch` permite ajustar el rigor:
+1. **Puntero a archivo.** Si `symbol` coincide con `sourceFiles[].path` o con su
+   nombre base sin extensión, el símbolo no afirma nada sobre el contenido:
+   identifica al archivo. G2 ya lo verificó y G3 no aplica.
+   Ejemplos reales: `routes/web.php` en `routes/web.php`; `SetupView` en
+   `src/views/SetupView.vue` — un SFC de Vue con `<script setup>` no contiene su
+   propio nombre en ninguna parte.
+2. **Literal.** El archivo contiene el símbolo tal cual. Es el caso fuerte.
+3. **Por segmento.** El símbolo se parte por caracteres no alfanuméricos y basta
+   con que aparezca algún segmento de más de dos caracteres. Cubre
+   `Schema::create('products')`, `PaymentController::store` y `Api\Hub\SaleController`,
+   que jamás aparecen escritos así dentro del archivo. Pasa **con aviso**.
+4. **Fallo.** Ninguna de las anteriores.
+
+`evidence[].symbolMatch` permite forzar el rigor cuando la clasificación
+automática no basta:
 
 | Valor | Significado |
 |---|---|
-| `literal` (por defecto) | El último segmento debe aparecer tal cual |
-| `any-segment` | Basta con que aparezca cualquier segmento |
+| *(ausente)* | Clasificación automática según las cuatro situaciones |
+| `literal` | Exige la situación 2; puntero y segmento dejan de bastar |
+| `any-segment` | Acepta la situación 3 sin emitir aviso |
 | `exempt` | No se verifica — **exige `symbolMatchReason` no vacío** |
 
-`exempt` sin razón es un error de validación. Así una excepción queda escrita y
+`exempt` sin razón es error de validación. Una excepción queda escrita y
 auditable en vez de ser un agujero silencioso.
 
-Casos que esta regla habría atrapado: `createLocalApiServer`, `runMigrations`,
-`main`, `ticket`, `Api`, y los símbolos en minúscula que en realidad son clases
-(`catalogRepo` frente a `CatalogRepo`).
+### Lo que G3 verifica de verdad
+
+Ejecutada hoy sobre el manifiesto, la clasificación real es:
+
+| Situación | Evidencias |
+|---|---|
+| Puntero a ruta | 2 |
+| Puntero a nombre de archivo | 33 |
+| Literal | 8 |
+| Por segmento | 7 |
+| **Fallo** | **3** |
+
+**Conviene no engañarse: 35 de 53 evidencias no verifican contenido alguno**, solo
+que el archivo existe. G3 comprueba de verdad 15. El informe debe mostrar este
+desglose siempre —no un "53/53 correcto"— para que la cobertura real quede a la
+vista y se pueda mejorar señalando símbolos internos de verdad en el futuro.
+
+Los tres fallos reales son los que el arreglo de datos debe corregir:
+
+| Evidencia | Declara | Real en el commit fijado |
+|---|---|---|
+| `ev.hub.local-api` | `createLocalApiServer` | `buildLocalApiServer` |
+| `ev.hub.migrations` | `runMigrations` | `MIGRATIONS`, `LATEST_VERSION`, `migrate` |
+| `ev.hub.main-index` | `main` | `createWindow`, `createTray`, `startServices`, `shutdownServices` |
 
 ### G4 · Integración continua y aviso de deriva
 
@@ -189,14 +224,22 @@ antes, absorbe este cambio en su `1.1.0`.
 
 Este spec incluye **corregir los hallazgos que las guardas destapen al ejecutarse
 por primera vez**, porque un verificador nuevo que arranca en rojo se desactiva a
-la semana. En concreto, los ya conocidos de la auditoría:
+la semana.
 
-- Los seis símbolos incorrectos de la categoría P3.
-- Las cuatro atribuciones archivo↔dato de la categoría P2: `cashier_expenses_enabled`
-  y `cashier_purchases_enabled` atribuidos a `routes/api.php`; dos feature flags
-  declarados en el módulo del Hub que no existen en ese repositorio; WAL y
-  respaldos atribuidos a `migrations.js` en vez de `database.js` y `backup.js`;
-  el evento `AgendaItemAssigned` apuntando al controlador en vez de a su clase.
+**Los tres símbolos que fallan** (medidos, no estimados): `ev.hub.local-api`,
+`ev.hub.migrations` y `ev.hub.main-index`, con los valores reales de la tabla de
+G3. La auditoría había señalado seis; ejecutando la regla final, tres de aquéllos
+resultaron ser punteros a archivo legítimos.
+
+**Las cuatro atribuciones archivo↔dato de la categoría P2**, que ninguna guarda
+detecta y hay que corregir a mano:
+
+| Dato | Declara | Debería |
+|---|---|---|
+| `featureFlags[2]` y `[3]` (`cashier_expenses_enabled`, `cashier_purchases_enabled`) | `file.saas.routes-api` | Los controladores donde se aplican; no aparecen en ningún archivo de rutas |
+| `modules[].featureFlagIds` de `hub.shared-online-flows` | Incluye `flag.branch.cashier-customers` y `flag.branch.admin-providers` | Quitarlos: ninguna de las dos cadenas existe en el repositorio del Hub |
+| `sourceFiles[].role` de `file.hub.migrations` | "Esquema SQLite incremental, WAL y respaldo" | Solo el esquema. WAL vive en `src/main/db/database.js` y el respaldo en `src/main/db/backup.js`, que además faltan como `sourceFiles` |
+| `events[4]` (`event.saas.agenda-item-assigned`) | `file.saas.agenda-controller` | `app/Events/AgendaItemAssigned.php`, como los otros cuatro eventos |
 
 **Fuera de alcance**, y conviene decirlo: los dos estados caducados de la
 categoría P1 (`scale-android.pairing` y `hub.pairing.scale-devices`, ambos ya
