@@ -42,7 +42,7 @@ class ArchitectureAtlasAccessTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Admin/ArchitectureAtlas/Index')
                 ->where('manifest.metadata.schemaVersion', '1.0.0')
-                ->where('manifest.metadata.snapshotRefs', fn ($snapshotRefs) => $snapshotRefs['repo.saas'] === '098daec985d4baac0627da9e3552bf498c26f76a')
+                ->where('manifest.metadata.snapshotRefs', fn ($snapshotRefs) => $snapshotRefs['repo.saas'] === '5180648f095f0609af2168ab7be98a986037eda7')
                 ->has('manifest.applications', 4)
                 ->has('manifest.modules', 47)
                 ->has('manifest.risks', 10)

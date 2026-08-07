@@ -57,6 +57,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 - [Cola de Ventas](frontend/cola-ventas.md) — composable useSaleQueue, suscripción Echo, UI de cobro
 - [Pantallas del Cajero](frontend/pantallas-cajero.md) — OpenShift, Queue, Dashboard, Shift
+- [Atlas vivo del sistema](frontend/atlas-vivo.md) — mapa arquitectónico 2.5D de solo lectura, exclusivo para `superadmin` y alimentado por manifiesto versionado
 
 ## Guías
 
@@ -70,7 +71,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 ---
 
-## Estado del sistema (2026-07-06)
+## Estado del sistema (2026-08-06)
 
 | Área | Estado |
 |------|--------|
@@ -85,3 +86,4 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 | Asistente IA conversacional | ✅ F0–F4 · ✅ mini-app móvil `/{tenant}/asistente` completa (F0–F5: cobro FIFO a clientes, pago a cuenta FIFO a proveedores, modo simple, cajero operativo, retiros y cambio de precios) · pendiente F5-config asistida y F6 parcial del spec original · TTS off en UI |
 | API del Hub (Electron, Sanctum, idempotencia) | ✅ Fase 1 backend · offline con cola en el cliente pendiente (repo `carniceria-hub`) |
 | Inventario / stock | ❌ No iniciado (fase futura F-Inv1+) |
+| Atlas vivo del sistema | ✅ MVP de lectura · acceso exclusivo `superadmin` · manifiesto versionado |

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Dayikeynes16/backend/blob/098daec985d4baac0627da9e3552bf498c26f76a/resources/js/Features/Architecture/data/system-architecture.schema.json",
+  "$id": "https://github.com/Dayikeynes16/backend/blob/5180648f095f0609af2168ab7be98a986037eda7/resources/js/Features/Architecture/data/system-architecture.schema.json",
   "title": "Atlas vivo system architecture manifest",
   "type": "object",
   "required": ["metadata", "statuses", "repositories", "applications", "modules", "components", "connections", "dataSources", "endpoints", "events", "databaseTables", "devices", "dependencies", "permissions", "featureFlags", "sourceFiles", "risks", "evidence", "visualLayout"],

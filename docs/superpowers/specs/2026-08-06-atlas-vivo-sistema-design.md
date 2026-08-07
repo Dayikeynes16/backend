@@ -1,6 +1,6 @@
 # Atlas vivo del sistema
 
-**Estado:** Diseño aprobado; implementación pendiente  
+**Estado:** Implementado (2026-08-06) — doc viva: [atlas-vivo.md](../../frontend/atlas-vivo.md)  
 **Fecha:** 2026-08-06  
 **Aplicación anfitriona:** `carniceria-saas`  
 **Audiencia inicial:** exclusivamente usuarios con rol `superadmin`  
@@ -56,7 +56,7 @@ clientes API, mecanismos locales y documentación viva.
 
 | Repositorio | Commit auditado | Nota |
 |---|---|---|
-| `carniceria-saas` | `098daec985d4baac0627da9e3552bf498c26f76a` | Rama `feat/caja-pago-link-venta`, un commit delante de `origin/main` |
+| `carniceria-saas` | `5180648f095f0609af2168ab7be98a986037eda7` | Auditado sobre `098daec` (rama local `feat/caja-pago-link-venta`, nunca publicada); re-anclado a este commit de `origin/main` porque los 27 archivos citados son idénticos entre ambos y así los enlaces a GitHub resuelven |
 | `carniceria-hub` | `cd663a6b97551c212aaf3671cbb02c2660090d5b` | Rama concurrente `feat/emparejamiento-basculas`; no es aún `main` |
 | `bascula` | `a5a54da567b3048a2026e682f51a2dd0d425b3b2` | Rama `main` |
 | `bascula-android` | `8828dae77ba5ad8f5e4baa26e5b01685ab52f70b` | Rama `main` |
