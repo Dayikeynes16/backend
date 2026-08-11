@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Enums\SaleStatus;
 use App\Models\Customer;
+use App\Services\PhoneNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -221,6 +222,15 @@ trait HandlesCustomers
             'notes' => 'nullable|string|max:1000',
         ]);
 
+        // El mutator de Customer normaliza al guardar; hay que comparar contra
+        // el mismo formato o '993 123 4567' pasaría como distinto de
+        // '+529931234567' y crearíamos un duplicado.
+        $validated['phone'] = PhoneNormalizer::normalize($validated['phone']);
+
+        if ($validated['phone'] === null) {
+            return back()->withErrors(['phone' => 'El telefono no es valido.']);
+        }
+
         $exists = Customer::where('branch_id', $user->branch_id)
             ->where('phone', $validated['phone'])
             ->exists();
@@ -257,6 +267,12 @@ trait HandlesCustomers
         }
 
         $validated = $request->validate($rules);
+
+        $validated['phone'] = PhoneNormalizer::normalize($validated['phone']);
+
+        if ($validated['phone'] === null) {
+            return back()->withErrors(['phone' => 'El telefono no es valido.']);
+        }
 
         $duplicate = Customer::where('branch_id', $user->branch_id)
             ->where('phone', $validated['phone'])
