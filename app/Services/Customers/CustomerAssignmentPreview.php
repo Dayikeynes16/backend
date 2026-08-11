@@ -6,6 +6,7 @@ use App\Enums\SaleStatus;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Support\SaleItemMath;
+use App\Support\SaleTotals;
 
 /**
  * Calcula qué pasaría si se asignara un cliente a una venta, sin escribir nada.
@@ -60,7 +61,9 @@ class CustomerAssignmentPreview
             $newTotal += round($unitPrice * (float) $item->quantity, 2);
         }
 
-        $newTotal = round($newTotal, 2);
+        // El envío no depende del cliente, pero forma parte del total: sin
+        // sumarlo, el preview anunciaría una rebaja que no va a ocurrir.
+        $newTotal = round($newTotal + SaleTotals::deliveryFee($sale), 2);
         $currentTotal = round((float) $sale->total, 2);
         $amountPaid = (float) $sale->amount_paid;
         $newPending = round(max($newTotal - $amountPaid, 0), 2);

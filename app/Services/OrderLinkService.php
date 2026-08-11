@@ -9,6 +9,7 @@ use App\Exceptions\OrderLink\IneligibleScaleSaleException;
 use App\Exceptions\OrderLink\IneligibleWebOrderException;
 use App\Exceptions\OrderLink\LockedScaleSaleException;
 use App\Models\Sale;
+use App\Support\SaleTotals;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -44,9 +45,9 @@ class OrderLinkService
             $scaleSale->delivery_distance_km = $webOrder->delivery_distance_km;
             $scaleSale->delivery_fee = $webOrder->delivery_fee;
 
-            $itemsSubtotal = (float) $scaleSale->items()->sum('subtotal');
-            $deliveryFee = (float) ($webOrder->delivery_fee ?? 0);
-            $newTotal = round($itemsSubtotal + $deliveryFee, 2);
+            // `delivery_fee` ya está copiado del pedido web arriba, así que el
+            // total sale de la fuente común: líneas + envío.
+            $newTotal = SaleTotals::forSale($scaleSale);
 
             $scaleSale->total = $newTotal;
             $scaleSale->amount_pending = round($newTotal - (float) $scaleSale->amount_paid, 2);
@@ -79,9 +80,11 @@ class OrderLinkService
             $scaleSale->delivery_distance_km = null;
             $scaleSale->delivery_fee = null;
 
-            $itemsSubtotal = (float) $scaleSale->items()->sum('subtotal');
-            $scaleSale->total = round($itemsSubtotal, 2);
-            $scaleSale->amount_pending = round($itemsSubtotal - (float) $scaleSale->amount_paid, 2);
+            // `delivery_fee` acaba de quedar en null, así que el total vuelve a
+            // ser solo las líneas — pero se calcula por la misma vía.
+            $newTotal = SaleTotals::forSale($scaleSale);
+            $scaleSale->total = $newTotal;
+            $scaleSale->amount_pending = round($newTotal - (float) $scaleSale->amount_paid, 2);
             $scaleSale->save();
 
             if ($webOrder) {

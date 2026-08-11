@@ -11,6 +11,7 @@ use App\Models\SaleItem;
 use App\Models\SaleItemChange;
 use App\Models\User;
 use App\Support\SaleItemSnapshot;
+use App\Support\SaleTotals;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -226,11 +227,9 @@ class SaleItemEditor
 
     private function recalculateSale(Sale $sale, User $user): void
     {
-        $total = SaleItem::where('sale_id', $sale->id)
-            ->whereNull('deleted_at')
-            ->sum('subtotal');
-
-        $sale->update(['total' => round((float) $total, 2)]);
+        // Incluye el costo de envío: tocar una línea de una venta a domicilio
+        // no puede borrar ese importe del total.
+        $sale->update(['total' => SaleTotals::forSale($sale)]);
         $this->payments->recalculate($sale->refresh(), $user);
     }
 

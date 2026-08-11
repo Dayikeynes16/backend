@@ -48,14 +48,16 @@ class CheckSalesIntegrity extends Command
             ->orderBy('s.id')
             ->get(['s.id', 's.folio', 's.total', 's.status']);
 
-        // 2. Ventas cuyo total no coincide con la suma de sus líneas.
+        // 2. Ventas cuyo total no coincide con líneas + envío.
+        //    El costo de envío forma parte del total (ver App\Support\SaleTotals):
+        //    sin contarlo, toda venta a domicilio sana aparecería como desfasada.
         $mismatched = DB::table('sales as s')
             ->whereNull('s.deleted_at')
             ->when($branch, fn ($q) => $q->where('s.branch_id', (int) $branch))
             ->whereRaw('EXISTS (select 1 from sale_items i where i.sale_id = s.id and i.deleted_at is null)')
-            ->whereRaw('ABS(s.total - (select COALESCE(SUM(i.subtotal), 0) from sale_items i where i.sale_id = s.id and i.deleted_at is null)) >= 0.01')
+            ->whereRaw('ABS(s.total - COALESCE(s.delivery_fee, 0) - (select COALESCE(SUM(i.subtotal), 0) from sale_items i where i.sale_id = s.id and i.deleted_at is null)) >= 0.01')
             ->orderBy('s.id')
-            ->get(['s.id', 's.folio', 's.total', 's.status']);
+            ->get(['s.id', 's.folio', 's.total', 's.status', 's.delivery_fee']);
 
         $this->newLine();
 
@@ -75,16 +77,17 @@ class CheckSalesIntegrity extends Command
         $this->newLine();
 
         if ($mismatched->isEmpty()) {
-            $this->info('✓ El total de cada venta coincide con la suma de sus lineas.');
+            $this->info('✓ El total de cada venta coincide con sus lineas mas el envio.');
         } else {
-            $this->error("✗ {$mismatched->count()} venta(s) con total distinto a la suma de sus lineas.");
-            $this->warn('  Asignarles un cliente ajustaria su total al valor de las lineas.');
+            $this->error("✗ {$mismatched->count()} venta(s) con total distinto a lineas + envio.");
+            $this->warn('  Asignarles un cliente o editarles una linea ajustaria su total.');
             foreach ($mismatched->take($show) as $sale) {
                 $lines = DB::table('sale_items')
                     ->where('sale_id', $sale->id)
                     ->whereNull('deleted_at')
                     ->sum('subtotal');
-                $this->line("    {$sale->folio} (#{$sale->id}) total={$sale->total} lineas={$lines} status={$sale->status}");
+                $fee = $sale->delivery_fee ?? '0.00';
+                $this->line("    {$sale->folio} (#{$sale->id}) total={$sale->total} lineas={$lines} envio={$fee} status={$sale->status}");
             }
             if ($mismatched->count() > $show) {
                 $this->line('    ... y '.($mismatched->count() - $show).' mas');
