@@ -98,7 +98,7 @@ class WhatsappMessageService
         }
 
         $normalized = PhoneNormalizer::normalize($rawPhone);
-        if ($normalized === '') {
+        if ($normalized === null) {
             return ['url' => null, 'available' => false, 'reason' => 'invalid_phone'];
         }
 
