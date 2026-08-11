@@ -105,6 +105,17 @@ class WebOrderReusesCustomerTest extends TestCase
         $this->assertSame('+529939999999', $this->lastWebOrder()->contact_phone);
     }
 
+    public function test_rechaza_un_telefono_que_no_lo_es(): void
+    {
+        // Pasa el regex (11 caracteres) pero solo tiene 6 dígitos.
+        $this->postJson($this->orderUrl(), $this->payload([
+            'contact_phone' => '(55) 12-34',
+        ]))->assertStatus(422);
+
+        $this->assertSame(0, Customer::where('branch_id', $this->branch->id)->count());
+        $this->assertSame(0, Sale::withoutGlobalScopes()->where('origin', 'web')->count());
+    }
+
     private function lastWebOrder(): Sale
     {
         return Sale::withoutGlobalScopes()->where('origin', 'web')->latest('id')->firstOrFail();

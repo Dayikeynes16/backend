@@ -24,7 +24,10 @@ class ResolveCustomerByPhone
     {
         $normalized = PhoneNormalizer::normalize($phone);
 
-        if ($normalized === null) {
+        // No basta con que tenga dígitos: dar de alta clientes con '344' o
+        // '+8556' llena la cartera de registros inservibles y expone a
+        // fusiones accidentales cuando esa basura coincide.
+        if (! PhoneNormalizer::isPlausible($normalized)) {
             throw new InvalidArgumentException('El teléfono no es válido.');
         }
 

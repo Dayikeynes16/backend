@@ -58,6 +58,16 @@ class OrderController extends Controller
         $tenant = app('tenant');
         $contactPhone = PhoneNormalizer::normalize($validated['contact_phone']);
 
+        // El regex de arriba cuenta caracteres, no dígitos: '(55) 12-34' lo
+        // pasa con solo 6 dígitos. Aquí se exige que sea un teléfono de verdad
+        // antes de crear cliente y pedido con él.
+        if (! PhoneNormalizer::isPlausible($contactPhone)) {
+            return response()->json([
+                'error' => 'invalid_phone',
+                'message' => 'El teléfono no es válido.',
+            ], 422);
+        }
+
         $branchModel = Branch::withoutGlobalScopes()
             ->where('tenant_id', $tenant->id)
             ->where('status', 'active')
