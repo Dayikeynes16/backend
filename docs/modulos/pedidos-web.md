@@ -14,7 +14,7 @@ Canal de venta público por tenant: una SPA sin login donde el cliente final ve 
 - Exponer el menú por sucursal: solo productos `status=active` + `visible_online=true`, con presentaciones activas.
 - Cotizar costo de envío por distancia real (Google Distance Matrix) contra tiers configurables por sucursal.
 - Crear la `Sale` web con recálculo de precios **server-side** (nunca confiar en los montos del carrito del cliente).
-- Identificar al cliente por `phone + name` sin login: `Customer::firstOrCreate` por `(branch_id, phone)` normalizado a E.164.
+- Identificar al cliente por `phone + name` sin login, vía `ResolveCustomerByPhone` — el mismo resolvedor que usa la captura de teléfono en la mesa de trabajo ([doc](clientes-telefonos.md)).
 - Generar el mensaje de WhatsApp con el detalle del pedido hacia el `public_phone` de la sucursal.
 - Notificar a la sucursal en tiempo real (`NewExternalSale` por Reverb, igual que las ventas de báscula).
 - Aplicar branding por tenant (colores, logo, imagen de producto default) vía `BrandingService` / Personalización.
@@ -37,7 +37,7 @@ Canal de venta público por tenant: una SPA sin login donde el cliente final ve 
 | Controllers públicos usan `withoutGlobalScopes()` + filtro explícito `tenant_id` | No hay usuario autenticado, `TenantScope` no aplica; el filtro manual es obligatorio en cada query. |
 | Delivery con tiers `[{max_km, fee}]` por sucursal | Tarifa configurable por rangos; sin flat rate ni cobro por km lineal. |
 | `hours` JSON opcional; `null` = siempre abierta | No obligar horarios; si el día es `null` o faltan `open`/`close`, ese día está cerrada. |
-| Identificación por teléfono, sin login | `PhoneNormalizer` lleva todo a E.164 (+52 implícito para 10 dígitos MX); `firstOrCreate` de `Customer`. |
+| Identificación por teléfono, sin login | `PhoneNormalizer` lleva todo a E.164 (+52 implícito para 10 dígitos MX) y `ResolveCustomerByPhone` busca-o-crea en la sucursal. Desde 2026-08-11 no tiene lógica propia: tener dos implementaciones de "buscar cliente por teléfono" fue lo que generó clientes duplicados. Si el número no es plausible responde 422. |
 | Folio `S-NNNNN` por conteo de ventas de la sucursal | Serializado con `pg_advisory_xact_lock(branch_id)` dentro de la transacción — dos pedidos simultáneos no duplican folio. |
 | Configuración solo de admin-empresa | Toggles, tiers, horarios y coordenadas viven en *Editar Sucursal* (empresa). El admin-sucursal solo controla `visible_online` por producto y consulta su QR. |
 | SPA Vue independiente (no Inertia) | App pública sin sesión, `vue-router` con base `/menu`, montada en el blade `public-spa`. |
@@ -122,7 +122,7 @@ Cliente                      SPA pública                 Backend               
 6. Recalcula subtotales server-side (línea por peso/pieza o snapshot de presentación — mismo contrato que `WorkbenchController::store`).
 7. Si es delivery: exige `lat/lng/address` y cotiza de nuevo (`out_of_range` 422 / `quote_unavailable` 503) — el fee persistido es el del servidor, no el que vio el cliente.
 8. `min_order_amount` de la sucursal sobre el subtotal → `422 below_minimum`.
-9. Transacción con `pg_advisory_xact_lock(branch_id)`: `Customer::firstOrCreate(branch_id, phone)`, folio `S-NNNNN`, `Sale` + items. Luego `NewExternalSale::dispatch` y arma `whatsapp_url` si hay `public_phone`.
+9. Transacción con `pg_advisory_xact_lock(branch_id)`: `ResolveCustomerByPhone` (si el cliente se acaba de crear, se le pone el nombre del checkout en vez del placeholder), folio `S-NNNNN`, `Sale` + items. Luego `NewExternalSale::dispatch` y arma `whatsapp_url` si hay `public_phone`.
 
 ## Rutas / Endpoints
 

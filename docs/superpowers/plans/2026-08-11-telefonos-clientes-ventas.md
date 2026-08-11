@@ -1,6 +1,6 @@
 # Teléfonos y clientes en ventas — Plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Plan ejecutado y cerrado.** Se conserva como historia del cambio. Para saber cómo funciona el sistema hoy: [docs/modulos/clientes-telefonos.md](../../modulos/clientes-telefonos.md).
 
 **Goal:** Que capturar un teléfono en una venta resuelva siempre a un cliente de la sucursal — reutilizándolo si ya existe o creándolo sin nombre si no — con teléfonos normalizados a E.164 en todo el sistema y sin generar duplicados.
 
@@ -8,13 +8,17 @@
 
 **Tech Stack:** Laravel 13 · PHP 8.5 · PostgreSQL 18 · Vue 3 + Inertia 2 · PHPUnit 12 · Sail
 
-**Estado:** Tareas 1-6 completadas (2026-08-11; rama `feat/telefonos-clientes-ventas`). Tareas 7-10 pendientes.
+**Estado: COMPLETADO** (2026-08-11). Las diez tareas están implementadas y en `main` — PR [#50](https://github.com/Dayikeynes16/backend/pull/50) (tareas 1-7) y [#51](https://github.com/Dayikeynes16/backend/pull/51) (ajuste de `isPlausible` tras el dry-run en producción).
 
-**Tarea extra intercalada entre la 6 y la 7 (commit `605b3c5`):** al verificar integridad en producción salió un bug preexistente — `AssignCustomerToSale` y `SaleItemEditor` recalculaban `sales.total` **sin el costo de envío**, así que asignar cliente o editar una línea borraba ese importe de las ventas a domicilio. La captura automática de la Tarea 6 lo habría vuelto cotidiano. Se centralizó el cálculo en `App\Support\SaleTotals::forSale()` (líneas + `delivery_fee`), usado por los tres servicios y por `CustomerAssignmentPreview`. **Cualquier código futuro que recalcule el total debe pasar por ahí.**
+Documentación viva del resultado: [docs/modulos/clientes-telefonos.md](../../modulos/clientes-telefonos.md). Este plan queda como historia congelada; para saber cómo funciona hoy, ese es el documento.
 
-**Cambio de contrato en la Tarea 6 respecto a lo planeado:** el endpoint acepta además `skip_assign` (bool). Sin él, rechazar la confirmación dejaba al usuario sin poder mandar la nota por WhatsApp — una regresión de una función existente. Con `skip_assign` se guarda el teléfono en `sales.contact_phone` como antes, sin tocar clientes. **La Tarea 7 debe cablear ese botón en el diálogo de confirmación** ("Solo enviar sin asociar").
+**Lo que cambió respecto a lo planeado, y por qué:**
 
-La migración `2026_08_11_085345_add_name_pending_to_customers_table` ya está aplicada, y **el mutator ya está activo**: a partir de aquí, cualquier test que cree un `Customer` con teléfono lo verá guardado en E.164.
+1. **`skip_assign`** (Tarea 6). Sin él, rechazar la confirmación dejaba al usuario sin poder mandar la nota por WhatsApp — una regresión de una función existente.
+2. **Arreglo del costo de envío** (intercalado entre la 6 y la 7, commit `605b3c5`). `AssignCustomerToSale` y `SaleItemEditor` recalculaban `sales.total` sin `delivery_fee`. Bug preexistente que la captura automática habría vuelto cotidiano. Centralizado en `App\Support\SaleTotals`.
+3. **`isPlausible`** (PR #51). El dry-run en producción reveló que ~43 de 94 teléfonos no eran teléfonos, y que una fusión iba a mezclar dos clientes distintos con basura coincidente (`+8556`). La normalización ahora deja intacto lo que no parece un teléfono.
+4. **La Tarea 8 dejó de arreglar un bug**: el mutator de la Tarea 3 ya había corregido los duplicados del pedido web. Se hizo igual para eliminar la lógica duplicada.
+5. **`sales:check-integrity`** (no planeado): comando de solo lectura para verificar totales en producción sin acceso a SQL.
 
 **Hallazgos durante la ejecución que afectan a las tareas siguientes:**
 
@@ -1789,7 +1793,7 @@ contact_phone en ventas POS."
 - Consumes: el contrato JSON de la Tarea 6 (`requires_confirmation`, `customer`, `preview`).
 - Produces: `useWhatsappSend` expone `assignConfirmDialog` y `confirmAssign()`.
 
-- [ ] **Step 1: Manejar `requires_confirmation` en el composable**
+- [x] **Step 1: Manejar `requires_confirmation` en el composable**
 
 En `resources/js/composables/useWhatsappSend.js`, añadir junto a los otros diálogos:
 
@@ -1833,7 +1837,7 @@ Cambiar la firma de `submitPhone` a `async (phone, confirmed = false)` y el body
 
 Exportar en el return: `assignConfirmDialog, confirmAssign,`.
 
-- [ ] **Step 2: Crear el diálogo de confirmación**
+- [x] **Step 2: Crear el diálogo de confirmación**
 
 Crear `resources/js/Components/CustomerAssignConfirmDialog.vue`:
 
@@ -1899,7 +1903,7 @@ const wouldComplete = computed(() => props.preview?.would_complete === true);
 </template>
 ```
 
-- [ ] **Step 3: Montar el diálogo donde ya se usan los otros**
+- [x] **Step 3: Montar el diálogo donde ya se usan los otros**
 
 En `resources/js/Components/Caja/SaleDetail.vue` y `resources/js/Components/Sucursal/SaleDetail.vue`, localizar dónde se renderiza `WhatsappPhoneDialog` (`grep -n "WhatsappPhoneDialog" resources/js/Components/{Caja,Sucursal}/SaleDetail.vue`) y añadir junto a él:
 
@@ -1916,7 +1920,7 @@ En `resources/js/Components/Caja/SaleDetail.vue` y `resources/js/Components/Sucu
 
 importando el componente y desestructurando `assignConfirmDialog, confirmAssign` del composable.
 
-- [ ] **Step 4: Chip — mostrar el cliente sin nombre y permitir completarlo**
+- [x] **Step 4: Chip — mostrar el cliente sin nombre y permitir completarlo**
 
 En `resources/js/Components/SaleWhatsappPhoneChip.vue`, añadir la prop `namePending` y, en la rama `source === 'customer'`, sustituir el nombre por un chip accionable cuando falte:
 
@@ -1958,7 +1962,7 @@ En `useWhatsappSend.js`, exponer el dato en `phoneInfo`:
 
 **Verificar** que `name_pending` viaje al frontend: revisar `app/Http/Resources/SaleResource.php` y los `select` de `customer:id,name,phone` en `Caja/WorkbenchController.php:376` y `Sucursal/WorkbenchController.php:685`, añadiendo `name_pending` a cada lista de columnas. Sin esto la prop llega siempre `false`.
 
-- [ ] **Step 5: Diálogo para completar el nombre**
+- [x] **Step 5: Diálogo para completar el nombre**
 
 Crear `resources/js/Components/CustomerNameDialog.vue`:
 
@@ -2061,7 +2065,7 @@ const submitCustomerName = (name) => {
 
 **Permisos:** el cajero puede editar clientes solo si la sucursal tiene activo `cashier_customers_enabled` (middleware `branch.feature`). Si el flag está apagado, la ruta `caja.clientes.update` no existe para ese usuario y el botón "Poner nombre" debe ocultarse. Pasar el flag como prop desde `Caja/WorkbenchController` (`$branch->cashier_customers_enabled`) y condicionar el botón con `v-if`.
 
-- [ ] **Step 6: Buscador de clientes tolerante al formato**
+- [x] **Step 6: Buscador de clientes tolerante al formato**
 
 En `Caja/SaleDetail.vue:104-110` y `Sucursal/SaleDetail.vue:157-163`, el filtro `c.phone.includes(q)` falla si el usuario teclea `9931234567` y el cliente está guardado como `+529931234567`. Reemplazar el computed en ambos archivos:
 
@@ -2084,7 +2088,7 @@ const filteredCustomers = computed(() => {
 
 Esto además blinda contra `c.name` vacío, que hoy lanzaría `TypeError`.
 
-- [ ] **Step 7: Compilar y probar a mano**
+- [x] **Step 7: Compilar y probar a mano**
 
 Run: `npm run build`
 Expected: build sin errores.
@@ -2095,7 +2099,7 @@ Prueba manual en mesa de trabajo (Caja y Sucursal):
 3. Con un cliente que tenga precio preferencial → debe aparecer el diálogo de confirmación con el cambio de total.
 4. Buscar ese cliente en "Asignar cliente" tecleando los 10 dígitos → debe encontrarlo.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
@@ -2117,7 +2121,7 @@ Elimina el `firstOrCreate` divergente del canal web y el `Customer::create` sin 
 **Interfaces:**
 - Consumes: `ResolveCustomerByPhone::execute()`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 **No existe ningún test que POSTee al endpoint público de pedidos** — los tests de web orders crean las ventas directo con `Sale::create(['origin' => 'web'])`. Hay que escribir el payload desde cero; el que sigue satisface las reglas de `OrderController::store()` (líneas 31-46).
 
@@ -2224,12 +2228,12 @@ class WebOrderReusesCustomerTest extends TestCase
 
 **Feature flag:** la ruta solo se registra si `config('features.web_orders')` está activo. Hoy lo está en el entorno de test (`WebOrdersFeatureFlagEnabledTest` lo da por hecho). Si el test devuelve 404 en vez de 201, esa es la causa — revisar `config/features.php` y `.env.testing`.
 
-- [ ] **Step 2: Correr para verificar que falla**
+- [x] **Step 2: Correr para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Ventas/WebOrderReusesCustomerTest.php`
 Expected: FAIL en el primero — hoy se crean dos clientes.
 
-- [ ] **Step 3: Sustituir el `firstOrCreate` del canal web**
+- [x] **Step 3: Sustituir el `firstOrCreate` del canal web**
 
 En `app/Http/Controllers/Public/OrderController.php`, dentro de la transacción, reemplazar:
 
@@ -2258,7 +2262,7 @@ por:
 
 Inyectar `ResolveCustomerByPhone $resolver` en la firma del método del controlador, añadirlo al `use (...)` del closure de la transacción, e importar la clase.
 
-- [ ] **Step 4: Alinear el asistente IA**
+- [x] **Step 4: Alinear el asistente IA**
 
 En `app/Services/Ai/Assistant/Drafts/Confirmers/CustomerDraftConfirmer.php`, `Customer::create()` choca contra el índice único si el teléfono ya existe, lanzando `QueryException` sin manejar. Reemplazar el bloque de creación:
 
@@ -2291,12 +2295,12 @@ En `app/Services/Ai/Assistant/Drafts/Confirmers/CustomerDraftConfirmer.php`, `Cu
 
 importando `App\Services\PhoneNormalizer` e `Illuminate\Validation\ValidationException`.
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Ventas/WebOrderReusesCustomerTest.php tests/Feature/Ai/AssistantCustomerDraftConfirmTest.php`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
@@ -2316,7 +2320,7 @@ git commit -m "fix(clientes): pedido web y asistente IA usan el resolvedor comun
 - Consumes: `ResolveCustomerByPhone::execute()`.
 - Produces: comando `sales:link-orphan-phones {--dry-run=true} {--branch=}`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `tests/Feature/Console/LinkOrphanSalePhonesTest.php`:
 
@@ -2422,12 +2426,12 @@ class LinkOrphanSalePhonesTest extends TestCase
 }
 ```
 
-- [ ] **Step 2: Correr para verificar que falla**
+- [x] **Step 2: Correr para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Console/LinkOrphanSalePhonesTest.php`
 Expected: FAIL — comando no definido.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Crear `app/Console/Commands/LinkOrphanSalePhones.php`:
 
@@ -2517,12 +2521,12 @@ class LinkOrphanSalePhones extends Command
 }
 ```
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Console/LinkOrphanSalePhonesTest.php`
 Expected: PASS (5 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
@@ -2539,12 +2543,12 @@ git commit -m "feat(clientes): comando para recuperar telefonos historicos de ve
 - Modify: `docs/api/hub.md`
 - Modify: `docs/README.md`
 
-- [ ] **Step 1: Correr la suite completa**
+- [x] **Step 1: Correr la suite completa**
 
 Run: `./vendor/bin/sail composer run test`
 Expected: PASS. Si algo falla, arreglarlo antes de seguir — no documentar sobre una suite roja.
 
-- [ ] **Step 2: Actualizar las docs vivas**
+- [x] **Step 2: Actualizar las docs vivas**
 
 En `docs/modulos/clientes-caja.md` documentar: teléfono canónico en E.164, `name_pending`, creación automática desde venta, unicidad por sucursal y los dos comandos nuevos.
 
@@ -2554,7 +2558,7 @@ En `docs/modulos/pedidos-web.md` corregir la sección de creación de cliente: a
 
 En `docs/api/hub.md` documentar el nuevo parámetro `confirmed` y el contrato de respuesta con `requires_confirmation`.
 
-- [ ] **Step 3: Nota de despliegue**
+- [x] **Step 3: Nota de despliegue**
 
 Añadir al final del plan (este archivo) y al doc de clientes el orden obligatorio en producción:
 
@@ -2574,11 +2578,11 @@ php artisan sales:link-orphan-phones --dry-run=false
 
 **El paso 2 debe correr antes de que el código nuevo esté sirviendo tráfico.** Si el mutator entra primero, la primera edición de un cliente cuyo teléfono normalizado colisiona con otro existente falla con violación del índice único.
 
-- [ ] **Step 4: Atlas**
+- [x] **Step 4: Atlas**
 
 El manifiesto `resources/js/Features/Architecture/data/system-architecture.json` **no existe en esta rama**. Si para cuando se ejecute este plan ya existe, actualizarlo (tablas, servicios, endpoints) y correr `npm run validate:architecture` y `npm run test:architecture`. Si no existe, omitir sin más.
 
-- [ ] **Step 5: Commit final**
+- [x] **Step 5: Commit final**
 
 ```bash
 git add docs/
