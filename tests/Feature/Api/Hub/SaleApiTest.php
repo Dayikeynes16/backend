@@ -125,7 +125,7 @@ class SaleApiTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Cliente Fiado',
-            'phone' => '5551234',
+            'phone' => '9931234567',
             'status' => 'active',
         ]);
         $sale = $this->makeSale($this->branch->id, SaleStatus::Active);
@@ -135,7 +135,8 @@ class SaleApiTest extends TestCase
             ->getJson("/api/v1/hub/sales/{$sale->id}")
             ->assertOk()
             ->assertJsonPath('data.customer.name', 'Cliente Fiado')
-            ->assertJsonPath('data.customer.phone', '5551234');
+            // El mutator de Customer guarda siempre en E.164.
+            ->assertJsonPath('data.customer.phone', '+529931234567');
     }
 
     public function test_index_filters_by_status_and_returns_counts(): void

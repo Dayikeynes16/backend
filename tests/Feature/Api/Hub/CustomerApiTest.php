@@ -118,7 +118,8 @@ class CustomerApiTest extends TestCase
             ->assertJsonPath('data.name', 'Nuevo Cliente')
             ->assertJsonPath('data.status', 'active');
 
-        $this->assertSame(1, Customer::withoutGlobalScopes()->where('phone', '6612223344')->count());
+        // El mutator de Customer guarda siempre en E.164.
+        $this->assertSame(1, Customer::withoutGlobalScopes()->where('phone', '+526612223344')->count());
     }
 
     public function test_store_rejects_duplicate_phone_in_branch(): void

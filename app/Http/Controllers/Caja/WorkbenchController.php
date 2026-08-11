@@ -8,14 +8,15 @@ use App\Exceptions\OrderLink\CrossBranchLinkException;
 use App\Exceptions\OrderLink\IneligibleScaleSaleException;
 use App\Exceptions\OrderLink\IneligibleWebOrderException;
 use App\Exceptions\OrderLink\LockedScaleSaleException;
+use App\Http\Controllers\Concerns\HandlesSalePhoneCapture;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
+use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\OrderLinkService;
-use App\Services\PhoneNormalizer;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +29,8 @@ use Inertia\Response;
 
 class WorkbenchController extends Controller
 {
+    use HandlesSalePhoneCapture;
+
     public function index(): Response|RedirectResponse
     {
         $user = Auth::user();
@@ -45,7 +48,7 @@ class WorkbenchController extends Controller
             ->with([
                 'items',
                 'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
-                'lockedByUser:id,name', 'customer:id,name,phone',
+                'lockedByUser:id,name', 'customer:id,name,name_pending,phone',
                 'linkedOrder:id,folio,status',
                 'fulfilledBy:id,folio,status,linked_order_id',
             ])
@@ -62,7 +65,7 @@ class WorkbenchController extends Controller
         $customers = Customer::where('branch_id', $user->branch_id)
             ->where('status', 'active')
             ->orderBy('name')
-            ->get(['id', 'name', 'phone']);
+            ->get(['id', 'name', 'name_pending', 'phone']);
 
         return Inertia::render('Caja/Workbench', [
             'sales' => $sales,
@@ -213,11 +216,16 @@ class WorkbenchController extends Controller
     }
 
     /**
-     * Guarda el teléfono capturado en `contact_phone` (E.164) y devuelve el link.
-     * No crea cliente.
+     * Captura un teléfono en la venta: resuelve el cliente de la sucursal
+     * (creándolo sin nombre si el número es nuevo) y lo asocia a la venta.
      */
-    public function storeWhatsappPhone(Request $request, Sale $sale, WhatsappMessageService $whatsappService): JsonResponse
-    {
+    public function storeWhatsappPhone(
+        Request $request,
+        Sale $sale,
+        WhatsappMessageService $whatsappService,
+        ResolveCustomerByPhone $resolver,
+        AssignCustomerToSale $assigner,
+    ): JsonResponse {
         $user = Auth::user();
 
         if ($sale->branch_id !== $user->branch_id) {
@@ -227,18 +235,17 @@ class WorkbenchController extends Controller
             abort(403, 'Esta venta no pertenece a tu empresa.');
         }
 
-        $validated = $request->validate([
-            'phone' => ['required', 'string', 'regex:/^\d{10}$/'],
-        ], [
-            'phone.regex' => 'El teléfono debe tener 10 dígitos.',
-            'phone.required' => 'Ingresa un teléfono.',
-        ]);
+        $validated = $this->validateSalePhoneCapture($request);
 
-        $sale->update([
-            'contact_phone' => PhoneNormalizer::normalize($validated['phone']),
-        ]);
-
-        return response()->json($whatsappService->linkForSale($sale->fresh()));
+        return response()->json($this->capturePhoneForSale(
+            $sale,
+            $validated['phone'],
+            (bool) ($validated['confirmed'] ?? false),
+            (bool) ($validated['skip_assign'] ?? false),
+            $whatsappService,
+            $resolver,
+            $assigner,
+        ));
     }
 
     /**

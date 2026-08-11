@@ -129,7 +129,10 @@ class WhatsappLinkTest extends TestCase
             ->assertJsonPath('available', true)
             ->assertJsonPath('url', fn (?string $url) => is_string($url) && str_contains($url, 'wa.me/525512345678'));
 
-        $this->assertSame('+525512345678', $sale->fresh()->contact_phone);
+        // El teléfono ya no queda suelto en la venta: vive en el cliente que
+        // se resolvió (o se creó) a partir de él.
+        $this->assertNull($sale->fresh()->contact_phone);
+        $this->assertSame('+525512345678', $sale->fresh()->customer->phone);
     }
 
     public function test_store_phone_rejects_invalid_format(): void
@@ -247,9 +250,13 @@ class WhatsappLinkTest extends TestCase
             ->assertJsonPath('url', fn (?string $url) => str_contains($url, 'wa.me/525512345678'));
     }
 
+    /**
+     * Venta coherente: el total coincide con la suma de sus líneas, porque
+     * capturar un teléfono asigna cliente y eso recalcula el total desde ellas.
+     */
     private function makeSale(array $attrs = []): Sale
     {
-        return Sale::create(array_merge([
+        $sale = Sale::create(array_merge([
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
             'folio' => 'V-'.uniqid(),
@@ -259,5 +266,20 @@ class WhatsappLinkTest extends TestCase
             'origin' => 'admin',
             'status' => SaleStatus::Active,
         ], $attrs));
+
+        $product = $this->makeProduct(['unit_type' => 'kg', 'price' => 250]);
+
+        $sale->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'quantity_unit' => 'kg',
+            'unit_type' => 'kg',
+            'unit_price' => 250,
+            'original_unit_price' => 250,
+            'subtotal' => 250,
+        ]);
+
+        return $sale->fresh();
     }
 }

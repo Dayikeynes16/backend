@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubSaleResource;
 use App\Models\Customer;
 use App\Models\Sale;
+use App\Services\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -359,6 +360,12 @@ class CustomerController extends Controller
     /** @return array<string, mixed> */
     private function validateCustomer(Request $request, int $branchId, ?int $ignoreId = null, bool $withStatus = false): array
     {
+        // El mutator de Customer normaliza al guardar; hay que validar contra
+        // el mismo formato o la regla `unique` nunca detectaría el duplicado.
+        if ($request->filled('phone')) {
+            $request->merge(['phone' => PhoneNormalizer::normalize($request->input('phone'))]);
+        }
+
         $phoneRule = Rule::unique('customers', 'phone')
             ->where(fn ($q) => $q->where('branch_id', $branchId));
         if ($ignoreId) {

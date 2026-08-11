@@ -4,6 +4,8 @@ import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import WhatsappPhoneDialog from '@/Components/WhatsappPhoneDialog.vue';
 import WhatsappSendConfirmDialog from '@/Components/WhatsappSendConfirmDialog.vue';
 import SaleWhatsappPhoneChip from '@/Components/SaleWhatsappPhoneChip.vue';
+import CustomerAssignConfirmDialog from '@/Components/CustomerAssignConfirmDialog.vue';
+import CustomerNameDialog from '@/Components/CustomerNameDialog.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import LinkOrderModal from '@/Components/Workbench/LinkOrderModal.vue';
 import InputError from '@/Components/InputError.vue';
@@ -101,12 +103,20 @@ const submitPayment = () => {
 // pero NO crearlos/editarlos/borrarlos — ese CRUD vive en módulo Sucursal.
 const showCustomerSearch = ref(false);
 const customerQuery = ref('');
+const onlyDigits = (value) => String(value ?? '').replace(/\D/g, '');
 const filteredCustomers = computed(() => {
     if (!customerQuery.value) {
         return (props.customers || []).slice(0, 5);
     }
     const q = customerQuery.value.toLowerCase();
-    return (props.customers || []).filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 5);
+    // El teléfono se guarda en E.164 (+52...), así que se compara por dígitos:
+    // teclear los 10 locales debe encontrar al cliente igual.
+    const qDigits = onlyDigits(customerQuery.value);
+    return (props.customers || []).filter((c) => {
+        const byName = (c.name || '').toLowerCase().includes(q);
+        const byPhone = qDigits.length >= 3 && onlyDigits(c.phone).includes(qDigits);
+        return byName || byPhone;
+    }).slice(0, 5);
 });
 const assignCustomerForm = useForm({ customer_id: null });
 const assignCustomer = (customerId) => {
@@ -141,6 +151,7 @@ const {
     confirmDialog: whatsappConfirmDialog,
     captureDialog: whatsappCaptureDialog,
     removeDialog: whatsappRemoveDialog,
+    assignConfirmDialog,
     handleSendClick: clickWhatsappSend,
     confirmSend: confirmWhatsappSend,
     switchToEditFromConfirm: editFromWhatsappConfirm,
@@ -149,6 +160,8 @@ const {
     handleChipRemove: chipRemovePhone,
     submitPhone: submitWhatsappPhone,
     confirmRemove: confirmRemovePhone,
+    confirmAssign,
+    sendWithoutAssigning,
     closeAll: closeWhatsappDialogs,
 } = useWhatsappSend({
     sale: () => props.sale,
@@ -157,6 +170,37 @@ const {
     deletePhoneUrl: () => route('caja.whatsapp-phone.destroy', [props.tenantSlug, props.sale.id]),
     onMutate: () => emit('mutated'),
 });
+
+// --- Cliente sin nombre (creado automáticamente al capturar un teléfono) ---
+// El cajero solo edita clientes si la sucursal tiene la función habilitada.
+const canEditCustomer = computed(() => !!usePage().props.auth?.branch?.cashier_customers_enabled);
+const nameDialog = ref({ show: false });
+const savingCustomerName = ref(false);
+const customerNameError = ref(null);
+
+const openNameDialog = () => {
+    customerNameError.value = null;
+    nameDialog.value = { show: true };
+};
+
+const submitCustomerName = (name) => {
+    const customer = props.sale?.customer;
+    if (!customer) return;
+
+    savingCustomerName.value = true;
+    customerNameError.value = null;
+
+    router.put(
+        route('caja.clientes.update', [props.tenantSlug, customer.id]),
+        { name, phone: customer.phone, notes: customer.notes ?? null },
+        {
+            preserveScroll: true,
+            onSuccess: () => { nameDialog.value = { show: false }; emit('mutated'); },
+            onError: (errors) => { customerNameError.value = errors.name || errors.phone || 'No se pudo guardar el nombre.'; },
+            onFinish: () => { savingCustomerName.value = false; },
+        },
+    );
+};
 
 // --- Emparejamiento pedido web ↔ venta de báscula ---
 const showLinkOrderModal = ref(false);
@@ -261,9 +305,12 @@ const submitUnlink = () => {
                     :phone="whatsappPhoneInfo.phone"
                     :source="whatsappPhoneInfo.source"
                     :customer-name="whatsappPhoneInfo.customerName"
+                    :name-pending="whatsappPhoneInfo.namePending"
+                    :can-edit-customer="canEditCustomer"
                     @edit="chipEditPhone"
                     @remove="chipRemovePhone"
-                    @add="chipAddPhone" />
+                    @add="chipAddPhone"
+                    @name="openNameDialog" />
             </div>
 
             <p v-if="whatsappError && !whatsappConfirmDialog.show && !whatsappCaptureDialog.show && !whatsappRemoveDialog.show"
@@ -494,6 +541,24 @@ const submitUnlink = () => {
             :action-label="whatsappCaptureDialog.actionLabel"
             @submit="submitWhatsappPhone"
             @close="closeWhatsappDialogs" />
+
+        <CustomerAssignConfirmDialog
+            :show="assignConfirmDialog.show"
+            :saving="whatsappSavingPhone"
+            :customer="assignConfirmDialog.customer"
+            :preview="assignConfirmDialog.preview"
+            :server-error="whatsappError"
+            @confirm="confirmAssign"
+            @skip="sendWithoutAssigning"
+            @close="closeWhatsappDialogs" />
+
+        <CustomerNameDialog
+            :show="nameDialog.show"
+            :saving="savingCustomerName"
+            :phone="sale.customer?.phone"
+            :server-error="customerNameError"
+            @submit="submitCustomerName"
+            @close="nameDialog = { show: false }" />
         <ConfirmDialog v-if="whatsappRemoveDialog.show"
             title="Quitar teléfono"
             message="Se eliminará el teléfono manual asociado a esta venta. No envía nada a WhatsApp."

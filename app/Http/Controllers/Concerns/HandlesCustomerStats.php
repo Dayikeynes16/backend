@@ -220,11 +220,12 @@ trait HandlesCustomerStats
         ]);
 
         // Build WhatsApp link for the customer if they have a phone configured.
-        // Customer.phone is NOT NULL in schema but we guard defensively.
+        // Customer.phone is nullable, and PhoneNormalizer returns null for
+        // unusable input — both cases must skip the link.
         $whatsappUrl = null;
         if (! empty($customer->phone)) {
             $normalized = PhoneNormalizer::normalize($customer->phone);
-            if ($normalized !== '') {
+            if ($normalized !== null) {
                 $text = $whatsappService->buildCustomerSaleText($sale);
                 $whatsappUrl = $whatsappService->buildUrl($normalized, $text);
             }

@@ -2,11 +2,24 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\MergesCustomerPreferentialPrices;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Comando **legacy**: existía para limpiar la cartera antes de instalar el
+ * índice `customers_tenant_branch_phone_uniq` (migración 2026_04_17_000005).
+ * Con ese índice vigente ya no se pueden insertar dos clientes con el mismo
+ * teléfono exacto en la misma sucursal, así que no encontrará nada que fusionar.
+ *
+ * Los duplicados que sí siguen apareciendo son los que difieren en FORMATO
+ * ('993 123 4567' vs '+529931234567'): valores distintos para el índice y para
+ * este comando. Ésos los resuelve `customers:normalize-phones`.
+ */
 class DedupCustomers extends Command
 {
+    use MergesCustomerPreferentialPrices;
+
     protected $signature = 'customers:dedup {--dry-run=true : Report without modifying data}';
 
     protected $description = 'Deduplicate customers grouping by (tenant_id, branch_id, phone), keep oldest, reassign relations';
@@ -17,6 +30,19 @@ class DedupCustomers extends Command
         $dryRun = $dryRun === null ? true : $dryRun;
 
         $this->info($dryRun ? '=== DRY RUN — no changes will be persisted ===' : '=== APPLYING CHANGES ===');
+
+        // Este comando agrupa por teléfono EXACTO, así que es ciego a los
+        // duplicados que solo difieren en formato ('993 123 4567' vs
+        // '+529931234567'). Ésos los resuelve customers:normalize-phones.
+        $unnormalized = DB::table('customers')
+            ->whereNotNull('phone')
+            ->where('phone', 'not like', '+%')
+            ->count();
+
+        if ($unnormalized > 0) {
+            $this->warn("Hay {$unnormalized} teléfonos sin normalizar. Corre primero: php artisan customers:normalize-phones --dry-run=false");
+            $this->warn('Este comando agrupa por teléfono exacto y NO detectará duplicados que solo difieren en formato.');
+        }
 
         $duplicateGroups = DB::table('customers')
             ->select('tenant_id', 'branch_id', 'phone', DB::raw('COUNT(*) as total'), DB::raw('MIN(id) as keep_id'))
@@ -57,9 +83,7 @@ class DedupCustomers extends Command
                     ->whereIn('customer_id', $duplicates)
                     ->update(['customer_id' => $group->keep_id]);
 
-                $reassignedPrices += DB::table('customer_product_prices')
-                    ->whereIn('customer_id', $duplicates)
-                    ->update(['customer_id' => $group->keep_id]);
+                $reassignedPrices += $this->mergePreferentialPrices($group->keep_id, $duplicates);
 
                 $deletedCustomers += DB::table('customers')
                     ->whereIn('id', $duplicates)

@@ -8,6 +8,7 @@ use App\Exceptions\OrderLink\CrossBranchLinkException;
 use App\Exceptions\OrderLink\IneligibleScaleSaleException;
 use App\Exceptions\OrderLink\IneligibleWebOrderException;
 use App\Exceptions\OrderLink\LockedScaleSaleException;
+use App\Http\Controllers\Concerns\HandlesSalePhoneCapture;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Category;
@@ -15,8 +16,8 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
+use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\OrderLinkService;
-use App\Services\PhoneNormalizer;
 use App\Services\RecalculateClosedShifts;
 use App\Services\WhatsappMessageService;
 use App\Support\SaleItemSnapshot;
@@ -33,6 +34,8 @@ use Inertia\Response;
 
 class WorkbenchController extends Controller
 {
+    use HandlesSalePhoneCapture;
+
     public function index(Request $request): Response
     {
         $user = Auth::user();
@@ -43,7 +46,7 @@ class WorkbenchController extends Controller
             ->with([
                 'items',
                 'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
-                'lockedByUser:id,name', 'customer:id,name,phone',
+                'lockedByUser:id,name', 'customer:id,name,name_pending,phone',
                 'linkedOrder:id,folio,status',
                 'fulfilledBy:id,folio,status,linked_order_id',
             ])
@@ -87,7 +90,7 @@ class WorkbenchController extends Controller
             'canEditPrice' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'saleItemEditReasonMode' => $branch->sale_item_edit_reason_mode ?? 'optional',
             'customers' => Schema::hasTable('customers')
-                ? Customer::where('branch_id', $branchId)->where('status', 'active')->orderBy('name')->get(['id', 'name', 'phone'])
+                ? Customer::where('branch_id', $branchId)->where('status', 'active')->orderBy('name')->get(['id', 'name', 'name_pending', 'phone'])
                 : [],
         ]);
     }
@@ -476,13 +479,16 @@ class WorkbenchController extends Controller
     }
 
     /**
-     * Guarda el teléfono capturado en `contact_phone` (E.164) y devuelve el link.
-     * No crea cliente — el dato queda en la venta para futuros envíos y para
-     * que en el futuro se pueda cruzar con clientes que se den de alta con
-     * el mismo número.
+     * Captura un teléfono en la venta: resuelve el cliente de la sucursal
+     * (creándolo sin nombre si el número es nuevo) y lo asocia a la venta.
      */
-    public function storeWhatsappPhone(Request $request, Sale $sale, WhatsappMessageService $whatsappService): JsonResponse
-    {
+    public function storeWhatsappPhone(
+        Request $request,
+        Sale $sale,
+        WhatsappMessageService $whatsappService,
+        ResolveCustomerByPhone $resolver,
+        AssignCustomerToSale $assigner,
+    ): JsonResponse {
         $user = Auth::user();
 
         if ($sale->branch_id !== $user->branch_id) {
@@ -492,18 +498,17 @@ class WorkbenchController extends Controller
             abort(403, 'Esta venta no pertenece a tu empresa.');
         }
 
-        $validated = $request->validate([
-            'phone' => ['required', 'string', 'regex:/^\d{10}$/'],
-        ], [
-            'phone.regex' => 'El teléfono debe tener 10 dígitos.',
-            'phone.required' => 'Ingresa un teléfono.',
-        ]);
+        $validated = $this->validateSalePhoneCapture($request);
 
-        $sale->update([
-            'contact_phone' => PhoneNormalizer::normalize($validated['phone']),
-        ]);
-
-        return response()->json($whatsappService->linkForSale($sale->fresh()));
+        return response()->json($this->capturePhoneForSale(
+            $sale,
+            $validated['phone'],
+            (bool) ($validated['confirmed'] ?? false),
+            (bool) ($validated['skip_assign'] ?? false),
+            $whatsappService,
+            $resolver,
+            $assigner,
+        ));
     }
 
     /**

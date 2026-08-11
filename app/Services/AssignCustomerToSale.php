@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Support\SaleItemMath;
+use App\Support\SaleTotals;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -84,7 +85,9 @@ class AssignCustomerToSale
                 }
             }
 
-            $newTotal = round((float) $sale->items()->sum('subtotal'), 2);
+            // Incluye el costo de envío: una venta a domicilio no puede perder
+            // ese importe por el hecho de asignarle un cliente.
+            $newTotal = SaleTotals::forSale($sale);
             $amountPaid = (float) $sale->amount_paid;
             $newPending = round(max($newTotal - $amountPaid, 0), 2);
 

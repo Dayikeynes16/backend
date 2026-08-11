@@ -7,13 +7,14 @@ use App\Events\SaleLocked;
 use App\Events\SaleUnlocked;
 use App\Events\SaleUpdated;
 use App\Exceptions\SaleItemEditNotAllowed;
+use App\Http\Controllers\Concerns\HandlesSalePhoneCapture;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubSaleResource;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
-use App\Services\PhoneNormalizer;
+use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\RecalculateClosedShifts;
 use App\Services\SaleItemEditor;
 use App\Services\WhatsappMessageService;
@@ -25,6 +26,8 @@ use Illuminate\Validation\Rules\Enum;
 
 class SaleController extends Controller
 {
+    use HandlesSalePhoneCapture;
+
     /**
      * Crea una venta manual desde la mesa (solo admin-sucursal, paridad con
      * Sucursal\WorkbenchController::store). Cada línea se arma con SaleItemEditor
@@ -143,7 +146,7 @@ class SaleController extends Controller
             $query->where('status', SaleStatus::Pending);
         }
 
-        $sales = $query->with(['items', 'customer:id,name,phone', 'lockedByUser:id,name'])
+        $sales = $query->with(['items', 'customer:id,name,name_pending,phone', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
@@ -343,23 +346,29 @@ class SaleController extends Controller
     }
 
     /**
-     * Guarda el teléfono capturado (10 dígitos → E.164) en contact_phone y
-     * devuelve el link. No crea cliente.
+     * Captura un teléfono en la venta: resuelve el cliente de la sucursal
+     * (creándolo sin nombre si el número es nuevo) y lo asocia a la venta.
      */
-    public function storeWhatsappPhone(Request $request, int $sale, WhatsappMessageService $whatsapp): JsonResponse
-    {
+    public function storeWhatsappPhone(
+        Request $request,
+        int $sale,
+        WhatsappMessageService $whatsapp,
+        ResolveCustomerByPhone $resolver,
+        AssignCustomerToSale $assigner,
+    ): JsonResponse {
         $found = $this->findSale($request, $sale);
 
-        $validated = $request->validate([
-            'phone' => ['required', 'string', 'regex:/^\d{10}$/'],
-        ], [
-            'phone.regex' => 'El teléfono debe tener 10 dígitos.',
-            'phone.required' => 'Ingresa un teléfono.',
-        ]);
+        $validated = $this->validateSalePhoneCapture($request);
 
-        $found->update(['contact_phone' => PhoneNormalizer::normalize($validated['phone'])]);
-
-        return response()->json($whatsapp->linkForSale($found->fresh()));
+        return response()->json($this->capturePhoneForSale(
+            $found,
+            $validated['phone'],
+            (bool) ($validated['confirmed'] ?? false),
+            (bool) ($validated['skip_assign'] ?? false),
+            $whatsapp,
+            $resolver,
+            $assigner,
+        ));
     }
 
     /**

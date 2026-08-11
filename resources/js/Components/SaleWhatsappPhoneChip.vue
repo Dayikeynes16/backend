@@ -5,9 +5,12 @@ const props = defineProps({
     phone: { type: String, default: null },
     source: { type: String, default: null }, // 'customer' | 'manual' | null
     customerName: { type: String, default: null },
+    // El cliente se creó solo desde una venta y aún no tiene nombre real.
+    namePending: { type: Boolean, default: false },
+    canEditCustomer: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['edit', 'remove', 'add']);
+const emit = defineEmits(['edit', 'remove', 'add', 'name']);
 
 const prettyPhone = computed(() => {
     if (!props.phone) return '';
@@ -37,7 +40,17 @@ const prettyPhone = computed(() => {
                 class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-600/20">
                 Manual
             </span>
-            <span v-if="source === 'customer' && customerName" class="max-w-[160px] truncate text-[11px] text-gray-500">{{ customerName }}</span>
+            <button v-if="source === 'customer' && namePending && canEditCustomer" type="button" @click="emit('name')"
+                title="Este cliente se registró solo con su teléfono"
+                class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-600/20 transition hover:bg-amber-100">
+                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                Poner nombre
+            </button>
+            <span v-else-if="source === 'customer' && namePending"
+                class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                Sin nombre
+            </span>
+            <span v-else-if="source === 'customer' && customerName" class="max-w-[160px] truncate text-[11px] text-gray-500">{{ customerName }}</span>
 
             <!-- Editar/quitar solo para fuente manual -->
             <span v-if="source === 'manual'" class="ml-1 flex items-center gap-0.5">
