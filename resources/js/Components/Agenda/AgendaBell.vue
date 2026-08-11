@@ -1,59 +1,53 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const page = usePage();
 const slug = computed(() => page.props.auth.tenant_slug);
 
 const data = ref({ due_reminders: [], overdue: [], alerts: [], counts: { total: 0 } });
 const open = ref(false);
-const seenIds = ref(new Set());
-const toast = ref(null);
-let timer = null;
+const loading = ref(false);
 
-const poll = async () => {
+/**
+ * Una carga al montar y otra por cada apertura o acción del dropdown. No hay
+ * polling — `agenda.notificaciones` recalcula alertas financieras caras
+ * (cuentas por pagar + fiados vía CollectionMetrics) y un temporizador global
+ * multiplicaba ese costo por cada pestaña abierta.
+ *
+ * El fetch al montar se conserva a propósito: sin él el badge arranca en 0 y
+ * quien no abre la campana no se entera de que tiene avisos. Como el layout
+ * sobrevive a la navegación de Inertia, es un request por carga de la app, no
+ * uno por visita.
+ */
+const load = async () => {
     if (!slug.value) return;
+    loading.value = true;
     try {
         const res = await fetch(route('agenda.notificaciones', slug.value), { headers: { Accept: 'application/json' } });
         if (!res.ok) return;
-        const json = await res.json();
-        data.value = json;
-        // Toast para due reminders nuevos en esta sesión.
-        const fresh = (json.due_reminders ?? []).find((d) => !seenIds.value.has(d.id));
-        if (fresh && !open.value) {
-            toast.value = fresh;
-        }
+        data.value = await res.json();
     } catch (e) {
         /* silencioso: degradación elegante */
+    } finally {
+        loading.value = false;
     }
 };
 
 const total = computed(() => data.value.counts?.total ?? 0);
 
-const complete = (id) => router.patch(route('agenda.complete', [slug.value, id]), {}, { preserveScroll: true, onSuccess: poll });
-const snooze = (id, minutes) => router.patch(route('agenda.snooze', [slug.value, id]), { minutes }, { preserveScroll: true, onSuccess: poll });
-const markSeen = (id) => {
-    seenIds.value.add(id);
-    router.patch(route('agenda.visto', [slug.value, id]), {}, { preserveScroll: true, onSuccess: poll });
-};
-const dismissToast = () => {
-    if (toast.value) {
-        markSeen(toast.value.id);
-        toast.value = null;
-    }
-};
+const complete = (id) => router.patch(route('agenda.complete', [slug.value, id]), {}, { preserveScroll: true, onSuccess: load });
+const snooze = (id, minutes) => router.patch(route('agenda.snooze', [slug.value, id]), { minutes }, { preserveScroll: true, onSuccess: load });
+const markSeen = (id) => router.patch(route('agenda.visto', [slug.value, id]), {}, { preserveScroll: true, onSuccess: load });
+
 const toggle = () => {
     open.value = !open.value;
     if (open.value) {
-        (data.value.due_reminders ?? []).forEach((d) => seenIds.value.add(d.id));
+        load();
     }
 };
 
-onMounted(() => {
-    poll();
-    timer = setInterval(poll, 60000);
-});
-onBeforeUnmount(() => clearInterval(timer));
+onMounted(load);
 </script>
 
 <template>
@@ -69,13 +63,15 @@ onBeforeUnmount(() => clearInterval(timer));
                 <span class="text-sm font-bold text-gray-900">Avisos</span>
                 <Link :href="route('agenda.index', slug)" class="text-xs font-semibold text-red-600 hover:underline" @click="open = false">Ver agenda →</Link>
             </div>
-            <p v-if="!total" class="px-2 py-4 text-center text-sm text-gray-400">Sin avisos.</p>
+            <p v-if="loading" class="px-2 py-4 text-center text-sm text-gray-400">Cargando avisos…</p>
+            <p v-else-if="!total" class="px-2 py-4 text-center text-sm text-gray-400">Sin avisos.</p>
             <div class="max-h-80 overflow-y-auto">
                 <div v-for="d in data.due_reminders" :key="'d' + d.id" class="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-gray-50">
                     <span class="h-2 w-2 shrink-0 rounded-full bg-violet-500"></span>
                     <span class="min-w-0 flex-1 truncate text-sm text-gray-800">{{ d.title }}</span>
                     <button @click="complete(d.id)" class="text-xs font-semibold text-green-600">Hecho</button>
                     <button @click="snooze(d.id, 30)" class="text-xs font-semibold text-gray-500">+30m</button>
+                    <button @click="markSeen(d.id)" class="text-xs font-semibold text-gray-400 hover:text-gray-600" title="Quitar el aviso sin completar la tarea">Visto</button>
                 </div>
                 <div v-for="o in data.overdue" :key="'o' + o.id" class="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-gray-50">
                     <span class="h-2 w-2 shrink-0 rounded-full bg-red-500"></span>
@@ -88,18 +84,5 @@ onBeforeUnmount(() => clearInterval(timer));
                 </div>
             </div>
         </div>
-
-        <!-- Toast -->
-        <Teleport to="body">
-            <div v-if="toast" class="fixed bottom-4 right-4 z-[60] w-72 rounded-2xl bg-gray-900 p-4 text-white shadow-2xl">
-                <p class="text-xs font-bold uppercase tracking-wide text-violet-300">Recordatorio</p>
-                <p class="mt-1 text-sm font-semibold">{{ toast.title }}</p>
-                <div class="mt-3 flex gap-2">
-                    <button @click="complete(toast.id); dismissToast()" class="rounded-lg bg-green-600 px-3 py-1 text-xs font-bold">Hecho</button>
-                    <button @click="snooze(toast.id, 30); dismissToast()" class="rounded-lg bg-white/10 px-3 py-1 text-xs font-bold">+30m</button>
-                    <button @click="dismissToast" class="ml-auto text-xs text-gray-400 hover:text-white">Cerrar</button>
-                </div>
-            </div>
-        </Teleport>
     </div>
 </template>
