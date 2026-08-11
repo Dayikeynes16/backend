@@ -8,7 +8,9 @@
 
 **Tech Stack:** Laravel 13 · PHP 8.5 · PostgreSQL 18 · Vue 3 + Inertia 2 · PHPUnit 12 · Sail
 
-**Estado:** Tareas 1-5 completadas (2026-08-11; rama `feat/telefonos-clientes-ventas`). Tareas 6-10 pendientes.
+**Estado:** Tareas 1-6 completadas (2026-08-11; rama `feat/telefonos-clientes-ventas`). Tareas 7-10 pendientes.
+
+**Cambio de contrato en la Tarea 6 respecto a lo planeado:** el endpoint acepta además `skip_assign` (bool). Sin él, rechazar la confirmación dejaba al usuario sin poder mandar la nota por WhatsApp — una regresión de una función existente. Con `skip_assign` se guarda el teléfono en `sales.contact_phone` como antes, sin tocar clientes. **La Tarea 7 debe cablear ese botón en el diálogo de confirmación** ("Solo enviar sin asociar").
 
 La migración `2026_08_11_085345_add_name_pending_to_customers_table` ya está aplicada, y **el mutator ya está activo**: a partir de aquí, cualquier test que cree un `Customer` con teléfono lo verá guardado en E.164.
 
@@ -1387,7 +1389,7 @@ git commit -m "feat(ventas): preview del impacto de asignar cliente sin escribir
                "would_complete": false, "skipped_piece_presentations": [] } }
 ```
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `tests/Feature/Ventas/CapturePhoneCreatesCustomerTest.php`:
 
@@ -1519,12 +1521,12 @@ class CapturePhoneCreatesCustomerTest extends TestCase
 }
 ```
 
-- [ ] **Step 2: Correr para verificar que falla**
+- [x] **Step 2: Correr para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Ventas/CapturePhoneCreatesCustomerTest.php`
 Expected: FAIL — hoy el endpoint guarda `contact_phone` y no crea cliente.
 
-- [ ] **Step 3: Implementar el trait compartido**
+- [x] **Step 3: Implementar el trait compartido**
 
 Crear `app/Http/Controllers/Concerns/HandlesSalePhoneCapture.php`:
 
@@ -1606,7 +1608,7 @@ trait HandlesSalePhoneCapture
 }
 ```
 
-- [ ] **Step 4: Conectar el endpoint de Caja**
+- [x] **Step 4: Conectar el endpoint de Caja**
 
 En `app/Http/Controllers/Caja/WorkbenchController.php`, añadir el trait a la clase (`use HandlesSalePhoneCapture;` junto a los demás traits) y los imports:
 
@@ -1658,7 +1660,7 @@ Reemplazar el cuerpo de `storeWhatsappPhone()`:
     }
 ```
 
-- [ ] **Step 5: Replicar en Sucursal y en el hub**
+- [x] **Step 5: Replicar en Sucursal y en el hub**
 
 En `app/Http/Controllers/Sucursal/WorkbenchController.php` aplicar **exactamente** el mismo cambio (mismos imports, mismo `use HandlesSalePhoneCapture;`, mismo cuerpo de `storeWhatsappPhone`).
 
@@ -1685,12 +1687,12 @@ En `app/Http/Controllers/Api/Hub/SaleController.php`, el método usa `$found` en
 
 añadiendo `use HandlesSalePhoneCapture;` a la clase y los mismos tres parámetros inyectados a la firma del método.
 
-- [ ] **Step 6: Correr los tests**
+- [x] **Step 6: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Ventas/CapturePhoneCreatesCustomerTest.php`
 Expected: PASS (6 tests).
 
-- [ ] **Step 7: Test de la confirmación**
+- [x] **Step 7: Test de la confirmación**
 
 Añadir a `tests/Feature/Ventas/CapturePhoneCreatesCustomerTest.php`:
 
@@ -1751,13 +1753,13 @@ Añadir a `tests/Feature/Ventas/CapturePhoneCreatesCustomerTest.php`:
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Ventas/CapturePhoneCreatesCustomerTest.php`
 Expected: PASS (7 tests).
 
-- [ ] **Step 8: Verificar que no rompimos los tests existentes de WhatsApp**
+- [x] **Step 8: Verificar que no rompimos los tests existentes de WhatsApp**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Caja/WhatsappLinkTest.php tests/Feature/Sucursal/WhatsappLinkTest.php tests/Feature/Sucursal/AssignCustomerClearsContactPhoneTest.php tests/Feature/Api/Hub/SaleApiTest.php`
 
 Expected: **algunos fallarán a propósito.** `test_store_phone_saves_normalized_phone_and_returns_link` asertaba que el número quedaba en `sales.contact_phone`; ahora vive en el cliente asignado y `AssignCustomerToSale` limpia `contact_phone`. Actualizar esos tests para asertar el nuevo comportamiento (cliente asignado con ese teléfono), **no** revertir la lógica. Dejar constancia del cambio en el mensaje del commit.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
