@@ -8,7 +8,7 @@
 
 **Tech Stack:** Laravel 13 · PHP 8.5 · PostgreSQL 18 · Vue 3 + Inertia 2 · PHPUnit 12 · Sail
 
-**Estado:** Tareas 1-4 completadas (2026-08-11, commits `988fee7`, `1240fe7`, `f1d9a37`, `69e740b`; rama `feat/telefonos-clientes-ventas`). Tareas 5-10 pendientes.
+**Estado:** Tareas 1-5 completadas (2026-08-11; rama `feat/telefonos-clientes-ventas`). Tareas 6-10 pendientes.
 
 La migración `2026_08_11_085345_add_name_pending_to_customers_table` ya está aplicada, y **el mutator ya está activo**: a partir de aquí, cualquier test que cree un `Customer` con teléfono lo verá guardado en E.164.
 
@@ -1127,7 +1127,7 @@ Permite decidir si la asignación es silenciosa o necesita confirmación, **sin 
 - Consumes: `SaleItemMath` (`app/Support/SaleItemMath.php`), `Customer::prices`.
 - Produces: `CustomerAssignmentPreview::for(Sale $sale, Customer $customer): array{current_total: float, new_total: float, changes_total: bool, would_complete: bool, skipped_piece_presentations: array<string>}`
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `tests/Feature/Clientes/CustomerAssignmentPreviewTest.php`. Usar `tests/Feature/Sucursal/AssignCustomerPresentationTest.php` como referencia para armar venta con items y precios preferenciales (`grep -n "CustomerProductPrice" tests/Feature/Sucursal/AssignCustomerPresentationTest.php`).
 
@@ -1257,12 +1257,12 @@ class CustomerAssignmentPreviewTest extends TestCase
 
 **Antes de correr:** confirmar los campos obligatorios de `CustomerProductPrice` con `grep -n "Fillable" -A 4 app/Models/CustomerProductPrice.php` y ajustar si difiere de `['tenant_id','customer_id','product_id','price']`.
 
-- [ ] **Step 2: Correr para verificar que falla**
+- [x] **Step 2: Correr para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Clientes/CustomerAssignmentPreviewTest.php`
 Expected: FAIL — clase no encontrada.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Crear `app/Services/Customers/CustomerAssignmentPreview.php`:
 
@@ -1343,12 +1343,12 @@ class CustomerAssignmentPreview
 }
 ```
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Clientes/CustomerAssignmentPreviewTest.php`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
