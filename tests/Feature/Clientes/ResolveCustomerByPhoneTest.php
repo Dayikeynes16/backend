@@ -153,6 +153,14 @@ class ResolveCustomerByPhoneTest extends TestCase
         $this->service->execute('---', $this->branch->id, $this->tenant->id);
     }
 
+    public function test_rechaza_un_telefono_demasiado_corto(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        // '8556' normaliza a '+8556': tiene dígitos, pero no es un teléfono.
+        $this->service->execute('8556', $this->branch->id, $this->tenant->id);
+    }
+
     public function test_no_crea_nada_si_el_telefono_es_ilegible(): void
     {
         try {

@@ -71,6 +71,41 @@ class AssistantCustomerDraftConfirmTest extends TestCase
         $this->assertSame($this->secondBranch->id, Customer::firstOrFail()->branch_id);
     }
 
+    /**
+     * Sin chequeo previo, `Customer::create` choca contra el índice único de
+     * la base y devuelve un 500 en lugar de un error entendible.
+     */
+    public function test_telefono_duplicado_da_error_de_validacion_no_un_500(): void
+    {
+        Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Ya existe',
+            'phone' => '9933058731',
+            'status' => 'active',
+        ]);
+
+        $draft = $this->makeDraft($this->cajero);
+
+        $this->actingAs($this->cajero)
+            ->postJson($this->confirmUrl($draft), ['name' => 'Cachorro', 'phone' => '993 305 8731', 'notes' => null])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('phone');
+
+        $this->assertSame(1, Customer::where('branch_id', $this->branch->id)->count());
+    }
+
+    public function test_el_telefono_se_guarda_normalizado(): void
+    {
+        $draft = $this->makeDraft($this->cajero);
+
+        $this->actingAs($this->cajero)
+            ->postJson($this->confirmUrl($draft), ['name' => 'Cachorro', 'phone' => '993 305 8731', 'notes' => null])
+            ->assertOk();
+
+        $this->assertSame('+529933058731', Customer::firstOrFail()->phone);
+    }
+
     public function test_name_is_required(): void
     {
         $draft = $this->makeDraft($this->adminSucursal);

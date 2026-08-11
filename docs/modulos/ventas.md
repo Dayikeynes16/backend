@@ -21,7 +21,7 @@ Las ventas se originan exclusivamente desde apps externas vía API. El cajero so
 | `user_id` | FK nullable → users | Cajero que cobró (null hasta cobrar) |
 | `folio` | string | Consecutivo por sucursal, formato `S-00001` |
 | `payment_method` | string | `cash`, `card`, `transfer` |
-| `total` | decimal(12,2) | Suma de subtotales de los ítems |
+| `total` | decimal(12,2) | Suma de subtotales de los ítems **+ `delivery_fee`**. Todo recálculo pasa por `App\Support\SaleTotals::forSale()`: hasta 2026-08-11 dos servicios lo calculaban sin el envío y asignar cliente o editar una línea borraba ese importe |
 | `origin` | string | Siempre `api` en v1 |
 | `status` | string | `pending`, `completed`, `cancelled` |
 | `completed_at` | timestamp nullable | Se llena cuando el cajero cobra |
@@ -72,6 +72,14 @@ $folio = 'S-' . str_pad(($lastFolio ?? 0) + 1, 5, '0', STR_PAD_LEFT);
 ```
 
 Se usa `lockForUpdate()` para evitar folios duplicados en peticiones concurrentes.
+
+## Teléfono y cliente
+
+Capturar un teléfono en una venta **resuelve o crea el cliente** de la sucursal y lo asocia (`ResolveCustomerByPhone`). Antes el número quedaba suelto en `sales.contact_phone` sin cliente.
+
+La asignación es automática salvo que cambie el total de la venta o la deje cobrada: en ese caso el endpoint responde `requires_confirmation` con el impacto calculado y no toca nada hasta que el usuario decide.
+
+Detalle completo —normalización, comandos de mantenimiento, contrato del endpoint y permisos— en [Teléfonos y resolución de clientes](clientes-telefonos.md).
 
 ## Evento NewExternalSale
 

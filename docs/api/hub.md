@@ -122,7 +122,7 @@ El turno abierto es requisito para cobrar ventas, registrar gastos, registrar co
 | POST | `sales/{id}/reopen` | **admin-sucursal** — Reabre una venta completada (`completed` → `active`, recalcula pendiente con los pagos existentes; `422` si no está completada) |
 | PATCH | `sales/{id}/customer` | Asigna/desasigna cliente (`customer_id` o `null`) y aplica precios preferenciales (reusa `AssignCustomerToSale`) |
 | GET | `sales/{id}/whatsapp` | Link `wa.me` del ticket; `reason=needs_phone` si la venta no tiene teléfono |
-| POST | `sales/{id}/whatsapp-phone` | Guarda `contact_phone` (10 dígitos → E.164) y devuelve el link. No crea cliente |
+| POST | `sales/{id}/whatsapp-phone` | Captura un teléfono (10 dígitos): **resuelve o crea el cliente** de la sucursal y lo asocia a la venta. Acepta `confirmed` y `skip_assign`. Si asignarlo cambiaría el total o dejaría la venta cobrada, responde `requires_confirmation` con `preview` y no toca nada; reenviar con `confirmed:true` aplica, y `skip_assign:true` guarda solo `contact_phone` como antes. Ver [Teléfonos y resolución de clientes](../modulos/clientes-telefonos.md) |
 | DELETE | `sales/{id}/whatsapp-phone` | Quita el teléfono guardado (`{ok:true}`; paridad `destroyWhatsappPhone` web). `HubSaleResource` expone `contact_phone` y, por item, `updated_by`/`created_at`/`updated_at` (badge "Editado") |
 | POST | `sales/{id}/lock` | Adquiere el lock de concurrencia (5 min). `409` con `locked_by_name` si otro usuario lo tiene. Adquirir uno libera los locks previos del usuario |
 | POST | `sales/{id}/unlock` | Libera el lock (solo si es propio) |

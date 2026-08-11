@@ -4,14 +4,13 @@ namespace App\Http\Controllers\Public;
 
 use App\Enums\SaleStatus;
 use App\Events\NewExternalSale;
-use App\Exceptions\Public\ClosedBranchException;
 use App\Exceptions\Public\OutOfRangeException;
 use App\Exceptions\Public\QuoteUnavailableException;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
-use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\DeliveryFeeService;
 use App\Services\PhoneNormalizer;
 use App\Services\WhatsappMessageService;
@@ -27,6 +26,7 @@ class OrderController extends Controller
         int $branch,
         DeliveryFeeService $deliveryService,
         WhatsappMessageService $whatsapp,
+        ResolveCustomerByPhone $resolver,
     ): JsonResponse {
         $validated = $request->validate([
             'items' => 'required|array|min:1',
@@ -57,6 +57,16 @@ class OrderController extends Controller
 
         $tenant = app('tenant');
         $contactPhone = PhoneNormalizer::normalize($validated['contact_phone']);
+
+        // El regex de arriba cuenta caracteres, no dígitos: '(55) 12-34' lo
+        // pasa con solo 6 dígitos. Aquí se exige que sea un teléfono de verdad
+        // antes de crear cliente y pedido con él.
+        if (! PhoneNormalizer::isPlausible($contactPhone)) {
+            return response()->json([
+                'error' => 'invalid_phone',
+                'message' => 'El teléfono no es válido.',
+            ], 422);
+        }
 
         $branchModel = Branch::withoutGlobalScopes()
             ->where('tenant_id', $tenant->id)
@@ -220,15 +230,24 @@ class OrderController extends Controller
 
         // Customer lookup/create + Sale persistence (atomic)
         $sale = DB::transaction(function () use (
-            $tenant, $branchModel, $validated, $contactPhone, $itemsData,
-            $subtotalSum, $deliveryFee, $deliveryDistanceKm, $total,
+            $tenant, $branchModel, $validated, $contactPhone, $itemsData, $deliveryFee, $deliveryDistanceKm, $total, $resolver,
         ) {
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$branchModel->id]);
 
-            $customer = Customer::firstOrCreate(
-                ['branch_id' => $branchModel->id, 'phone' => $contactPhone],
-                ['name' => $validated['contact_name']]
-            );
+            // Mismo resolvedor que usa la captura de teléfono en la mesa de
+            // trabajo: un solo punto decide si un número es cliente nuevo o
+            // existente. El checkout sí trae nombre, así que si el cliente
+            // acaba de crearse se sustituye el placeholder; si ya existía, su
+            // nombre no se toca.
+            $resolution = $resolver->execute($contactPhone, $branchModel->id, $tenant->id);
+            $customer = $resolution->customer;
+
+            if ($resolution->wasCreated) {
+                $customer->update([
+                    'name' => $validated['contact_name'],
+                    'name_pending' => false,
+                ]);
+            }
 
             $saleCount = Sale::withoutGlobalScopes()
                 ->where('branch_id', $branchModel->id)
