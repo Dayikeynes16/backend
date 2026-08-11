@@ -8,7 +8,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SaleResource;
 use App\Models\Product;
 use App\Models\Sale;
-use App\Models\SaleItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -25,10 +24,35 @@ class SaleController extends Controller
             'items.*.presentation_id' => 'nullable|integer',
             'payment_method' => 'required|in:cash,card,transfer',
             'origin_name' => 'nullable|string|max:100',
+            'client_reference' => 'nullable|string|max:64',
         ]);
 
         $branchId = $request->branch_id;
         $tenantId = $request->tenant_id;
+
+        /*
+         * Idempotencia: el hub reintenta cualquier fallo de red o 5xx, así que una
+         * venta cuya respuesta se perdió por el camino volvería a llegar. Sin esto
+         * se creaba una segunda venta idéntica —el mismo dinero contado dos veces—
+         * y nadie se enteraba hasta cuadrar el turno.
+         *
+         * Se devuelve la venta existente en lugar de un error: para quien reintenta,
+         * el resultado debe ser indistinguible de un envío que salió bien a la primera.
+         */
+        $clientReference = $request->input('client_reference');
+        if ($clientReference !== null) {
+            $existing = Sale::withoutGlobalScopes()
+                ->where('branch_id', $branchId)
+                ->where('client_reference', $clientReference)
+                ->with('items')
+                ->first();
+
+            if ($existing) {
+                // Misma forma exacta que la respuesta normal (más abajo): quien
+                // reintenta no debe tener que distinguir un caso del otro.
+                return response()->json(SaleResource::make($existing), 201);
+            }
+        }
 
         // Validate all products exist and are active in this branch
         $productIds = collect($request->items)->pluck('product_id')->unique();
@@ -52,7 +76,7 @@ class SaleController extends Controller
             ], 422);
         }
 
-        $sale = DB::transaction(function () use ($request, $branchId, $tenantId, $products) {
+        $sale = DB::transaction(function () use ($request, $branchId, $tenantId, $products, $clientReference) {
             // Advisory lock per branch to prevent duplicate folios under concurrency
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$branchId]);
 
@@ -61,7 +85,7 @@ class SaleController extends Controller
                 ->count();
 
             $folioNumber = $count + 1;
-            $folio = 'S-' . str_pad($folioNumber, 5, '0', STR_PAD_LEFT);
+            $folio = 'S-'.str_pad($folioNumber, 5, '0', STR_PAD_LEFT);
 
             // Calculate total
             $total = 0;
@@ -131,6 +155,7 @@ class SaleController extends Controller
                 'total' => round($total, 2),
                 'origin' => 'api',
                 'origin_name' => $request->input('origin_name', 'Bascula'),
+                'client_reference' => $clientReference,
                 'amount_paid' => 0,
                 'amount_pending' => round($total, 2),
                 'status' => SaleStatus::Active,

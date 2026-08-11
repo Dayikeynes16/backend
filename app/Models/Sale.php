@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable([
     'tenant_id', 'branch_id', 'customer_id', 'user_id', 'folio',
     'payment_method', 'total', 'amount_paid', 'amount_pending',
-    'origin', 'origin_name', 'status',
+    'origin', 'origin_name', 'client_reference', 'status',
     'completed_at', 'cancelled_at', 'cancelled_by', 'cancel_reason',
     'cancel_requested_at', 'cancel_requested_by', 'cancel_request_reason',
     'locked_by', 'locked_at',

@@ -76,19 +76,29 @@ Registra una venta. Dispara evento Reverb al cajero.
         { "product_id": 12, "quantity": 1.5 },
         { "product_id": 8,  "quantity": 2 }
     ],
-    "payment_method": "cash"
+    "payment_method": "cash",
+    "origin_name": "Balanza 1",
+    "client_reference": "a1b2c3d4-..."
 }
 ```
 
+- `origin_name`: opcional, máx. 100. Identifica el equipo en la venta; sin él se guarda `"Bascula"`.
+- `client_reference`: opcional, máx. 64. **Clave de idempotencia generada por el equipo.**
+
+**Idempotencia por `(branch_id, client_reference)` (desde 2026-08-11):** si ya existe una venta de esa sucursal con ese `client_reference`, el endpoint **devuelve la venta existente sin crear otra**, con la misma forma y el mismo `201` que una creación normal — para quien reintenta, indistinguible de un envío que salió bien a la primera.
+
+Esto hace seguro el reintento del outbox del hub, que reintenta ante cualquier fallo de red o `5xx`. Antes de esto, una venta cuya respuesta se perdía por el camino se creaba **dos veces**. Garantizado en base de datos por un índice único `(branch_id, client_reference)` (migración `2026_08_11_134846_add_client_reference_to_sales_table.php`). Las básculas que no lo envían dejan la columna en `null` y no participan: siguen funcionando igual que antes.
+
 **Lógica:**
 
-1. Valida que todos los `product_id` existan y estén activos en la sucursal.
-2. Calcula subtotales: `quantity × price` (para todos los unit_type).
-3. Genera folio consecutivo por sucursal: `S-00001`, `S-00002`, etc.
-4. Crea `Sale` con `status=pending`, `origin=api`.
-5. Crea `SaleItem`s con snapshots del producto (nombre, precio, unit_type).
-6. Dispara `NewExternalSale` (broadcast vía Reverb).
-7. Retorna 201 con la venta creada.
+1. Si viene `client_reference` y ya existe esa venta en la sucursal, la devuelve y termina.
+2. Valida que todos los `product_id` existan y estén activos en la sucursal.
+3. Calcula subtotales: `quantity × price` (para todos los unit_type).
+4. Genera folio consecutivo por sucursal: `S-00001`, `S-00002`, etc.
+5. Crea `Sale` con `status=pending`, `origin=api`.
+6. Crea `SaleItem`s con snapshots del producto (nombre, precio, unit_type).
+7. Dispara `NewExternalSale` (broadcast vía Reverb).
+8. Retorna 201 con la venta creada.
 
 **Respuesta 201:**
 
