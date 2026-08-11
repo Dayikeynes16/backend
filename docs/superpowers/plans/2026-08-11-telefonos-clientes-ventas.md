@@ -8,7 +8,13 @@
 
 **Tech Stack:** Laravel 13 · PHP 8.5 · PostgreSQL 18 · Vue 3 + Inertia 2 · PHPUnit 12 · Sail
 
-**Estado:** Tarea 1 completada (2026-08-11, commit `988fee7`, rama `feat/telefonos-clientes-ventas`). Tareas 2-10 pendientes.
+**Estado:** Tareas 1-2 completadas (2026-08-11, commits `988fee7` y `1240fe7`, rama `feat/telefonos-clientes-ventas`). Tareas 3-10 pendientes.
+
+**Hallazgos durante la ejecución que afectan a las tareas siguientes:**
+
+1. `customer_product_prices` **no tiene `tenant_id`** (solo `customer_id`, `product_id`, `price`) y lleva `UNIQUE(customer_id, product_id)`. Cualquier código que reasigne precios entre clientes debe usar el trait `MergesCustomerPreferentialPrices`, no un `UPDATE` masivo. Afecta a los tests de las Tareas 5 y 6 que insertan precios preferenciales: **no pasar `tenant_id`**.
+2. `customers:dedup` es **legacy**: el índice único vigente impide los duplicados exactos que buscaba. Los que sí ocurren son los de formato, que resuelve `customers:normalize-phones`.
+3. `PhoneNormalizer::normalize` tiene **7 callers**, no 4 (ver Tarea 1, Step 6).
 
 ## Global Constraints
 
@@ -301,7 +307,7 @@ Prerrequisito de la Tarea 3: si el mutator entra antes de limpiar los duplicados
 - Consumes: `PhoneNormalizer::normalize()` de la Tarea 1.
 - Produces: comando `customers:normalize-phones {--dry-run=true}`. Deja toda la tabla en E.164 y sin duplicados por formato.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `tests/Feature/Console/NormalizeCustomerPhonesTest.php`:
 
@@ -403,12 +409,12 @@ class NormalizeCustomerPhonesTest extends TestCase
 }
 ```
 
-- [ ] **Step 2: Correr para verificar que falla**
+- [x] **Step 2: Correr para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Console/NormalizeCustomerPhonesTest.php`
 Expected: FAIL — `Command "customers:normalize-phones" is not defined.`
 
-- [ ] **Step 3: Implementar el comando**
+- [x] **Step 3: Implementar el comando**
 
 Crear `app/Console/Commands/NormalizeCustomerPhones.php`:
 
@@ -527,12 +533,12 @@ class NormalizeCustomerPhones extends Command
                     }
 ```
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Console/NormalizeCustomerPhonesTest.php`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Alinear `customers:dedup` con la normalización**
+- [x] **Step 5: Alinear `customers:dedup` con la normalización**
 
 En `app/Console/Commands/DedupCustomers.php`, el `groupBy('tenant_id','branch_id','phone')` es ciego a los duplicados por formato. Añadir al inicio de `handle()`, justo después de la línea `$this->info($dryRun ? ...)`:
 
@@ -548,12 +554,12 @@ En `app/Console/Commands/DedupCustomers.php`, el `groupBy('tenant_id','branch_id
         }
 ```
 
-- [ ] **Step 6: Correr la suite de clientes completa**
+- [x] **Step 6: Correr la suite de clientes completa**
 
 Run: `./vendor/bin/sail artisan test --compact --filter=Customer`
 Expected: PASS. Anotar en el commit cuántos tests corrieron.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
