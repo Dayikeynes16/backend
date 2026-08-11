@@ -99,6 +99,50 @@ class NormalizeCustomerPhonesTest extends TestCase
         $this->assertSame('+529931234567', Customer::find($second)->phone);
     }
 
+    /**
+     * Caso real de producción: dos clientes distintos con basura coincidente
+     * ('8556') en el campo teléfono. Fusionarlos mezclaría el historial de
+     * ventas de dos personas diferentes, y no se deshace.
+     */
+    public function test_no_fusiona_clientes_cuya_basura_coincide(): void
+    {
+        $uno = $this->rawCustomer('8556', 'Cristel marcelo');
+        $otro = $this->rawCustomer('85 56', 'Otra persona');
+
+        $this->artisan('customers:normalize-phones', ['--dry-run' => 'false'])
+            ->assertSuccessful();
+
+        $this->assertNotNull(Customer::find($uno));
+        $this->assertNotNull(Customer::find($otro));
+        $this->assertSame('8556', DB::table('customers')->where('id', $uno)->value('phone'));
+        $this->assertSame('85 56', DB::table('customers')->where('id', $otro)->value('phone'));
+    }
+
+    public function test_deja_intacto_lo_que_no_parece_telefono(): void
+    {
+        $basura = $this->rawCustomer('344', 'Tres digitos');
+        $cero = $this->rawCustomer('0', 'Un cero');
+        $bueno = $this->rawCustomer('9931234567', 'Cliente real');
+
+        $this->artisan('customers:normalize-phones', ['--dry-run' => 'false'])
+            ->expectsOutputToContain('no parece un teléfono')
+            ->assertSuccessful();
+
+        $this->assertSame('344', DB::table('customers')->where('id', $basura)->value('phone'));
+        $this->assertSame('0', DB::table('customers')->where('id', $cero)->value('phone'));
+        $this->assertSame('+529931234567', DB::table('customers')->where('id', $bueno)->value('phone'));
+    }
+
+    public function test_respeta_un_numero_internacional_valido(): void
+    {
+        $id = $this->rawCustomer('+46634532343', 'Cliente extranjero');
+
+        $this->artisan('customers:normalize-phones', ['--dry-run' => 'false'])
+            ->assertSuccessful();
+
+        $this->assertSame('+46634532343', DB::table('customers')->where('id', $id)->value('phone'));
+    }
+
     public function test_no_toca_clientes_sin_telefono(): void
     {
         $id = DB::table('customers')->insertGetId([
