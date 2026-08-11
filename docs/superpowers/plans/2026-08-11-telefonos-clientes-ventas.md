@@ -8,6 +8,8 @@
 
 **Tech Stack:** Laravel 13 · PHP 8.5 · PostgreSQL 18 · Vue 3 + Inertia 2 · PHPUnit 12 · Sail
 
+**Estado:** Tarea 1 completada (2026-08-11, commit `988fee7`, rama `feat/telefonos-clientes-ventas`). Tareas 2-10 pendientes.
+
 ## Global Constraints
 
 - **Todos los comandos van por Sail:** `./vendor/bin/sail artisan ...`, `./vendor/bin/sail bin pint ...`. El build de assets sí corre en el host (`npm run build`).
@@ -97,7 +99,7 @@ La regla implementada es más precisa y cumple el mismo objetivo (que nada cambi
 - Produces: `PhoneNormalizer::displayLocal(?string $e164): string` — `+529931234567` → `993 123 4567`, usado para el nombre placeholder.
 - Consumes: nada.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `tests/Unit/Services/PhoneNormalizerTest.php`:
 
@@ -155,12 +157,12 @@ class PhoneNormalizerTest extends TestCase
 }
 ```
 
-- [ ] **Step 2: Correr el test para verificar que falla**
+- [x] **Step 2: Correr el test para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Unit/Services/PhoneNormalizerTest.php`
 Expected: FAIL — `displayLocal` no existe y `normalize(null)` lanza TypeError.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Reemplazar el contenido de `app/Services/PhoneNormalizer.php`:
 
@@ -237,7 +239,7 @@ class PhoneNormalizer
 }
 ```
 
-- [ ] **Step 4: Adaptar el único caller que comparaba contra `''`**
+- [x] **Step 4: Adaptar el único caller que comparaba contra `''`**
 
 En `app/Services/WhatsappMessageService.php`, sustituir:
 
@@ -257,17 +259,26 @@ por:
         }
 ```
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Unit/Services/PhoneNormalizerTest.php tests/Feature/Caja/WhatsappLinkTest.php tests/Feature/Sucursal/WhatsappLinkTest.php`
 Expected: PASS todos.
 
-- [ ] **Step 6: Verificar que ningún otro caller espera string no-nulo**
+- [x] **Step 6: Verificar que ningún otro caller espera string no-nulo**
 
 Run: `grep -rn "PhoneNormalizer::normalize" app/ tests/`
-Expected: solo `WorkbenchController` (Caja y Sucursal), `Hub/SaleController`, `Public/OrderController` y `WhatsappMessageService`. Los cuatro primeros pasan un valor ya validado como 10 dígitos o regex, así que nunca reciben null. No requieren cambios en esta tarea.
 
-- [ ] **Step 7: Commit**
+**Resultado real al ejecutar (2026-08-11):** hay **siete** callers, tres más de los previstos.
+
+| Caller | Estado |
+|---|---|
+| `Caja/WorkbenchController:238`, `Sucursal/WorkbenchController:503`, `Hub/SaleController:360`, `Public/OrderController:59` | Sin cambios: reciben un valor ya validado (regex de 10 dígitos), nunca null |
+| `Empresa/SucursalController:145` (`public_phone`), `Empresa/ConfiguracionController:35` (`owner_whatsapp`) | Sin cambios: guardados por `! empty()`. El retorno `null` en vez de `''` para basura es más correcto — la columna es nullable |
+| `Concerns/HandlesCustomerStats:227` | **Requirió arreglo.** Comparaba `$normalized !== ''`; con la firma nueva un teléfono ilegible devuelve `null`, pasaba el guard y llegaba a `buildUrl(string $phoneE164, …)`, que no acepta null. Corregido a `!== null` |
+
+Lección para las tareas siguientes: **grepear siempre antes de asumir la lista de callers del plan**.
+
+- [x] **Step 7: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
