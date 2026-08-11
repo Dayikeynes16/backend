@@ -33,6 +33,29 @@ class PhoneNormalizerTest extends TestCase
         $this->assertSame($expected, PhoneNormalizer::normalize($input));
     }
 
+    /** @return array<string, array{0: ?string, 1: bool}> */
+    public static function plausibleProvider(): array
+    {
+        return [
+            'mexicano de diez digitos' => ['+529931234567', true],
+            'internacional de once' => ['+46634532343', true],
+            'internacional de ocho' => ['+45566666', true],
+            'cuatro digitos' => ['+8556', false],
+            'tres digitos' => ['+344', false],
+            'un cero' => ['+0', false],
+            'empieza en cero' => ['+0975445800765', false],
+            'demasiado largo' => ['+1234567890123456', false],
+            'null' => [null, false],
+            'sin mas' => ['9931234567', false],
+        ];
+    }
+
+    #[DataProvider('plausibleProvider')]
+    public function test_is_plausible(?string $e164, bool $expected): void
+    {
+        $this->assertSame($expected, PhoneNormalizer::isPlausible($e164));
+    }
+
     public function test_normalize_es_idempotente(): void
     {
         $once = PhoneNormalizer::normalize('993 123 4567');

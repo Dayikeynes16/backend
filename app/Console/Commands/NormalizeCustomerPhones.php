@@ -41,16 +41,29 @@ class NormalizeCustomerPhones extends Command
 
         /** @var array<string, array<int, object>> $groups */
         $groups = [];
+        $skipped = 0;
+
         foreach ($rows as $row) {
             $normalized = PhoneNormalizer::normalize($row->phone);
 
-            if ($normalized === null) {
-                $this->warn("  #{$row->id} '{$row->name}' tiene teléfono ilegible ('{$row->phone}') — se deja intacto.");
+            // Lo que no parece un teléfono se deja exactamente como está. No
+            // basta con que no destruya el dato: normalizar '344' a '+344'
+            // haría que dos clientes distintos con basura coincidente se
+            // fusionaran en uno, y esa fusión no se deshace.
+            if (! PhoneNormalizer::isPlausible($normalized)) {
+                $this->warn("  #{$row->id} '{$row->name}': '{$row->phone}' no parece un teléfono — se deja intacto.");
+                $skipped++;
 
                 continue;
             }
 
             $groups["{$row->tenant_id}|{$row->branch_id}|{$normalized}"][] = $row;
+        }
+
+        if ($skipped > 0) {
+            $this->newLine();
+            $this->warn("{$skipped} registro(s) con teléfono no reconocible quedan sin tocar. Revísalos a mano si hace falta.");
+            $this->newLine();
         }
 
         $merged = 0;

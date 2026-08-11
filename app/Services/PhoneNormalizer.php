@@ -45,6 +45,26 @@ class PhoneNormalizer
     }
 
     /**
+     * ¿El valor normalizado parece un teléfono de verdad?
+     *
+     * El campo `phone` se ha usado históricamente como cajón de sastre: hay
+     * registros con '0', '89', '344', '*455'. Normalizarlos no destruye nada
+     * por sí solo, pero sí habilita fusiones accidentales — dos clientes
+     * distintos con basura coincidente acabarían siendo uno.
+     *
+     * Regla E.164: `+`, un primer dígito distinto de 0 (los códigos de país no
+     * empiezan en 0) y entre 8 y 15 dígitos en total.
+     */
+    public static function isPlausible(?string $e164): bool
+    {
+        if ($e164 === null) {
+            return false;
+        }
+
+        return (bool) preg_match('/^\+[1-9]\d{7,14}$/', $e164);
+    }
+
+    /**
      * Formato legible de los 10 dígitos locales: `993 123 4567`.
      * Se usa para el nombre placeholder de clientes sin nombre.
      */
