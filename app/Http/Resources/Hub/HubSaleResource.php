@@ -24,6 +24,9 @@ class HubSaleResource extends JsonResource
             'amount_pending' => (float) $this->amount_pending,
             'origin' => $this->origin,
             'origin_name' => $this->origin_name,
+            // Lo usa el hub para reconocer su propia venta ya subida y quitarla de
+            // la lista local: sin esto se ve duplicada hasta el siguiente refresco.
+            'client_reference' => $this->client_reference,
             'created_at' => $this->created_at->toIso8601String(),
             'completed_at' => $this->completed_at?->toIso8601String(),
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
