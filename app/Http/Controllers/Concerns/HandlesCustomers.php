@@ -274,6 +274,12 @@ trait HandlesCustomers
             return back()->withErrors(['phone' => 'El telefono no es valido.']);
         }
 
+        // Poner nombre a un cliente creado automáticamente desde una venta lo
+        // deja de marcar como pendiente.
+        if (trim($validated['name']) !== '') {
+            $validated['name_pending'] = false;
+        }
+
         $duplicate = Customer::where('branch_id', $user->branch_id)
             ->where('phone', $validated['phone'])
             ->where('id', '!=', $customer->id)

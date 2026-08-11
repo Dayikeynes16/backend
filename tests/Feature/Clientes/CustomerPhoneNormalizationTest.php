@@ -157,6 +157,32 @@ class CustomerPhoneNormalizationTest extends TestCase
         $this->assertSame('+529998887766', $otro->fresh()->phone);
     }
 
+    /**
+     * Poner nombre a un cliente creado automáticamente desde una venta lo deja
+     * de marcar como pendiente — es el flujo del chip "Poner nombre".
+     */
+    public function test_ponerle_nombre_apaga_name_pending(): void
+    {
+        $customer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Cliente 993 123 4567',
+            'name_pending' => true,
+            'phone' => '9931234567',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->adminSucursal)
+            ->put(route('sucursal.clientes.update', [$this->tenant->slug, $customer->id]), [
+                'name' => 'Juan Perez',
+                'phone' => $customer->phone,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Juan Perez', $customer->fresh()->name);
+        $this->assertFalse($customer->fresh()->name_pending);
+    }
+
     public function test_un_telefono_ilegible_es_rechazado_al_dar_de_alta(): void
     {
         $this->actingAs($this->adminSucursal)

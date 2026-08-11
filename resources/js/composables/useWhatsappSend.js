@@ -59,22 +59,38 @@ export function useWhatsappSend({ sale, linkUrl, savePhoneUrl, deletePhoneUrl, o
     });
     const removeDialog = ref({ show: false });
 
+    // Aparece cuando el teléfono capturado resulta ser de un cliente cuya
+    // asignación cambiaría el total de la venta o la dejaría cobrada.
+    const assignConfirmDialog = ref({
+        show: false,
+        customer: null,
+        preview: null,
+        phone: null,
+        sendAfter: false,
+    });
+
     const phoneInfo = computed(() => {
         const s = sale();
-        if (!s) return { phone: null, source: null, customerName: null };
+        if (!s) return { phone: null, source: null, customerName: null, namePending: false };
         if (s.customer?.phone) {
-            return { phone: s.customer.phone, source: 'customer', customerName: s.customer.name };
+            return {
+                phone: s.customer.phone,
+                source: 'customer',
+                customerName: s.customer.name,
+                namePending: !!s.customer.name_pending,
+            };
         }
         if (s.contact_phone) {
-            return { phone: s.contact_phone, source: 'manual', customerName: null };
+            return { phone: s.contact_phone, source: 'manual', customerName: null, namePending: false };
         }
-        return { phone: null, source: null, customerName: null };
+        return { phone: null, source: null, customerName: null, namePending: false };
     });
 
     const closeAll = () => {
         confirmDialog.value = { show: false };
         captureDialog.value = { ...captureDialog.value, show: false };
         removeDialog.value = { show: false };
+        assignConfirmDialog.value = { ...assignConfirmDialog.value, show: false };
         error.value = null;
     };
 
@@ -182,8 +198,18 @@ export function useWhatsappSend({ sale, linkUrl, savePhoneUrl, deletePhoneUrl, o
         }
     };
 
-    // Submit del capture dialog. Si sendAfter=true, abre WhatsApp después de guardar.
-    const submitPhone = async (phone) => {
+    /**
+     * Submit del capture dialog. Si sendAfter=true, abre WhatsApp después de guardar.
+     *
+     * El backend resuelve el teléfono a un cliente de la sucursal. Cuando esa
+     * asignación cambiaría el total de la venta, responde `requires_confirmation`
+     * en vez de aplicarla, y aquí se levanta el diálogo correspondiente.
+     *
+     * @param {string} phone 10 dígitos
+     * @param {{confirmed?: boolean, skipAssign?: boolean}} opts
+     */
+    const submitPhone = async (phone, opts = {}) => {
+        const { confirmed = false, skipAssign = false } = opts;
         savingPhone.value = true;
         error.value = null;
         const wantsSend = captureDialog.value.sendAfter;
@@ -195,7 +221,7 @@ export function useWhatsappSend({ sale, linkUrl, savePhoneUrl, deletePhoneUrl, o
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken(),
                 },
-                body: JSON.stringify({ phone }),
+                body: JSON.stringify({ phone, confirmed, skip_assign: skipAssign }),
             });
 
             if (res.status === 422) {
@@ -207,6 +233,23 @@ export function useWhatsappSend({ sale, linkUrl, savePhoneUrl, deletePhoneUrl, o
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             const data = await res.json();
+
+            // El número es de un cliente y asignarlo alteraría la venta: se
+            // pide confirmación antes de tocar nada.
+            if (data.requires_confirmation) {
+                closePopup(popup);
+                captureDialog.value = { ...captureDialog.value, show: false };
+                assignConfirmDialog.value = {
+                    show: true,
+                    customer: data.customer,
+                    preview: data.preview,
+                    phone,
+                    sendAfter: wantsSend,
+                };
+
+                return { ok: false, pending: true };
+            }
+
             captureDialog.value = { ...captureDialog.value, show: false };
             onMutate?.();
 
@@ -233,6 +276,25 @@ export function useWhatsappSend({ sale, linkUrl, savePhoneUrl, deletePhoneUrl, o
         }
     };
 
+    // "Asociar cliente": reenvía aceptando el impacto que mostró el diálogo.
+    const confirmAssign = async () => {
+        const { phone, sendAfter } = assignConfirmDialog.value;
+        assignConfirmDialog.value = { ...assignConfirmDialog.value, show: false };
+        captureDialog.value = { ...captureDialog.value, sendAfter };
+
+        return submitPhone(phone, { confirmed: true });
+    };
+
+    // "Solo enviar": guarda el teléfono en la venta sin tocar al cliente, para
+    // que rechazar la asociación no impida mandar la nota.
+    const sendWithoutAssigning = async () => {
+        const { phone, sendAfter } = assignConfirmDialog.value;
+        assignConfirmDialog.value = { ...assignConfirmDialog.value, show: false };
+        captureDialog.value = { ...captureDialog.value, sendAfter };
+
+        return submitPhone(phone, { skipAssign: true });
+    };
+
     const confirmRemove = async () => {
         removingPhone.value = true;
         error.value = null;
@@ -255,7 +317,7 @@ export function useWhatsappSend({ sale, linkUrl, savePhoneUrl, deletePhoneUrl, o
         // estado
         loading, savingPhone, removingPhone, error, phoneInfo,
         // dialogs
-        confirmDialog, captureDialog, removeDialog,
+        confirmDialog, captureDialog, removeDialog, assignConfirmDialog,
         // acciones del botón principal
         handleSendClick,
         confirmSend,
@@ -264,6 +326,7 @@ export function useWhatsappSend({ sale, linkUrl, savePhoneUrl, deletePhoneUrl, o
         handleChipEdit, handleChipAdd, handleChipRemove,
         // acciones de los diálogos
         submitPhone, confirmRemove,
+        confirmAssign, sendWithoutAssigning,
         closeAll,
     };
 }

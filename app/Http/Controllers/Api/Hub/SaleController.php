@@ -146,7 +146,7 @@ class SaleController extends Controller
             $query->where('status', SaleStatus::Pending);
         }
 
-        $sales = $query->with(['items', 'customer:id,name,phone', 'lockedByUser:id,name'])
+        $sales = $query->with(['items', 'customer:id,name,name_pending,phone', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();

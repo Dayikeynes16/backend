@@ -46,7 +46,7 @@ class WorkbenchController extends Controller
             ->with([
                 'items',
                 'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
-                'lockedByUser:id,name', 'customer:id,name,phone',
+                'lockedByUser:id,name', 'customer:id,name,name_pending,phone',
                 'linkedOrder:id,folio,status',
                 'fulfilledBy:id,folio,status,linked_order_id',
             ])
@@ -90,7 +90,7 @@ class WorkbenchController extends Controller
             'canEditPrice' => $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin'),
             'saleItemEditReasonMode' => $branch->sale_item_edit_reason_mode ?? 'optional',
             'customers' => Schema::hasTable('customers')
-                ? Customer::where('branch_id', $branchId)->where('status', 'active')->orderBy('name')->get(['id', 'name', 'phone'])
+                ? Customer::where('branch_id', $branchId)->where('status', 'active')->orderBy('name')->get(['id', 'name', 'name_pending', 'phone'])
                 : [],
         ]);
     }

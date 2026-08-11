@@ -48,7 +48,7 @@ class WorkbenchController extends Controller
             ->with([
                 'items',
                 'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
-                'lockedByUser:id,name', 'customer:id,name,phone',
+                'lockedByUser:id,name', 'customer:id,name,name_pending,phone',
                 'linkedOrder:id,folio,status',
                 'fulfilledBy:id,folio,status,linked_order_id',
             ])
@@ -65,7 +65,7 @@ class WorkbenchController extends Controller
         $customers = Customer::where('branch_id', $user->branch_id)
             ->where('status', 'active')
             ->orderBy('name')
-            ->get(['id', 'name', 'phone']);
+            ->get(['id', 'name', 'name_pending', 'phone']);
 
         return Inertia::render('Caja/Workbench', [
             'sales' => $sales,
