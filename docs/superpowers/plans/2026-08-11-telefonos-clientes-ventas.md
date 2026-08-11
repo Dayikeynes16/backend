@@ -8,7 +8,7 @@
 
 **Tech Stack:** Laravel 13 · PHP 8.5 · PostgreSQL 18 · Vue 3 + Inertia 2 · PHPUnit 12 · Sail
 
-**Estado:** Tareas 1-3 completadas (2026-08-11, commits `988fee7`, `1240fe7`, `f1d9a37`; rama `feat/telefonos-clientes-ventas`). Tareas 4-10 pendientes.
+**Estado:** Tareas 1-4 completadas (2026-08-11, commits `988fee7`, `1240fe7`, `f1d9a37`, `69e740b`; rama `feat/telefonos-clientes-ventas`). Tareas 5-10 pendientes.
 
 La migración `2026_08_11_085345_add_name_pending_to_customers_table` ya está aplicada, y **el mutator ya está activo**: a partir de aquí, cualquier test que cree un `Customer` con teléfono lo verá guardado en E.164.
 
@@ -880,7 +880,7 @@ git commit -m "feat(clientes): normalizacion de telefono por mutator y flag name
   - `ResolveCustomerByPhone::execute(string $phone, int $branchId, int $tenantId): CustomerResolution`
   - Lanza `InvalidArgumentException` si el teléfono no normaliza.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `tests/Feature/Clientes/ResolveCustomerByPhoneTest.php`:
 
@@ -998,12 +998,12 @@ class ResolveCustomerByPhoneTest extends TestCase
 
 **Helpers disponibles:** `tests/Concerns/SeedsMetricsData` ya expone `$tenant`, `$branch`, `$secondBranch`, `$adminSucursal`, `$adminEmpresa`, `$cajero` y los helpers `makeProduct()`, `makeCompletedSale()`, `makeCreditSale()`. **No existe `$this->product`** — hay que llamar a `makeProduct()`.
 
-- [ ] **Step 2: Correr para verificar que falla**
+- [x] **Step 2: Correr para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Clientes/ResolveCustomerByPhoneTest.php`
 Expected: FAIL — `Class "App\Services\Customers\ResolveCustomerByPhone" not found`.
 
-- [ ] **Step 3: Implementar el DTO**
+- [x] **Step 3: Implementar el DTO**
 
 Crear `app/Services/Customers/CustomerResolution.php`:
 
@@ -1026,7 +1026,7 @@ readonly class CustomerResolution
 }
 ```
 
-- [ ] **Step 4: Implementar el servicio**
+- [x] **Step 4: Implementar el servicio**
 
 Crear `app/Services/Customers/ResolveCustomerByPhone.php`:
 
@@ -1100,12 +1100,12 @@ class ResolveCustomerByPhone
 }
 ```
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Clientes/ResolveCustomerByPhoneTest.php`
 Expected: PASS (6 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
