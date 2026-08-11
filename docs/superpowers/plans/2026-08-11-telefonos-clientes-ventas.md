@@ -8,7 +8,9 @@
 
 **Tech Stack:** Laravel 13 · PHP 8.5 · PostgreSQL 18 · Vue 3 + Inertia 2 · PHPUnit 12 · Sail
 
-**Estado:** Tareas 1-2 completadas (2026-08-11, commits `988fee7` y `1240fe7`, rama `feat/telefonos-clientes-ventas`). Tareas 3-10 pendientes.
+**Estado:** Tareas 1-3 completadas (2026-08-11, commits `988fee7`, `1240fe7`, `f1d9a37`; rama `feat/telefonos-clientes-ventas`). Tareas 4-10 pendientes.
+
+La migración `2026_08_11_085345_add_name_pending_to_customers_table` ya está aplicada, y **el mutator ya está activo**: a partir de aquí, cualquier test que cree un `Customer` con teléfono lo verá guardado en E.164.
 
 **Hallazgos durante la ejecución que afectan a las tareas siguientes:**
 
@@ -580,7 +582,7 @@ git commit -m "feat(clientes): comando para normalizar telefonos y fusionar dupl
 - Consumes: `PhoneNormalizer::normalize()` (Tarea 1).
 - Produces: `customers.name_pending` (bool, default false); `Customer::$phone` siempre en E.164 al leer tras escribir.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `tests/Feature/Clientes/CustomerPhoneNormalizationTest.php`:
 
@@ -663,12 +665,12 @@ class CustomerPhoneNormalizationTest extends TestCase
 }
 ```
 
-- [ ] **Step 2: Correr para verificar que falla**
+- [x] **Step 2: Correr para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Clientes/CustomerPhoneNormalizationTest.php`
 Expected: FAIL — el teléfono se guarda literal y `name_pending` no existe.
 
-- [ ] **Step 3: Crear la migración**
+- [x] **Step 3: Crear la migración**
 
 Crear `database/migrations/2026_08_11_000001_add_name_pending_to_customers_table.php`:
 
@@ -704,7 +706,7 @@ return new class extends Migration
 };
 ```
 
-- [ ] **Step 4: Implementar el mutator**
+- [x] **Step 4: Implementar el mutator**
 
 Reemplazar `app/Models/Customer.php`:
 
@@ -760,12 +762,12 @@ class Customer extends Model
 }
 ```
 
-- [ ] **Step 5: Migrar y correr los tests**
+- [x] **Step 5: Migrar y correr los tests**
 
 Run: `./vendor/bin/sail artisan migrate && ./vendor/bin/sail artisan test --compact tests/Feature/Clientes/CustomerPhoneNormalizationTest.php`
 Expected: PASS (4 tests).
 
-- [ ] **Step 6: Normalizar los puntos que validan unicidad**
+- [x] **Step 6: Normalizar los puntos que validan unicidad**
 
 Con el mutator, las reglas `Rule::unique('customers','phone')` y los `where('phone', $input)` comparan el valor **crudo** contra una columna **normalizada** — dejarían pasar duplicados. Hay tres puntos.
 
@@ -818,7 +820,7 @@ En `app/Http/Controllers/Api/Hub/CustomerController.php`, dentro de `validateCus
 
 Añadir `use App\Services\PhoneNormalizer;` al inicio del controlador.
 
-- [ ] **Step 7: Test de que la unicidad ahora sí detecta el duplicado por formato**
+- [x] **Step 7: Test de que la unicidad ahora sí detecta el duplicado por formato**
 
 Añadir a `tests/Feature/Clientes/CustomerPhoneNormalizationTest.php`:
 
@@ -849,12 +851,12 @@ Expected: PASS (5 tests).
 
 **Si `$this->adminSucursal` no existe en `SeedsMetricsData`**, revisar el nombre real de la propiedad con `grep -n "adminSucursal\|protected \$" tests/Concerns/SeedsMetricsData.php` y usar el que corresponda.
 
-- [ ] **Step 8: Correr toda la suite tocada por el mutator**
+- [x] **Step 8: Correr toda la suite tocada por el mutator**
 
 Run: `./vendor/bin/sail artisan test --compact --filter="Customer|Whatsapp|Cliente|Order"`
 Expected: PASS. **Este es el punto de mayor riesgo del plan** — cualquier test que cree un cliente con teléfono literal y luego lo compare crudo fallará. Corregir esos tests para esperar E.164 (es el nuevo comportamiento correcto), nunca debilitar el mutator.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
