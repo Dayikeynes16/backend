@@ -10,6 +10,8 @@
 
 **Estado:** Tareas 1-6 completadas (2026-08-11; rama `feat/telefonos-clientes-ventas`). Tareas 7-10 pendientes.
 
+**Tarea extra intercalada entre la 6 y la 7 (commit `605b3c5`):** al verificar integridad en producción salió un bug preexistente — `AssignCustomerToSale` y `SaleItemEditor` recalculaban `sales.total` **sin el costo de envío**, así que asignar cliente o editar una línea borraba ese importe de las ventas a domicilio. La captura automática de la Tarea 6 lo habría vuelto cotidiano. Se centralizó el cálculo en `App\Support\SaleTotals::forSale()` (líneas + `delivery_fee`), usado por los tres servicios y por `CustomerAssignmentPreview`. **Cualquier código futuro que recalcule el total debe pasar por ahí.**
+
 **Cambio de contrato en la Tarea 6 respecto a lo planeado:** el endpoint acepta además `skip_assign` (bool). Sin él, rechazar la confirmación dejaba al usuario sin poder mandar la nota por WhatsApp — una regresión de una función existente. Con `skip_assign` se guarda el teléfono en `sales.contact_phone` como antes, sin tocar clientes. **La Tarea 7 debe cablear ese botón en el diálogo de confirmación** ("Solo enviar sin asociar").
 
 La migración `2026_08_11_085345_add_name_pending_to_customers_table` ya está aplicada, y **el mutator ya está activo**: a partir de aquí, cualquier test que cree un `Customer` con teléfono lo verá guardado en E.164.
