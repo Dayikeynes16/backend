@@ -10,7 +10,9 @@ use App\Models\User;
 use App\Services\Ai\Assistant\Drafts\AssistantDraftService;
 use App\Services\Ai\Assistant\Drafts\DraftConfirmationResult;
 use App\Services\Ai\Assistant\Drafts\DraftConfirmer;
+use App\Services\PhoneNormalizer;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Confirma un borrador de alta de cliente. Branch forzado para
@@ -71,11 +73,31 @@ final class CustomerDraftConfirmer implements DraftConfirmer
             ? (int) $user->branch_id
             : (int) $validated['branch_id'];
 
+        // El teléfono es único por sucursal. Sin este chequeo, `create` choca
+        // contra `customers_tenant_branch_phone_uniq` y el usuario recibe un
+        // 500 en vez de saber que el cliente ya existe. Se compara normalizado
+        // porque el mutator del modelo guarda en E.164.
+        $phone = PhoneNormalizer::normalize($validated['phone'] ?? null);
+
+        if ($phone !== null) {
+            $existing = Customer::withoutGlobalScopes()
+                ->where('tenant_id', app('tenant')->id)
+                ->where('branch_id', $branchId)
+                ->where('phone', $phone)
+                ->first();
+
+            if ($existing) {
+                throw ValidationException::withMessages([
+                    'phone' => 'Ya existe un cliente con ese teléfono en la sucursal: '.$existing->name.'.',
+                ]);
+            }
+        }
+
         $customer = Customer::create([
             'tenant_id' => app('tenant')->id,
             'branch_id' => $branchId,
             'name' => $validated['name'],
-            'phone' => $validated['phone'] ?? null,
+            'phone' => $phone,
             'notes' => $validated['notes'] ?? null,
             'status' => 'active',
         ]);
