@@ -25,6 +25,7 @@ class SaleController extends Controller
             'payment_method' => 'required|in:cash,card,transfer',
             'origin_name' => 'nullable|string|max:100',
             'client_reference' => 'nullable|string|max:64',
+            'contact_name' => 'nullable|string|max:255',
         ]);
 
         $branchId = $request->branch_id;
@@ -156,6 +157,9 @@ class SaleController extends Controller
                 'origin' => 'api',
                 'origin_name' => $request->input('origin_name', 'Bascula'),
                 'client_reference' => $clientReference,
+                // Nombre libre puesto desde la báscula para identificar la venta
+                // en la cola. NO es un cliente: `customer_id` sigue en null.
+                'contact_name' => trim((string) $request->input('contact_name')) ?: null,
                 'amount_paid' => 0,
                 'amount_pending' => round($total, 2),
                 'status' => SaleStatus::Active,

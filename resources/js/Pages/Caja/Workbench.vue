@@ -139,6 +139,12 @@ const submitCancelRequest = (reason) => {
                             <div class="flex items-center justify-between">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
+                                    <span v-if="sale.contact_name"
+                                        class="inline-flex min-w-0 items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20"
+                                        :title="`A nombre de ${sale.contact_name}`">
+                                        <svg class="h-3 w-3 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-3.04 0-7 1.52-7 4.5V17h14v-1.5c0-2.98-3.96-4.5-7-4.5Z" /></svg>
+                                        <span class="max-w-[140px] truncate">{{ sale.contact_name }}</span>
+                                    </span>
                                     <span v-if="sale.status === 'pending' && sale.origin === 'web'" class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800 ring-1 ring-inset ring-orange-600/30">🛒 Pedido web</span>
                                     <span v-else-if="sale.status === 'pending'" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">Pendiente</span>
                                     <span v-if="sale.linked_order_id && sale.linked_order"

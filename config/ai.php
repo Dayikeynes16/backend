@@ -94,6 +94,19 @@ return [
     | modelo barato (gpt-4o-mini) actúa como router de Tools; gpt-4o queda
     | reservado para turnos con visión más adelante.
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Dictado desde la báscula (Scale API)
+    |--------------------------------------------------------------------------
+    | El límite es por API key, no por sucursal: cada báscula tiene la suya, y
+    | un equipo con un botón atascado no debe dejar sin dictado al de al lado.
+    | No descuenta del presupuesto mensual de IA del tenant — quedarse sin
+    | presupuesto no puede apagar el micrófono en pleno mostrador.
+    */
+    'scale' => [
+        'transcribe_per_hour' => (int) env('AI_SCALE_TRANSCRIBE_PER_HOUR', 120),
+    ],
+
     'assistant' => [
         'model' => env('AI_ASSISTANT_MODEL', 'gpt-4o-mini'),
         'model_vision' => env('AI_ASSISTANT_MODEL_VISION', 'gpt-4o'),
