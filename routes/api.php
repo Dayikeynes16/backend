@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\Hub\UserController as HubUserController;
 use App\Http\Controllers\Api\Hub\WithdrawalController as HubWithdrawalController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SaleController;
+use App\Http\Controllers\Api\TranscriptionController;
 use App\Http\Controllers\Public\DeliveryController as PublicDeliveryController;
 use App\Http\Controllers\Public\MenuController as PublicMenuController;
 use App\Http\Controllers\Public\OrderController as PublicOrderController;
@@ -40,6 +41,9 @@ Route::prefix('v1')
         Route::post('sales', [SaleController::class, 'store'])->name('api.sales.store');
         Route::get('sales', [SaleController::class, 'index'])->name('api.sales.index');
         Route::get('sales/{sale}', [SaleController::class, 'show'])->name('api.sales.show');
+
+        // Dictado del nombre de la venta desde la báscula (audio → texto).
+        Route::post('transcribe', [TranscriptionController::class, 'store'])->name('api.transcribe');
     });
 
 // Autenticación de usuario para el hub de escritorio (Sanctum token).
