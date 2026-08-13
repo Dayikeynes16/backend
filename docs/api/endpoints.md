@@ -78,11 +78,13 @@ Registra una venta. Dispara evento Reverb al cajero.
     ],
     "payment_method": "cash",
     "origin_name": "Balanza 1",
+    "contact_name": "Doña Mary",
     "client_reference": "a1b2c3d4-..."
 }
 ```
 
 - `origin_name`: opcional, máx. 100. Identifica el equipo en la venta; sin él se guarda `"Bascula"`.
+- `contact_name`: opcional, máx. 255. Nombre libre para identificar la venta en la cola de la Mesa de Trabajo. **Es una etiqueta, no un cliente:** no crea ni asocia registros en `customers` y `customer_id` sigue en `null`. En blanco se guarda como `null`. Añadido el 2026-08-13; las básculas que no lo mandan no cambian en nada.
 - `client_reference`: opcional, máx. 64. **Clave de idempotencia generada por el equipo.**
 
 **Idempotencia por `(branch_id, client_reference)` (desde 2026-08-11):** si ya existe una venta de esa sucursal con ese `client_reference`, el endpoint **devuelve la venta existente sin crear otra**, con la misma forma y el mismo `201` que una creación normal — para quien reintenta, indistinguible de un envío que salió bien a la primera.
@@ -174,3 +176,28 @@ Estado de una venta específica. Útil para polling desde el kiosco.
 ```
 
 **Nota:** Solo devuelve ventas de la sucursal asociada a la API Key. Retorna 404 si la venta no pertenece a esa sucursal.
+
+## POST /api/v1/transcribe
+
+Dictado del nombre de la venta: recibe un audio y devuelve el texto. Añadido el 2026-08-13.
+
+**Controller:** `Api\TranscriptionController@store`
+
+**Body:** `multipart/form-data` con un campo `audio`.
+
+Formatos aceptados: `webm, ogg, oga, mp3, mpga, m4a, mp4, wav, flac, aac`. Tamaño máximo: `ai.expenses.max_audio_bytes` (10 MB por defecto). La báscula graba en m4a.
+
+**Respuesta 200:**
+
+```json
+{ "text": "Doña Mary" }
+```
+
+**Errores:** `401` sin API key válida · `422` sin audio, formato no aceptado o demasiado grande · `429` al exceder el límite · `503` si Whisper falla.
+
+**Límite:** `ai.scale.transcribe_per_hour` (120 por defecto, variable `AI_SCALE_TRANSCRIBE_PER_HOUR`), contado **por API key** y no por sucursal: cada báscula tiene la suya, y un equipo con un botón atascado no debe dejar sin dictado al de al lado. Es independiente del límite general de 60 req/min de la Scale API, que se sigue aplicando.
+
+Existe aparte del endpoint de dictado del asistente (`{tenant}/asistente/transcribir`) porque aquél exige sesión web y la báscula se autentica con `X-Api-Key`. La transcripción en sí es la misma: `AssistantTranscriber` (Whisper, español). **No persiste el audio.** No descuenta del presupuesto mensual de IA del tenant.
+
+Detalle del flujo completo: [ventas.md](../modulos/ventas.md#nombre-de-la-venta-desde-la-báscula).
+

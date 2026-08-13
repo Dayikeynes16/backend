@@ -1,6 +1,6 @@
 # Nombre en la venta desde la báscula, con dictado por voz
 
-**Estado:** Aprobado — pendiente de plan
+**Estado:** Implementado (2026-08-13) — doc viva: [ventas.md](../../modulos/ventas.md#nombre-de-la-venta-desde-la-báscula)
 **Fecha:** 2026-08-13
 **Módulos afectados:** [ventas](../../modulos/ventas.md), [api de básculas](../../api/endpoints.md), `bascula-android`
 **No afecta a:** `carniceria-hub` (cero cambios), [clientes-telefonos](../../modulos/clientes-telefonos.md) (la cartera no se toca)
@@ -136,6 +136,7 @@ Los pasos 5-7 son idénticos con o sin dictado.
 
 ## Preguntas abiertas
 
-- ¿Conviene que el nombre viaje también al ticket impreso? Se decidió que no para
-  esta iteración; si el caso de uso resulta ser "apartados que se recogen después",
-  el ticket pasa a tener sentido.
+- ¿Conviene que el nombre viaje también al ticket impreso? Se dejó fuera de esta
+  iteración y **sigue abierto**. Si el uso real resulta ser "apartados que se
+  recogen después", el ticket pasa a tener sentido y sería un cambio sobre
+  `TicketPrinter.vue` y la configuración de ticket por sucursal.

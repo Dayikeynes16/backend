@@ -10,6 +10,17 @@
 
 Spec: [2026-08-13-nombre-en-venta-de-bascula-design.md](../specs/2026-08-13-nombre-en-venta-de-bascula-design.md)
 
+**Estado: COMPLETADO** (2026-08-13). Doc viva: [ventas.md](../../modulos/ventas.md#nombre-de-la-venta-desde-la-báscula).
+
+- **Fase A** (backend, tareas 1-3) en `main` — PR [#53](https://github.com/Dayikeynes16/backend/pull/53).
+- **Fase B** (báscula, tareas 4-5) en `bascula-android`, rama `feat/nombre-en-venta`: commits `7ae4835` y `0651771`. **Pendiente de probar en la tablet y de publicar release.**
+
+**Lo que cambió respecto a lo planeado:**
+
+1. **Tres puntos de limpieza, no uno.** El plan avisaba del riesgo de que el nombre se quedara pegado entre ventas; al implementarlo resultó que `PosViewModel` cierra la venta en tres sitios distintos (creada en la nube, encolada en el hub, cobrada en respaldo). Los tres limpian el campo.
+2. **El campo no fue "encima del botón de cobrar".** Ese botón ("Terminar") vive en la barra superior junto a "Añadir" y "Borrar último"; un campo de texto ahí no tenía sentido. Quedó dentro del panel de la orden, pegado al total.
+3. **Whisper se finge por HTTP, no con Mockery.** `AssistantTranscriber` es `final`. Se adoptó el patrón de `AssistantTranscribeTest` (`Http::fake` sobre `*/audio/transcriptions`), que además ejercita el transcriptor de verdad.
+
 ## Global Constraints
 
 - **La API de básculas no puede romperse.** `contact_name` entra como `nullable`; una venta sin el campo debe crearse exactamente como hoy. Hay un test dedicado a esto (Tarea 1) y no puede eliminarse.
@@ -419,12 +430,12 @@ class ScaleTranscriptionTest extends TestCase
 
 **Nota sobre `RefreshDatabase` y el rate limiter:** el limitador vive en caché, no en base de datos, así que no se limpia solo entre tests. En `phpunit.xml` el `CACHE_STORE` es `array`, que sí se reinicia por test — el `tearDown` es cinturón y tirantes. Si algún test falla por cuota agotada, ese es el motivo.
 
-- [ ] **Step 3: Correr el test para verificar que falla**
+- [x] **Step 3: Correr el test para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Api/ScaleTranscriptionTest.php`
 Expected: FAIL — la ruta no existe (404 en vez de 200/422).
 
-- [ ] **Step 4: Añadir la configuración**
+- [x] **Step 4: Añadir la configuración**
 
 En `config/ai.php`, al mismo nivel que `expenses` y `assistant`:
 
@@ -439,7 +450,7 @@ En `config/ai.php`, al mismo nivel que `expenses` y `assistant`:
     ],
 ```
 
-- [ ] **Step 5: Escribir el controlador**
+- [x] **Step 5: Escribir el controlador**
 
 Crear `app/Http/Controllers/Api/TranscriptionController.php`:
 
@@ -516,7 +527,7 @@ class TranscriptionController extends Controller
 }
 ```
 
-- [ ] **Step 6: Registrar la ruta**
+- [x] **Step 6: Registrar la ruta**
 
 En `routes/api.php`, dentro del grupo `Route::prefix('v1')->middleware('auth.apikey')`, tras la línea de `sales/{sale}`:
 
@@ -530,17 +541,17 @@ Y el import arriba del archivo, junto a los otros controladores de `Api`:
 use App\Http\Controllers\Api\TranscriptionController;
 ```
 
-- [ ] **Step 7: Correr los tests**
+- [x] **Step 7: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Api/ScaleTranscriptionTest.php`
 Expected: PASS (8 tests).
 
-- [ ] **Step 8: Verificar que no se rompió el rate limit general de la Scale API**
+- [x] **Step 8: Verificar que no se rompió el rate limit general de la Scale API**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Api/ tests/Feature/ApiKeyLastUsedTest.php`
 Expected: PASS. El middleware ya limita a 60 req/min por key; el nuevo limitador es independiente y convive con él.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
@@ -645,7 +656,7 @@ Sin dictado todavía: primero que el nombre viaje y aparezca en la web. Así la 
 **Interfaces:**
 - Produces: `CreateSaleRequest.contactName: String?` serializado como `contact_name`; `PosState.contactName: String`; `PosViewModel.onContactNameChange(String)`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `app/src/test/java/com/bascula/app/data/CreateSaleRequestTest.kt`:
 
@@ -690,7 +701,7 @@ class CreateSaleRequestTest {
 }
 ```
 
-- [ ] **Step 2: Correr el test para verificar que falla**
+- [x] **Step 2: Correr el test para verificar que falla**
 
 Run:
 ```bash
@@ -699,7 +710,7 @@ JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew testDebugUnitTest --tests "c
 ```
 Expected: FAIL de compilación — `CreateSaleRequest` no tiene `contactName`.
 
-- [ ] **Step 3: Añadir el campo al modelo**
+- [x] **Step 3: Añadir el campo al modelo**
 
 En `app/src/main/java/com/bascula/app/data/Models.kt`, `CreateSaleRequest` pasa a:
 
@@ -719,12 +730,12 @@ data class CreateSaleRequest(
 
 Gson omite por defecto las propiedades `null`, que es justo lo que pide el segundo test.
 
-- [ ] **Step 4: Correr el test**
+- [x] **Step 4: Correr el test**
 
 Run: `JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew testDebugUnitTest --tests "com.bascula.app.data.CreateSaleRequestTest"`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Añadir el estado al ViewModel**
+- [x] **Step 5: Añadir el estado al ViewModel**
 
 En `PosViewModel.kt`, dentro de `data class PosState`, junto a los campos de la venta en curso (tras `val lines: List<SaleLine>`):
 
@@ -743,7 +754,7 @@ Y como método público de `PosViewModel` (junto a las demás acciones de la ven
     }
 ```
 
-- [ ] **Step 6: Enviarlo con la venta**
+- [x] **Step 6: Enviarlo con la venta**
 
 En el `CreateSaleRequest(...)` de `PosViewModel.kt` (~línea 470), añadir:
 
@@ -753,7 +764,7 @@ En el `CreateSaleRequest(...)` de `PosViewModel.kt` (~línea 470), añadir:
 
 Y donde se limpia la venta tras cobrar (busca dónde se resetea `lines = emptyList()`), añadir `contactName = ""` al mismo `copy`. Si no lo haces, el nombre de la venta anterior se queda pegado a la siguiente — el error más probable de esta tarea.
 
-- [ ] **Step 7: Crear el campo de UI**
+- [x] **Step 7: Crear el campo de UI**
 
 Crear `app/src/main/java/com/bascula/app/ui/pos/components/ContactNameField.kt`:
 
@@ -792,7 +803,7 @@ fun ContactNameField(
 }
 ```
 
-- [ ] **Step 8: Montarlo en la pantalla**
+- [x] **Step 8: Montarlo en la pantalla**
 
 En `PosScreen.kt`, localiza el bloque de la venta en curso, cerca del total y el botón de cobrar (`grep -n "total\|Cobrar" app/src/main/java/com/bascula/app/ui/pos/PosScreen.kt`). Añade encima del botón de cobrar:
 
@@ -806,14 +817,14 @@ En `PosScreen.kt`, localiza el bloque de la venta en curso, cerca del total y el
 
 con su import: `import com.bascula.app.ui.pos.components.ContactNameField`.
 
-- [ ] **Step 9: Compilar y probar en el dispositivo**
+- [x] **Step 9: Compilar y probar en el dispositivo**
 
 Run: `JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
 Instala y comprueba: arma una venta, escribe "Doña Mary", cobra. En la Mesa de Trabajo web esa venta debe aparecer con el badge violeta. Después arma **otra** venta sin escribir nada: el campo debe estar vacío y la venta llegar sin nombre.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add app/src/main/java/com/bascula/app/data/Models.kt \
@@ -837,7 +848,7 @@ git commit -m "feat(pos): campo 'a nombre de' en la venta"
 - Consumes: `POST /api/v1/transcribe` de la Tarea 2 → `{ "text": "..." }`.
 - Produces: `TranscriptionClient.transcribe(baseUrl, apiKey, file): Result<String>`; `PosState.dictation: DictationState`; `PosViewModel.startDictation()` / `stopDictation()`.
 
-- [ ] **Step 1: Añadir el permiso**
+- [x] **Step 1: Añadir el permiso**
 
 En `app/src/main/AndroidManifest.xml`, junto a los otros `uses-permission`:
 
@@ -845,7 +856,7 @@ En `app/src/main/AndroidManifest.xml`, junto a los otros `uses-permission`:
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 ```
 
-- [ ] **Step 2: Escribir el grabador**
+- [x] **Step 2: Escribir el grabador**
 
 Crear `app/src/main/java/com/bascula/app/audio/VoiceRecorder.kt`:
 
@@ -926,7 +937,7 @@ class VoiceRecorder(private val context: Context) {
 }
 ```
 
-- [ ] **Step 3: Escribir el cliente de transcripción**
+- [x] **Step 3: Escribir el cliente de transcripción**
 
 Crear `app/src/main/java/com/bascula/app/data/TranscriptionClient.kt`:
 
@@ -1014,7 +1025,7 @@ object TranscriptionClient {
 }
 ```
 
-- [ ] **Step 4: Estado del dictado en el ViewModel**
+- [x] **Step 4: Estado del dictado en el ViewModel**
 
 En `PosViewModel.kt`, junto a las demás clases de estado del archivo:
 
@@ -1036,7 +1047,7 @@ Y en `PosState`, junto a `contactName`:
     val dictation: DictationState = DictationState(),
 ```
 
-- [ ] **Step 5: Las acciones de dictado**
+- [x] **Step 5: Las acciones de dictado**
 
 En `PosViewModel`, junto a `onContactNameChange`:
 
@@ -1109,7 +1120,7 @@ En `PosViewModel`, junto a `onContactNameChange`:
 
 `getApplication()` funciona sin más: `PosViewModel(application: Application) : AndroidViewModel(application)` (línea 145). No hace falta cambiar la firma del ViewModel.
 
-- [ ] **Step 6: El botón de micrófono**
+- [x] **Step 6: El botón de micrófono**
 
 Sustituir el contenido de `ContactNameField.kt` por:
 
@@ -1190,7 +1201,7 @@ fun ContactNameField(
 
 `material-icons-extended` ya está en `app/build.gradle.kts:113`, así que `Mic` y `Stop` compilan sin añadir dependencias. Se usa `Icons.Default` porque es la convención del resto de pantallas (`ConnectionScreen.kt:154`).
 
-- [ ] **Step 7: Pedir el permiso y cablearlo**
+- [x] **Step 7: Pedir el permiso y cablearlo**
 
 En `PosScreen.kt`, sustituir la llamada de la Tarea 4 por:
 
@@ -1242,7 +1253,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 ```
 
-- [ ] **Step 8: Compilar y correr los tests**
+- [x] **Step 8: Compilar y correr los tests**
 
 Run:
 ```bash
@@ -1250,7 +1261,7 @@ JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew assembleDebug testDebugUnitT
 ```
 Expected: BUILD SUCCESSFUL y los tests existentes en verde.
 
-- [ ] **Step 9: Probar en el dispositivo**
+- [x] **Step 9: Probar en el dispositivo**
 
 Instala el APK en la tablet y recorre:
 
@@ -1262,7 +1273,7 @@ Instala el APK en la tablet y recorre:
 6. **Apaga el WiFi y cobra una venta escribiendo el nombre a mano** → debe subir igual por el hub (si lo hay) o quedar en cola; el micrófono puede fallar, el campo no.
 7. Toca el micrófono y detén de inmediato → debe decir "Grabación demasiado corta", no romperse.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add app/src/main/AndroidManifest.xml \
@@ -1281,19 +1292,19 @@ git commit -m "feat(pos): dictado por voz del nombre de la venta"
 - Modify: `docs/api/endpoints.md`
 - Modify: `docs/superpowers/specs/2026-08-13-nombre-en-venta-de-bascula-design.md` (cabecera `Estado:`)
 
-- [ ] **Step 1: Documentar el endpoint**
+- [x] **Step 1: Documentar el endpoint**
 
 En `docs/api/endpoints.md`, en la sección de la Scale API, añadir `POST /api/v1/transcribe`: multipart con `audio`, responde `{text}`, límite de 120 dictados/hora por API key, y que `POST /api/v1/sales` acepta `contact_name` opcional.
 
-- [ ] **Step 2: Documentar el comportamiento**
+- [x] **Step 2: Documentar el comportamiento**
 
 En `docs/modulos/ventas.md`, junto a la sección "Teléfono y cliente" que ya existe, añadir un párrafo sobre el nombre de la venta: qué es, que **no** es un cliente, de dónde viene y dónde se ve. Enlaza al spec.
 
-- [ ] **Step 3: Cerrar el spec**
+- [x] **Step 3: Cerrar el spec**
 
 Cambiar la cabecera del spec a `**Estado:** Implementado (fecha)` con enlace a `docs/modulos/ventas.md`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/
