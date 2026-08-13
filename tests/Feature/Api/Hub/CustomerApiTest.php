@@ -93,8 +93,17 @@ class CustomerApiTest extends TestCase
         return $this->adminSucursal->createToken('hub')->plainTextToken;
     }
 
-    public function test_cajero_cannot_manage_customers(): void
+    /**
+     * Desde 2026-08-13 el cajero SÍ gestiona clientes cuando su sucursal tiene
+     * `cashier_customers_enabled` (paridad con la web). Este test conserva su
+     * valor apagando el flag: sin él, el gating debe seguir cerrado.
+     *
+     * Dar de baja un cliente sigue siendo del admin-sucursal en cualquier caso;
+     * el resto de exclusiones vive en `CustomerCashierAccessTest`.
+     */
+    public function test_cajero_cannot_manage_customers_when_the_branch_disables_it(): void
     {
+        $this->branch->forceFill(['cashier_customers_enabled' => false])->save();
         $c = $this->customer($this->branch->id, 'Intocable', '6619990000');
 
         $this->withToken($this->token())
@@ -104,6 +113,16 @@ class CustomerApiTest extends TestCase
         $this->withToken($this->token())
             ->patchJson("/api/v1/hub/customers/{$c->id}", ['name' => 'Otro', 'status' => 'active'])
             ->assertForbidden();
+
+        $this->withToken($this->token())
+            ->deleteJson("/api/v1/hub/customers/{$c->id}")
+            ->assertForbidden();
+    }
+
+    public function test_cajero_never_deletes_a_customer_even_when_enabled(): void
+    {
+        $this->branch->forceFill(['cashier_customers_enabled' => true])->save();
+        $c = $this->customer($this->branch->id, 'Intocable', '6619990001');
 
         $this->withToken($this->token())
             ->deleteJson("/api/v1/hub/customers/{$c->id}")

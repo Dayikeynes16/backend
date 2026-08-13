@@ -70,8 +70,30 @@ class CustomerPaymentApiTest extends TestCase
         ]);
     }
 
-    public function test_cajero_cannot_register_global_payment(): void
+    /**
+     * Desde 2026-08-13 el cajero cobra fiado desde el hub cuando su sucursal tiene
+     * `cashier_customers_enabled`, igual que ya hacía en la web desde 2026-08-05.
+     */
+    public function test_cajero_registers_global_payment_when_enabled(): void
     {
+        $this->branch->forceFill(['cashier_customers_enabled' => true])->save();
+        $this->openShift($this->cajero->id);
+        $sale = $this->pendingSale(100, now()->subDay());
+
+        $this->withToken($this->token('cajero'))
+            ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
+                'amount_received' => 50,
+                'method' => 'cash',
+            ])
+            ->assertCreated();
+
+        // El dinero se aplicó de verdad, no solo pasó el permiso.
+        $this->assertEquals(50.0, (float) $sale->fresh()->amount_paid);
+    }
+
+    public function test_cajero_cannot_register_global_payment_when_disabled(): void
+    {
+        $this->branch->forceFill(['cashier_customers_enabled' => false])->save();
         $this->openShift($this->cajero->id);
         $this->pendingSale(100, now()->subDay());
 
@@ -199,13 +221,37 @@ class CustomerPaymentApiTest extends TestCase
         $this->assertEquals(100, $res->json('applications.0.amount'));
     }
 
-    public function test_cajero_cannot_view_global_payment_detail(): void
+    public function test_cajero_views_global_payment_detail_when_enabled(): void
     {
+        $this->branch->forceFill(['cashier_customers_enabled' => true])->save();
         $sale = $this->pendingSale(100, now()->subDay());
         $cp = $this->appliedGlobalPayment($sale);
 
         $this->withToken($this->token('cajero'))
             ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}")
+            ->assertOk();
+    }
+
+    public function test_cajero_cannot_view_global_payment_detail_when_disabled(): void
+    {
+        $this->branch->forceFill(['cashier_customers_enabled' => false])->save();
+        $sale = $this->pendingSale(100, now()->subDay());
+        $cp = $this->appliedGlobalPayment($sale);
+
+        $this->withToken($this->token('cajero'))
+            ->getJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}")
+            ->assertForbidden();
+    }
+
+    public function test_cajero_never_cancels_a_global_payment(): void
+    {
+        // Exclusión deliberada de la web, activa incluso con el flag encendido.
+        $this->branch->forceFill(['cashier_customers_enabled' => true])->save();
+        $sale = $this->pendingSale(100, now()->subDay());
+        $cp = $this->appliedGlobalPayment($sale);
+
+        $this->withToken($this->token('cajero'))
+            ->deleteJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}")
             ->assertForbidden();
     }
 
