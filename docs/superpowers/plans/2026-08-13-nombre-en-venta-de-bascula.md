@@ -560,13 +560,13 @@ git commit -m "feat(api-basculas): endpoint de transcripcion con limite por api 
 **Interfaces:**
 - Consumes: `sale.contact_name` — la venta ya viaja con el campo a Inertia; no hace falta tocar controladores.
 
-- [ ] **Step 1: Comprobar que el dato llega**
+- [x] **Step 1: Comprobar que el dato llega**
 
 Run: `./vendor/bin/sail artisan tinker --execute="echo json_encode(App\Models\Sale::withoutGlobalScopes()->whereNotNull('contact_phone')->first()?->only(['folio','contact_name','contact_phone']));"`
 
 Expected: un JSON con las tres claves (o `null` si no hay ventas web en la base local). Lo que importa es que `contact_name` es un atributo normal del modelo, no algo que haya que añadir al `select`.
 
-- [ ] **Step 2: Mostrar el nombre en la tarjeta de Caja**
+- [x] **Step 2: Mostrar el nombre en la tarjeta de Caja**
 
 En `resources/js/Pages/Caja/Workbench.vue`, la línea 141 es:
 
@@ -589,13 +589,13 @@ Añadir justo después:
 
 **Por qué violeta y no el azul del cliente:** el badge azul con ese mismo icono ya significa "cliente asignado" en el chip de WhatsApp (`SaleWhatsappPhoneChip.vue:32`). Usar el mismo color para una etiqueta que **no** es un cliente entrenaría a confundirlos.
 
-- [ ] **Step 3: Repetir en Sucursal**
+- [x] **Step 3: Repetir en Sucursal**
 
 Run: `grep -n "sale.folio" resources/js/Pages/Sucursal/Workbench.vue`
 
 Añadir el mismo bloque tras el `<span>` del folio. Si la estructura difiere, respeta la del archivo: lo que importa es que el nombre quede junto al folio y se trunque.
 
-- [ ] **Step 4: Añadir la línea al detalle de Caja**
+- [x] **Step 4: Añadir la línea al detalle de Caja**
 
 En `resources/js/Components/Caja/SaleDetail.vue`, localizar dónde se muestran los datos de origen de la venta (`grep -n "origin_name" resources/js/Components/Caja/SaleDetail.vue`) y añadir en el mismo bloque:
 
@@ -605,12 +605,12 @@ En `resources/js/Components/Caja/SaleDetail.vue`, localizar dónde se muestran l
 </p>
 ```
 
-- [ ] **Step 5: Compilar**
+- [x] **Step 5: Compilar**
 
 Run: `npm run build`
 Expected: build sin errores.
 
-- [ ] **Step 6: Verlo funcionando**
+- [x] **Step 6: Verlo funcionando**
 
 ```bash
 ./vendor/bin/sail artisan tinker --execute="App\Models\Sale::withoutGlobalScopes()->whereIn('status',['active','pending'])->first()?->forceFill(['contact_name' => 'Doña Mary'])->save();"
@@ -618,7 +618,7 @@ Expected: build sin errores.
 
 Abre la Mesa de Trabajo de Caja: esa venta debe mostrar el badge violeta junto al folio, y la línea al abrir el detalle. Comprueba también que las **otras** ventas (sin nombre) se ven exactamente como antes.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add resources/js/
