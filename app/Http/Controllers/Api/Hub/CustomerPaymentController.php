@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Hub;
 
 use App\Enums\SaleStatus;
 use App\Events\SaleUpdated;
+use App\Http\Controllers\Concerns\AuthorizesHubCustomerManagement;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
@@ -29,6 +30,8 @@ use Illuminate\Validation\Rule;
  */
 class CustomerPaymentController extends Controller
 {
+    use AuthorizesHubCustomerManagement;
+
     public function __construct(
         private SalePaymentService $salePaymentService,
         private CustomerGlobalPaymentService $globalPayments,
@@ -126,16 +129,14 @@ class CustomerPaymentController extends Controller
 
     /**
      * Detalle de un cobro global: aplicaciones por venta, cajero y notas.
-     * Solo admin-sucursal (paridad con la ruta web, del grupo admin-sucursal).
+     *
+     * Admin-sucursal siempre; el cajero cuando su sucursal tiene
+     * `cashier_customers_enabled`, igual que en la web
+     * (`clientes/{customer}/cobros-globales/{customerPayment}`).
      */
     public function show(Request $request, int $customer, int $payment): JsonResponse
     {
-        $user = $request->user();
-        abort_unless(
-            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
-            403,
-            'Solo el administrador de sucursal puede ver el detalle de un cobro global.'
-        );
+        $this->ensureCanManageCustomers($request);
 
         $found = $this->findCustomer($request, $customer);
 
@@ -174,20 +175,16 @@ class CustomerPaymentController extends Controller
     }
 
     /**
-     * Cobro global FIFO. Solo admin-sucursal. Requiere turno abierto.
+     * Cobro global FIFO. Requiere turno abierto.
      *
-     * Nota: desde 2026-08-05 la web sí permite al cajero registrar cobros
-     * globales cuando su sucursal tiene `cashier_customers_enabled`. El hub
-     * todavía no replica esa paridad — se trata por separado.
+     * Admin-sucursal siempre; el cajero cuando su sucursal tiene
+     * `cashier_customers_enabled` — paridad con la web desde 2026-08-05, que el
+     * hub replica desde 2026-08-13. Cancelar un cobro sigue siendo del admin.
      */
     public function store(Request $request, int $customer): JsonResponse
     {
+        $this->ensureCanManageCustomers($request);
         $user = $request->user();
-        abort_unless(
-            $user->hasRole('admin-sucursal') || $user->hasRole('superadmin'),
-            403,
-            'Solo el administrador de sucursal puede registrar cobros globales.'
-        );
         $found = $this->findCustomer($request, $customer);
 
         $hasOpenShift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->exists();

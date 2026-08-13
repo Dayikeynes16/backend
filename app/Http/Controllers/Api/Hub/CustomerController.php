@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Hub;
 
 use App\Enums\SaleStatus;
+use App\Http\Controllers\Concerns\AuthorizesHubCustomerManagement;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubSaleResource;
 use App\Models\Customer;
@@ -23,6 +24,8 @@ use Illuminate\Validation\Rule;
  */
 class CustomerController extends Controller
 {
+    use AuthorizesHubCustomerManagement;
+
     public function index(Request $request): JsonResponse
     {
         $request->validate([
@@ -98,7 +101,7 @@ class CustomerController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureCanManageCustomers($request);
         $user = $request->user();
         $validated = $this->validateCustomer($request, $user->branch_id);
 
@@ -116,15 +119,24 @@ class CustomerController extends Controller
 
     public function update(Request $request, int $customer): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureCanManageCustomers($request);
         $found = $this->findCustomer($request, $customer);
-        $validated = $this->validateCustomer($request, $request->user()->branch_id, $found->id, withStatus: true);
+
+        // El cajero edita datos de contacto, no el estado: si no, desactivaría
+        // clientes por esta puerta y se saltaría la exclusión del destroy.
+        $canChangeStatus = $this->canChangeCustomerStatus($request);
+        $validated = $this->validateCustomer(
+            $request,
+            $request->user()->branch_id,
+            $found->id,
+            withStatus: $canChangeStatus
+        );
 
         $found->update([
             'name' => $validated['name'],
             'phone' => $validated['phone'] ?? null,
             'notes' => $validated['notes'] ?? null,
-            'status' => $validated['status'],
+            'status' => $canChangeStatus ? $validated['status'] : $found->status,
         ]);
 
         return response()->json(['data' => $this->row($found->refresh())]);
