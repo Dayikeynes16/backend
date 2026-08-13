@@ -72,7 +72,7 @@ Las fases no son intercambiables:
 **Interfaces:**
 - Produces: la Scale API acepta `contact_name` (string, ≤255, opcional) en `POST /api/v1/sales` y lo persiste en `sales.contact_name`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Crear `tests/Feature/Api/SaleContactNameTest.php`. Usa el mismo montaje que `tests/Feature/Api/SaleIdempotencyTest.php` (léelo antes: crea tenant, branch, category, product y una `ApiKey` con `key_hash` = sha256 de la clave en claro).
 
