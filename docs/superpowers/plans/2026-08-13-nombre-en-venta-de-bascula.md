@@ -202,12 +202,12 @@ class SaleContactNameTest extends TestCase
 }
 ```
 
-- [ ] **Step 2: Correr el test para verificar que falla**
+- [x] **Step 2: Correr el test para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Api/SaleContactNameTest.php`
 Expected: fallan `test_guarda_el_nombre_cuando_viene`, `test_ignora_un_nombre_vacio` y `test_rechaza_un_nombre_demasiado_largo`. Los otros dos pasan ya (es el comportamiento actual, y ahí está la gracia: son la red de seguridad).
 
-- [ ] **Step 3: Añadir el campo a la validación**
+- [x] **Step 3: Añadir el campo a la validación**
 
 En `app/Http/Controllers/Api/SaleController.php`, dentro de `$request->validate([...])` del método `store`, añadir tras `'origin_name'`:
 
@@ -215,7 +215,7 @@ En `app/Http/Controllers/Api/SaleController.php`, dentro de `$request->validate(
             'contact_name' => 'nullable|string|max:255',
 ```
 
-- [ ] **Step 4: Persistirlo**
+- [x] **Step 4: Persistirlo**
 
 Localizar el `Sale::create([...])` dentro de la transacción (`grep -n "Sale::create" app/Http/Controllers/Api/SaleController.php`) y añadir al array:
 
@@ -227,12 +227,12 @@ Localizar el `Sale::create([...])` dentro de la transacción (`grep -n "Sale::cr
 
 El `trim(...) ?: null` es lo que hace pasar `test_ignora_un_nombre_vacio`: un campo que el operador tocó y dejó en blanco no debe guardarse como cadena vacía.
 
-- [ ] **Step 5: Correr los tests**
+- [x] **Step 5: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --compact tests/Feature/Api/SaleContactNameTest.php tests/Feature/Api/SaleIdempotencyTest.php`
 Expected: PASS todos.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty --format agent
@@ -253,13 +253,13 @@ git commit -m "feat(api-basculas): acepta contact_name opcional en la creacion d
 - Consumes: `App\Services\Ai\Assistant\AssistantTranscriber::transcribe(UploadedFile): string` (existe, no se toca).
 - Produces: `POST /api/v1/transcribe` (nombre de ruta `api.transcribe`), multipart con campo `audio`, responde `{ "text": "..." }`.
 
-- [ ] **Step 1: Ver dónde encaja la clave de configuración**
+- [x] **Step 1: Ver dónde encaja la clave de configuración**
 
 Run: `grep -n "expenses\|assistant" config/ai.php | head -20`
 
 Localiza la sección de `expenses` (de ahí sale `max_audio_bytes`) y la de `assistant`. Añadirás una sección `scale` al mismo nivel.
 
-- [ ] **Step 2: Escribir el test que falla**
+- [x] **Step 2: Escribir el test que falla**
 
 Crear `tests/Feature/Api/ScaleTranscriptionTest.php`:
 
