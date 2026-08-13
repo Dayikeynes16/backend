@@ -119,6 +119,18 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('data.items.0.quantity', 1.25);
     }
 
+    /** El hub pinta este nombre en su Mesa de Trabajo; sin exponerlo no puede. */
+    public function test_show_includes_contact_name(): void
+    {
+        $sale = $this->makeSale($this->branch->id, SaleStatus::Active);
+        $sale->forceFill(['contact_name' => 'Doña Mary'])->save();
+
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson("/api/v1/hub/sales/{$sale->id}")
+            ->assertOk()
+            ->assertJsonPath('data.contact_name', 'Doña Mary');
+    }
+
     public function test_show_includes_assigned_customer(): void
     {
         $customer = Customer::create([

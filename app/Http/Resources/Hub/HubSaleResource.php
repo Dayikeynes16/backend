@@ -57,6 +57,9 @@ class HubSaleResource extends JsonResource
             // Teléfono de WhatsApp asociado a la venta (chip persistente del
             // hub; puede venir del cliente o capturado manual).
             'contact_phone' => $this->contact_phone,
+            // Nombre libre puesto desde la báscula para identificar la venta en
+            // la cola. NO es un cliente: `customer_id` puede seguir en null.
+            'contact_name' => $this->contact_name,
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,
                 'name' => $this->customer->name,
