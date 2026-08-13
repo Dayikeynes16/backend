@@ -49,6 +49,7 @@ class HandleInertiaRequests extends Middleware
                     'cashier_expenses_enabled' => (bool) $branch->cashier_expenses_enabled,
                     'cashier_purchases_enabled' => (bool) $branch->cashier_purchases_enabled,
                     'cashier_customers_enabled' => (bool) $branch->cashier_customers_enabled,
+                    'cashier_scale_sales_enabled' => (bool) $branch->cashier_scale_sales_enabled,
                     'ticket_width' => data_get($branch->ticket_config, 'width', '80mm'),
                 ] : null,
             ],

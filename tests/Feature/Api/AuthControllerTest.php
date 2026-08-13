@@ -52,13 +52,17 @@ class AuthControllerTest extends TestCase
             // Sin este flag en el payload, el hub no puede mostrarle Clientes al
             // cajero por mucho que la API se lo permita.
             'cashier_customers_enabled' => true,
+            // El hub gatea el Mostrador con esto: sin el flag, el cajero no ve
+            // la pantalla por mucho que la báscula esté conectada.
+            'cashier_scale_sales_enabled' => true,
         ])->save();
 
         $this->login('caja@test.local')
             ->assertOk()
             ->assertJsonPath('user.cashier_expenses_enabled', true)
             ->assertJsonPath('user.cashier_purchases_enabled', false)
-            ->assertJsonPath('user.cashier_customers_enabled', true);
+            ->assertJsonPath('user.cashier_customers_enabled', true)
+            ->assertJsonPath('user.cashier_scale_sales_enabled', true);
     }
 
     public function test_admin_empresa_is_forbidden(): void
