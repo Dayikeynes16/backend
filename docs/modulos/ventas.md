@@ -81,6 +81,26 @@ La asignación es automática salvo que cambie el total de la venta o la deje co
 
 Detalle completo —normalización, comandos de mantenimiento, contrato del endpoint y permisos— en [Teléfonos y resolución de clientes](clientes-telefonos.md).
 
+## Nombre de la venta desde la báscula
+
+Cuando se despachan varias ventas a la vez, la cola de la Mesa de Trabajo no las distingue: todas dicen `S-01042 · Báscula 2 · $480`. Desde el 2026-08-13 la báscula puede ponerle un nombre —**"A nombre de"**— escribiéndolo o dictándolo, y ese nombre aparece junto al folio.
+
+**Es una etiqueta, no un cliente.** Se guarda en `sales.contact_name`, no crea ni asocia registros en `customers`, y `customer_id` sigue en `null`. La razón es que la identidad de un cliente en este sistema es **el teléfono** (ver [clientes-telefonos](clientes-telefonos.md)), y un nombre dictado no tiene esa propiedad: "Juan" son cinco personas, y un dictado imperfecto asociaría la venta a la equivocada arrastrando precios preferenciales y deuda.
+
+Si una venta necesita cliente de verdad, el flujo de siempre sigue disponible: el cajero captura el teléfono en la Mesa de Trabajo y el sistema resuelve o crea el cliente.
+
+| Pieza | Dónde |
+|---|---|
+| Campo en el payload | `POST /api/v1/sales`, `contact_name` opcional ([endpoints](../api/endpoints.md#post-apiv1sales)) |
+| Dictado | `POST /api/v1/transcribe` (Whisper, español) |
+| Visible en | Tarjeta de la cola (Caja y Sucursal) y detalle de ambas |
+
+El dictado va **siempre contra la nube**, aunque la venta viaje al hub: el hub no expone ese endpoint y la báscula guarda las credenciales de nube igualmente para el respaldo. Consecuencias buscadas: **`carniceria-hub` no necesitó ni una línea** de cambio, y el dictado sobrevive a que el hub se caiga. Sin credenciales de nube el micrófono no aparece y el campo se escribe a mano — la venta nunca se bloquea por el nombre.
+
+El badge de la cola es **violeta**, no azul: el azul con el icono de persona ya significa "cliente asignado" en el chip de WhatsApp, y usar el mismo color para algo que no es un cliente entrenaría a confundirlos.
+
+Spec: [2026-08-13-nombre-en-venta-de-bascula-design.md](../superpowers/specs/2026-08-13-nombre-en-venta-de-bascula-design.md).
+
 ## Evento NewExternalSale
 
 Ver `docs/arquitectura/reverb-websockets.md`.
