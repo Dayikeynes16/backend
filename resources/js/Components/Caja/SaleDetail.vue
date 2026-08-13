@@ -249,6 +249,10 @@ const submitUnlink = () => {
                         <h2 class="text-xl font-bold text-gray-900">{{ sale.folio }}</h2>
                         <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
                     </div>
+                    <p v-if="sale.contact_name" class="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+                        <svg class="h-3.5 w-3.5 shrink-0 text-violet-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-3.04 0-7 1.52-7 4.5V17h14v-1.5c0-2.98-3.96-4.5-7-4.5Z" /></svg>
+                        <span class="font-semibold">A nombre de:</span> {{ sale.contact_name }}
+                    </p>
                     <p class="mt-1 flex items-center gap-1.5 text-xs text-gray-400">
                         <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                         {{ formattedDate }}
