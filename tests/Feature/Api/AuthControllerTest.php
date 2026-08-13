@@ -49,12 +49,16 @@ class AuthControllerTest extends TestCase
         $this->branch->forceFill([
             'cashier_expenses_enabled' => true,
             'cashier_purchases_enabled' => false,
+            // Sin este flag en el payload, el hub no puede mostrarle Clientes al
+            // cajero por mucho que la API se lo permita.
+            'cashier_customers_enabled' => true,
         ])->save();
 
         $this->login('caja@test.local')
             ->assertOk()
             ->assertJsonPath('user.cashier_expenses_enabled', true)
-            ->assertJsonPath('user.cashier_purchases_enabled', false);
+            ->assertJsonPath('user.cashier_purchases_enabled', false)
+            ->assertJsonPath('user.cashier_customers_enabled', true);
     }
 
     public function test_admin_empresa_is_forbidden(): void
