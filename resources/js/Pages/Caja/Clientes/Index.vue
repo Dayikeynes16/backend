@@ -102,11 +102,9 @@ const submitEdit = () => {
                     <h1 class="text-xl font-bold text-gray-900">Clientes</h1>
                     <p class="mt-0.5 text-xs text-gray-500">Consulta la cartera y registra cobros de cuentas pendientes.</p>
                 </div>
-                <button type="button" @click="showCreate = true"
-                    class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[.98]">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    Nuevo cliente
-                </button>
+                <!-- La cabecera dice dónde estás y cuánto hay; lo que *hace algo*
+                     vive en la barra de herramientas, junto a buscar y filtrar. -->
+                <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">{{ totalLabel }}</span>
             </div>
         </template>
 
@@ -168,7 +166,11 @@ const submitEdit = () => {
                             <option value="debt">Más deuda primero</option>
                             <option value="last_sale">Compra más reciente</option>
                         </select>
-                        <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">{{ totalLabel }}</span>
+                        <button type="button" @click="showCreate = true"
+                            class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[.98]">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                            Nuevo cliente
+                        </button>
                     </div>
                 </div>
 
