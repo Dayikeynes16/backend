@@ -239,4 +239,26 @@ class SucursalControllerTest extends TestCase
         $kms = array_column($this->branch->delivery_tiers, 'max_km');
         $this->assertSame([2.0, 5.0, 8.0], array_map(fn ($v) => (float) $v, $kms));
     }
+
+    /**
+     * Nace apagado, al revés que sus hermanos: aquéllos arrancaron en `true`
+     * para no quitarle al cajero capacidades que ya tenía, y vender con la
+     * báscula del hub es nueva. Que cada empresa la encienda donde quiera.
+     */
+    public function test_scale_sales_flag_defaults_to_off(): void
+    {
+        $this->assertFalse((bool) $this->branch->fresh()->cashier_scale_sales_enabled);
+    }
+
+    public function test_admin_empresa_can_enable_scale_sales(): void
+    {
+        $this->actingAs($this->adminEmpresa)
+            ->put(
+                route('empresa.sucursales.update', [$this->tenant->slug, $this->branch->id]),
+                $this->validPayload(['cashier_scale_sales_enabled' => true])
+            )
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue((bool) $this->branch->fresh()->cashier_scale_sales_enabled);
+    }
 }

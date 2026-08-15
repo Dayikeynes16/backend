@@ -103,7 +103,7 @@ class AuthController extends Controller
     }
 
     /**
-     * @return array{id:int,name:string,email:string,role:?string,branch_id:?int,branch_name:?string,cashier_expenses_enabled:bool,cashier_purchases_enabled:bool,cashier_customers_enabled:bool,tenant_id:?int,tenant_slug:?string}
+     * @return array{id:int,name:string,email:string,role:?string,branch_id:?int,branch_name:?string,cashier_expenses_enabled:bool,cashier_purchases_enabled:bool,cashier_customers_enabled:bool,cashier_scale_sales_enabled:bool,tenant_id:?int,tenant_slug:?string}
      */
     private function userPayload(User $user): array
     {
@@ -121,6 +121,10 @@ class AuthController extends Controller
             'cashier_expenses_enabled' => (bool) $user->branch?->cashier_expenses_enabled,
             'cashier_purchases_enabled' => (bool) $user->branch?->cashier_purchases_enabled,
             'cashier_customers_enabled' => (bool) $user->branch?->cashier_customers_enabled,
+            // Gatea el Mostrador del hub (vender pesando con la báscula USB).
+            // Nace apagado, así que el hub no lo muestra hasta que la empresa
+            // lo enciende en esa sucursal.
+            'cashier_scale_sales_enabled' => (bool) $user->branch?->cashier_scale_sales_enabled,
             // El hub muestra la pestaña Categorías de Gastos al admin-sucursal
             // solo si la empresa habilitó el toggle (misma regla que la web).
             'branch_admin_expense_categories_enabled' => (bool) $user->branch?->branch_admin_expense_categories_enabled,

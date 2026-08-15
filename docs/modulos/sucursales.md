@@ -37,6 +37,7 @@ desde Empresa → Sucursales → Editar. Se aplican con el middleware
 | `cashier_expenses_enabled` | `true` | Módulo de Gastos del cajero |
 | `cashier_purchases_enabled` | `true` | Módulo de Compras del cajero |
 | `cashier_customers_enabled` | `true` | Módulo de Clientes del cajero: cartera, alta/edición y cobro global FIFO — **sin** precios preferenciales. Ver [clientes-caja.md](clientes-caja.md) |
+| `cashier_scale_sales_enabled` | `false` | Pantalla **Mostrador** del hub de escritorio: el cajero pesa y arma ventas con la báscula USB conectada al hub. No cobra ahí — la venta llega a la Mesa de Trabajo como las de las básculas Android |
 | `branch_admin_providers_enabled` | `false` | Que el admin-sucursal cree/edite proveedores (catálogo tenant-wide) |
 | `branch_admin_expense_categories_enabled` | `false` | Que el admin-sucursal cree/edite categorías de gasto |
 | `payment_receipts_enabled` | `false` | Adjuntar comprobantes de transferencia. Ver [comprobantes-pago.md](comprobantes-pago.md) |
@@ -46,6 +47,10 @@ desde Empresa → Sucursales → Editar. Se aplican con el middleware
 Los toggles del cajero nacen en `true` para no quitarle capacidades a
 sucursales existentes al desplegar; los de admin-sucursal nacen en `false`
 porque tocan catálogos compartidos por todo el tenant.
+
+`cashier_scale_sales_enabled` es la excepción entre los del cajero: nace en
+`false` porque no quita nada — es una capacidad nueva que nadie tenía. Que
+cada empresa la encienda en las sucursales donde el hub tenga báscula.
 
 ## Controller (`app/Http/Controllers/Empresa/SucursalController.php`)
 
