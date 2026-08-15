@@ -1,6 +1,6 @@
 # "Nuevo cliente" baja a la barra de herramientas
 
-- **Estado:** Especificación · no implementado
+- **Estado:** Implementado (2026-08-15) · plan en `docs/superpowers/plans/2026-08-15-boton-nuevo-cliente-toolbar.md`
 - **Fecha:** 2026-08-15
 - **Repos afectados:** `carniceria-saas` (web, dos pantallas) y `carniceria-hub` (una)
 - **Alcance:** posición de un botón y del contador. No toca datos, permisos ni el formulario de alta.
