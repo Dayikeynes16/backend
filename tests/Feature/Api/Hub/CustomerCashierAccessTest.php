@@ -4,6 +4,7 @@ namespace Tests\Feature\Api\Hub;
 
 use App\Models\CashRegisterShift;
 use App\Models\Customer;
+use App\Models\CustomerProductPrice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -45,6 +46,15 @@ class CustomerCashierAccessTest extends TestCase
             'name' => $name,
             'phone' => '5551234567',
             'status' => 'active',
+        ]);
+    }
+
+    private function givePreferentialPrice(Customer $customer, float $price = 80): CustomerProductPrice
+    {
+        return CustomerProductPrice::create([
+            'customer_id' => $customer->id,
+            'product_id' => $this->makeProduct()->id,
+            'price' => $price,
         ]);
     }
 
@@ -189,6 +199,135 @@ class CustomerCashierAccessTest extends TestCase
         $this->withToken($this->cajeroToken())
             ->deleteJson("/api/v1/hub/customers/{$customer->id}/payments/1")
             ->assertForbidden();
+    }
+
+    // ── Lecturas de la ficha ────────────────────────────────────────────
+    //
+    // En la web viven dentro del mismo grupo `branch.feature:cashier_customers_enabled`
+    // (`caja.clientes.show`, `.historial`, `.pagos`), así que apagado el módulo el
+    // cajero tampoco debe alcanzarlas por la API del hub.
+
+    public function test_cashier_cannot_open_a_customer_file_when_disabled(): void
+    {
+        $this->enableForCashier(false);
+        $customer = $this->customer();
+
+        $this->withToken($this->cajeroToken())
+            ->getJson("/api/v1/hub/customers/{$customer->id}")
+            ->assertForbidden();
+    }
+
+    public function test_cashier_cannot_read_purchase_history_when_disabled(): void
+    {
+        $this->enableForCashier(false);
+        $customer = $this->customer();
+
+        $this->withToken($this->cajeroToken())
+            ->getJson("/api/v1/hub/customers/{$customer->id}/history")
+            ->assertForbidden();
+    }
+
+    public function test_cashier_cannot_read_the_credit_ledger_when_disabled(): void
+    {
+        // El ledger es la deuda del cliente: sin módulo, no se ve.
+        $this->enableForCashier(false);
+        $customer = $this->customer();
+
+        $this->withToken($this->cajeroToken())
+            ->getJson("/api/v1/hub/customers/{$customer->id}/payments")
+            ->assertForbidden();
+    }
+
+    public function test_cashier_reads_the_full_file_when_enabled(): void
+    {
+        $this->enableForCashier();
+        $customer = $this->customer();
+        $token = $this->cajeroToken();
+
+        $this->withToken($token)->getJson("/api/v1/hub/customers/{$customer->id}")->assertOk();
+        $this->withToken($token)->getJson("/api/v1/hub/customers/{$customer->id}/history")->assertOk();
+        $this->withToken($token)->getJson("/api/v1/hub/customers/{$customer->id}/payments")->assertOk();
+    }
+
+    // ── Listado: libreta vs cartera ─────────────────────────────────────
+
+    public function test_the_list_degrades_to_a_contact_book_when_disabled(): void
+    {
+        // Queda fuera del gate a propósito: el selector de cliente de la mesa de
+        // trabajo funciona sin el módulo, igual que en la web (Caja\WorkbenchController
+        // pasa `customers` siempre). Lo que no sale es la cartera.
+        $this->enableForCashier(false);
+        $this->customer();
+
+        $res = $this->withToken($this->cajeroToken())
+            ->getJson('/api/v1/hub/customers')
+            ->assertOk();
+
+        $res->assertJsonMissingPath('summary');
+        $res->assertJsonStructure(['data' => [['id', 'name', 'name_pending', 'phone']], 'meta']);
+        $this->assertArrayNotHasKey('total_owed', $res->json('data.0'));
+        $this->assertArrayNotHasKey('preferential_prices_count', $res->json('data.0'));
+    }
+
+    public function test_the_contact_book_still_searches_and_hides_inactive_customers(): void
+    {
+        // Sin búsqueda utilizable el selector de la venta quedaría inservible.
+        $this->enableForCashier(false);
+        $this->customer('Ana Ramírez');
+        $this->customer('Beto Núñez')->forceFill(['status' => 'inactive'])->save();
+
+        $res = $this->withToken($this->cajeroToken())
+            ->getJson('/api/v1/hub/customers?search=Ana')
+            ->assertOk();
+
+        $this->assertCount(1, $res->json('data'));
+        $this->assertSame('Ana Ramírez', $res->json('data.0.name'));
+
+        $inactive = $this->withToken($this->cajeroToken())
+            ->getJson('/api/v1/hub/customers?search=Beto')
+            ->assertOk();
+
+        $this->assertCount(0, $inactive->json('data'));
+    }
+
+    public function test_the_list_shows_the_portfolio_when_enabled(): void
+    {
+        $this->enableForCashier();
+        $this->customer();
+
+        $res = $this->withToken($this->cajeroToken())
+            ->getJson('/api/v1/hub/customers')
+            ->assertOk();
+
+        $res->assertJsonPath('data.0.total_owed', 0.0);
+        $this->assertIsArray($res->json('summary'));
+    }
+
+    // ── Precios preferenciales en la ficha ──────────────────────────────
+
+    public function test_the_customer_file_hides_preferential_prices_from_the_cashier(): void
+    {
+        // Ni con el módulo encendido: la web no los carga en la ficha de caja
+        // (Caja\CustomerController), así que la API tampoco los manda.
+        $this->enableForCashier();
+        $customer = $this->customer();
+        $this->givePreferentialPrice($customer);
+
+        $this->withToken($this->cajeroToken())
+            ->getJson("/api/v1/hub/customers/{$customer->id}")
+            ->assertOk()
+            ->assertJsonCount(0, 'prices');
+    }
+
+    public function test_the_customer_file_shows_preferential_prices_to_the_admin(): void
+    {
+        $customer = $this->customer();
+        $this->givePreferentialPrice($customer);
+
+        $this->withToken($this->adminSucursal->createToken('hub')->plainTextToken)
+            ->getJson("/api/v1/hub/customers/{$customer->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'prices');
     }
 
     public function test_admin_keeps_full_access_regardless_of_the_flag(): void
