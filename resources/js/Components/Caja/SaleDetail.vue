@@ -1,6 +1,7 @@
 <script setup>
 import TicketPrinter from '@/Components/TicketPrinter.vue';
 import SaleContextMenu from '@/Components/SaleContextMenu.vue';
+import { saleNames } from '@/utils/saleNames';
 import WhatsappPhoneDialog from '@/Components/WhatsappPhoneDialog.vue';
 import WhatsappSendConfirmDialog from '@/Components/WhatsappSendConfirmDialog.vue';
 import SaleWhatsappPhoneChip from '@/Components/SaleWhatsappPhoneChip.vue';
@@ -133,8 +134,15 @@ const removeCustomer = () => {
         onSuccess: () => emit('mutated'),
     });
 };
+/**
+ * Los dos nombres de la venta, ya resueltos: el dictado en la báscula se calla
+ * cuando no añade nada al del cliente, y ocupa su sitio cuando el cliente es
+ * un placeholder recién creado. Ver utils/saleNames.js.
+ */
+const nombres = computed(() => saleNames(props.sale));
+
 const customerInitials = computed(() => {
-    const name = props.sale?.customer?.name || '';
+    const name = nombres.value.customerName || '';
     return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
 });
 
@@ -249,9 +257,12 @@ const submitUnlink = () => {
                         <h2 class="text-xl font-bold text-gray-900">{{ sale.folio }}</h2>
                         <span :class="[originBadge(sale.origin), 'rounded-full px-2 py-0.5 text-xs font-semibold']">{{ sale.origin_name || 'API' }}</span>
                     </div>
-                    <p v-if="sale.contact_name" class="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                        <svg class="h-3.5 w-3.5 shrink-0 text-violet-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-3.04 0-7 1.52-7 4.5V17h14v-1.5c0-2.98-3.96-4.5-7-4.5Z" /></svg>
-                        <span class="font-semibold">A nombre de:</span> {{ sale.contact_name }}
+                    <!-- Nombre dictado en la báscula. Con quién es la cuenta se ve
+                         abajo, en el bloque del cliente; esta línea solo aparece
+                         cuando el dictado dice algo que ese nombre no dice. -->
+                    <p v-if="nombres.contactName" class="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+                        <svg class="h-3.5 w-3.5 shrink-0 text-violet-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M5.5 3A2.5 2.5 0 0 0 3 5.5v2.879a2.5 2.5 0 0 0 .732 1.767l6.5 6.5a2.5 2.5 0 0 0 3.536 0l2.878-2.878a2.5 2.5 0 0 0 0-3.536l-6.5-6.5A2.5 2.5 0 0 0 8.38 3H5.5ZM6 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" /></svg>
+                        <span class="font-semibold">A nombre de:</span> {{ nombres.contactName }}
                     </p>
                     <p class="mt-1 flex items-center gap-1.5 text-xs text-gray-400">
                         <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
@@ -334,7 +345,7 @@ const submitUnlink = () => {
                     </div>
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2">
-                            <p class="truncate text-sm font-bold text-gray-900">{{ sale.customer.name }}</p>
+                            <p class="truncate text-sm font-bold text-gray-900">{{ nombres.customerName }}</p>
                             <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700 ring-1 ring-inset ring-green-600/20">
                                 <svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clip-rule="evenodd" /></svg>
                                 Preferencial

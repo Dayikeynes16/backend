@@ -101,6 +101,38 @@ El badge de la cola es **violeta**, no azul: el azul con el icono de persona ya 
 
 Spec: [2026-08-13-nombre-en-venta-de-bascula-design.md](../superpowers/specs/2026-08-13-nombre-en-venta-de-bascula-design.md).
 
+### Cuando la venta lleva los dos nombres
+
+Una venta puede tener a la vez el nombre dictado (`contact_name`) y un cliente asignado (`customer`). Desde el 2026-08-21 no compiten: **el cliente manda cuando tiene un nombre de verdad, y el dictado sobrevive solo cuando aporta algo que el cliente no dice.**
+
+La regla vive en un único sitio, `resources/js/utils/saleNames.js`, y devuelve los dos nombres ya resueltos:
+
+| Cliente | Dictado | Se muestra |
+|---|---|---|
+| — | — | nada |
+| — | Juan | 🏷 A nombre de Juan |
+| Juan Pérez | — | 👤 Juan Pérez |
+| Juan Pérez | Juan | 👤 Juan Pérez — el dictado se calla |
+| Carnicería López | el de la gorra | 👤 Carnicería López · 🏷 el de la gorra |
+| `name_pending` | Juan | 👤 Juan — el dictado ocupa el lugar del placeholder |
+| `name_pending` | — | 👤 Cliente 55 1234 5678 |
+
+Dos nombres se consideran el mismo si, normalizados (sin acentos, sin mayúsculas, espacios colapsados), la lista de palabras del más corto es **prefijo por palabras completas** de la del más largo: `Juan` ≡ `Juan Pérez`, pero `Ana` ≢ `Anabel Ruiz` y `Pérez` ≢ `Juan Pérez`. Ante la duda se muestran los dos: mostrar de más es un ruido, mostrar de menos es perder la referencia del paquete.
+
+Un cliente creado automáticamente desde una venta se llama `Cliente 55 1234 5678` con `name_pending = true` (`ResolveCustomerByPhone::placeholderName`). Ese placeholder no es un nombre, así que el dictado ocupa su lugar — con icono de cliente, porque cliente sí hay.
+
+Detalles de presentación:
+
+- **Iconos distintos**: el cliente lleva el de persona; el dictado, el de etiqueta. Antes compartían el de persona y esa era media causa de la confusión.
+- **El rótulo "A nombre de" solo acompaña al dictado.** El cliente no necesita rótulo.
+- **La tarjeta de la cola muestra ahora también al cliente**, al pie y con icono de persona, como ya hacía el hub. Antes solo se veía al abrir el detalle.
+- **El dictado nunca se borra del dato**, solo se calla en pantalla: sigue en el detalle, en el ticket y en la API.
+- **El banner de pedido web no cambia.** En ventas `origin === 'web'`, `contact_name` sí es el cliente que hizo el pedido y `Sucursal/SaleDetail.vue` lo rotula "Cliente:" con razón.
+
+Alcanza cuatro pantallas: `Pages/Caja/Workbench.vue`, `Pages/Sucursal/Workbench.vue`, `Components/Caja/SaleDetail.vue` y `Components/Sucursal/SaleDetail.vue`. En los dos detalles la regla también gobierna el nombre del bloque de cliente y sus iniciales, para que la cabecera y ese bloque no digan cosas distintas.
+
+Spec: [2026-08-19-nombre-venta-vs-cliente-design.md](../superpowers/specs/2026-08-19-nombre-venta-vs-cliente-design.md).
+
 ## Evento NewExternalSale
 
 Ver `docs/arquitectura/reverb-websockets.md`.
