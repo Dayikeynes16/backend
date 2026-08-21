@@ -149,6 +149,14 @@ Lista unificada `recent_movements` con diferenciación visual por `type`:
 - **`global`**: card con fondo degradado amber/rojo, icono de documento, chip con N ventas, monto aplicado + cambio si aplica. Click → `GlobalPaymentDetailModal`.
 - **`single`**: card simple con icono por método. Click → `SaleDetailModal`.
 
+### Las ventas desde el panel de Pagos
+
+En Pagos (caja y sucursal) un cobro global se colapsa a un solo renglón —los pagos hijos comparten `customer_payment_id`— y hasta 2026-08-21 su panel se cortaba en el folio del cobro: nunca decía a dónde se había ido el dinero.
+
+Ahora ambos controladores cargan `customerPayment.payments.sale` y el panel renderiza `Components/Pagos/CustomerPaymentSales.vue`: cada venta con folio, fecha, estado, el monto que le tocó del abono y un salto al Historial. El orden es el del reparto, la venta más vieja primero.
+
+Ver [ventas.md](ventas.md#del-pago-a-su-venta).
+
 ## Impacto en sistema existente
 
 ### Cero cambio en:

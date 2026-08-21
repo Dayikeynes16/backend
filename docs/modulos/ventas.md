@@ -135,6 +135,21 @@ Alcanza cuatro pantallas: `Pages/Caja/Workbench.vue`, `Pages/Sucursal/Workbench.
 
 Spec: [2026-08-19-nombre-venta-vs-cliente-design.md](../superpowers/specs/2026-08-19-nombre-venta-vs-cliente-design.md).
 
+## Del pago a su venta
+
+Desde Pagos, la pregunta frente a un cobro es «¿de qué venta fue esto?». La banda de la venta —`Components/Pagos/SaleHeaderBand.vue`, compartida por caja y sucursal— lleva un botón **«Ver venta ↗»** que abre esa venta en el Historial. **Mismo comportamiento para admin-sucursal y cajero**: hasta 2026-08-21 el admin tenía el folio como enlace discreto y el cajero no tenía salida.
+
+Cuando el pago es un **cobro global**, no hay *una* venta: el panel muestra `Components/Pagos/CustomerPaymentSales.vue` con todas las que abonó, en orden FIFO, cada una con su monto aplicado y su propio salto. Ver [clientes-cobro-global.md](clientes-cobro-global.md#las-ventas-desde-el-panel-de-pagos).
+
+Dos reglas hacen que el salto aterrice bien:
+
+- **Buscar por folio ignora la fecha.** Ya era así en el Historial de sucursal (`SaleHistoryController`) y desde 2026-08-21 también en el de caja (`Caja\HistorialController`), que hasta entonces solo filtraba por fecha, producto y rango de total. Sin esta regla, el caso típico —fiado de anteayer cobrado hoy— aterrizaría en un historial vacío. Mientras hay búsqueda activa, el selector de día se retira de la interfaz: dejarlo sugeriría que filtra.
+- **Si la búsqueda deja una sola venta, se abre sola.** Ambos historiales arrancaban en «Selecciona una venta», así que llegar con un folio significaba clickear la única fila. Con cero o varias coincidencias no se selecciona nada: elegir por el usuario sería adivinar.
+
+El alcance del Historial de caja no se ensancha por buscar: sigue siendo el de las ventas donde ese cajero registró algún pago. Como el salto siempre parte de un pago suyo, la venta destino siempre está ahí.
+
+Spec: [2026-08-21-pago-a-su-venta-design.md](../superpowers/specs/2026-08-21-pago-a-su-venta-design.md). **Paridad pendiente en `carniceria-hub`** (`PaymentsView`/`HistoryView`), fuera de alcance por decisión.
+
 ## Evento NewExternalSale
 
 Ver `docs/arquitectura/reverb-websockets.md`.

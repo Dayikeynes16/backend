@@ -7,7 +7,9 @@ import FlashToast from '@/Components/FlashToast.vue';
 import DaySummaryBar from '@/Components/Historial/DaySummaryBar.vue';
 import Modal from '@/Components/Modal.vue';
 import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import SaleHeaderBand from '@/Components/Pagos/SaleHeaderBand.vue';
+import CustomerPaymentSales from '@/Components/Pagos/CustomerPaymentSales.vue';
+import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
@@ -17,6 +19,10 @@ const props = defineProps({
     dailySummary: Object,
     paymentReceiptsEnabled: { type: Boolean, default: false },
 });
+
+// El Historial es donde vive el detalle de una venta; buscar por folio ignora la
+// fecha allá, así que el salto funciona aunque la venta sea de otro día.
+const historyUrl = (folio) => route('sucursal.historial.index', { tenant: props.tenant.slug, search: folio });
 
 // --- Day summary helpers ---
 const summaryTitle = computed(() => {
@@ -82,13 +88,6 @@ const methodMeta = {
 const enabledMethods = computed(() =>
     (props.paymentMethods || ['cash', 'card', 'transfer']).map(id => ({ id, label: methodMeta[id]?.label }))
 );
-const statusBadge = (s) => ({
-    active:    { label: 'Activa',    cls: 'bg-blue-50 text-blue-700 ring-blue-600/20' },
-    pending:   { label: 'Pendiente', cls: 'bg-amber-50 text-amber-700 ring-amber-600/20' },
-    completed: { label: 'Cobrada',   cls: 'bg-green-50 text-green-700 ring-green-600/20' },
-    cancelled: { label: 'Cancelada', cls: 'bg-red-50 text-red-700 ring-red-600/20' },
-}[s] || { label: s, cls: 'bg-gray-100 text-gray-600' });
-
 // --- Filters ---
 const method = ref(props.filters?.method || '');
 const userId = ref(props.filters?.user_id || '');
@@ -467,21 +466,24 @@ const doDeletePayment = () => {
                                 @cancel="editingPaymentId = null" />
                         </div>
 
+                        <!-- Ventas que abonó el cobro global: sin esto el panel se corta
+                             en el folio del cobro y nunca dice a dónde se fue el dinero -->
+                        <CustomerPaymentSales
+                            v-if="selected.customer_payment"
+                            :customer-payment="selected.customer_payment"
+                            :history-url="historyUrl" />
+
                         <!-- Section B: Venta asociada (oculta para cobros globales) -->
                         <div v-if="selected.sale && !selected.customer_payment" class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
-                            <div class="flex items-center justify-between gap-3 bg-gray-50 px-5 py-3">
-                                <div class="flex min-w-0 items-center gap-2.5">
-                                    <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">Venta</h3>
-                                    <Link :href="route('sucursal.historial.index', { tenant: tenant.slug, search: selected.sale.folio })"
-                                        class="text-sm font-bold text-red-600 hover:underline" title="Ver esta venta en el historial">{{ selected.sale.folio }}</Link>
-                                    <span :class="[statusBadge(selected.sale.status).cls, 'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset']">{{ statusBadge(selected.sale.status).label }}</span>
-                                </div>
-                                <div class="flex shrink-0 items-center gap-1.5 text-xs">
-                                    <svg class="h-3.5 w-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
-                                    <span v-if="selected.sale.customer" class="font-semibold text-gray-700">{{ selected.sale.customer.name }}</span>
-                                    <span v-else class="italic text-gray-400">Venta de mostrador</span>
-                                </div>
-                            </div>
+                            <SaleHeaderBand :sale="selected.sale" :history-url="historyUrl(selected.sale.folio)">
+                                <template #meta>
+                                    <div class="flex items-center gap-1.5 text-xs">
+                                        <svg class="h-3.5 w-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                                        <span v-if="selected.sale.customer" class="font-semibold text-gray-700">{{ selected.sale.customer.name }}</span>
+                                        <span v-else class="italic text-gray-400">Venta de mostrador</span>
+                                    </div>
+                                </template>
+                            </SaleHeaderBand>
                             <div class="px-5 py-4">
                                 <div class="grid grid-cols-3 gap-4 mb-4">
                                     <div class="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
