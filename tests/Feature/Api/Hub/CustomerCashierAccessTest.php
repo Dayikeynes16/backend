@@ -38,13 +38,14 @@ class CustomerCashierAccessTest extends TestCase
         return $this->cajero->createToken('hub')->plainTextToken;
     }
 
-    private function customer(string $name = 'Ana'): Customer
+    /** El teléfono es único por (tenant, sucursal): sin variarlo, dos clientes chocan. */
+    private function customer(string $name = 'Ana', ?string $phone = null): Customer
     {
         return Customer::create([
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
             'name' => $name,
-            'phone' => '5551234567',
+            'phone' => $phone ?? '55512'.str_pad((string) Customer::withoutGlobalScopes()->count(), 5, '0', STR_PAD_LEFT),
             'status' => 'active',
         ]);
     }
@@ -299,8 +300,13 @@ class CustomerCashierAccessTest extends TestCase
             ->getJson('/api/v1/hub/customers')
             ->assertOk();
 
-        $res->assertJsonPath('data.0.total_owed', 0.0);
-        $this->assertIsArray($res->json('summary'));
+        // Lo contrario exacto del test de la libreta: aquí sí viaja la cartera.
+        $res->assertJsonStructure([
+            'data' => [['id', 'name', 'phone', 'total_owed', 'sales_count', 'preferential_prices_count']],
+            'meta',
+            'summary',
+        ]);
+        $this->assertEquals(0, $res->json('data.0.total_owed'));
     }
 
     // ── Precios preferenciales en la ficha ──────────────────────────────
