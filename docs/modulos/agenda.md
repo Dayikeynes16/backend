@@ -32,7 +32,7 @@ Agenda interna del tenant: tareas, eventos y notas ligados al tiempo, con alcanc
 | Cancelar ≠ borrar | `cancelled_at` + `cancel_reason` (opcional, max 255) conservan historial; el soft delete queda para eliminación real. |
 | Recurrencia **materializada al completar, expandida sólo hacia adelante** | El calendario expande ocurrencias en memoria (`AgendaCalendarService`, guard de 1000 iteraciones), pero **sólo las de ítems vivos**: una fila con `completed_at` aparece únicamente en su fecha. Al **completar** un ítem recurrente se clona la siguiente ocurrencia viva (respetando `recurrence_until` y desplazando `remind_at` con el mismo offset), así que cada fila representa UNA ocurrencia concreta. Antes se expandían también las completadas y la misma tarea salía tachada en los 42 días del mes, pasados y futuros (corregido 2026-08-06). |
 | Posponer = mover `remind_at`, no un estado | `snooze` suma minutos (1 – 10080 = 7 días) y limpia `reminder_seen_at`. |
-| Notificaciones por **polling HTTP cada 60s** (campana), no Echo | Sin cron ni consumidor Reverb en el MVP; ver "Riesgos y limitaciones". |
+| Notificaciones **bajo demanda** (una carga al montar, y otra al abrir la campana), no Echo ni polling | Sin cron ni consumidor Reverb en el MVP. El polling cada 60s se **retiró el 2026-08-21**: el endpoint recalcula alertas financieras caras y era el request más frecuente de la app en producción (~1.4k/día entre dos tenants, medido el 2026-08-09). Se conserva el fetch al montar para que el badge sea correcto sin abrir nada. Ver "Riesgos y limitaciones". |
 | Captura IA **stateless** (sin tabla de drafts) | A diferencia de Gastos/Compras, la agenda no tiene adjuntos: el endpoint devuelve la propuesta directo y la "confirmación" es el `store` normal del modal. No persiste nada. |
 | La IA **nunca asigna** la tarea a una persona | Decisión de diseño: aunque el dictado mencione un nombre, la asignación es manual en el modal (el parser jamás incluye `assigned_to_user_id`). |
 | Zona horaria única `America/Mexico_City` | El prompt de IA recibe "HOY" en esa zona para resolver fechas relativas; el frontend formatea con esa TZ. |
@@ -110,7 +110,7 @@ pending ──completar──▶ completed        (si hay recurrencia: se clona 
 
 1. Al crear/editar se fija `remind_at`.
 2. `GET agenda/notificaciones` devuelve recordatorios vencidos no vistos (`remind_at <= now`, `reminder_seen_at` null, límite 20), atrasadas (límite 10), alertas financieras y `counts`.
-3. `AgendaBell.vue` (montada en los 4 layouts) hace **polling cada 60s** y muestra badge + dropdown con acciones rápidas: completar, posponer (`PATCH {item}/posponer` con `minutes`), marcar visto (`PATCH {item}/visto`).
+3. `AgendaBell.vue` (montada en los 4 layouts) consulta ese endpoint **al montar y al abrir la campana** (y tras cada acción del dropdown), y muestra badge + acciones rápidas: completar, posponer (`PATCH {item}/posponer` con `minutes`), marcar visto (`PATCH {item}/visto`). **No hay polling**: el badge es correcto al entrar a la app, pero no se actualiza solo mientras la sesión sigue abierta.
 
 ### Alertas automáticas (`AgendaAlertService::for(User)`)
 
@@ -141,7 +141,7 @@ GET    /{tenant}/agenda/calendario           agenda.calendar       ← JSON ocur
                                                                     panel del día pueda mostrarlo y abrirlo en el modal de edición.
 GET    /{tenant}/agenda/alertas              agenda.alerts         ← JSON alertas derivadas (widget dashboards)
 GET    /{tenant}/agenda/completadas          agenda.completadas    ← JSON historial paginado (30/página)
-GET    /{tenant}/agenda/notificaciones       agenda.notificaciones ← JSON para la campana (polling)
+GET    /{tenant}/agenda/notificaciones       agenda.notificaciones ← JSON para la campana (bajo demanda: al montar y al abrirla)
 POST   /{tenant}/agenda                      agenda.store
 POST   /{tenant}/agenda/ia/borrador          agenda.ia.store       ← propuesta IA (JSON, stateless)
 PUT    /{tenant}/agenda/{item}               agenda.update
@@ -174,7 +174,7 @@ Componentes (`resources/js/Components/Agenda/`):
 - `AgendaItemModal.vue` — form crear/editar (tipo, scope — `company` solo visible para admin de empresa —, sucursal, asignado, fechas, all_day, remind_at, prioridad, recurrencia). Acepta prop de prefill con la propuesta IA y marca campos sugeridos; nunca prerellena la asignación.
 - `AgendaCapturaIAModal.vue` — dictado: textarea + grabación de voz (`useAudioRecorder`, máx 90s).
 - `AgendaCalendar.vue` — grilla mensual; pide `agenda.calendar` por rango al montar y al cambiar de mes; atenúa completadas.
-- `AgendaBell.vue` — campana global con badge (montada en `AuthenticatedLayout`, `EmpresaLayout`, `SucursalLayout` y `CajeroLayout`): **polling `agenda.notificaciones` cada 60s** con acciones completar/posponer/visto inline.
+- `AgendaBell.vue` — campana global con badge (montada en `AuthenticatedLayout`, `EmpresaLayout`, `SucursalLayout` y `CajeroLayout`): consulta `agenda.notificaciones` **al montar y al abrirla** (y tras cada acción), con completar/posponer/visto inline. Sin temporizador.
 - `AgendaTodayWidget.vue` — card "Agenda — alertas" (top 3) en los dashboards de Empresa, Sucursal y Caja; fetch único a `agenda.alerts`.
 
 Composables: `useAgendaAiDraft.js` (submitDraft con axios/FormData, timeout 120s — espejo de `usePurchaseAiDraft`) y `useAudioRecorder.js` (compartido con Gastos/Compras).
@@ -197,11 +197,12 @@ Composables: `useAgendaAiDraft.js` (submitDraft con axios/FormData, timeout 120s
 
 | Riesgo / limitación | Estado / mitigación |
 |---|---|
-| **`AgendaItemAssigned` se emite por Reverb pero nadie lo escucha**: `AgendaBell.vue` usa polling HTTP cada 60s, no Echo | **Limitación conocida y deliberada** (spec v2: "Consumir el evento Reverb se difiere"). El aviso de asignación llega en el siguiente ciclo de polling (≤ 60s). El canal `agenda.user.{userId}` ya está autorizado en `routes/channels.php`, listo para cuando se conecte Echo. |
+| **`AgendaItemAssigned` se emite por Reverb pero nadie lo escucha**: `AgendaBell.vue` no usa Echo | **Limitación conocida y deliberada** (spec v2: "Consumir el evento Reverb se difiere"). Desde que se retiró el polling (2026-08-21) el aviso de asignación **no llega durante la sesión**: se ve en la siguiente carga de la app, al abrir la campana o al entrar a la agenda. El canal `agenda.user.{userId}` ya está autorizado en `routes/channels.php`; conectar Echo es la forma correcta de recuperar el aviso en vivo sin volver al polling. |
 | Recordatorios solo funcionan **con la app abierta** | Por diseño MVP (sin cron/push). Fase futura: Scheduler + WhatsApp/email/web-push. |
 | Cross-tenant | `TenantScope` global + policy verifica `tenant_id` en toda acción + `visibleTo` en toda query de lectura. Tests de visibilidad cubren roles. |
 | Recurrencia infinita al expandir calendario | Guard de 1000 iteraciones en `AgendaCalendarService` + corte por `recurrence_until`. |
-| Escalado del polling (N usuarios × 1 req/min) | Aceptado en MVP; las queries de la campana llevan `limit(20)`/`limit(10)`. |
+| ~~Escalado del polling (N usuarios × 1 req/min)~~ | **Resuelto (2026-08-21)**: el polling se retiró. En producción era el request más frecuente después de la mesa de trabajo (708 + 661 hits entre dos tenants en el periodo medido) por un módulo de uso ocasional. Queda un request por carga de la app, no uno por minuto y pestaña. |
+| El badge **no se actualiza durante la sesión** (sí al cargar la app) | Consecuencia aceptada de quitar el polling: un aviso que vence con la app abierta no aparece hasta recargar o abrir la campana. Recuperarlo sin tráfico periódico = escuchar `AgendaItemAssigned` por Echo (canal ya autorizado) o exponer el contador como prop compartida de Inertia. |
 | Alertas derivadas pueden ser costosas (fiados vía `CollectionMetrics`) | Límites de 50 filas por fuente; solo se calculan on-demand (index, endpoint alerts, notificaciones). |
 | IA inventa enums/fechas o asigna personas | Parser clamp a enums, fechas inválidas → null, asignación imposible por diseño. Tests cubren clamps y el 502. |
 | Completar recurrente cerca de `recurrence_until` | El clon solo se crea si la siguiente ocurrencia `<= recurrence_until` (endOfDay). |
