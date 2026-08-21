@@ -148,7 +148,31 @@ class SaleApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.customer.name', 'Cliente Fiado')
             // El mutator de Customer guarda siempre en E.164.
-            ->assertJsonPath('data.customer.phone', '+529931234567');
+            ->assertJsonPath('data.customer.phone', '+529931234567')
+            // Un cliente con nombre de verdad: el hub debe tratarlo como tal.
+            ->assertJsonPath('data.customer.name_pending', false);
+    }
+
+    public function test_show_marks_placeholder_customer_name_as_pending(): void
+    {
+        $customer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Cliente 55 1234 5678',
+            'name_pending' => true,
+            'phone' => '5512345678',
+            'status' => 'active',
+        ]);
+        $sale = $this->makeSale($this->branch->id, SaleStatus::Active);
+        $sale->forceFill(['customer_id' => $customer->id, 'contact_name' => 'Juan'])->save();
+
+        // Sin este flag el hub no puede distinguir el placeholder de un nombre
+        // real, y taparia el nombre dictado con "Cliente 55 1234 5678".
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson("/api/v1/hub/sales/{$sale->id}")
+            ->assertOk()
+            ->assertJsonPath('data.customer.name_pending', true)
+            ->assertJsonPath('data.contact_name', 'Juan');
     }
 
     public function test_index_filters_by_status_and_returns_counts(): void

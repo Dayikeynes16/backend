@@ -1,6 +1,6 @@
 # Dos nombres en una venta: cuál se muestra
 
-- **Estado:** **Implementado en la web (2026-08-21)** — doc viva: [ventas.md](../../modulos/ventas.md#cuando-la-venta-lleva-los-dos-nombres). La paridad en `carniceria-hub` queda pendiente (ver §6).
+- **Estado:** **Implementado (2026-08-21)** en la web y en `carniceria-hub` — doc viva: [ventas.md](../../modulos/ventas.md#cuando-la-venta-lleva-los-dos-nombres). Ver §6 para lo que el spec no había previsto.
 - **Fecha:** 2026-08-19
 - **Repos afectados:** `carniceria-saas` (mesa de trabajo y detalle, cajero y sucursal) y `carniceria-hub` (lista de ventas y detalle)
 - **Alcance:** solo presentación. No toca datos, ni la asignación de cliente, ni el dictado en la báscula. **Ningún cambio de backend**: los dos campos ya viajan a las dos superficies.
@@ -91,4 +91,4 @@ Dos cosas que este spec no había previsto.
 
 **El bloque de cliente del detalle también aplica la regla.** El spec solo nombraba la cabecera, pero dejarlo ahí se contradecía a sí mismo: con `name_pending` la cabecera habría dicho "Juan" y el bloque de abajo "Cliente 55 1234 5678" al mismo tiempo. En las dos pantallas de detalle, el nombre del bloque de cliente y sus iniciales salen ahora del mismo `saleNames()`.
 
-**El hub necesita un cambio de backend, al contrario de lo que decía §1.** `HubSaleResource` expone `customer` con `id`, `name` y `phone`, **sin `name_pending`**, así que el hub no puede distinguir un placeholder de un nombre real. La regla del hub queda incompleta hasta añadir ese campo al resource (y desplegarlo), o el caso `name_pending` se comportaría allí como un cliente con nombre de verdad. La web no tiene ese problema: sus dos controladores ya cargan `customer:id,name,name_pending,phone`.
+**El hub necesitó un cambio de backend, al contrario de lo que decía §1.** `HubSaleResource` exponía `customer` con `id`, `name` y `phone`, **sin `name_pending`**, así que el hub no podía distinguir un placeholder de un nombre real. El campo se añadió al resource (el controlador ya cargaba `customer:id,name,name_pending,phone`); hasta que ese backend esté desplegado, el hub trata el placeholder como un nombre cualquiera y muestra los dos nombres, que es lo que hacía antes — degrada, no rompe. La web nunca tuvo el problema: sus dos controladores ya cargaban el campo.

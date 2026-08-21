@@ -131,6 +131,8 @@ Detalles de presentación:
 
 Alcanza cuatro pantallas: `Pages/Caja/Workbench.vue`, `Pages/Sucursal/Workbench.vue`, `Components/Caja/SaleDetail.vue` y `Components/Sucursal/SaleDetail.vue`. En los dos detalles la regla también gobierna el nombre del bloque de cliente y sus iniciales, para que la cabecera y ese bloque no digan cosas distintas.
 
+**El hub aplica la misma regla**, con `src/renderer/lib/saleNames.js` como espejo de la utilidad de la web y la tabla de arriba cubierta caso por caso en `test/saleNames.test.js`. Para que pueda hacerlo, `HubSaleResource` expone `customer.name_pending`: sin ese campo el hub no distingue un placeholder de un nombre real. Allí el nombre dictado usa el icono `tag`, nuevo en el set de iconos del hub.
+
 Spec: [2026-08-19-nombre-venta-vs-cliente-design.md](../superpowers/specs/2026-08-19-nombre-venta-vs-cliente-design.md).
 
 ## Evento NewExternalSale

@@ -63,6 +63,11 @@ class HubSaleResource extends JsonResource
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,
                 'name' => $this->customer->name,
+                // Un cliente creado automaticamente desde una venta se llama
+                // "Cliente 55 1234 5678": el hub necesita este flag para saber
+                // que ese nombre es un placeholder y no taparlo con el nombre
+                // dictado en la bascula. Ver docs/modulos/ventas.md.
+                'name_pending' => (bool) $this->customer->name_pending,
                 'phone' => $this->customer->phone,
             ] : null),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($i) => [
