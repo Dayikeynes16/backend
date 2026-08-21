@@ -5,6 +5,7 @@ import CancelSaleDialog from '@/Components/CancelSaleDialog.vue';
 import SaleContextMenu from '@/Components/SaleContextMenu.vue';
 import SaleDetail from '@/Components/Sucursal/SaleDetail.vue';
 import SaleDetailModalShell from '@/Components/SaleDetailModalShell.vue';
+import { saleNames } from '@/utils/saleNames';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
 import { useSaleActions } from '@/composables/useSaleActions';
@@ -19,6 +20,10 @@ const props = defineProps({
     /** disabled | optional | required — gobierna el campo "motivo" en los modales de items. */
     saleItemEditReasonMode: { type: String, default: 'optional' },
 });
+
+// Los dos nombres de la venta —dictado en la báscula y cliente asignado— se
+// resuelven una vez por venta, no en cada nodo del template. Ver utils/saleNames.js.
+const nombresPorVenta = computed(() => Object.fromEntries(props.sales.map((s) => [s.id, saleNames(s)])));
 
 const statusFilter = ref('active');
 const filteredSales = computed(() => {
@@ -182,11 +187,14 @@ const cancelSale = (reason) => {
                             <div class="flex items-center justify-between">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span class="text-sm font-bold text-gray-900">{{ sale.folio }}</span>
-                                    <span v-if="sale.contact_name"
+                                    <!-- Nombre dictado en la báscula: la etiqueta con la que se
+                                         encuentra la bolsa, no un cliente. Icono de etiqueta, no de
+                                         persona, y solo cuando dice algo que el cliente no dice. -->
+                                    <span v-if="nombresPorVenta[sale.id].contactName"
                                         class="inline-flex min-w-0 items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20"
-                                        :title="`A nombre de ${sale.contact_name}`">
-                                        <svg class="h-3 w-3 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-3.04 0-7 1.52-7 4.5V17h14v-1.5c0-2.98-3.96-4.5-7-4.5Z" /></svg>
-                                        <span class="max-w-[140px] truncate">{{ sale.contact_name }}</span>
+                                        :title="`A nombre de ${nombresPorVenta[sale.id].contactName}`">
+                                        <svg class="h-3 w-3 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M5.5 3A2.5 2.5 0 0 0 3 5.5v2.879a2.5 2.5 0 0 0 .732 1.767l6.5 6.5a2.5 2.5 0 0 0 3.536 0l2.878-2.878a2.5 2.5 0 0 0 0-3.536l-6.5-6.5A2.5 2.5 0 0 0 8.38 3H5.5ZM6 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" /></svg>
+                                        <span class="max-w-[140px] truncate">{{ nombresPorVenta[sale.id].contactName }}</span>
                                     </span>
                                     <span v-if="sale.status === 'pending' && sale.origin === 'web'" class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800 ring-1 ring-inset ring-orange-600/30">🛒 Pedido web</span>
                                     <span v-else-if="sale.status === 'pending'" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">Pendiente</span>
@@ -230,6 +238,12 @@ const cancelSale = (reason) => {
                                 </div>
                                 <span class="text-xs text-gray-400">{{ timeAgo(sale.created_at) }}</span>
                             </div>
+                            <!-- Con quién es la cuenta. Va al pie y con icono de persona,
+                                 igual que en el hub: el cliente manda sobre el dictado. -->
+                            <p v-if="nombresPorVenta[sale.id].customerName" class="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
+                                <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-3.04 0-7 1.52-7 4.5V17h14v-1.5c0-2.98-3.96-4.5-7-4.5Z" /></svg>
+                                <span class="truncate">{{ nombresPorVenta[sale.id].customerName }}</span>
+                            </p>
                         </div>
                     </div>
                     <div v-if="filteredSales.length === 0" class="flex flex-col items-center justify-center py-24 text-center">
