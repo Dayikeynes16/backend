@@ -13,21 +13,28 @@ import { ref, computed, watch } from 'vue';
 const props = defineProps({ sales: Object, filters: Object, tenant: Object, branchInfo: Object });
 
 const date = ref(props.filters?.date || '');
+const search = ref(props.filters?.search || '');
 const product = ref(props.filters?.product || '');
 const minTotal = ref(props.filters?.min_total ?? '');
 const maxTotal = ref(props.filters?.max_total ?? '');
 
 const queryParams = () => ({
     date: date.value || undefined,
+    search: search.value.trim() || undefined,
     product: product.value.trim() || undefined,
     min_total: minTotal.value !== '' && minTotal.value !== null ? minTotal.value : undefined,
     max_total: maxTotal.value !== '' && maxTotal.value !== null ? maxTotal.value : undefined,
 });
 
+// Buscar por folio ignora la fecha en el backend, así que el selector de día
+// sobra mientras hay búsqueda activa: mostrarlo sugeriría que filtra y no lo hace.
+const searching = computed(() => !!search.value.trim());
+
 const hasActiveFilters = computed(() =>
-    !!product.value.trim() || minTotal.value !== '' || maxTotal.value !== '');
+    !!search.value.trim() || !!product.value.trim() || minTotal.value !== '' || maxTotal.value !== '');
 
 const clearFilters = () => {
+    search.value = '';
     product.value = '';
     minTotal.value = '';
     maxTotal.value = '';
@@ -64,6 +71,7 @@ watch(() => props.sales, (newSales) => {
         const updated = allSales.value.find(s => s.id === selected.value.id);
         selected.value = updated ?? null;
     }
+    if (!selected.value) autoSelectSingleResult();
 });
 
 const applyFilters = () => {
@@ -74,7 +82,7 @@ const applyFilters = () => {
 watch(date, applyFilters);
 
 let filterTimer = null;
-watch([product, minTotal, maxTotal], () => {
+watch([search, product, minTotal, maxTotal], () => {
     clearTimeout(filterTimer);
     filterTimer = setTimeout(applyFilters, 350);
 });
@@ -111,6 +119,17 @@ const onScroll = () => {
 
 const formatTime = (d) => new Date(d).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
 const selected = ref(null);
+
+// Llegar desde Pagos con un folio y tener que clickear la única fila es un paso
+// de más. Con cero o varias coincidencias no se toca nada: elegir por el usuario
+// sería adivinar. Se mira `props.filters.search` (lo que el servidor aplicó) y no
+// el ref local, para no auto-abrir nada mientras se teclea.
+const autoSelectSingleResult = () => {
+    if (!props.filters?.search || allSales.value.length !== 1) return;
+    selected.value = allSales.value[0];
+};
+
+autoSelectSingleResult();
 const showTicket = ref(false);
 
 const paidPct = computed(() => {
@@ -160,7 +179,25 @@ const {
         <div class="flex h-[calc(100vh-7rem)] gap-5">
             <div class="flex w-[380px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-5 py-4 space-y-3">
-                    <DatePicker v-model="date" />
+                    <!-- Buscar por folio: ignora la fecha en el backend, así que el
+                         selector de día se retira mientras hay búsqueda activa —dejarlo
+                         sugeriría que filtra, y no lo hace. -->
+                    <div class="relative">
+                        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                        <input v-model="search" type="text" placeholder="Buscar por folio..."
+                            class="w-full rounded-xl border-0 bg-gray-50 py-2.5 pl-9 pr-9 text-sm font-medium text-gray-900 ring-1 ring-inset ring-gray-200 placeholder:font-normal placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-red-500" />
+                        <button v-if="search" type="button" @click="search = ''" title="Quitar la búsqueda por folio"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 transition hover:text-gray-500">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <p v-if="searching" class="flex items-center gap-1.5 text-[11px] font-medium text-gray-500">
+                        <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+                        Buscando en todo tu historial, sin importar la fecha.
+                    </p>
+
+                    <DatePicker v-if="!searching" v-model="date" />
 
                     <!-- Buscar por producto -->
                     <div class="relative">

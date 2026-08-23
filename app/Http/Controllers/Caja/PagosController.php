@@ -67,6 +67,10 @@ class PagosController extends Controller
                 'customerPayment.customer:id,name',
                 'customerPayment.user:id,name',
                 'customerPayment.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
+                // Ventas que abonó el cobro global: sin esto el panel se corta en el
+                // folio del cobro y nunca dice a dónde se fue el dinero.
+                'customerPayment.payments:id,customer_payment_id,sale_id,amount',
+                'customerPayment.payments.sale:id,folio,status,created_at',
                 'receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
             ])
             ->orderByDesc('payments.created_at')

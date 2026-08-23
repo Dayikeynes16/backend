@@ -106,6 +106,7 @@ watch(() => props.sales, (newSales) => {
         selectedId.value = null;
         selected.value = null;
     }
+    if (!selectedId.value) autoSelectSingleResult();
 });
 
 // --- Filter application ---
@@ -182,6 +183,17 @@ const paidPct = computed(() => {
 const selectedId = ref(null);
 const selected = ref(null);
 const selectSale = (sale) => { selectedId.value = sale.id; selected.value = sale; editingPaymentId.value = null; };
+
+// Llegar desde Pagos con un folio y tener que clickear la única fila es un paso
+// de más. Con cero o varias coincidencias no se toca nada: elegir por el usuario
+// sería adivinar. Se mira `props.filters.search` (lo que el servidor aplicó) y no
+// el ref local, para no auto-abrir nada mientras se teclea.
+const autoSelectSingleResult = () => {
+    if (!props.filters?.search || allSales.value.length !== 1) return;
+    selectSale(allSales.value[0]);
+};
+
+autoSelectSingleResult();
 
 // --- Payment editing ---
 const editingPaymentId = ref(null);

@@ -18,6 +18,7 @@ class HistorialController extends Controller
         $user = Auth::user();
 
         $product = trim((string) $request->input('product', ''));
+        $search = trim((string) $request->input('search', ''));
         $minTotal = $request->input('min_total');
         $maxTotal = $request->input('max_total');
 
@@ -32,10 +33,17 @@ class HistorialController extends Controller
                 'payments.receipts:id,payment_id,customer_payment_id,original_name,mime_type,size_bytes',
                 'customer:id,name,phone',
             ])
+            // Buscar por folio ignora la fecha (paridad Sucursal\SaleHistoryController):
+            // un cobro de hoy sobre una venta de anteayer —el caso típico del fiado—
+            // aterrizaría en un historial vacío si el día siguiera filtrando.
             ->when(
-                $request->date,
-                fn ($q, $d) => $q->whereDate('created_at', $d),
-                fn ($q) => $q->whereDate('created_at', today())
+                $search !== '',
+                fn ($q) => $q->where('folio', 'ilike', '%'.addcslashes($search, '%_\\').'%'),
+                fn ($q) => $q->when(
+                    $request->date,
+                    fn ($inner, $d) => $inner->whereDate('created_at', $d),
+                    fn ($inner) => $inner->whereDate('created_at', today())
+                )
             )
             ->when($product !== '', fn ($q) => $q->whereHas(
                 'items',
@@ -54,6 +62,7 @@ class HistorialController extends Controller
             'sales' => $sales,
             'filters' => [
                 'date' => $request->input('date'),
+                'search' => $search !== '' ? $search : null,
                 'product' => $product !== '' ? $product : null,
                 'min_total' => is_numeric($minTotal) ? $minTotal : null,
                 'max_total' => is_numeric($maxTotal) ? $maxTotal : null,
