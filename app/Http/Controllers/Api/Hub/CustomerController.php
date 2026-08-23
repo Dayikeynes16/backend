@@ -36,6 +36,14 @@ class CustomerController extends Controller
             'page' => 'nullable|integer|min:1',
         ]);
 
+        // Lectura deliberadamente fuera del gate: alimenta el selector de cliente
+        // de la mesa de trabajo, que la web entrega al cajero sin `branch.feature`
+        // (Caja\WorkbenchController pasa `customers` siempre). Pero sin el módulo
+        // habilitado devuelve la libreta de contactos, nunca la cartera.
+        if (! $this->canManageCustomers($request)) {
+            return $this->contactBook($request);
+        }
+
         $branchId = $request->user()->branch_id;
         $status = $request->input('status', 'active');
         $search = trim((string) $request->input('search', ''));
@@ -161,25 +169,35 @@ class CustomerController extends Controller
 
     public function show(Request $request, int $customer): JsonResponse
     {
+        $this->ensureCanManageCustomers($request);
+
         $found = $this->findCustomer($request, $customer);
-        $found->load(['prices.product:id,name,price,unit_type']);
+        $withPrices = $this->canSeePreferentialPrices($request);
+
+        if ($withPrices) {
+            $found->load(['prices.product:id,name,price,unit_type']);
+        }
 
         return response()->json([
             'data' => $this->row($found),
             'stats' => $this->stats($found),
-            'prices' => $found->prices->map(fn ($p) => [
+            // El cajero no los ve ni en la web (Caja\CustomerController no los
+            // carga): va vacío en vez de omitirse, para no romper el contrato.
+            'prices' => $withPrices ? $found->prices->map(fn ($p) => [
                 'id' => $p->id,
                 'product_id' => $p->product_id,
                 'product_name' => $p->product?->name,
                 'catalog_price' => $p->product ? (float) $p->product->price : null,
                 'price' => (float) $p->price,
                 'unit_type' => $p->product?->unit_type,
-            ])->values(),
+            ])->values() : [],
         ]);
     }
 
     public function history(Request $request, int $customer): JsonResponse
     {
+        $this->ensureCanManageCustomers($request);
+
         $request->validate([
             'from' => 'nullable|date',
             'to' => 'nullable|date',
@@ -209,6 +227,40 @@ class CustomerController extends Controller
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * Libreta de contactos para asignar cliente a una venta: exactamente lo que la
+     * web pasa al workbench de caja —`id, name, name_pending, phone` de los activos,
+     * ordenados por nombre—. Sin deuda, sin KPIs y sin resumen de cartera, porque
+     * eso vive detrás de `cashier_customers_enabled`.
+     */
+    private function contactBook(Request $request): JsonResponse
+    {
+        $search = trim((string) $request->input('search', ''));
+
+        $customers = Customer::withoutGlobalScopes()
+            ->where('branch_id', $request->user()->branch_id)
+            ->where('status', 'active')
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('name', 'ilike', "%{$search}%")
+                ->orWhere('phone', 'ilike', "%{$search}%")))
+            ->orderBy('name')
+            ->paginate(25, ['id', 'name', 'name_pending', 'phone']);
+
+        return response()->json([
+            'data' => collect($customers->items())->map(fn (Customer $c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'name_pending' => (bool) $c->name_pending,
+                'phone' => $c->phone,
+            ])->values(),
+            'meta' => [
+                'current_page' => $customers->currentPage(),
+                'last_page' => $customers->lastPage(),
+                'total' => $customers->total(),
+            ],
+        ]);
+    }
 
     /**
      * Paridad con la web: la gestión de clientes es exclusiva de

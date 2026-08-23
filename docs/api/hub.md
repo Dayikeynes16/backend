@@ -198,22 +198,31 @@ El `reason` en add/update es obligatorio si la sucursal tiene `sale_item_edit_re
 
 **Controllers:** `Api\Hub\CustomerController`, `CustomerPaymentController`, `CustomerPriceController`.
 
+En la columna **Rol**, «módulo» significa admin-sucursal siempre, y cajero solo si su sucursal tiene `cashier_customers_enabled` (ver el recuadro de permisos abajo).
+
 | Método | Ruta | Rol | Descripción |
 |--------|------|-----|-------------|
-| GET | `customers` | ambos | Lista (máx. 200) con deuda/compras agregadas + `summary` de cartera. Filtros: `search` (nombre/teléfono), `status`, `with_debt`, `sort=name\|debt\|last_sale`. El cajero la usa para asignar cliente a una venta |
-| POST | `customers` | **admin-sucursal** | Alta (`name`, `phone` único por sucursal, `notes`) |
-| GET | `customers/{id}` | ambos | Detalle + `stats` (gastado, pagado, deuda, ticket promedio, producto top por gasto acumulado, mismo criterio que la web) + precios preferenciales |
-| PATCH | `customers/{id}` | **admin-sucursal** | Edición (incluye `status`) |
+| GET | `customers` | ambos | Lista paginada (25) con deuda/compras agregadas + `summary` de cartera. Filtros: `search` (nombre/teléfono), `status`, `with_debt`, `sort=name\|debt\|last_sale`. **Sin el módulo** degrada a libreta de contactos: `id, name, name_pending, phone` de los activos, sin `summary` ni agregados — lo justo para el selector de cliente de la venta |
+| POST | `customers` | módulo | Alta (`name`, `phone` único por sucursal, `notes`) |
+| GET | `customers/{id}` | módulo | Detalle + `stats` (gastado, pagado, deuda, ticket promedio, producto top por gasto acumulado, mismo criterio que la web) + precios preferenciales, estos **solo para admin-sucursal** (al cajero le llega `prices: []`) |
+| PATCH | `customers/{id}` | módulo | Edición; el `status` solo lo aplica el **admin-sucursal** (al cajero se le ignora) |
 | DELETE | `customers/{id}` | **admin-sucursal** | Si tiene ventas → desactiva (`action: "deactivated"`); si no → borra |
-| GET | `customers/{id}/history` | ambos | Compras del cliente paginadas (25), no canceladas |
-| GET | `customers/{id}/payments` | ambos | Ledger de fiado: ventas pendientes + últimos 30 cobros globales + `total_owed` + métodos de pago |
-| POST | `customers/{id}/payments` | **admin-sucursal** | **Cobro global FIFO** (ver abajo) |
-| DELETE | `customers/{id}/payments/{pid}` | **admin-sucursal** | Cancela un cobro global (body: `cancel_reason`): borra los pagos hijos, recalcula ventas y turnos cerrados afectados |
+| GET | `customers/{id}/history` | módulo | Compras del cliente paginadas (25), no canceladas |
+| GET | `customers/{id}/payments` | módulo | Ledger de fiado: ventas pendientes + últimos 30 cobros globales + `total_owed` + métodos de pago |
+| GET | `customers/{id}/payments/{pid}` | módulo | Detalle de un cobro global: aplicaciones por venta, cajero, notas |
+| POST | `customers/{id}/payments` | módulo | **Cobro global FIFO** (ver abajo); exige turno abierto |
+| DELETE | `customers/{id}/payments/{pid}` | **admin-sucursal** | Cancela un cobro global (`cancel_reason`): borra los pagos hijos, recalcula ventas y turnos cerrados afectados |
 | POST | `customers/{id}/prices` | **admin-sucursal** | Precio preferencial (`product_id`, `price`); único por producto |
 | PATCH | `customers/{id}/prices/{pid}` | **admin-sucursal** | Actualiza `price` |
 | DELETE | `customers/{id}/prices/{pid}` | **admin-sucursal** | Elimina el precio |
 
-> Paridad de permisos (2026-07-11): las escrituras de clientes, precios preferenciales y cobro global son exclusivas de **admin-sucursal**, igual que en la web (grupo `role:admin-sucursal|superadmin` + `RegisterCustomerPaymentRequest`). El cajero conserva las lecturas que la web también le da (lista para asignar cliente en la mesa).
+> **Paridad de permisos (actualizado 2026-08-21).** Desde el 2026-08-05 el cajero gestiona clientes cuando su sucursal tiene `cashier_customers_enabled` —el flag lo enciende el **admin-empresa** en la ficha de la sucursal, no el admin-sucursal—, igual que en la web (`routes/web.php`, grupo `branch.feature:cashier_customers_enabled`). Lo aplica el trait `AuthorizesHubCustomerManagement`, y cubre tanto las escrituras como las **lecturas de la ficha** (detalle, historial y ledger), porque en la web todas viven dentro de ese mismo grupo.
+>
+> Tres exclusiones del cajero se mantienen aunque el módulo esté encendido, calcadas de la web: **precios preferenciales** (ni los escribe ni los lee), **dar de baja un cliente** (ni por `DELETE` ni colando `status` en el `PATCH`) y **cancelar un cobro global**.
+>
+> `GET customers` queda deliberadamente fuera del gate porque alimenta el selector de cliente de la mesa de trabajo, que la web también entrega sin flag (`Caja\WorkbenchController` pasa `customers` siempre) — pero recortado a libreta, con el mismo payload que la web da allí.
+>
+> Cobertura: `tests/Feature/Api/Hub/CustomerCashierAccessTest.php`.
 
 **Cobro global (`POST customers/{id}/payments`):** requiere turno abierto (`409`). Body: `amount_received`, `method`, `excluded_sale_ids[]` opcional, `notes`. Distribuye el abono FIFO (venta más antigua primero) sobre las ventas con saldo del cliente, creando un `Payment` por venta ligado a un `CustomerPayment` con folio `CG-00001`. Solo `cash` admite cambio; con otros métodos el monto no puede exceder la deuda (`422`). Responde `201` con el `customer_payment` y el detalle `applied` por venta. Usa advisory lock de PostgreSQL por sucursal para evitar cobros concurrentes.
 

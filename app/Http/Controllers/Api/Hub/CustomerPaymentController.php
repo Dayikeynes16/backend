@@ -40,6 +40,10 @@ class CustomerPaymentController extends Controller
     /** Ledger del cliente: ventas pendientes + cobros globales recientes + deuda. */
     public function index(Request $request, int $customer): JsonResponse
     {
+        // En la web este ledger es `caja.clientes.pagos`, dentro del grupo
+        // `branch.feature:cashier_customers_enabled`.
+        $this->ensureCanManageCustomers($request);
+
         $found = $this->findCustomer($request, $customer);
         $branch = Branch::withoutGlobalScopes()->find($request->user()->branch_id);
 
