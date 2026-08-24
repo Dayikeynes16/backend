@@ -17,6 +17,7 @@ use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
 use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\OrderLinkService;
+use App\Services\SaleCancellationNotifier;
 use App\Services\WhatsappMessageService;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
@@ -151,6 +152,16 @@ class WorkbenchController extends Controller
             'cancel_requested_by' => $user->id,
             'cancel_request_reason' => $validated['cancel_request_reason'],
         ]);
+
+        // El cajero queda esperando una decisión: el administrador tiene que
+        // enterarse ahora, no cuando entre a mirar.
+        app(SaleCancellationNotifier::class)->requested($sale, $user, $validated['cancel_request_reason']);
+
+        SafeBroadcast::dispatch(
+            fn () => SaleUpdated::dispatch($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         return back()->with('success', "Solicitud de cancelacion enviada para {$sale->folio}.");
     }

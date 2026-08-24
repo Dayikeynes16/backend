@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\ResolvesMetricsRequest;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Services\RecalculateClosedShifts;
+use App\Services\SaleCancellationNotifier;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -97,6 +98,8 @@ class CancelRequestController extends Controller
         }
 
         $wasCompleted = $sale->status === SaleStatus::Completed;
+        // Se limpia al cancelar, así que hay que leerlo antes de la transacción.
+        $requestedBy = $sale->cancel_requested_by;
 
         DB::transaction(function () use ($sale, $user, $cancelReason, $wasCompleted) {
             $sale->payments()->delete();
@@ -121,6 +124,10 @@ class CancelRequestController extends Controller
             ['sale_id' => $sale->id],
         );
 
+        // El cajero que la pidió tampoco se enteraba del desenlace.
+        app(SaleCancellationNotifier::class)
+            ->resolved($sale, $requestedBy, 'approved', $user, $cancelReason);
+
         $msg = "Venta {$sale->folio} cancelada.";
         if ($wasCompleted) {
             $msg .= ' Los cortes de caja fueron recalculados.';
@@ -142,11 +149,22 @@ class CancelRequestController extends Controller
             abort(403);
         }
 
+        $requestedBy = $sale->cancel_requested_by;
+
         $sale->update([
             'cancel_requested_at' => null,
             'cancel_requested_by' => null,
             'cancel_request_reason' => null,
         ]);
+
+        app(SaleCancellationNotifier::class)
+            ->resolved($sale, $requestedBy, 'rejected', $user);
+
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         return back()->with('success', "Solicitud de cancelacion rechazada para {$sale->folio}.");
     }

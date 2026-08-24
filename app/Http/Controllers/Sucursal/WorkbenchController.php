@@ -19,6 +19,7 @@ use App\Services\AssignCustomerToSale;
 use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\OrderLinkService;
 use App\Services\RecalculateClosedShifts;
+use App\Services\SaleCancellationNotifier;
 use App\Services\WhatsappMessageService;
 use App\Support\SafeBroadcast;
 use App\Support\SaleItemSnapshot;
@@ -340,6 +341,16 @@ class WorkbenchController extends Controller
             'cancel_requested_by' => $user->id,
             'cancel_request_reason' => $validated['cancel_request_reason'],
         ]);
+
+        // Hasta ahora no salía ningún aviso: el administrador no se enteraba
+        // hasta entrar por su cuenta a la pantalla de cancelaciones.
+        app(SaleCancellationNotifier::class)->requested($sale, $user, $validated['cancel_request_reason']);
+
+        SafeBroadcast::dispatch(
+            fn () => SaleUpdated::dispatch($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         return back()->with('success', "Solicitud de cancelacion enviada para {$sale->folio}.");
     }
