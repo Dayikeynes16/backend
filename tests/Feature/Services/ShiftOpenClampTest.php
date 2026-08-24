@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\ShiftService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -72,5 +73,68 @@ class ShiftOpenClampTest extends TestCase
 
         $this->assertNull($abierto->closed_at);
         $this->assertSame(2, CashRegisterShift::where('user_id', $this->cajero->id)->count());
+    }
+
+    private function service(): ShiftService
+    {
+        return app(ShiftService::class);
+    }
+
+    public function test_respeta_una_hora_reciente_propuesta_por_el_hub(): void
+    {
+        $hace2h = now()->subHours(2);
+
+        $shift = $this->service()->open($this->cajero, 500, $hace2h);
+
+        $this->assertEqualsWithDelta($hace2h->timestamp, $shift->opened_at->timestamp, 2);
+    }
+
+    public function test_recorta_una_hora_demasiado_antigua_al_margen(): void
+    {
+        // Un reloj mal puesto no puede abrir un turno de anteayer: eso permitiría
+        // recontar pagos viejos y recuperar permisos sobre comprobantes cerrados.
+        $shift = $this->service()->open($this->cajero, 0, now()->subDays(2));
+
+        $this->assertEqualsWithDelta(
+            now()->subHours(ShiftService::MAX_BACKDATE_HOURS)->timestamp,
+            $shift->opened_at->timestamp,
+            5
+        );
+    }
+
+    public function test_recorta_una_hora_futura_a_ahora(): void
+    {
+        $shift = $this->service()->open($this->cajero, 0, now()->addHours(3));
+
+        $this->assertEqualsWithDelta(now()->timestamp, $shift->opened_at->timestamp, 5);
+    }
+
+    public function test_nunca_se_solapa_con_el_turno_anterior_cerrado(): void
+    {
+        // El caso que duplica dinero: la ventana del corte es [opened_at, closed_at]
+        // filtrada por usuario, sin FK. Si el turno nuevo empieza antes de que
+        // cerrara el anterior, los pagos de esa franja se cuentan dos veces.
+        $cerradoHace1h = now()->subHour();
+        $this->makeShift(['opened_at' => now()->subHours(5), 'closed_at' => $cerradoHace1h]);
+
+        $shift = $this->service()->open($this->cajero, 0, now()->subHours(4));
+
+        $this->assertEqualsWithDelta($cerradoHace1h->timestamp, $shift->opened_at->timestamp, 2);
+    }
+
+    public function test_sin_hora_propuesta_se_comporta_como_siempre(): void
+    {
+        $shift = $this->service()->open($this->cajero, 100);
+
+        $this->assertEqualsWithDelta(now()->timestamp, $shift->opened_at->timestamp, 5);
+    }
+
+    public function test_la_misma_referencia_devuelve_el_mismo_turno(): void
+    {
+        $primero = $this->service()->open($this->cajero, 300, null, 'ref-abc');
+        $segundo = $this->service()->open($this->cajero, 300, null, 'ref-abc');
+
+        $this->assertSame($primero->id, $segundo->id);
+        $this->assertSame(1, CashRegisterShift::where('user_id', $this->cajero->id)->count());
     }
 }

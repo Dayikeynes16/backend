@@ -235,7 +235,7 @@ git commit -m "feat(turnos): un turno abierto por usuario deja de ser solo una r
   ```
   Devuelve el turno existente (sin crear otro) si `$clientReference` ya produjo uno.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 Añadir a `tests/Feature/Services/ShiftOpenClampTest.php` (dentro de la clase; añadir `use App\Services\ShiftService;` y `use Illuminate\Support\Carbon;` arriba):
 
@@ -304,12 +304,12 @@ Añadir a `tests/Feature/Services/ShiftOpenClampTest.php` (dentro de la clase; a
     }
 ```
 
-- [ ] **Step 2: Correr los tests para verificar que fallan**
+- [x] **Step 2: Correr los tests para verificar que fallan**
 
 Run: `./vendor/bin/sail artisan test --filter=ShiftOpenClampTest`
 Expected: FAIL — `open()` hoy solo acepta dos argumentos.
 
-- [ ] **Step 3: Implementar el clamp**
+- [x] **Step 3: Implementar el clamp**
 
 En `app/Services/ShiftService.php`, añadir `use Carbon\CarbonInterface;` a los imports y reemplazar el método `open()` completo por:
 
@@ -395,17 +395,17 @@ En `app/Services/ShiftService.php`, añadir `use Carbon\CarbonInterface;` a los 
     }
 ```
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --filter=ShiftOpenClampTest`
 Expected: PASS (8 tests).
 
-- [ ] **Step 5: Correr la suite completa**
+- [x] **Step 5: Correr la suite completa**
 
 Run: `./vendor/bin/sail artisan test --compact`
 Expected: PASS. Los tres argumentos nuevos son opcionales, así que ninguna llamada existente cambia de comportamiento.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty

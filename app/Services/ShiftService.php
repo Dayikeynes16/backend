@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\CashWithdrawal;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -28,13 +29,35 @@ class ShiftService
             ->first();
     }
 
+    /** Margen máximo hacia atrás para la hora que propone el hub. */
+    public const MAX_BACKDATE_HOURS = 6;
+
     /**
      * Abre un turno para el usuario.
      *
+     * `$requestedOpenedAt` viene del hub cuando la caja se abrió sin internet.
+     * NO se acepta tal cual: se acota entre el cierre del turno anterior y ahora
+     * (ver `clampOpenedAt`). `$clientReference` hace la apertura idempotente,
+     * para que un reintento del hub no choque contra el 409.
+     *
      * @throws ShiftAlreadyOpenException si ya hay uno abierto
      */
-    public function open(User $user, float $openingAmount = 0): CashRegisterShift
-    {
+    public function open(
+        User $user,
+        float $openingAmount = 0,
+        ?CarbonInterface $requestedOpenedAt = null,
+        ?string $clientReference = null
+    ): CashRegisterShift {
+        if ($clientReference !== null) {
+            $existing = CashRegisterShift::where('user_id', $user->id)
+                ->where('client_reference', $clientReference)
+                ->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+        }
+
         if ($this->current($user) !== null) {
             throw new ShiftAlreadyOpenException;
         }
@@ -43,9 +66,47 @@ class ShiftService
             'tenant_id' => $user->tenant_id,
             'branch_id' => $user->branch_id,
             'user_id' => $user->id,
-            'opened_at' => now(),
+            'opened_at' => $this->clampOpenedAt($user, $requestedOpenedAt),
             'opening_amount' => $openingAmount,
+            'client_reference' => $clientReference,
         ]);
+    }
+
+    /**
+     * Acota la hora propuesta, en vez de validarla y rechazarla.
+     *
+     * El corte agrega los pagos por `whereBetween(created_at, [opened_at, closed_at])`
+     * filtrando por usuario y sin FK al turno: dos ventanas solapadas cuentan los
+     * mismos pagos dos veces. Y `opened_at` es además frontera de autorización para
+     * editar comprobantes (`Sucursal\PaymentReceiptController`), así que una hora
+     * retroactiva libre devolvería permisos sobre turnos ya cerrados.
+     *
+     * Resultado: min( max(propuesta, cierre anterior, ahora − 6 h), ahora ).
+     */
+    private function clampOpenedAt(User $user, ?CarbonInterface $requested): CarbonInterface
+    {
+        $now = now();
+
+        if ($requested === null) {
+            return $now;
+        }
+
+        $floor = $now->copy()->subHours(self::MAX_BACKDATE_HOURS);
+
+        $lastClosed = CashRegisterShift::where('user_id', $user->id)
+            ->whereNotNull('closed_at')
+            ->orderByDesc('closed_at')
+            ->first()?->closed_at;
+
+        if ($lastClosed !== null && $lastClosed->greaterThan($floor)) {
+            $floor = $lastClosed;
+        }
+
+        if ($requested->lessThan($floor)) {
+            return $floor;
+        }
+
+        return $requested->greaterThan($now) ? $now : $requested;
     }
 
     /**
