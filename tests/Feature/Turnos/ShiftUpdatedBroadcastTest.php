@@ -38,6 +38,21 @@ class ShiftUpdatedBroadcastTest extends TestCase
         Event::assertDispatched(ShiftUpdated::class, fn ($e) => $e->reason === 'opened');
     }
 
+    public function test_a_retried_open_re_announces_the_existing_shift(): void
+    {
+        // La apertura del hub es idempotente por client_reference. El reintento
+        // llega cuando el primero no terminó bien, que es cuando el aviso se
+        // perdió: sin repetirlo, el turno queda abierto sin que nadie se entere.
+        $first = $this->shifts->open($this->cajero, 500, null, 'ref-turno-1');
+
+        Event::fake([ShiftUpdated::class]);
+
+        $second = $this->shifts->open($this->cajero, 500, null, 'ref-turno-1');
+
+        $this->assertSame($first->id, $second->id);
+        Event::assertDispatched(ShiftUpdated::class, fn ($e) => $e->shift->id === $first->id);
+    }
+
     public function test_closing_a_shift_announces_it(): void
     {
         $this->shifts->open($this->cajero, 500);

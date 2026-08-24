@@ -56,6 +56,13 @@ class ShiftService
                 ->first();
 
             if ($existing !== null) {
+                // Mismo criterio que la rama idempotente de las ventas: el
+                // reintento llega justamente cuando el primer envío no terminó
+                // bien, que es cuando el aviso se pierde. Repetirlo es seguro
+                // —quien lo recibe vuelve a leer su turno por HTTP— y sin él la
+                // apertura queda guardada sin que ninguna pantalla se entere.
+                $this->announce($existing, 'opened');
+
                 return $existing;
             }
         }
