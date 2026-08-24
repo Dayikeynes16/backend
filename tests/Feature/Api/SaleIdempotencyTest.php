@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Api;
 
+use App\Events\NewExternalSale;
 use App\Models\ApiKey;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Sale;
+use Illuminate\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -139,5 +142,40 @@ class SaleIdempotencyTest extends TestCase
         ], ['X-Api-Key' => $otherKey])->assertCreated();
 
         $this->assertSame(2, Sale::withoutGlobalScopes()->count());
+    }
+
+    public function test_a_broken_reverb_does_not_break_the_sale(): void
+    {
+        /*
+         * Los eventos son ShouldBroadcastNow: la llamada a Reverb ocurre dentro
+         * de esta misma petición. Si Reverb está caído, la venta ya está en la
+         * base de datos y la báscula no puede recibir un 500 por ello: creería
+         * que falló, reintentaría, y acabaríamos con dinero contado dos veces.
+         */
+        $this->mock(BroadcastFactory::class, function ($mock) {
+            $mock->shouldReceive('queue')->andThrow(new \RuntimeException('reverb down'));
+        });
+
+        $this->postSale(['client_reference' => 'ref-sin-reverb'])->assertCreated();
+
+        $this->assertSame(1, Sale::withoutGlobalScopes()->count());
+    }
+
+    public function test_a_retry_re_announces_the_existing_sale(): void
+    {
+        /*
+         * El reintento llega justo cuando el primer envío no terminó bien, que
+         * es cuando el aviso se pierde. Si la rama idempotente no lo repite, la
+         * venta queda guardada pero invisible en la mesa de trabajo de la web
+         * hasta que alguien recargue a mano.
+         */
+        $this->postSale(['client_reference' => 'ref-retry'])->assertCreated();
+
+        Event::fake([NewExternalSale::class]);
+
+        $this->postSale(['client_reference' => 'ref-retry'])->assertCreated();
+
+        Event::assertDispatched(NewExternalSale::class);
+        $this->assertSame(1, Sale::withoutGlobalScopes()->count());
     }
 }
