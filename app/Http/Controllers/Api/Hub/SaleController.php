@@ -16,6 +16,7 @@ use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
 use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\RecalculateClosedShifts;
+use App\Services\SaleCancellationNotifier;
 use App\Services\SaleItemEditor;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\JsonResponse;
@@ -231,6 +232,11 @@ class SaleController extends Controller
             'cancel_requested_by' => $request->user()->id,
             'cancel_request_reason' => $validated['cancel_request_reason'],
         ]);
+
+        app(SaleCancellationNotifier::class)
+            ->requested($found, $request->user(), $validated['cancel_request_reason']);
+
+        $this->dispatchEvent(fn () => SaleUpdated::dispatch($found->fresh()));
 
         return $this->saleResponse($found->refresh());
     }

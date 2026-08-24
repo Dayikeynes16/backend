@@ -14,6 +14,7 @@ use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\DeliveryFeeService;
 use App\Services\PhoneNormalizer;
 use App\Services\WhatsappMessageService;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -287,7 +288,11 @@ class OrderController extends Controller
 
         $sale->load('items', 'branch', 'tenant');
 
-        NewExternalSale::dispatch($sale);
+        SafeBroadcast::dispatch(
+            fn () => NewExternalSale::dispatch($sale),
+            'NewExternalSale',
+            ['sale_id' => $sale->id, 'origin' => 'web'],
+        );
 
         $whatsappUrl = null;
         if (! empty($branchModel->public_phone)) {

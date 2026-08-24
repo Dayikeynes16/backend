@@ -3,15 +3,15 @@
 namespace App\Services;
 
 use App\Enums\SaleStatus;
-use App\Events\SaleUpdated;
+use App\Events\CustomerGlobalPaymentChanged;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\User;
+use App\Support\SafeBroadcast;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Cobro global de fiado: un abono del cliente distribuido FIFO (venta más
@@ -184,26 +184,22 @@ final class CustomerGlobalPaymentService
     }
 
     /**
-     * Broadcast post-commit de las ventas afectadas; nunca rompe el flujo.
+     * Broadcast post-commit del cobro; nunca rompe el flujo.
+     *
+     * Un solo evento para las N ventas afectadas. Antes se emitía un
+     * `SaleUpdated` por venta, y cada uno provocaba una recarga completa de la
+     * mesa de trabajo: saldar diez ventas significaba diez recargas seguidas.
      *
      * @param  array<int, int>  $saleIds
+     * @param  'applied'|'reverted'  $action
      */
-    public function broadcastSaleUpdates(array $saleIds): void
+    public function broadcastPaymentChange(CustomerPayment $payment, array $saleIds, string $action = 'applied'): void
     {
-        foreach ($saleIds as $saleId) {
-            $sale = Sale::withoutGlobalScopes()->find($saleId);
-            if (! $sale) {
-                continue;
-            }
-            try {
-                SaleUpdated::dispatch($sale);
-            } catch (\Throwable $e) {
-                Log::warning('SaleUpdated broadcast failed', [
-                    'sale_id' => $saleId,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
+        SafeBroadcast::dispatch(
+            fn () => CustomerGlobalPaymentChanged::dispatch($payment, array_values($saleIds), $action),
+            'CustomerGlobalPaymentChanged',
+            ['customer_payment_id' => $payment->id, 'sales' => count($saleIds), 'action' => $action],
+        );
     }
 
     /**

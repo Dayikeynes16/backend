@@ -1,8 +1,9 @@
 import { ref, onMounted, onUnmounted } from 'vue';
+import { subscribeToBranch } from '@/lib/branchChannel';
 
 export function useSaleQueue(branchId) {
     const sales = ref([]);
-    let channel = null;
+    let unsubscribe = null;
 
     const playNotificationSound = () => {
         try {
@@ -45,19 +46,16 @@ export function useSaleQueue(branchId) {
     };
 
     onMounted(() => {
-        if (!branchId || !window.Echo) return;
-
-        channel = window.Echo.private(`sucursal.${branchId}`);
-        channel.listen('NewExternalSale', (e) => {
-            addSale(e.sale);
+        // El canal se comparte con useSaleLock y con la propia página. Antes se
+        // abría aquí y se cerraba con `Echo.leave()`, que abandona el canal
+        // entero y dejaba mudos a los otros dos consumidores.
+        unsubscribe = subscribeToBranch(branchId, {
+            NewExternalSale: (e) => addSale(e.sale),
         });
     });
 
     onUnmounted(() => {
-        if (channel) {
-            channel.stopListening('NewExternalSale');
-            window.Echo.leave(`sucursal.${branchId}`);
-        }
+        if (unsubscribe) unsubscribe();
     });
 
     return {

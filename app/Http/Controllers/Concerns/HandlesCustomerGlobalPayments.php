@@ -78,10 +78,10 @@ trait HandlesCustomerGlobalPayments
             return response()->json(['message' => $e->getMessage()], $e->getStatusCode());
         }
 
-        // Post-commit: broadcast sale updates
-        $globalPayments->broadcastSaleUpdates($result['affected_sale_ids']);
-
         $cp = $result['customer_payment'];
+
+        // Post-commit: un solo aviso para las N ventas que tocó el cobro.
+        $globalPayments->broadcastPaymentChange($cp, $result['affected_sale_ids']);
 
         // El comprobante va en el CustomerPayment padre; los Payment hijos que
         // crea el servicio (uno por venta afectada) no llevan comprobante propio.

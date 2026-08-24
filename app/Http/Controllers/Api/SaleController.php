@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SaleResource;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -49,6 +50,22 @@ class SaleController extends Controller
                 ->first();
 
             if ($existing) {
+                /*
+                 * Se vuelve a emitir el aviso. El reintento llega justamente
+                 * cuando el primer envío no terminó bien, y el broadcast es lo
+                 * primero que se pierde en ese escenario: si no se repite, la
+                 * venta queda guardada pero invisible en la mesa de trabajo
+                 * hasta que alguien recargue a mano.
+                 *
+                 * Repetirlo es seguro: el cliente deduplica por `id` y ya tiene
+                 * la venta en pantalla si el primer aviso sí llegó.
+                 */
+                SafeBroadcast::dispatch(
+                    fn () => NewExternalSale::dispatch($existing),
+                    'NewExternalSale',
+                    ['sale_id' => $existing->id, 'retry' => true],
+                );
+
                 // Misma forma exacta que la respuesta normal (más abajo): quien
                 // reintenta no debe tener que distinguir un caso del otro.
                 return response()->json(SaleResource::make($existing), 201);
@@ -174,7 +191,11 @@ class SaleController extends Controller
 
         $sale->load('items');
 
-        NewExternalSale::dispatch($sale);
+        SafeBroadcast::dispatch(
+            fn () => NewExternalSale::dispatch($sale),
+            'NewExternalSale',
+            ['sale_id' => $sale->id],
+        );
 
         return response()->json(
             SaleResource::make($sale),

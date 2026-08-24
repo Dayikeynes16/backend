@@ -30,13 +30,28 @@ const { sales, initSales, addSale, removeSale } = useSaleQueue(branchId);
 
 ### Suscripción a Reverb
 
-Al montar el componente, se suscribe al canal privado `sucursal.{branchId}` y escucha el evento `NewExternalSale`. Al desmontar, limpia la suscripción.
+Se engancha al canal privado `sucursal.{branchId}` a través de `lib/branchChannel.js` y escucha `NewExternalSale`. Al desmontar desengancha **sólo su handler**.
+
+> Antes abría el canal por su cuenta y lo cerraba con `Echo.leave()`, que abandona el canal **entero**. Como en la mesa de trabajo ese canal lo comparten otros dos consumidores (`useSaleLock` y la propia página), desmontar la cola los dejaba mudos. El registro lleva cuenta de sus consumidores y sólo abandona cuando se va el último. Ver [arquitectura/reverb-websockets.md](../arquitectura/reverb-websockets.md#el-canal-es-compartido).
 
 ### Sonido de notificación
 
 Usa la Web Audio API para generar un tono de 880Hz por 0.5 segundos. No requiere archivos de audio externos. Falla silenciosamente si el navegador no lo permite.
 
+## Composable `useBranchRealtime` (`resources/js/composables/useBranchRealtime.js`)
+
+Lo que usan las dos mesas de trabajo. El WebSocket es el mecanismo principal y el sondeo sólo existe para cuando no lo hay: 20 s con socket vivo, 4 s sin él, con refresco inmediato al recuperarse. Agrupa las recargas 300 ms y expone `live` / `recovering` para el chip de estado (`Components/RealtimeStatusChip.vue`).
+
+```js
+const { live, recovering, refreshSoon } = useBranchRealtime(branchId, {
+    handlers: { SaleUpdated: (e, soon) => soon() },
+    refresh: () => router.reload({ only: ['sales'], preserveScroll: true }),
+});
+```
+
 ## Página `Caja/Queue.vue`
+
+> ⚠️ **Esta pantalla no está enrutada.** No existe ninguna ruta en `routes/web.php` que la sirva; el cajero trabaja en `Caja/Workbench.vue`. Lo que sigue describe el archivo tal como está, pero hoy es código muerto: está pendiente decidir si se recupera o se retira.
 
 ### Datos del servidor (Inertia props)
 

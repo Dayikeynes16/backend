@@ -13,10 +13,10 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleItemChange;
 use App\Services\SaleItemEditor;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Edición de items de una venta desde Mesa de Trabajo.
@@ -117,14 +117,11 @@ class SaleItemController extends Controller
 
     private function broadcastSaleUpdate(Sale $sale): void
     {
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', [
-                'sale_id' => $sale->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
     }
 
     private function normalizeReason(mixed $value): ?string

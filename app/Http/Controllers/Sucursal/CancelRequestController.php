@@ -8,11 +8,12 @@ use App\Http\Controllers\Concerns\ResolvesMetricsRequest;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Services\RecalculateClosedShifts;
+use App\Services\SaleCancellationNotifier;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -97,6 +98,8 @@ class CancelRequestController extends Controller
         }
 
         $wasCompleted = $sale->status === SaleStatus::Completed;
+        // Se limpia al cancelar, así que hay que leerlo antes de la transacción.
+        $requestedBy = $sale->cancel_requested_by;
 
         DB::transaction(function () use ($sale, $user, $cancelReason, $wasCompleted) {
             $sale->payments()->delete();
@@ -115,11 +118,15 @@ class CancelRequestController extends Controller
             }
         });
 
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
+
+        // El cajero que la pidió tampoco se enteraba del desenlace.
+        app(SaleCancellationNotifier::class)
+            ->resolved($sale, $requestedBy, 'approved', $user, $cancelReason);
 
         $msg = "Venta {$sale->folio} cancelada.";
         if ($wasCompleted) {
@@ -142,11 +149,22 @@ class CancelRequestController extends Controller
             abort(403);
         }
 
+        $requestedBy = $sale->cancel_requested_by;
+
         $sale->update([
             'cancel_requested_at' => null,
             'cancel_requested_by' => null,
             'cancel_request_reason' => null,
         ]);
+
+        app(SaleCancellationNotifier::class)
+            ->resolved($sale, $requestedBy, 'rejected', $user);
+
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         return back()->with('success', "Solicitud de cancelacion rechazada para {$sale->folio}.");
     }

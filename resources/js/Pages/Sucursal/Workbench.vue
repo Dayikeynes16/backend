@@ -8,9 +8,11 @@ import SaleDetailModalShell from '@/Components/SaleDetailModalShell.vue';
 import { saleNames } from '@/utils/saleNames';
 import { useSaleLock } from '@/composables/useSaleLock';
 import { useSaleQueue } from '@/composables/useSaleQueue';
+import { useBranchRealtime } from '@/composables/useBranchRealtime';
+import RealtimeStatusChip from '@/Components/RealtimeStatusChip.vue';
 import { useSaleActions } from '@/composables/useSaleActions';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
     sales: Array, products: Array, categories: Array,
@@ -42,17 +44,23 @@ const selected = computed(() => props.sales.find(s => s.id === selectedId.value)
 const showDetail = computed(() => !!selected.value);
 const detailDirty = ref(false); // monto capturado sin cobrar → confirmar antes de cerrar el modal
 
-// Real-time
+// Real-time. El WebSocket es el mecanismo principal; el sondeo de respaldo sólo
+// sostiene la pantalla cuando el socket no está.
 const { sales: queuedSales } = useSaleQueue(props.branchId);
-watch(queuedSales, () => router.reload({ only: ['sales'], preserveScroll: true }), { deep: true });
 
-let saleUpdateChannel = null;
-onMounted(() => {
-    if (!props.branchId || !window.Echo) return;
-    saleUpdateChannel = window.Echo.private(`sucursal.${props.branchId}`);
-    saleUpdateChannel.listen('SaleUpdated', () => router.reload({ only: ['sales'], preserveScroll: true }));
+const { live, recovering, refreshSoon } = useBranchRealtime(props.branchId, {
+    handlers: {
+        SaleUpdated: (e, soon) => soon(),
+        // Un cobro global FIFO toca varias ventas de golpe y llega como un
+        // único aviso, no como una ráfaga de SaleUpdated.
+        CustomerGlobalPaymentChanged: (e, soon) => soon(),
+    },
+    refresh: () => router.reload({ only: ['sales'], preserveScroll: true }),
 });
-onUnmounted(() => { if (saleUpdateChannel) saleUpdateChannel.stopListening('SaleUpdated'); });
+
+// El beep y la inserción los hace useSaleQueue; aquí sólo se pide la recarga,
+// agrupada con la del resto de eventos de la misma venta.
+watch(queuedSales, () => refreshSoon(), { deep: true });
 
 // Concurrency lock
 const { lockSale, unlockSale, isLockedByOther, lockedByName } = useSaleLock(
@@ -163,6 +171,7 @@ const cancelSale = (reason) => {
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
                     <div class="flex items-center gap-3">
                         <h2 class="text-sm font-bold text-gray-900">Ventas</h2>
+                        <RealtimeStatusChip :live="live" :recovering="recovering" />
                         <div class="flex gap-1.5">
                             <button v-for="f in [{v:'active',l:'Activas'},{v:'pending',l:'Pendientes'},{v:'all',l:'Todas'}]"
                                 :key="f.v" @click="statusFilter = f.v"

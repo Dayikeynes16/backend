@@ -95,7 +95,7 @@ class CustomerPaymentController extends Controller
 
             $this->recalculateAffectedShifts($sale);
         }
-        $this->globalPayments->broadcastSaleUpdates($affectedSaleIds);
+        $this->globalPayments->broadcastPaymentChange($customerPayment, $affectedSaleIds, 'reverted');
 
         return response()->json([
             'message' => "Cobro {$customerPayment->folio} cancelado.",

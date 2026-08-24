@@ -172,6 +172,14 @@ Ver [ventas.md](ventas.md#del-pago-a-su-venta).
 - `CustomerStatsController@payments` → devuelve `recent_movements` unificado en vez de `recent_payments`
 - `CustomerController@index` → expone `allowedPaymentMethods` como prop
 
+## Aviso en tiempo real (`CustomerGlobalPaymentChanged`)
+
+`CustomerGlobalPaymentService::broadcastPaymentChange()` emite **un solo evento** por cobro, con `{ customer_payment_id, folio, customer_id, action, amount_applied, sales_affected_count, sale_ids }` y `action` en `applied` o `reverted`.
+
+> Antes se emitía un `SaleUpdated` por cada venta saldada. Cada uno provocaba una recarga completa de la mesa de trabajo en todas las pantallas de la sucursal: un cobro que saldaba diez ventas eran diez recargas seguidas. Además de pesar menos, el evento único dice algo que la ráfaga no podía decir — que esas N ventas son un mismo movimiento.
+
+Se llama post-commit desde los tres puntos que aplican o cancelan un cobro: la web (`Sucursal\CustomerPaymentController` para la cancelación), el concern compartido web+hub (`HandlesCustomerGlobalPayments`) y el confirmador del asistente IA.
+
 ## Casos edge manejados
 
 - Cliente sin pending → botón oculto; 422 si llamada directa

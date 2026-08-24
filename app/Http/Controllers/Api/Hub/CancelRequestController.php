@@ -7,6 +7,7 @@ use App\Events\SaleUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Services\RecalculateClosedShifts;
+use App\Services\SaleCancellationNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -126,6 +127,8 @@ class CancelRequestController extends Controller
         }
 
         $wasCompleted = $found->status === SaleStatus::Completed;
+        // Se limpia al cancelar: hay que leerlo antes de la transacción.
+        $requestedBy = $found->cancel_requested_by;
 
         DB::transaction(function () use ($found, $user, $cancelReason, $wasCompleted) {
             $found->payments()->delete();
@@ -146,6 +149,9 @@ class CancelRequestController extends Controller
 
         $this->broadcast($found);
 
+        app(SaleCancellationNotifier::class)
+            ->resolved($found, $requestedBy, 'approved', $user, $cancelReason);
+
         return response()->json([
             'ok' => true,
             'recalculated_shifts' => $wasCompleted,
@@ -157,11 +163,18 @@ class CancelRequestController extends Controller
         $this->ensureAdmin($request);
         $found = $this->findSale($request, $sale);
 
+        $requestedBy = $found->cancel_requested_by;
+
         $found->update([
             'cancel_requested_at' => null,
             'cancel_requested_by' => null,
             'cancel_request_reason' => null,
         ]);
+
+        app(SaleCancellationNotifier::class)
+            ->resolved($found, $requestedBy, 'rejected', $request->user());
+
+        $this->broadcast($found);
 
         return response()->json(['ok' => true]);
     }

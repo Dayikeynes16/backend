@@ -314,7 +314,21 @@ En la columna **Rol**, «módulo» significa admin-sucursal siempre, y cajero so
 | GET | `realtime/config` | Parámetros de conexión a Reverb: `key` (pública), `host`, `port`, `scheme`. Equivale a las `VITE_REVERB_*` de la web |
 | POST | `realtime/auth` | Autoriza la suscripción a un canal privado (`Broadcast::auth`). Es el reemplazo de `/broadcasting/auth` para clientes con token Bearer (sin sesión/CSRF) |
 
-El canal `sucursal.{branchId}` (`routes/channels.php`) autoriza con el guard por defecto de la ruta: `web` en Inertia, **`sanctum` en el hub** (la ruta corre tras `auth:sanctum`). La regla es la misma: `user->branch_id === branchId`. Por ese canal el hub recibe `NewExternalSale`, `SaleLocked`, `SaleUnlocked` y `SaleUpdated`. Los controllers del hub disparan los broadcasts de forma tolerante: si Reverb está caído, la operación no falla (solo se loguea un warning).
+El canal `sucursal.{branchId}` (`routes/channels.php`) autoriza con el guard por defecto de la ruta: `web` en Inertia, **`sanctum` en el hub** (la ruta corre tras `auth:sanctum`). La regla es la misma: `user->branch_id === branchId`. Los controllers del hub disparan los broadcasts de forma tolerante: si Reverb está caído, la operación no falla (solo se loguea un warning).
+
+Por ese canal el hub recibe:
+
+| Evento | Lo consume | Para qué |
+|--------|-----------|----------|
+| `NewExternalSale` | Mesa de Trabajo | Venta nueva de báscula o menú QR (suena el beep) |
+| `SaleUpdated` | Mesa de Trabajo · panel de Turno | Cualquier cambio en una venta existente |
+| `SaleLocked` · `SaleUnlocked` | Mesa de Trabajo | Bloqueo cooperativo de edición |
+| `CustomerGlobalPaymentChanged` | Mesa de Trabajo · panel de Turno | Un cobro global FIFO tocó N ventas de una vez |
+| `ShiftUpdated` | Panel de Turno | Apertura, cierre o retiro |
+
+> Los payloads llevan **identificadores, no cifras**: quien recibe vuelve a leer por HTTP con su propio token. `ShiftUpdated` en particular viaja por un canal que comparten todos los usuarios de la sucursal, y `shift/current` sólo devuelve el turno del usuario autenticado.
+
+El socket es el mecanismo principal, pero el hub conserva su sondeo como red de seguridad: 20 s / 4 s en la Mesa de Trabajo y 45 s / 12 s en el panel de Turno, según haya socket o no. Ver [arquitectura/reverb-websockets.md](../arquitectura/reverb-websockets.md).
 
 ## Códigos de error comunes
 

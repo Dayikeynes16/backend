@@ -85,6 +85,14 @@ sale_count = cantidad de ventas únicas (no pagos individuales)
    → Redirige a abrir turno
 ```
 
+## Aviso en tiempo real (`ShiftUpdated`)
+
+`ShiftService` emite `ShiftUpdated` al abrir, al cerrar y al añadir o quitar un retiro, por el canal `sucursal.{branchId}`.
+
+El payload es `{ shift_id, user_id, reason }` — **sin cifras a propósito**: el canal lo comparten todos los usuarios de la sucursal, así que quien lo recibe pide su propio turno por HTTP y ese endpoint sólo devuelve el del usuario autenticado. Así el efectivo de un cajero no se asoma al panel de otro.
+
+No hay evento por cobro: lo que mueve el esperado minuto a minuto son los pagos, que ya emiten `SaleUpdated`. El panel de turno del hub escucha los dos y baja su sondeo de 12 s a 45 s cuando hay socket. Ver [arquitectura/reverb-websockets.md](../arquitectura/reverb-websockets.md).
+
 ## Corrección de errores en método de pago
 
 Si un cajero registra un pago con el método incorrecto (ej: efectivo como tarjeta):
