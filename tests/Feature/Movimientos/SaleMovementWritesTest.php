@@ -5,6 +5,7 @@ namespace Tests\Feature\Movimientos;
 use App\Enums\AuditEvent;
 use App\Enums\SaleStatus;
 use App\Models\AuditLog;
+use App\Models\Payment;
 use App\Models\Sale;
 use App\Services\SaleItemEditor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,5 +121,46 @@ class SaleMovementWritesTest extends TestCase
 
         $log = $this->lastLog(AuditEvent::ItemRemoved);
         $this->assertSame(-90.0, (float) $log->amount_effect);
+    }
+
+    public function test_editar_un_pago_guarda_el_monto_anterior(): void
+    {
+        $sale = $this->activeSale(680);
+        $payment = Payment::create([
+            'sale_id' => $sale->id,
+            'user_id' => $this->cajero->id,
+            'method' => 'cash',
+            'amount' => 680,
+        ]);
+
+        $this->actingAs($this->adminSucursal)->put(
+            route('sucursal.workbench.payment.update', [$this->tenant->slug, $sale->id, $payment->id]),
+            ['amount' => 380, 'method' => 'cash'],
+        );
+
+        $log = $this->lastLog(AuditEvent::PaymentUpdated);
+        // Sin esta fila los $300 no existen en ninguna parte: la tabla `payments`
+        // solo guarda el monto vigente. Es el agujero que abrió este módulo.
+        $this->assertSame([680.0, 380.0], array_map('floatval', $log->changes['amount']));
+        $this->assertSame(-300.0, (float) $log->amount_effect);
+    }
+
+    public function test_borrar_un_pago_lo_registra_completo_en_negativo(): void
+    {
+        $sale = $this->activeSale(300);
+        $payment = Payment::create([
+            'sale_id' => $sale->id,
+            'user_id' => $this->cajero->id,
+            'method' => 'transfer',
+            'amount' => 300,
+        ]);
+
+        $this->actingAs($this->adminSucursal)->delete(
+            route('sucursal.workbench.payment.destroy', [$this->tenant->slug, $sale->id, $payment->id]),
+        );
+
+        $log = $this->lastLog(AuditEvent::PaymentDeleted);
+        $this->assertSame(-300.0, (float) $log->amount_effect);
+        $this->assertSame('transfer', $log->changes['method']);
     }
 }
