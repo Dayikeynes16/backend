@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-04-17
 **Autor:** Sebas (con apoyo de Claude)
-**Estado:** Diseño — pendiente de aprobación del usuario
+**Estado:** Implementado — doc vivo: [Métricas](../../modulos/metricas.md)
 
 ## 1. Contexto y objetivo
 

@@ -1,7 +1,7 @@
 # Métricas — Simplificación: Resumen como hub + header reducido + sin comparativas
 
 **Fecha:** 2026-05-17
-**Estado:** aprobado para implementar
+**Estado:** Implementado — doc vivo: [Métricas](../../modulos/metricas.md)
 **Alcance:** UX y composables del módulo Métricas (Sucursal y Empresa). Cambios al coordinador `MetricsService`, al trait `ResolvesMetricsRequest` y a los 18 controladores `__invoke` bajo `app/Http/Controllers/{Sucursal,Empresa}/Metrics/`. Los servicios de cálculo por eje (`SalesMetrics`, `MarginMetrics`, `CustomerMetrics`, `CollectionMetrics`, `ProductMetrics`, `CashierMetrics`, `ShiftMetrics`, `CancellationMetrics`) sólo pierden la rama `'previous' => …` de sus métodos `summary()`; sus firmas no cambian.
 
 ## Motivación

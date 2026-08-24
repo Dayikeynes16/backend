@@ -2,7 +2,7 @@
 
 **Fecha**: 2026-05-16
 **Autor**: Brainstorming sesión (Sebastián + Claude)
-**Estado**: Aprobado para implementación
+**Estado:** Implementado — doc vivo: [Emparejar Pedido ↔ Venta](../../modulos/emparejar-pedido-venta.md)
 **Módulo afectado**: Ventas / Workbench / Pedidos web
 **Spec relacionado**: `docs/superpowers/specs/2026-04-17-pedidos-web-design.md`
 

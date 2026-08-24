@@ -1,7 +1,7 @@
 # Módulo de Gastos — Diseño congelado
 
 **Fecha:** 2026-04-27
-**Estado:** Aprobado para Fase 1
+**Estado:** Implementado — doc vivo: [Gastos](../../modulos/gastos.md)
 **Autor:** colaboración con Claude (auditoría + propuesta)
 
 ## Objetivo

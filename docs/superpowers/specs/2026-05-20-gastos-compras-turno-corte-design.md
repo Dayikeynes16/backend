@@ -1,7 +1,7 @@
 # Gastos y compras en efectivo ligados al turno (corte exacto) — Diseño congelado
 
 **Fecha:** 2026-05-20
-**Estado:** Aprobado para implementación
+**Estado:** Implementado — doc vivo: [Corte de Caja](../../modulos/corte-de-caja.md)
 **Autor:** colaboración con Claude (exploración + propuesta)
 
 ## Objetivo

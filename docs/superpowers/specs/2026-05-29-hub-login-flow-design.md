@@ -1,7 +1,7 @@
 # Carnicería Hub — Flujo de inicio de sesión (Hito 2) — Diseño congelado
 
 **Fecha:** 2026-05-29
-**Estado:** Aprobado para Hito 2 (alcance: auth + shell mínimo)
+**Estado:** Implementado — el hub tiene login con token Sanctum. Contrato vivo: [api/hub.md](../../api/hub.md#autenticación-apiv1auth)
 **Autor:** colaboración con Claude (brainstorming + propuesta)
 
 ## En palabras simples (léelo primero)

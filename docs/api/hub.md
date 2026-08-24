@@ -233,6 +233,30 @@ En la columna **Rol**, «módulo» significa admin-sucursal siempre, y cajero so
 | GET | `products?search=` | Catálogo activo de la sucursal (`id`, `name`, `price`, `unit_type`; máx. 50). Apoyo de formularios (p. ej. precios preferenciales) |
 | GET | `purchase-products?search=` | Catálogo tenant-wide de productos de compra (`id`, `name`, `unit`) para autocompletar el formulario de compras |
 
+### Gestión del catálogo (solo admin-sucursal)
+
+**Controller:** `Api\Hub\ProductController` y `Api\Hub\PurchaseProductController`. Paridad con las pantallas de catálogo de la web; el cajero recibe `403`.
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `products/manage` | Catálogo completo de la sucursal, incluidas las inactivas, para la pantalla de gestión |
+| GET | `products/{id}` | Un producto con sus presentaciones |
+| POST | `products` | Crea producto. Va por `POST` y no `PUT` para poder mandar la imagen como multipart |
+| POST | `products/{id}` | Actualiza producto (mismo motivo: multipart) |
+| PATCH | `products/{id}/quick` | Interruptores rápidos desde la lista, sin abrir el formulario |
+| DELETE | `products/{id}` | Elimina producto |
+| POST | `product-categories` | Crea categoría de producto → `201` |
+| PATCH | `product-categories/{id}` | Renombra o cambia el estado de la categoría |
+| DELETE | `product-categories/{id}` | Elimina la categoría |
+| GET | `purchase-products/manage` | Catálogo de insumos de compra, tenant-wide |
+| POST | `purchase-products` | Crea insumo de compra |
+| PATCH | `purchase-products/{id}` | Edita insumo de compra |
+| GET | `purchase-products/{id}/history` | Historial de compras de ese insumo, con sus precios |
+| POST | `purchase-product-categories` | Crea categoría de insumo → `201` |
+| PATCH | `purchase-product-categories/{id}` | Edita categoría de insumo |
+
+Las de compra requieren además el toggle `branch_admin_purchase_products_enabled`.
+
 ## Categorías de gasto (solo admin-sucursal, requiere toggle `branch_admin_expense_categories_enabled`)
 
 **Controller:** `Api\Hub\ExpenseCategoryController`. Paridad con la pestaña "Categorías" web del admin-sucursal (`HandlesExpenseCategoryWrites` / `HandlesExpenseSubcategoryWrites` + `ExpenseCategoryWriter`): catálogo **tenant-wide**, crear/editar categoría y subcategoría con `name`/`description`/`aliases`/`status`, **sin borrado** (reservado a empresa). El gate replica el middleware web `branch.feature:branch_admin_expense_categories_enabled` (`403 Tu empresa no ha habilitado esta función para tu sucursal.`). Aliases se normalizan (trim + dedupe case-insensitive).
@@ -280,6 +304,24 @@ En la columna **Rol**, «módulo» significa admin-sucursal siempre, y cajero so
 | POST | `purchases/{id}/payments` | Pago a la compra (`amount`, `payment_method`, `reference`, `notes`). Si es `cash` exige turno abierto (`409`) y se ata a él. `422` si sobre-paga |
 | DELETE | `purchases/{id}/payments/{pid}` | Cancela un pago (body: `reason`) |
 | POST/GET/DELETE | `purchases/{id}/attachments[/{aid}]` | Adjuntos (igual que en gastos) |
+
+## Cajeros (solo admin-sucursal)
+
+**Controller:** `Api\Hub\UserController`. Permite al encargado dar de alta y baja a sus cajeros desde el mostrador, sin entrar a la web. Misma regla que `UserPolicy` en la web.
+
+**Alcance, estrictamente:** solo usuarios con rol `cajero`, **de la misma sucursal y el mismo tenant** que el administrador. Cualquier otro usuario — de otra sucursal, de otro tenant, o que no sea cajero (incluido el propio admin) — responde `404` o `403`. No se puede crear ni cambiar roles distintos de `cajero`.
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `users` | Cajeros de la sucursal, paginados. Devuelve además `limits: { max_users, used }` |
+| POST | `users` | Alta de cajero: `name`, `email` único, `password` (reglas `Password::defaults()`) → `201` |
+| PATCH | `users/{id}` | Edita `name`, `email` y opcionalmente `password` |
+| DELETE | `users/{id}` | Baja del cajero → `{ "action": "deleted" }` |
+
+**Errores propios:**
+- `403 Solo el administrador de sucursal puede gestionar cajeros.` — lo pidió un cajero.
+- `403 Solo puedes gestionar cajeros de tu sucursal.` — el usuario existe en la sucursal pero no es cajero.
+- `422 Has alcanzado el límite de N usuarios permitidos.` — el tenant llegó a su `max_users`. **El cupo se cuenta sobre todo el tenant**, no sobre la sucursal; por eso `GET users` devuelve `limits`, para poder avisar antes de intentar el alta.
 
 ## Proveedores (solo admin-sucursal)
 

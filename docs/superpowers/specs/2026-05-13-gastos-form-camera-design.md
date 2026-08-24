@@ -1,7 +1,7 @@
 # Gastos — Form más intuitivo + captura con cámara
 
 **Fecha:** 2026-05-13
-**Estado:** aprobado para implementar
+**Estado:** Implementado — doc vivo: [Gastos](../../modulos/gastos.md)
 **Alcance:** UX del modal de registro/edición de gastos. Cero cambios de backend.
 
 ## Motivación

@@ -209,10 +209,10 @@ resources/js/
 
 ## Agregar un nuevo eje
 
-1. Crear `app/Services/Metrics/MiNuevoMetrics.php` que extiende `AbstractMetrics`.
-2. Crear `app/Http/Controllers/Sucursal/Metrics/MiNuevoMetricsController.php` (y el gemelo en `Empresa/`).
+1. Crear `app/Services/Metrics/{Nombre}Metrics.php` que extiende `AbstractMetrics`.
+2. Crear `app/Http/Controllers/Sucursal/Metrics/{Nombre}MetricsController.php` (y el gemelo en `Empresa/`).
 3. Registrar la ruta en ambos grupos (`sucursal.metricas.*` y `empresa.metricas.*`) en `routes/web.php`.
-4. Crear `resources/js/Components/Metrics/Content/MiNuevoContent.vue`.
+4. Crear `resources/js/Components/Metrics/Content/{Nombre}Content.vue`.
 5. Crear las 2 páginas wrapper (`Sucursal/Metricas/MiNuevo.vue`, `Empresa/Metricas/MiNuevo.vue`).
 6. Agregar el link al layout (`SucursalLayout.vue`, `EmpresaLayout.vue`) si se quiere en el sidebar.
 7. Agregar tests: feature para el servicio + controller auth test.

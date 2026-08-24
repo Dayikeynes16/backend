@@ -1,7 +1,7 @@
 # Cancelaciones — Analítica + rango en página operativa
 
 **Fecha:** 2026-05-13
-**Estado:** aprobado para implementar
+**Estado:** Implementado — doc vivo: [Métricas](../../modulos/metricas.md)
 
 ## Motivación
 

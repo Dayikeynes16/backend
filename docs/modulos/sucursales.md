@@ -40,6 +40,8 @@ desde Empresa → Sucursales → Editar. Se aplican con el middleware
 | `cashier_scale_sales_enabled` | `false` | Pantalla **Mostrador** del hub de escritorio: el cajero pesa y arma ventas con la báscula USB conectada al hub. No cobra ahí — la venta llega a la Mesa de Trabajo como las de las básculas Android |
 | `branch_admin_providers_enabled` | `false` | Que el admin-sucursal cree/edite proveedores (catálogo tenant-wide) |
 | `branch_admin_expense_categories_enabled` | `false` | Que el admin-sucursal cree/edite categorías de gasto |
+| `branch_admin_purchase_products_enabled` | `false` | Que el admin-sucursal gestione el catálogo de insumos de compra (tenant-wide). Ver [compras.md](compras.md) |
+| `branch_admin_movements_enabled` | `false` | Que el admin-sucursal vea la bitácora de movimientos sobre ventas ya cobradas |
 | `payment_receipts_enabled` | `false` | Adjuntar comprobantes de transferencia. Ver [comprobantes-pago.md](comprobantes-pago.md) |
 | `payment_receipts_required` | `false` | Exigir el comprobante para cobrar por transferencia |
 | `online_ordering_enabled`, `delivery_enabled`, `pickup_enabled` | — | Menú QR y modalidades de pedido web |

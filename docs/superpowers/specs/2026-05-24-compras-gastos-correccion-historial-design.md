@@ -1,7 +1,7 @@
 # Compras y Gastos: corregir desde caja, historial de cambios y cancelación que oculta — Diseño congelado
 
 **Fecha:** 2026-05-24
-**Estado:** Aprobado para implementación
+**Estado:** Implementado — doc vivo: [Compras](../../modulos/compras.md)
 **Autor:** colaboración con Claude (exploración + propuesta)
 
 ## Objetivo

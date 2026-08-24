@@ -1,7 +1,7 @@
 # Gestión de catálogos por admin-sucursal (habilitable por empresa)
 
 **Fecha:** 2026-05-29
-**Estado:** Aprobado — en implementación
+**Estado:** Implementado — doc vivo: [Sucursales](../../modulos/sucursales.md)
 
 ## Problema
 

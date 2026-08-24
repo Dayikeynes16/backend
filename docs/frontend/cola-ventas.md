@@ -1,81 +1,78 @@
-# Cola de Ventas (Caja)
+# Cola de ventas y bloqueo de venta
 
-Pantalla principal del cajero. Muestra las ventas pendientes de cobro en tiempo real.
+Los dos composables que sostienen la mesa de trabajo: uno hace que la venta de la báscula aparezca sola, el otro evita que dos personas cobren la misma venta a la vez.
 
 ## Responsabilidades
 
-- Mostrar ventas con estado `pending` de la sucursal del cajero.
-- Recibir ventas nuevas en tiempo real vía Reverb/Echo (sin recargar página).
-- Permitir al cajero cobrar cada venta con un botón.
-- Reproducir sonido de notificación al llegar una venta nueva.
+- Recibir ventas nuevas por WebSocket e insertarlas en la lista sin recargar.
+- Avisar con un sonido cuando llega una venta.
+- Marcar qué venta está siendo editada y por quién, en todas las pantallas de la sucursal.
 
-**No hace:** no permite crear ventas, modificar ítems, ni cancelar ventas.
+**No hace:** no consulta la API por su cuenta — las ventas iniciales llegan como props de Inertia. No garantiza exclusión mutua: el bloqueo es cooperativo (ver [Límites](#límites)).
 
-## Composable `useSaleQueue` (`resources/js/composables/useSaleQueue.js`)
-
-Encapsula la lógica de la cola de ventas y la suscripción a Reverb.
-
-### API
+## `useSaleQueue` (`resources/js/composables/useSaleQueue.js`)
 
 ```js
 const { sales, initSales, addSale, removeSale } = useSaleQueue(branchId);
 ```
 
-| Propiedad/Método | Descripción |
-|---|---|
-| `sales` | `ref([])` — array reactivo de ventas pendientes |
-| `initSales(array)` | Carga ventas iniciales (del servidor) |
-| `addSale(sale)` | Agrega una venta al inicio de la cola (evita duplicados) |
-| `removeSale(saleId)` | Elimina una venta de la cola (tras cobrar) |
+| Miembro | Qué hace |
+|---------|----------|
+| `sales` | `ref([])` con las ventas de la cola, cada una con `arrived_at` |
+| `initSales(array)` | Carga las que vinieron del servidor, tomando `created_at` como `arrived_at` |
+| `addSale(sale)` | La pone al principio y suena el aviso. **Ignora duplicados por `id`** |
+| `removeSale(id)` | La saca de la lista, tras cobrarla |
 
-### Suscripción a Reverb
+**Suscripción.** Al montar se suscribe a `sucursal.{branchId}` y escucha **solo `NewExternalSale`**. Al desmontar deja de escuchar y abandona el canal.
 
-Al montar el componente, se suscribe al canal privado `sucursal.{branchId}` y escucha el evento `NewExternalSale`. Al desmontar, limpia la suscripción.
+> `SaleUpdated` **no** pasa por este composable. Lo escuchan directamente `Pages/Sucursal/Workbench.vue` y `Pages/Caja/Workbench.vue`, y en vez de tocar el estado disparan `router.reload({ only: ['sales'], preserveScroll: true })`.
 
-### Sonido de notificación
+**El sonido** se genera con la Web Audio API — un tono de 880 Hz que decae en medio segundo. No hay archivo de audio, y si el navegador lo bloquea falla en silencio, sin romper la llegada de la venta.
 
-Usa la Web Audio API para generar un tono de 880Hz por 0.5 segundos. No requiere archivos de audio externos. Falla silenciosamente si el navegador no lo permite.
+## `useSaleLock` (`resources/js/composables/useSaleLock.js`)
 
-## Página `Caja/Queue.vue`
+```js
+const { lockSale, unlockSale, isLockedByOther, lockedByName, lockedSales } =
+    useSaleLock(branchId, userId, lockRoute, unlockRoute, heartbeatRoute);
+```
 
-### Datos del servidor (Inertia props)
+Las tres rutas se pasan como plantillas con el marcador `__SALE__`, que el composable sustituye por el id. Así el mismo composable sirve a la mesa de sucursal y a la de caja, que tienen rutas distintas.
 
-| Prop | Tipo | Descripción |
-|---|---|---|
-| `pendingSales` | Array | Ventas pendientes al cargar la página |
-| `branchId` | Number | ID de la sucursal del cajero (para Echo) |
-| `tenant` | Object | Tenant activo (para generar rutas) |
+| Miembro | Qué hace |
+|---------|----------|
+| `lockSale(id)` | Pide el bloqueo y arranca los latidos |
+| `unlockSale()` | Libera el bloqueo actual y para los latidos |
+| `isLockedByOther(id)` | Si otra persona la tiene tomada |
+| `lockedByName(id)` | El nombre de quien la tiene, para poder decirlo en pantalla |
+| `lockedSales` | `ref({})` con el estado de bloqueo por venta |
 
-### Card de venta
+**Cómo funciona el bloqueo**
 
-Cada venta se muestra como una card con:
+- El servidor lo concede por **5 minutos** (`SaleLockController`); si ya está tomado por otro, responde con el conflicto y el composable lo refleja.
+- Mientras se edita, un **latido cada 60 segundos** lo renueva.
+- Al desmontar el componente se libera.
+- Si la persona cierra la pestaña, un manejador de `beforeunload` manda la liberación con el token CSRF, para no dejar la venta trabada cinco minutos.
 
-- **Header:** folio (ej: S-00001), badge de método de pago (coloreado), tiempo transcurrido (actualiza cada segundo)
-- **Body:** lista de ítems con nombre, cantidad × precio, subtotal
-- **Footer:** total de la venta + botón "Cobrar"
+**Suscripción.** Escucha `SaleLocked` y `SaleUnlocked` en `sucursal.{branchId}`, así que el bloqueo es visible en todas las pantallas de la sucursal, no solo en la que lo pidió. `SaleLocked` trae `locked_by_name` precisamente para poder mostrar *quién*.
 
-### Animaciones
+## Dónde se usan
 
-- Entrada: fade in + slide down (0.4s)
-- Salida: fade out + slide right (0.3s)
-- Implementadas con `<TransitionGroup>` de Vue
+| Pantalla | `useSaleQueue` | `useSaleLock` |
+|----------|:--------------:|:-------------:|
+| `Pages/Caja/Workbench.vue` | ✅ | ✅ |
+| `Pages/Sucursal/Workbench.vue` | ✅ | ✅ |
+| `Pages/Caja/Queue.vue` | ✅ | — |
 
-### Flujo de cobro
+> `Caja/Queue.vue` ya no tiene ruta que la alcance: es la generación anterior de la mesa de caja. Ver [pantallas-cajero.md](pantallas-cajero.md#código-sin-ruta).
 
-1. Cajero presiona "Cobrar"
-2. `router.patch` → `caja.sales.complete`
-3. Controller: `status=completed`, `user_id=cajero`, `completed_at=now()`
-4. On success: `removeSale(id)` — la card desaparece con animación
+## Límites
 
-## Controller (`app/Http/Controllers/Caja/SaleController.php`)
+- **El bloqueo es cooperativo, no transaccional.** Reduce las colisiones; no las hace imposibles. La consistencia real la garantizan los servicios de dominio dentro de su transacción.
+- **Nada se recupera al reconectar.** Los eventos no se persisten: una pestaña que estuvo desconectada se pone al día al recargar.
+- **Un cambio de venta que no emita `SaleUpdated`** deja las demás pantallas con datos viejos y sin ningún síntoma visible.
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `index` | `GET /{tenant}/caja` | Carga ventas pendientes de la sucursal del cajero |
-| `complete` | `PATCH /{tenant}/caja/sales/{sale}/complete` | Marca venta como completada |
+## Ver también
 
-### Seguridad de `complete`
-
-- Verifica que `$sale->branch_id === $user->branch_id` (403 si no coincide)
-- Verifica que `$sale->status === 'pending'` (rechaza si ya procesada)
-- Asigna `user_id` del cajero autenticado
+- [arquitectura/reverb-websockets.md](../arquitectura/reverb-websockets.md) — los cinco eventos y los tres canales.
+- [pantallas-cajero.md](pantallas-cajero.md) — las pantallas que consumen esto.
+- [modulos/ventas.md](../modulos/ventas.md) — el ciclo de vida de la venta.
