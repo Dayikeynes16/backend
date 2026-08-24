@@ -648,7 +648,7 @@ git commit -m "feat(hub-api): el cajero puede leer los metodos de pago de su suc
 - Modify: `docs/api/hub.md`
 - Modify: `docs/superpowers/specs/…` — no aplica; el spec vive en `carniceria-hub`
 
-- [ ] **Step 1: Documentar los campos y la ruta**
+- [x] **Step 1: Documentar los campos y la ruta**
 
 En `docs/api/hub.md`, en la tabla del grupo de turno, añadir bajo `shift/open`:
 
@@ -658,7 +658,7 @@ En `docs/api/hub.md`, en la tabla del grupo de turno, añadir bajo `shift/open`:
 `GET config/payment-methods` — métodos habilitados de la sucursal, para **ambos roles** (a diferencia de `GET config`, que es solo de admin). El hub lo cachea para poder cobrar sin red.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/api/hub.md
