@@ -42,6 +42,8 @@ const form = useForm({
     // Sin el `!== undefined ? … : true` de sus vecinos: éste nace apagado.
     cashier_scale_sales_enabled: !!props.sucursal.cashier_scale_sales_enabled,
     branch_admin_providers_enabled: !!props.sucursal.branch_admin_providers_enabled,
+    // Nace apagado: es una pantalla de vigilancia, se enciende a propósito.
+    branch_admin_movements_enabled: !!props.sucursal.branch_admin_movements_enabled,
     branch_admin_expense_categories_enabled: !!props.sucursal.branch_admin_expense_categories_enabled,
     payment_receipts_enabled: !!props.sucursal.payment_receipts_enabled,
     payment_receipts_required: !!props.sucursal.payment_receipts_required,
@@ -393,6 +395,19 @@ const copyMenuUrl = async () => {
                                 <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
                             </div>
                             <span class="text-sm font-semibold text-gray-700">{{ form.branch_admin_providers_enabled ? 'Activo' : 'Inactivo' }}</span>
+                        </label>
+                    </div>
+                    <div class="flex items-start justify-between gap-4 px-6 py-5">
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Ver Movimientos</p>
+                            <p class="mt-0.5 text-xs text-gray-500">El admin de sucursal podrá ver qué se le cambió a las ventas ya cobradas en su sucursal: precios, pagos, cancelaciones y clientes. Tú lo ves siempre, para todas las sucursales.</p>
+                        </div>
+                        <label class="inline-flex shrink-0 cursor-pointer items-center gap-2">
+                            <input type="checkbox" v-model="form.branch_admin_movements_enabled" class="peer sr-only" />
+                            <div class="relative h-6 w-11 rounded-full bg-gray-200 transition peer-checked:bg-red-600">
+                                <div class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">{{ form.branch_admin_movements_enabled ? 'Activo' : 'Inactivo' }}</span>
                         </label>
                     </div>
                     <div class="flex items-start justify-between gap-4 px-6 py-5">

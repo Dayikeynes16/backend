@@ -50,6 +50,9 @@ class HandleInertiaRequests extends Middleware
                     'cashier_purchases_enabled' => (bool) $branch->cashier_purchases_enabled,
                     'cashier_customers_enabled' => (bool) $branch->cashier_customers_enabled,
                     'cashier_scale_sales_enabled' => (bool) $branch->cashier_scale_sales_enabled,
+                    // Gatea el item «Movimientos» del sidebar de sucursal; la ruta
+                    // ya lo exige por su cuenta con branch.feature.
+                    'branch_admin_movements_enabled' => (bool) $branch->branch_admin_movements_enabled,
                     'ticket_width' => data_get($branch->ticket_config, 'width', '80mm'),
                 ] : null,
             ],

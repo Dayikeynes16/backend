@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\AuditLogger;
 use App\Services\PaymentReceiptService;
 use App\Services\SalePaymentService;
 use Illuminate\Http\RedirectResponse;
@@ -142,8 +143,22 @@ class PaymentController extends Controller
         ]);
 
         DB::transaction(function () use ($payment, $sale, $user, $validated) {
+            // El monto anterior se captura ANTES del update: hasta 2026-08-21 se
+            // perdía, y con él la única prueba de que un pago se había reducido.
+            $amountBefore = (float) $payment->amount;
+            $methodBefore = (string) $payment->method;
+
             $payment->update(array_merge($validated, ['updated_by' => $user->id]));
             app(SalePaymentService::class)->recalculate($sale, $user);
+
+            app(AuditLogger::class)->logPaymentUpdated(
+                $sale,
+                $amountBefore,
+                (float) $validated['amount'],
+                $methodBefore,
+                (string) $validated['method'],
+                $user->id,
+            );
         });
 
         $this->broadcastSaleUpdate($sale);
@@ -179,8 +194,15 @@ class PaymentController extends Controller
                 }
             });
 
+            // Capturado antes del delete: una vez borrada la fila, el monto que
+            // dejó de entrar no existe en ninguna parte.
+            $amount = (float) $payment->amount;
+            $method = (string) $payment->method;
+
             $payment->delete();
             app(SalePaymentService::class)->recalculate($sale, $user);
+
+            app(AuditLogger::class)->logPaymentDeleted($sale, $amount, $method, $user->id);
         });
 
         $this->broadcastSaleUpdate($sale);

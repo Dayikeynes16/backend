@@ -15,8 +15,9 @@ class AuditLog extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'tenant_id', 'auditable_type', 'auditable_id',
-        'user_id', 'event', 'changes', 'created_at',
+        'tenant_id', 'branch_id', 'auditable_type', 'auditable_id',
+        'user_id', 'event', 'changes', 'amount_effect',
+        'ip_address', 'user_agent', 'created_at',
     ];
 
     protected function casts(): array
@@ -24,6 +25,7 @@ class AuditLog extends Model
         return [
             'event' => AuditEvent::class,
             'changes' => 'array',
+            'amount_effect' => 'decimal:2',
             'created_at' => 'datetime',
         ];
     }
@@ -36,5 +38,10 @@ class AuditLog extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

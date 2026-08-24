@@ -34,6 +34,7 @@ use App\Http\Controllers\Empresa\Metrics\MetricsIndexController as EmpresaMetric
 use App\Http\Controllers\Empresa\Metrics\ProductMetricsController as EmpresaProductMetricsController;
 use App\Http\Controllers\Empresa\Metrics\SalesMetricsController as EmpresaSalesMetricsController;
 use App\Http\Controllers\Empresa\Metrics\ShiftMetricsController as EmpresaShiftMetricsController;
+use App\Http\Controllers\Empresa\MovimientosController as EmpresaMovimientosController;
 use App\Http\Controllers\Empresa\PasswordResetController as EmpresaPasswordResetController;
 use App\Http\Controllers\Empresa\PersonalizacionController;
 use App\Http\Controllers\Empresa\ProviderController as EmpresaProviderController;
@@ -70,6 +71,7 @@ use App\Http\Controllers\Sucursal\Metrics\MetricsIndexController as SucursalMetr
 use App\Http\Controllers\Sucursal\Metrics\ProductMetricsController as SucursalProductMetricsController;
 use App\Http\Controllers\Sucursal\Metrics\SalesMetricsController as SucursalSalesMetricsController;
 use App\Http\Controllers\Sucursal\Metrics\ShiftMetricsController as SucursalShiftMetricsController;
+use App\Http\Controllers\Sucursal\MovimientosController as SucursalMovimientosController;
 use App\Http\Controllers\Sucursal\PagosController;
 use App\Http\Controllers\Sucursal\PaymentController;
 use App\Http\Controllers\Sucursal\PaymentReceiptController;
@@ -237,6 +239,10 @@ Route::prefix('{tenant}')
                 Route::get('tickets', [TicketConfigController::class, 'index'])->name('tickets');
                 Route::put('tickets/{branch}', [TicketConfigController::class, 'update'])->name('tickets.update');
 
+                // Movimientos: qué se le hizo a las ventas ya cobradas. El
+                // admin-empresa entra siempre y ve todas sus sucursales.
+                Route::get('movimientos', [EmpresaMovimientosController::class, 'index'])->name('movimientos.index');
+
                 // Métricas (multi-sucursal)
                 Route::prefix('metricas')->name('metricas.')->group(function () {
                     Route::get('/', EmpresaMetricsIndexController::class)->name('index');
@@ -316,6 +322,12 @@ Route::prefix('{tenant}')
 
                 // Pagos
                 Route::get('pagos', [PagosController::class, 'index'])->name('pagos.index');
+
+                // Movimientos: solo su sucursal, y solo si la empresa se lo
+                // habilitó. El flag nace apagado a propósito (ver el controlador).
+                Route::middleware('branch.feature:branch_admin_movements_enabled')
+                    ->get('movimientos', [SucursalMovimientosController::class, 'index'])
+                    ->name('movimientos.index');
 
                 // Cortes (history)
                 Route::get('cortes', [CashShiftController::class, 'history'])->name('cortes.index');

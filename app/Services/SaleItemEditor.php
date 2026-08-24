@@ -26,7 +26,10 @@ use Illuminate\Support\Facades\DB;
  */
 class SaleItemEditor
 {
-    public function __construct(protected SalePaymentService $payments) {}
+    public function __construct(
+        protected SalePaymentService $payments,
+        protected AuditLogger $audit,
+    ) {}
 
     /**
      * @param  array{product_id: int, presentation_id?: ?int, quantity: float|int, unit_price: float|int, notes?: ?string}  $data
@@ -102,6 +105,11 @@ class SaleItemEditor
                 'user_id' => $user->id,
             ]);
 
+            // Además de la bitácora de la venta, el registro global que alimenta
+            // Movimientos. Dos tablas a propósito: `sale_item_changes` guarda la
+            // historia completa desde 2026-05 y no se migra.
+            $this->audit->logItemAdded($sale, $item->product_name, (float) $item->subtotal, $user->id);
+
             return $item;
         });
     }
@@ -159,6 +167,15 @@ class SaleItemEditor
                 'user_id' => $user->id,
             ]);
 
+            $this->audit->logItemUpdated(
+                $sale,
+                $item->product_name,
+                $diff,
+                (float) ($before['subtotal'] ?? 0),
+                (float) $item->subtotal,
+                $user->id,
+            );
+
             return $item;
         });
     }
@@ -195,6 +212,8 @@ class SaleItemEditor
                 'reason' => $reason,
                 'user_id' => $user->id,
             ]);
+
+            $this->audit->logItemRemoved($sale, $item->product_name, (float) ($before['subtotal'] ?? 0), $user->id);
         });
     }
 

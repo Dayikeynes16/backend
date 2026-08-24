@@ -7,8 +7,10 @@ use App\Models\AuditLog;
 use App\Models\Expense;
 use App\Models\Purchase;
 use App\Models\PurchaseProduct;
+use App\Models\Sale;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Request;
 
 /**
  * Único punto que escribe el historial de cambios (audit_logs) y calcula los
@@ -16,17 +18,125 @@ use Illuminate\Support\Facades\Auth;
  */
 class AuditLogger
 {
-    public function log(Model $auditable, AuditEvent $event, ?array $changes = null, ?int $userId = null): void
-    {
+    public function log(
+        Model $auditable,
+        AuditEvent $event,
+        ?array $changes = null,
+        ?int $userId = null,
+        ?float $amountEffect = null,
+    ): void {
         AuditLog::create([
             'tenant_id' => $auditable->tenant_id,
+            'branch_id' => $auditable->branch_id ?? null,
             'auditable_type' => $auditable->getMorphClass(),
             'auditable_id' => $auditable->getKey(),
             'user_id' => $userId ?? Auth::id(),
             'event' => $event->value,
             'changes' => $changes,
+            'amount_effect' => $amountEffect !== null ? round($amountEffect, 2) : null,
             'created_at' => now(),
+            ...$this->requestContext(),
         ]);
+    }
+
+    /**
+     * De dónde vino el cambio. Lo resuelve aquí y no en cada punto de escritura
+     * para que ninguno tenga que acordarse.
+     *
+     * En cola o consola los dos quedan `null` —un cambio automático no salió de
+     * ningún equipo— pero eso lo resuelve la ausencia de `REMOTE_ADDR` y de
+     * `User-Agent`, no una pregunta por el SAPI: bajo PHPUnit el SAPI es CLI
+     * incluso cuando sí hay una petición HTTP, y preguntarlo dejaba el contexto
+     * vacío en todas las pruebas, que es tanto como no poder comprobarlo.
+     *
+     * @return array{ip_address: ?string, user_agent: ?string}
+     */
+    private function requestContext(): array
+    {
+        if (! app()->bound('request')) {
+            return ['ip_address' => null, 'user_agent' => null];
+        }
+
+        return [
+            'ip_address' => Request::ip(),
+            'user_agent' => mb_substr((string) Request::userAgent(), 0, 255) ?: null,
+        ];
+    }
+
+    // ── Movimientos de una venta ────────────────────────────────────────
+    //
+    // `amount_effect` en negativo significa "reduce lo que hay que entregar".
+    // Es el número que la pantalla ordena y suma.
+
+    public function logItemAdded(Sale $sale, string $productName, float $subtotal, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::ItemAdded, [
+            'product' => $productName,
+            'subtotal' => round($subtotal, 2),
+        ], $userId, $subtotal);
+    }
+
+    /** @param array<string, array{0: mixed, 1: mixed}> $diff campo => [antes, después] */
+    public function logItemUpdated(Sale $sale, string $productName, array $diff, float $subtotalBefore, float $subtotalAfter, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::ItemUpdated, [
+            'product' => $productName,
+            'diff' => $diff,
+        ], $userId, $subtotalAfter - $subtotalBefore);
+    }
+
+    public function logItemRemoved(Sale $sale, string $productName, float $subtotal, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::ItemRemoved, [
+            'product' => $productName,
+            'subtotal' => round($subtotal, 2),
+        ], $userId, -$subtotal);
+    }
+
+    public function logPaymentUpdated(Sale $sale, float $amountBefore, float $amountAfter, string $methodBefore, string $methodAfter, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::PaymentUpdated, [
+            'amount' => [round($amountBefore, 2), round($amountAfter, 2)],
+            'method' => [$methodBefore, $methodAfter],
+        ], $userId, $amountAfter - $amountBefore);
+    }
+
+    public function logPaymentDeleted(Sale $sale, float $amount, string $method, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::PaymentDeleted, [
+            'amount' => round($amount, 2),
+            'method' => $method,
+        ], $userId, -$amount);
+    }
+
+    public function logSaleCancelled(Sale $sale, ?string $reason, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::Cancelled, [
+            'reason' => $reason,
+            'total' => round((float) $sale->total, 2),
+        ], $userId, -(float) $sale->total);
+    }
+
+    /** Reabrir no mueve dinero por sí solo: habilita moverlo. Efecto nulo a propósito. */
+    public function logSaleReopened(Sale $sale, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::Reopened, [
+            'total' => round((float) $sale->total, 2),
+        ], $userId);
+    }
+
+    /**
+     * Asignar o quitar cliente NO es monetario: pasar la venta a fiado saca el
+     * dinero del efectivo del día pero no lo pierde.
+     */
+    public function logCustomerAssigned(Sale $sale, string $customerName, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::CustomerAssigned, ['customer' => $customerName], $userId);
+    }
+
+    public function logCustomerRemoved(Sale $sale, ?string $customerName, ?int $userId = null): void
+    {
+        $this->log($sale, AuditEvent::CustomerRemoved, ['customer' => $customerName], $userId);
     }
 
     public function logCreated(Model $m): void

@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Models\Branch;
+use App\Models\Sale;
 use App\Models\User;
 use App\Observers\BranchObserver;
+use App\Observers\SaleAuditObserver;
 use App\Policies\UserPolicy;
 use App\Services\Ai\Assistant\Drafts\Confirmers\CashWithdrawalDraftConfirmer;
 use App\Services\Ai\Assistant\Drafts\Confirmers\CustomerDraftConfirmer;
@@ -104,5 +106,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(User::class, UserPolicy::class);
 
         Branch::observe(BranchObserver::class);
+        // Cancelar y reabrir se hacen desde cuatro controladores distintos; el
+        // modelo es el único punto por el que pasan todos.
+        Sale::observe(SaleAuditObserver::class);
     }
 }
