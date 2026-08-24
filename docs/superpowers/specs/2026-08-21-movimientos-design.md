@@ -1,6 +1,6 @@
 # Movimientos: qué se le hizo a una venta después de cobrarla
 
-- **Estado:** en implementación
+- **Estado:** Implementado (2026-08-23) — doc vivo: [`docs/modulos/movimientos.md`](../../modulos/movimientos.md)
 - **Fecha:** 2026-08-21
 - **Repo afectado:** `carniceria-saas`. El hub **sí** participa como origen de eventos (sus escrituras se registran), pero **no** recibe la pantalla.
 - **Alcance:** registro y lectura. No cambia ninguna regla sobre quién puede modificar una venta.
