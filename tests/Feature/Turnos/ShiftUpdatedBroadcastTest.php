@@ -5,6 +5,7 @@ namespace Tests\Feature\Turnos;
 use App\Events\ShiftUpdated;
 use App\Models\CashWithdrawal;
 use App\Services\ShiftService;
+use Illuminate\Contracts\Broadcasting\Factory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\Concerns\SeedsMetricsData;
@@ -95,7 +96,7 @@ class ShiftUpdatedBroadcastTest extends TestCase
 
     public function test_a_broken_reverb_does_not_break_opening_a_shift(): void
     {
-        $this->mock(\Illuminate\Contracts\Broadcasting\Factory::class, function ($mock) {
+        $this->mock(Factory::class, function ($mock) {
             $mock->shouldReceive('queue')->andThrow(new \RuntimeException('reverb down'));
         });
 
@@ -109,7 +110,7 @@ class ShiftUpdatedBroadcastTest extends TestCase
     {
         $this->shifts->open($this->cajero, 300);
 
-        $this->mock(\Illuminate\Contracts\Broadcasting\Factory::class, function ($mock) {
+        $this->mock(Factory::class, function ($mock) {
             $mock->shouldReceive('queue')->andThrow(new \RuntimeException('reverb down'));
         });
 

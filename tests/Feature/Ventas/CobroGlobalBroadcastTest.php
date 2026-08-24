@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\Ventas;
 
+use App\Enums\SaleStatus;
 use App\Events\CustomerGlobalPaymentChanged;
 use App\Events\SaleUpdated;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Services\CustomerGlobalPaymentService;
+use Illuminate\Contracts\Broadcasting\Factory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\Concerns\SeedsMetricsData;
@@ -50,7 +52,7 @@ class CobroGlobalBroadcastTest extends TestCase
             'total' => $total,
             'amount_paid' => 0,
             'amount_pending' => $total,
-            'status' => \App\Enums\SaleStatus::Active,
+            'status' => SaleStatus::Active,
             'origin' => 'api',
         ]);
     }
@@ -124,7 +126,7 @@ class CobroGlobalBroadcastTest extends TestCase
     {
         $this->makeSaleWithBalance(100);
 
-        $this->mock(\Illuminate\Contracts\Broadcasting\Factory::class, function ($mock) {
+        $this->mock(Factory::class, function ($mock) {
             $mock->shouldReceive('queue')->andThrow(new \RuntimeException('reverb down'));
         });
 
