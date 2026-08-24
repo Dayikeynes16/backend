@@ -10,6 +10,8 @@
 
 ## Global Constraints
 
+> **Al ejecutarlo (2026-08-24):** otra sesión corría tests en este mismo repo y las dos suites hacían `drop table` a la vez sobre la base `testing`, con **deadlocks de PostgreSQL** que parecían fallos del código. Si vuelve a pasar: crear una base propia (`CREATE DATABASE testing_turno`) y correr con `-d DB_DATABASE=testing_turno`.
+
 - **La Scale API (`/api/v1` con `X-Api-Key`) no se toca.** Ni un campo nuevo en `BranchResource`, ni una validación extra en `Api/SaleController`. Hay básculas Windows en producción que no se actualizan. `tests/Feature/Api/ScaleLegacyContractTest.php` lo hace cumplir y **debe seguir pasando sin modificarse**.
 - **`ShiftApiTest::test_open_twice_returns_409` debe seguir pasando sin modificarse.** Es el guardrail de que la idempotencia no aflojó la regla para quien no manda `client_reference`.
 - **Margen máximo de retroactividad: 6 horas** (`ShiftService::MAX_BACKDATE_HOURS`).
@@ -425,7 +427,7 @@ git commit -m "feat(turnos): el servidor acota la hora de apertura que propone e
 - Consumes: `ShiftService::open(User, float, ?CarbonInterface, ?string)` de la Task 2.
 - Produces: `POST /api/v1/hub/shift/open` acepta `opened_at` (fecha ISO-8601) y `client_reference` (string ≤64). Responde `201` al crear y `200` cuando la referencia ya produjo un turno.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 Añadir a `tests/Feature/Api/Hub/ShiftApiTest.php`:
 
@@ -471,12 +473,12 @@ Añadir a `tests/Feature/Api/Hub/ShiftApiTest.php`:
 
 Añadir `use App\Models\CashRegisterShift;` a los imports del test si no está.
 
-- [ ] **Step 2: Correr los tests para verificar que fallan**
+- [x] **Step 2: Correr los tests para verificar que fallan**
 
 Run: `./vendor/bin/sail artisan test --filter=ShiftApiTest`
 Expected: FAIL — los campos se ignoran y el segundo `open` devuelve `409`.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 En `app/Http/Controllers/Api/Hub/ShiftController.php`, añadir `use Illuminate\Support\Carbon;` a los imports y reemplazar el método `open()` por:
 
@@ -524,17 +526,17 @@ En `app/Http/Controllers/Api/Hub/ShiftController.php`, añadir `use Illuminate\S
 
 Añadir `use App\Models\CashRegisterShift;` a los imports del controlador.
 
-- [ ] **Step 4: Correr los tests**
+- [x] **Step 4: Correr los tests**
 
 Run: `./vendor/bin/sail artisan test --filter=ShiftApiTest`
 Expected: PASS, **incluido `test_open_twice_returns_409`** — quien no manda `client_reference` sigue chocando con el 409.
 
-- [ ] **Step 5: Correr la suite completa**
+- [x] **Step 5: Correr la suite completa**
 
 Run: `./vendor/bin/sail artisan test --compact`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty
@@ -556,7 +558,7 @@ Hoy `GET /api/v1/hub/config` exige admin-sucursal (`ConfigController::ensureAdmi
 **Interfaces:**
 - Produces: `GET /api/v1/hub/config/payment-methods` → `{"payment_methods_enabled": ["cash","card","transfer"]}`, accesible a `cajero` y `admin-sucursal`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 Añadir a `tests/Feature/Api/Hub/ConfigApiTest.php`:
 
@@ -581,12 +583,12 @@ Añadir a `tests/Feature/Api/Hub/ConfigApiTest.php`:
 
 Si el test no tiene un `$this->cajero`, crearlo en `setUp()` con el mismo patrón que `ShiftApiTest`.
 
-- [ ] **Step 2: Correr el test para verificar que falla**
+- [x] **Step 2: Correr el test para verificar que falla**
 
 Run: `./vendor/bin/sail artisan test --filter=ConfigApiTest`
 Expected: FAIL con 404 — la ruta no existe.
 
-- [ ] **Step 3: Añadir el método al controlador**
+- [x] **Step 3: Añadir el método al controlador**
 
 En `app/Http/Controllers/Api/Hub/ConfigController.php`, después de `index()`:
 
@@ -611,7 +613,7 @@ En `app/Http/Controllers/Api/Hub/ConfigController.php`, después de `index()`:
     }
 ```
 
-- [ ] **Step 4: Añadir la ruta**
+- [x] **Step 4: Añadir la ruta**
 
 En `routes/api.php`, justo después de la línea 80 (`Route::get('config', ...)`):
 
@@ -620,17 +622,17 @@ En `routes/api.php`, justo después de la línea 80 (`Route::get('config', ...)`
         Route::get('config/payment-methods', [HubConfigController::class, 'paymentMethods'])->name('api.hub.config.payment-methods.index');
 ```
 
-- [ ] **Step 5: Correr el test**
+- [x] **Step 5: Correr el test**
 
 Run: `./vendor/bin/sail artisan test --filter=ConfigApiTest`
 Expected: PASS.
 
-- [ ] **Step 6: Correr la suite completa**
+- [x] **Step 6: Correr la suite completa**
 
 Run: `./vendor/bin/sail artisan test --compact`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 ./vendor/bin/sail bin pint --dirty

@@ -78,6 +78,8 @@ Route::prefix('v1/hub')
 
         // Configuración de negocio de la sucursal (admin-sucursal): métodos de pago + API keys.
         Route::get('config', [HubConfigController::class, 'index'])->name('api.hub.config.index');
+        // Lectura mínima para ambos roles: el hub la cachea para cobrar sin red.
+        Route::get('config/payment-methods', [HubConfigController::class, 'paymentMethods'])->name('api.hub.config.payment-methods.index');
         Route::put('config/payment-methods', [HubConfigController::class, 'updatePaymentMethods'])->name('api.hub.config.payment-methods');
         Route::post('config/api-keys', [HubConfigController::class, 'storeApiKey'])->name('api.hub.config.api-keys.store');
         Route::delete('config/api-keys/{apiKey}', [HubConfigController::class, 'revokeApiKey'])->whereNumber('apiKey')->name('api.hub.config.api-keys.revoke');

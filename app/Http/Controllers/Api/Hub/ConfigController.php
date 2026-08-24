@@ -48,6 +48,25 @@ class ConfigController extends Controller
         ]);
     }
 
+    /**
+     * Solo los métodos de pago habilitados, para **ambos roles**.
+     *
+     * El hub guarda esto en su snapshot local para poder cobrar sin internet. La
+     * config completa (API keys, datos de la empresa) sigue siendo de admin: aquí
+     * se expone el mínimo, no se afloja `index()`.
+     *
+     * NO se añade a `BranchResource`: ese payload lo consumen las básculas que
+     * hablan directo con la nube y su forma está congelada.
+     */
+    public function paymentMethods(Request $request): JsonResponse
+    {
+        $branch = Branch::withoutGlobalScopes()->findOrFail($request->user()->branch_id);
+
+        return response()->json([
+            'payment_methods_enabled' => $branch->enabledPaymentMethods(),
+        ]);
+    }
+
     /** Horario humano-legible desde hours JSONB (misma lógica que la web). */
     private function humanReadableHours(?array $hours): ?string
     {
