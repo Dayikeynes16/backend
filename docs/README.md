@@ -11,7 +11,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 - [Multitenancy](arquitectura/multitenant.md) — TenantScope, ResolveTenant, aislamiento por columna
 - [Roles y Permisos](arquitectura/roles-permisos.md) — 4 roles, Spatie Permission, redirección por rol
-- [Reverb y WebSockets](arquitectura/reverb-websockets.md) — canal privado por sucursal, evento NewExternalSale
+- [Reverb y WebSockets](arquitectura/reverb-websockets.md) — canales privados, los siete eventos, sondeo de respaldo cuando el socket se cae
 - [Propuesta: módulo Compras](arquitectura/compras-modulo.md) — diseño original (implementado; doc vivo en `modulos/compras.md`)
 - [Propuesta: asistente IA](arquitectura/ia-asistente.md) — diseño original (implementado F0–F4; doc vivo en `modulos/asistente-ia.md`)
 
@@ -50,13 +50,14 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 - [Sucursales (Branches)](modulos/sucursales.md) — CRUD admin-empresa, feature flags por sucursal
 - [Paneles Admin](modulos/paneles-admin.md) — dashboards por rol, navegación contextual
 - [Agenda](modulos/agenda.md) — pendientes/recordatorios por rol, recurrencia, ICS, captura IA
+- [Avisos](modulos/avisos.md) — notificaciones que se guardan además de emitirse; hoy, el circuito de cancelaciones
 
 ### IA
 - [Asistente Conversacional](modulos/asistente-ia.md) — chat texto+voz, 9 tools de lectura, 6 de borrador con confirmación humana
 
 ## Frontend
 
-- [Cola de Ventas](frontend/cola-ventas.md) — composable useSaleQueue, suscripción Echo, UI de cobro
+- [Cola de Ventas](frontend/cola-ventas.md) — composables useSaleQueue / useBranchRealtime, canal compartido, UI de cobro
 - [Pantallas del Cajero](frontend/pantallas-cajero.md) — OpenShift, Queue, Dashboard, Shift
 
 ## Guías
@@ -71,18 +72,19 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 ---
 
-## Estado del sistema (2026-07-06)
+## Estado del sistema (2026-08-23)
 
 | Área | Estado |
 |------|--------|
-| Núcleo (auth, roles, tenancy, CRUD, API básculas, tiempo real, cajero, paneles) | ✅ Completo (fases 1–7 originales) |
+| Núcleo (auth, roles, tenancy, CRUD, API básculas, tiempo real, cajero, paneles) | ✅ Completo (fases 1–7 originales) · desde 2026-08-23 el tiempo real tiene sondeo de respaldo, estado visible y avisos persistentes ([doc](arquitectura/reverb-websockets.md)) |
 | Pedidos web / Menú online | ✅ Completo · **oculto tras `FEATURE_WEB_ORDERS` (off por default)** desde 2026-07-08 |
 | Clientes (fiado, precios preferenciales, cobro global FIFO) | ✅ Completo · desde 2026-08-05 el cajero tiene su propio módulo opcional por sucursal (sin precios preferenciales) · desde 2026-08-11 los teléfonos son E.164 y capturar uno en una venta resuelve o crea el cliente ([doc](modulos/clientes-telefonos.md)) |
 | Comprobantes de pago (transferencias) | ✅ Completo · web (Sucursal y Caja) · paridad con hub pendiente |
 | Gastos (con captura IA) | ✅ Completo |
 | Compras + Proveedores + CxP (con captura IA) | ✅ Completo (sin inventario activo, por diseño) |
 | Métricas (9 ejes + Resumen con utilidad) | ✅ Completo |
-| Agenda | ✅ Completo |
+| Agenda | ✅ Completo · `AgendaItemAssigned` se emite pero ningún cliente lo escucha todavía |
+| Avisos persistentes | ✅ Circuito de cancelaciones (solicitud, aprobación, rechazo) · base lista para más ([doc](modulos/avisos.md)) |
 | Asistente IA conversacional | ✅ F0–F4 · ✅ mini-app móvil `/{tenant}/asistente` completa (F0–F5: cobro FIFO a clientes, pago a cuenta FIFO a proveedores, modo simple, cajero operativo, retiros y cambio de precios) · pendiente F5-config asistida y F6 parcial del spec original · TTS off en UI |
 | API del Hub (Electron, Sanctum, idempotencia) | ✅ Fase 1 backend · offline con cola en el cliente pendiente (repo `carniceria-hub`) |
 | Inventario / stock | ❌ No iniciado (fase futura F-Inv1+) |
