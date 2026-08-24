@@ -15,6 +15,7 @@ use App\Services\ShiftVerdictService;
 use App\Services\WhatsappMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class ShiftController extends Controller
 {
@@ -34,15 +35,42 @@ class ShiftController extends Controller
 
     public function open(Request $request): JsonResponse
     {
-        $validated = $request->validate(['opening_amount' => 'nullable|numeric|min:0']);
+        $validated = $request->validate([
+            'opening_amount' => 'nullable|numeric|min:0',
+            // La hora real de apertura cuando la caja se abrió sin internet. El
+            // servicio la acota; aquí solo se comprueba que sea una fecha.
+            'opened_at' => 'nullable|date',
+            'client_reference' => 'nullable|string|max:64',
+        ]);
+
+        $clientReference = $validated['client_reference'] ?? null;
+
+        // El hub manda ISO-8601 en UTC y la app trabaja en America/Mexico_City:
+        // se convierte explícitamente para que no se cuelen 6 h de desfase en la
+        // columna que define la ventana del dinero.
+        $openedAt = isset($validated['opened_at'])
+            ? Carbon::parse($validated['opened_at'])->setTimezone(config('app.timezone'))
+            : null;
+
+        $yaExistia = $clientReference !== null
+            && CashRegisterShift::where('user_id', $request->user()->id)
+                ->where('client_reference', $clientReference)
+                ->exists();
 
         try {
-            $shift = $this->shifts->open($request->user(), (float) ($validated['opening_amount'] ?? 0));
+            $shift = $this->shifts->open(
+                $request->user(),
+                (float) ($validated['opening_amount'] ?? 0),
+                $openedAt,
+                $clientReference,
+            );
         } catch (ShiftAlreadyOpenException $e) {
             return response()->json(['message' => $e->getMessage()], 409);
         }
 
-        return ShiftResource::make($shift)->response()->setStatusCode(201);
+        return ShiftResource::make($shift)
+            ->response()
+            ->setStatusCode($yaExistia ? 200 : 201);
     }
 
     public function close(Request $request): JsonResponse

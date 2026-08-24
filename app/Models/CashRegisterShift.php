@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'tenant_id', 'branch_id', 'user_id',
-    'opened_at', 'opening_amount', 'closed_at',
+    'opened_at', 'opening_amount', 'client_reference', 'closed_at',
     'total_cash', 'total_card', 'total_transfer', 'total_cash_expenses', 'total_cash_provider_payments', 'total_sales', 'sale_count',
     'sales_generated_amount', 'sales_generated_count',
     'collections_from_today_amount', 'collections_from_previous_amount',
