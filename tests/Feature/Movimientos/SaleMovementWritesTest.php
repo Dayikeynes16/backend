@@ -5,8 +5,10 @@ namespace Tests\Feature\Movimientos;
 use App\Enums\AuditEvent;
 use App\Enums\SaleStatus;
 use App\Models\AuditLog;
+use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\AssignCustomerToSale;
 use App\Services\SaleItemEditor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
@@ -162,5 +164,59 @@ class SaleMovementWritesTest extends TestCase
         $log = $this->lastLog(AuditEvent::PaymentDeleted);
         $this->assertSame(-300.0, (float) $log->amount_effect);
         $this->assertSame('transfer', $log->changes['method']);
+    }
+
+    public function test_cancelar_una_venta_resta_su_total(): void
+    {
+        $sale = $this->activeSale(450);
+
+        $sale->forceFill([
+            'status' => SaleStatus::Cancelled,
+            'cancel_reason' => 'Cliente se arrepintió',
+        ])->save();
+
+        $log = $this->lastLog(AuditEvent::Cancelled);
+        $this->assertSame(-450.0, (float) $log->amount_effect);
+        $this->assertSame('Cliente se arrepintió', $log->changes['reason']);
+    }
+
+    public function test_reabrir_una_venta_cobrada_no_mueve_dinero(): void
+    {
+        $sale = $this->activeSale(120);
+        $sale->forceFill(['status' => SaleStatus::Completed, 'completed_at' => now()])->save();
+
+        $sale->forceFill(['status' => SaleStatus::Active])->save();
+
+        // Reabrir habilita mover dinero, no lo mueve: efecto nulo a propósito,
+        // para que no ensucie el neto del periodo.
+        $log = $this->lastLog(AuditEvent::Reopened);
+        $this->assertNull($log->amount_effect);
+    }
+
+    public function test_asignar_y_quitar_cliente_se_ven_pero_no_suman(): void
+    {
+        $sale = $this->activeSale(80);
+        $customer = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Doña Mari',
+            'phone' => '5551234567',
+            'status' => 'active',
+        ]);
+
+        $service = app(AssignCustomerToSale::class);
+        $service->execute($sale, $customer->id, $this->branch->id);
+
+        // Pasar la venta a fiado saca el dinero del efectivo del día pero no lo
+        // pierde: se ve en la lista, en gris, fuera del neto.
+        $assigned = $this->lastLog(AuditEvent::CustomerAssigned);
+        $this->assertNull($assigned->amount_effect);
+        $this->assertSame('Doña Mari', $assigned->changes['customer']);
+
+        $service->execute($sale->fresh(), null, $this->branch->id);
+
+        $removed = $this->lastLog(AuditEvent::CustomerRemoved);
+        $this->assertNull($removed->amount_effect);
+        $this->assertSame('Doña Mari', $removed->changes['customer']);
     }
 }
