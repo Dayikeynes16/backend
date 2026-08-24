@@ -51,6 +51,9 @@ const { sales: queuedSales } = useSaleQueue(props.branchId);
 const { live, recovering, refreshSoon } = useBranchRealtime(props.branchId, {
     handlers: {
         SaleUpdated: (e, soon) => soon(),
+        // Un cobro global FIFO toca varias ventas de golpe y llega como un
+        // único aviso, no como una ráfaga de SaleUpdated.
+        CustomerGlobalPaymentChanged: (e, soon) => soon(),
     },
     refresh: () => router.reload({ only: ['sales'], preserveScroll: true }),
 });
