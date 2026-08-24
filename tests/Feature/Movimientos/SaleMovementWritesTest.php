@@ -9,8 +9,11 @@ use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Services\AssignCustomerToSale;
+use App\Services\AuditLogger;
 use App\Services\SaleItemEditor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request as HttpRequest;
+use Illuminate\Support\Facades\Facade;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
 
@@ -218,5 +221,81 @@ class SaleMovementWritesTest extends TestCase
         $removed = $this->lastLog(AuditEvent::CustomerRemoved);
         $this->assertNull($removed->amount_effect);
         $this->assertSame('Doña Mari', $removed->changes['customer']);
+    }
+
+    public function test_el_registro_guarda_desde_donde_se_hizo_el_cambio(): void
+    {
+        $sale = $this->activeSale(680);
+        $payment = Payment::create([
+            'sale_id' => $sale->id,
+            'user_id' => $this->cajero->id,
+            'method' => 'cash',
+            'amount' => 680,
+        ]);
+
+        $this->actingAs($this->adminSucursal)
+            ->withServerVariables([
+                'REMOTE_ADDR' => '187.190.1.20',
+                'HTTP_USER_AGENT' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            ])
+            ->put(
+                route('sucursal.workbench.payment.update', [$this->tenant->slug, $sale->id, $payment->id]),
+                ['amount' => 380, 'method' => 'cash'],
+            );
+
+        // Sin esto la pantalla no sirve para lo que se pidió: el dueño necesita
+        // reconocer si un cambio hecho con su cuenta salió del equipo de siempre.
+        $log = $this->lastLog(AuditEvent::PaymentUpdated);
+        $this->assertSame('187.190.1.20', $log->ip_address);
+        $this->assertStringContainsString('Windows', $log->user_agent);
+    }
+
+    public function test_un_cambio_sin_datos_de_equipo_no_inventa_contexto(): void
+    {
+        // El caso de un comando programado o un job de cola: hay request en el
+        // contenedor, pero es sintético y no trae ni REMOTE_ADDR ni User-Agent.
+        // Las dos columnas son nullable a propósito — «no sé de dónde vino» y
+        // «vino de un equipo cualquiera» no son lo mismo.
+        $sale = $this->activeSale(100);
+
+        $request = HttpRequest::create('/interno', 'POST');
+        $request->server->remove('REMOTE_ADDR');
+        $request->server->remove('HTTP_USER_AGENT');
+        $request->headers->remove('User-Agent');
+        app()->instance('request', $request);
+        Facade::clearResolvedInstance('request');
+
+        app(AuditLogger::class)->logSaleReopened($sale, $this->adminSucursal->id);
+
+        $log = $this->lastLog(AuditEvent::Reopened);
+        $this->assertNull($log->ip_address);
+        $this->assertNull($log->user_agent);
+        $this->assertSame($this->adminSucursal->id, $log->user_id);
+    }
+
+    public function test_un_user_agent_larguisimo_no_revienta_la_columna(): void
+    {
+        // `user_agent` es varchar(255). Un navegador raro con una cadena más
+        // larga tumbaría la escritura del pago entero, no solo su registro.
+        $sale = $this->activeSale(200);
+        $payment = Payment::create([
+            'sale_id' => $sale->id,
+            'user_id' => $this->cajero->id,
+            'method' => 'cash',
+            'amount' => 200,
+        ]);
+
+        $this->actingAs($this->adminSucursal)
+            ->withServerVariables([
+                'REMOTE_ADDR' => '10.0.0.5',
+                'HTTP_USER_AGENT' => str_repeat('A', 400),
+            ])
+            ->put(
+                route('sucursal.workbench.payment.update', [$this->tenant->slug, $sale->id, $payment->id]),
+                ['amount' => 150, 'method' => 'cash'],
+            );
+
+        $log = $this->lastLog(AuditEvent::PaymentUpdated);
+        $this->assertSame(255, mb_strlen($log->user_agent));
     }
 }
