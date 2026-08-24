@@ -11,6 +11,7 @@ use App\Models\CashRegisterShift;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\User;
+use App\Services\AuditLogger;
 use App\Services\SalePaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -278,8 +279,21 @@ class PaymentController extends Controller
         ]);
 
         DB::transaction(function () use ($foundPayment, $foundSale, $user, $validated) {
+            // Antes del update: después, el monto anterior no existe en ningún lado.
+            $amountBefore = (float) $foundPayment->amount;
+            $methodBefore = (string) $foundPayment->method;
+
             $foundPayment->update(array_merge($validated, ['updated_by' => $user->id]));
             $this->payments->recalculate($foundSale, $user);
+
+            app(AuditLogger::class)->logPaymentUpdated(
+                $foundSale,
+                $amountBefore,
+                (float) $validated['amount'],
+                $methodBefore,
+                (string) $validated['method'],
+                $user->id,
+            );
         });
 
         $this->broadcastSaleUpdate($foundSale);
@@ -305,8 +319,13 @@ class PaymentController extends Controller
         }
 
         DB::transaction(function () use ($foundPayment, $foundSale, $user) {
+            $amount = (float) $foundPayment->amount;
+            $method = (string) $foundPayment->method;
+
             $foundPayment->delete();
             $this->payments->recalculate($foundSale, $user);
+
+            app(AuditLogger::class)->logPaymentDeleted($foundSale, $amount, $method, $user->id);
         });
 
         $this->broadcastSaleUpdate($foundSale);

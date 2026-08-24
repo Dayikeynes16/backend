@@ -23,6 +23,8 @@ use Illuminate\Support\Facades\Log;
  */
 class AssignCustomerToSale
 {
+    public function __construct(private AuditLogger $audit = new AuditLogger) {}
+
     /**
      * @return array{skipped_piece_presentations: array<string>, had_payments: bool}
      */
@@ -30,6 +32,12 @@ class AssignCustomerToSale
     {
         $hadPayments = $sale->payments()->exists();
         $skippedPiecePresentations = [];
+
+        // Punto único de registro: los tres controladores que asignan cliente
+        // (sucursal, caja y hub) pasan por aquí, así que Movimientos los ve a
+        // los tres sin que ninguno tenga que acordarse.
+        $sale->loadMissing('customer:id,name');
+        $previousCustomerName = $sale->customer?->name;
 
         DB::transaction(function () use ($sale, $customerId, $branchId, &$skippedPiecePresentations) {
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$sale->branch_id]);
@@ -113,6 +121,15 @@ class AssignCustomerToSale
 
             $sale->update($updateData);
         });
+
+        // No monetario a propósito: pasar una venta a fiado saca el dinero del
+        // efectivo del día pero no lo pierde. Se ve en Movimientos, fuera del neto.
+        if ($customerId) {
+            $assigned = Customer::withoutGlobalScopes()->find($customerId);
+            $this->audit->logCustomerAssigned($sale, $assigned?->name ?? "#{$customerId}");
+        } elseif ($previousCustomerName !== null) {
+            $this->audit->logCustomerRemoved($sale, $previousCustomerName);
+        }
 
         try {
             SaleUpdated::dispatch($sale->fresh());

@@ -28,6 +28,9 @@ const baseNavLinks = [
     { label: 'Compras', route: 'sucursal.compras.index', match: 'sucursal.compras', extraMatch: ['sucursal.productos-compra', 'sucursal.proveedores'], icon: 'compras' },
     { label: 'Gastos', route: 'sucursal.gastos.index', match: 'sucursal.gastos', icon: 'gastos' },
     { label: 'Cortes', route: 'sucursal.cortes.index', match: 'sucursal.cortes', icon: 'cortes' },
+    // Solo si la empresa se lo habilitó a esta sucursal: la pantalla vigila a
+    // quien opera la caja, y esta cuenta es una de las que puede estar en duda.
+    { label: 'Movimientos', route: 'sucursal.movimientos.index', match: 'sucursal.movimientos', icon: 'movimientos', feature: 'branch_admin_movements_enabled' },
     { label: 'Métricas', route: 'sucursal.metricas.index', match: 'sucursal.metricas', icon: 'metricas' },
     { label: 'Asistente', route: 'asistente.index', match: 'asistente.', icon: 'asistente' },
     { label: 'Menú online', route: 'sucursal.menu-online', icon: 'menuqr' },
@@ -36,9 +39,13 @@ const baseNavLinks = [
 
 const webOrders = computed(() => page.props.features?.webOrders ?? false);
 
-const navLinks = computed(() =>
-    webOrders.value ? baseNavLinks : baseNavLinks.filter(link => link.route !== 'sucursal.menu-online')
-);
+const navLinks = computed(() => baseNavLinks.filter((link) => {
+    if (link.route === 'sucursal.menu-online' && !webOrders.value) return false;
+    // Feature flag de sucursal: la ruta ya lo exige con branch.feature; esto
+    // evita ofrecer un item que llevaría a un 403.
+    if (link.feature && !page.props.auth?.branch?.[link.feature]) return false;
+    return true;
+}));
 
 const isActive = (link) => {
     if (link.match) {
@@ -50,6 +57,7 @@ const isActive = (link) => {
 };
 
 const iconPaths = {
+    movimientos: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
     dashboard: 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z',
     agenda: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5',
     productos: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z',
