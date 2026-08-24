@@ -1,8 +1,10 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
+import { subscribeToBranch } from '@/lib/branchChannel';
 
 export function useSaleLock(branchId, userId, lockRoute, unlockRoute, heartbeatRoute) {
     const lockedSales = ref({}); // { saleId: { by: userId, name: userName } }
+    let unsubscribe = null;
     let heartbeatInterval = null;
     let currentLockedSaleId = null;
     let handleBeforeUnload = null;
@@ -79,17 +81,18 @@ export function useSaleLock(branchId, userId, lockRoute, unlockRoute, heartbeatR
 
     // Listen for lock/unlock events via Echo + setup beforeunload
     onMounted(() => {
-        if (branchId && window.Echo) {
-            window.Echo.private(`sucursal.${branchId}`)
-                .listen('SaleLocked', (e) => {
-                    // Ignore own lock events — only track other users
-                    if (e.locked_by === userId) return;
-                    lockedSales.value[e.sale_id] = { by: e.locked_by, name: e.locked_by_name };
-                })
-                .listen('SaleUnlocked', (e) => {
-                    delete lockedSales.value[e.sale_id];
-                });
-        }
+        // Canal compartido: aquí sólo se enganchan estos dos handlers, y al
+        // desmontar sólo se desenganchan ellos (ver lib/branchChannel.js).
+        unsubscribe = subscribeToBranch(branchId, {
+            SaleLocked: (e) => {
+                // Ignore own lock events — only track other users
+                if (e.locked_by === userId) return;
+                lockedSales.value[e.sale_id] = { by: e.locked_by, name: e.locked_by_name };
+            },
+            SaleUnlocked: (e) => {
+                delete lockedSales.value[e.sale_id];
+            },
+        });
 
         // Best-effort unlock on page close / refresh
         handleBeforeUnload = () => {
@@ -114,11 +117,7 @@ export function useSaleLock(branchId, userId, lockRoute, unlockRoute, heartbeatR
             window.removeEventListener('beforeunload', handleBeforeUnload);
             handleBeforeUnload = null;
         }
-        if (branchId && window.Echo) {
-            window.Echo.private(`sucursal.${branchId}`)
-                .stopListening('SaleLocked')
-                .stopListening('SaleUnlocked');
-        }
+        if (unsubscribe) unsubscribe();
     });
 
     return {

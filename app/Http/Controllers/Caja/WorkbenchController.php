@@ -18,11 +18,11 @@ use App\Services\AssignCustomerToSale;
 use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\OrderLinkService;
 use App\Services\WhatsappMessageService;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Enum;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -113,11 +113,11 @@ class WorkbenchController extends Controller
         }
 
         $sale->update(['status' => $targetStatus]);
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         $msg = $targetStatus === SaleStatus::Pending
             ? "Venta {$sale->folio} marcada como pendiente."

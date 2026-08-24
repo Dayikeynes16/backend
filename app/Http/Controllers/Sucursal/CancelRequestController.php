@@ -8,11 +8,11 @@ use App\Http\Controllers\Concerns\ResolvesMetricsRequest;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Services\RecalculateClosedShifts;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -115,11 +115,11 @@ class CancelRequestController extends Controller
             }
         });
 
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         $msg = "Venta {$sale->folio} cancelada.";
         if ($wasCompleted) {

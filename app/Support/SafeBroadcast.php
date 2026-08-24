@@ -32,4 +32,28 @@ final class SafeBroadcast
             Log::warning("{$event} broadcast failed", $context + ['error' => $e->getMessage()]);
         }
     }
+
+    /**
+     * Igual que `dispatch()`, pero sin devolverle el evento a quien lo provocó.
+     *
+     * En la web, quien cobra una venta ya recibe la venta actualizada en la
+     * respuesta de Inertia; el eco de su propio evento sólo disparaba una
+     * segunda recarga inmediata de los mismos datos. Laravel excluye al emisor
+     * por el `X-Socket-ID` que Echo inyecta en las peticiones de axios.
+     *
+     * Si no hay socket id —una petición del hub con token, una báscula, un
+     * comando de consola— el evento llega a todos, como antes. Las otras
+     * pestañas del mismo usuario tienen su propio socket y también lo reciben.
+     *
+     * @param  object  $event  Debe usar `InteractsWithSockets`.
+     * @param  array<string, mixed>  $context
+     */
+    public static function toOthers(object $event, string $name, array $context = []): void
+    {
+        try {
+            broadcast($event)->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning("{$name} broadcast failed", $context + ['error' => $e->getMessage()]);
+        }
+    }
 }
