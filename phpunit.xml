@@ -32,5 +32,9 @@
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="FEATURE_WEB_ORDERS" value="true" force="true"/>
+        <!-- Clave falsa a propósito: los tests de dictado hacen Http::fake() y nunca salen a
+             internet, pero OpenAiClient exige que la clave exista. Con force, unas pruebas mal
+             falseadas tampoco pueden gastar la clave real de quien las corra en su máquina. -->
+        <env name="OPENAI_API_KEY" value="sk-testing-no-es-una-clave-real" force="true"/>
     </php>
 </phpunit>
