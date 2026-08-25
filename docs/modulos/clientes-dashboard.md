@@ -61,7 +61,6 @@ Todos retornan JSON. El `Accept: application/json` se envía desde `useCustomerS
 - `resources/js/Pages/Sucursal/Clientes/Index.vue` — refactor con tabs
 - `resources/js/Components/Clientes/StatCard.vue` — card métrica reutilizable
 - `resources/js/Components/Clientes/SaleDetailModal.vue` — modal de venta (lazy fetch)
-- `resources/js/Components/Clientes/DateRangePicker.vue` — chips preset + inputs grandes
 - `resources/js/Components/Clientes/PriceEditor.vue` — edición inline grande con diff en vivo
 - `resources/js/composables/useCustomerStats.js` — fetch + abort + cache por cliente
 
@@ -69,7 +68,7 @@ Todos retornan JSON. El `Accept: application/json` se envía desde `useCustomerS
 
 - Finanzas: cualquier fila de "Ventas con saldo" o "Últimos pagos" abre `SaleDetailModal` en 1 click (lazy load, sin recarga).
 - Compras: filas clickeables → modal. Se eliminó el expand inline — la info va al modal con padding generoso y banner de ahorro total por venta.
-- DateRangePicker: 7 presets (Hoy, Ayer, 7d, 30d, Este mes, Mes pasado, Todo) + inputs grandes (h-11). Valida que `from <= to`. Botón Aplicar muestra spinner mientras carga.
+- Selección de rango: el spec previó un `DateRangePicker` propio de Clientes, pero **no llegó a existir**. Los presets de fecha viven solo en Métricas (`resources/js/Components/Metrics/DateRangeFilter.vue` + `resources/js/composables/useDateRange.js`), que esta pantalla no consume. *(Verificado el 2026-08-23.)*
 - PriceEditor: se expande a card grande con input h-12, muestra diff en vivo ("Ahorra $30 (23%)"), Guardar/Cancelar altos con Enter/Esc como atajos.
 - Eliminación de precio: ahora pasa por confirm dialog en lugar de delete directo.
 

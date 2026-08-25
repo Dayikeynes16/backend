@@ -38,7 +38,7 @@ Y el alcance de la función: **deja ver lo que pasó, no lo impide**. Contra una
 
 ## 3. Dónde vive el registro
 
-En `audit_logs`, la tabla que ya usaban gastos y compras a través de `AuditLogger`. Ganó cuatro columnas (migración `2026_08_21_134244`):
+En `audit_logs`, la tabla que ya usaban gastos y compras a través de `AuditLogger` — la infraestructura común está documentada en [arquitectura/auditoria.md](../arquitectura/auditoria.md). Ganó cuatro columnas (migración `2026_08_21_134244`):
 
 | Columna | Para qué |
 |---|---|

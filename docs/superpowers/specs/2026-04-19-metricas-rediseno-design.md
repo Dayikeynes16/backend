@@ -3,7 +3,7 @@
 **Fecha:** 2026-04-19
 **Alcance:** Panel `admin-sucursal`, rutas bajo `/{tenant}/sucursal/metricas/*`.
 **Autor:** Sebas + Claude (brainstorming colaborativo).
-**Estado:** Diseño aprobado por el usuario; pendiente spec-review y plan de implementación.
+**Estado:** Implementado — doc vivo: [Métricas](../../modulos/metricas.md)
 
 ---
 

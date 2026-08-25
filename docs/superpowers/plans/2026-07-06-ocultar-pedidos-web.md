@@ -581,7 +581,7 @@ Agregar tras el título:
 ```markdown
 > **Estado:** implementado · **OCULTO tras `FEATURE_WEB_ORDERS=false`** desde 2026-07-06 (no se usa; se apagó para despejar el panel). El código y los datos están intactos.
 >
-> **Reactivar:** `FEATURE_WEB_ORDERS=true` en `.env` + `sail artisan config:clear` (+ `config:cache` si aplica en prod). Diseño del apagado: [`2026-07-06-ocultar-pedidos-web-design.md`](../superpowers/specs/2026-07-06-ocultar-pedidos-web-design.md).
+> **Reactivar:** `FEATURE_WEB_ORDERS=true` en `.env` + `sail artisan config:clear` (+ `config:cache` si aplica en prod). Diseño del apagado: [`2026-07-06-ocultar-pedidos-web-design.md`](../specs/2026-07-06-ocultar-pedidos-web-design.md).
 ```
 
 - [ ] **Step 2: `docs/README.md` — fila de la tabla "Estado del sistema"**

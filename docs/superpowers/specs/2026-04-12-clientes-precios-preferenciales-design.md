@@ -1,6 +1,7 @@
 # Clientes con Precios Preferenciales
 
 **Fecha:** 2026-04-12
+**Estado:** Implementado — doc vivo: [Clientes — Dashboard](../../modulos/clientes-dashboard.md)
 **Status:** Aprobado
 **Scope:** Módulo nuevo — CRUD de clientes por sucursal, precios fijos preferenciales por producto, asignación de cliente a ventas existentes con recálculo automático.
 

@@ -1,6 +1,6 @@
 # Del pago a su venta
 
-- **Estado:** en implementación
+- **Estado:** Implementado (2026-08-21) — doc vivo: [Ventas](../../modulos/ventas.md)
 - **Fecha:** 2026-08-21
 - **Repos afectados:** `carniceria-saas` (Pagos e Historial, cajero y sucursal). **El hub queda fuera a propósito** — ver §7.
 - **Alcance:** navegación y lectura. No cambia cómo se registran, editan o cancelan pagos, ni el reparto FIFO de un cobro global.

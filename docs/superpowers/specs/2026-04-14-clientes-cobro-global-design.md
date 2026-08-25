@@ -2,7 +2,7 @@
 
 **Fecha**: 2026-04-14
 **Autor**: Brainstorming sesión (Sebastián + Claude)
-**Estado**: Aprobado para implementación (rev 2 — opción B con entidad padre)
+**Estado:** Implementado — doc vivo: [Clientes — Cobro Global](../../modulos/clientes-cobro-global.md)
 **Módulo afectado**: Clientes / Finanzas / Pagos
 
 ---

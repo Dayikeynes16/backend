@@ -1,7 +1,7 @@
 # Catálogo de productos de compra — Diseño congelado
 
 **Fecha:** 2026-05-20
-**Estado:** Aprobado para implementación
+**Estado:** Implementado — doc vivo: [Compras](../../modulos/compras.md)
 **Autor:** colaboración con Claude (exploración + propuesta)
 
 ## Objetivo

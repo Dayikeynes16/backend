@@ -1,7 +1,7 @@
 # Clientes — Rediseño: lista amplia + página detalle dedicada
 
 **Fecha:** 2026-05-16
-**Estado:** aprobado para implementar
+**Estado:** Implementado — doc vivo: [Clientes — Dashboard](../../modulos/clientes-dashboard.md)
 **Alcance:** UX del módulo Clientes en Sucursal. Cero cambios al núcleo del API existente: los endpoints `stats`, `history`, `topProducts`, `payments`, `saleDetail`, `cobro-global` y de precios preferenciales se mantienen idénticos.
 
 ## Motivación

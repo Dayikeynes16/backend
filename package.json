@@ -6,7 +6,8 @@
         "build": "vite build",
         "dev": "vite",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "check:docs": "node scripts/check-docs.mjs"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^2.0.0",

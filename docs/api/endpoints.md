@@ -1,8 +1,25 @@
-# Endpoints API Pública
+# Endpoints API de básculas (`/api/v1/*`)
+
+Superficie que consumen las básculas: `bascula` (tablets Surface) y `bascula-android`. Ambas hablan directo con la nube; las básculas emparejadas a un hub usan además la API local del hub, que es un contrato distinto.
 
 **Base URL:** `/api/v1/`
 **Autenticación:** header `X-Api-Key: {key}`
 **Formato:** JSON · UTF-8
+**Rate limit:** 60 req/min por key
+
+---
+
+> ## ⚠️ Esta API no admite cambios incompatibles
+>
+> **Hay básculas en producción que no se auto-actualizan.** Un cambio incompatible aquí no falla en las pruebas: falla en el mostrador, dejando equipos sin poder vender hasta que alguien vaya físicamente a actualizarlos.
+>
+> **Está prohibido:** quitar un campo de una respuesta, renombrarlo, cambiar su tipo o su formato, volver requerido un parámetro que era opcional, cambiar un código de estado, o retirar un endpoint.
+>
+> **Todo cambio debe ser aditivo:** campos nuevos siempre opcionales, con un valor por defecto para el cliente que no los mande.
+>
+> **Precedente a seguir** — al añadir el nombre de venta (2026-08-13), `origin_name` se definió opcional precisamente con esta garantía: *las básculas viejas no lo mandan y todo sigue funcionando igual*. Ver `docs/superpowers/plans/2026-08-13-nombre-en-venta-de-bascula.md`.
+>
+> Si un cambio no puede ser aditivo, la salida no es romper el contrato: es versionar la superficie (`/api/v2/`) y mantener v1 viva mientras queden equipos usándola.
 
 ---
 
@@ -26,6 +43,28 @@ Información de la sucursal asociada a la API Key.
     }
 }
 ```
+
+---
+
+## GET /api/v1/categories
+
+Categorías activas de la sucursal, para agrupar el catálogo en la interfaz de la báscula. Sin paginación: se devuelven todas, ordenadas por nombre.
+
+**Controller:** `Api\CategoryController@index`
+
+**Respuesta 200:**
+
+```json
+{
+    "data": [
+        { "id": 3, "name": "Cerdo" },
+        { "id": 1, "name": "Res" },
+        { "id": 2, "name": "Pollo" }
+    ]
+}
+```
+
+Solo devuelve `id` y `name`, y únicamente las categorías con `status = 'active'` de la sucursal a la que pertenece la API Key.
 
 ---
 

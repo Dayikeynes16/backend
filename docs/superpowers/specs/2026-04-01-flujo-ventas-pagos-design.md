@@ -1,6 +1,7 @@
 # Flujo de Ventas y Pagos — Spec de Diseño
 
 **Fecha:** 2026-04-01
+**Estado:** Implementado — doc vivo: [Ventas](../../modulos/ventas.md)
 **Enfoque seleccionado:** B — Chips en Mesa de Trabajo + Sección de Pagos separada
 
 ---

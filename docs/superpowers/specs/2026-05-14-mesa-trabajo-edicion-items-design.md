@@ -1,7 +1,7 @@
 # Mesa de Trabajo — Edición de items + auditoría
 
 **Fecha:** 2026-05-14
-**Estado:** aprobado para implementar
+**Estado:** Implementado — doc vivo: [Ventas](../../modulos/ventas.md)
 **Alcance:** que admin-sucursal pueda editar/agregar/eliminar items de una venta Active/Pending directamente desde la Mesa de Trabajo, con auditoría completa de los cambios y configuración del flujo por sucursal.
 
 ## Motivación

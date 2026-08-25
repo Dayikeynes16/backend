@@ -9,17 +9,20 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 ## Arquitectura
 
+- **[El ecosistema: las cinco aplicaciones](arquitectura/ecosistema.md)** — mapa de `carniceria-saas`, `carniceria-hub`, `hub-android`, `bascula` y `bascula-android`: cómo se comunican, las cuatro superficies de API, las reglas de compatibilidad y las decisiones estructurales. **Empieza por aquí.**
+- [Modelo de datos](arquitectura/modelo-de-datos.md) — las 46 tablas por dominio y las convenciones que se repiten
 - [Multitenancy](arquitectura/multitenant.md) — TenantScope, ResolveTenant, aislamiento por columna
-- [Roles y Permisos](arquitectura/roles-permisos.md) — 4 roles, Spatie Permission, redirección por rol
+- [Roles y permisos](arquitectura/roles-permisos.md) — 4 roles, 8 feature flags por sucursal, matriz por módulo
 - [Reverb y WebSockets](arquitectura/reverb-websockets.md) — canales privados, los siete eventos, sondeo de respaldo cuando el socket se cae
+- [Auditoría de cambios](arquitectura/auditoria.md) — `audit_logs`, el diff, y qué movimiento afecta al dinero
 - [Propuesta: módulo Compras](arquitectura/compras-modulo.md) — diseño original (implementado; doc vivo en `modulos/compras.md`)
 - [Propuesta: asistente IA](arquitectura/ia-asistente.md) — diseño original (implementado F0–F4; doc vivo en `modulos/asistente-ia.md`)
 
 ## API
 
 - [Autenticación por API Key](api/autenticacion-apikey.md) — middleware, hashing SHA-256, rate limiting (básculas)
-- [Endpoints públicos v1](api/endpoints.md) — API de básculas con ejemplos de request/response
-- [Errores](api/errores.md) — códigos de error y causas
+- [Endpoints de básculas v1](api/endpoints.md) — los 7 endpoints con ejemplos de request/response · ⚠️ **contrato que no admite cambios incompatibles**
+- [Errores](api/errores.md) — códigos de la Scale API, qué reintentar y qué no
 - [API del Hub](api/hub.md) — `/api/v1/hub/*` con Sanctum para la app de escritorio (Electron); idempotencia de pagos, realtime
 
 ## Módulos
@@ -43,6 +46,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 - [Comprobantes de pago](modulos/comprobantes-pago.md) — adjuntos de transferencias en pagos de venta y cobros globales, toggles por sucursal
 - [Gastos](modulos/gastos.md) — categorías/subcategorías, captura con IA (foto+voz+texto), adjuntos, turno
 - [Compras + Proveedores](modulos/compras.md) — CMV, cuentas por pagar, pagos FIFO, catálogo de insumos, captura IA
+- [Movimientos](modulos/movimientos.md) — qué se le hizo a una venta después de cobrarla
 - [Métricas](modulos/metricas.md) — glosario fuente de verdad: ventas, margen, utilidad, cobranza, cancelaciones
 
 ### Organización
@@ -57,11 +61,13 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 ## Frontend
 
-- [Cola de Ventas](frontend/cola-ventas.md) — composables useSaleQueue / useBranchRealtime, canal compartido, UI de cobro
-- [Pantallas del Cajero](frontend/pantallas-cajero.md) — OpenShift, Queue, Dashboard, Shift
+- [Cola de ventas](frontend/cola-ventas.md) — `useSaleQueue` / `useBranchRealtime`, canal compartido, UI de cobro
+- [Pantallas del cajero](frontend/pantallas-cajero.md) — mesa de trabajo, turno, corte, historial, pagos y los módulos opcionales
 
 ## Guías
 
+- **[Levantar el entorno local](guias/entorno-local.md)** — del clon al primer login, con los tropiezos conocidos
+- [Despliegue](guias/despliegue.md) — Laravel Cloud, publicación de las apps cliente y trampas conocidas
 - [Vincular báscula por QR](guias/vincular-bascula-por-qr.md)
 
 ## Otros
@@ -69,6 +75,14 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 - [Seeders y Datos Demo](seeders-demo.md) — usuarios de prueba y credenciales
 - `superpowers/specs/` — specs de diseño por iniciativa (históricos; ver header Estado de cada uno)
 - `superpowers/plans/` — planes de implementación (históricos)
+
+## Mantener esta documentación honesta
+
+```bash
+npm run check:docs
+```
+
+Verifica que los enlaces entre documentos resuelvan, que las rutas de archivo citadas en los **docs vivos** existan, y que cada spec declare su header `Estado:`. Corre en CI en cada push y cada pull request. No comprueba si el contenido es correcto — eso sigue siendo trabajo de quien hace el cambio.
 
 ---
 
@@ -87,4 +101,5 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 | Avisos persistentes | ✅ Circuito de cancelaciones (solicitud, aprobación, rechazo) · base lista para más ([doc](modulos/avisos.md)) |
 | Asistente IA conversacional | ✅ F0–F4 · ✅ mini-app móvil `/{tenant}/asistente` completa (F0–F5: cobro FIFO a clientes, pago a cuenta FIFO a proveedores, modo simple, cajero operativo, retiros y cambio de precios) · pendiente F5-config asistida y F6 parcial del spec original · TTS off en UI |
 | API del Hub (Electron, Sanctum, idempotencia) | ✅ Fase 1 backend · offline con cola en el cliente pendiente (repo `carniceria-hub`) |
+| Hub Android (`hub-android`) | 🟡 Núcleo completo · mismo protocolo que el hub Electron, verificado por la suite de conformidad · **pendiente de validación en tablet durante una jornada real** |
 | Inventario / stock | ❌ No iniciado (fase futura F-Inv1+) |

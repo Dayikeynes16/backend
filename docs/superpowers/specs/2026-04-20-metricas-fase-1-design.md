@@ -3,7 +3,7 @@
 **Fecha:** 2026-04-20
 **Alcance:** Backend de `app/Services/Metrics/*`, controllers de Sales, documentación y ajuste mínimo en `VentasContent.vue` (solo strings de labels). Ninguna pantalla nueva; ningún rediseño visual.
 **Autor:** Sebas + Claude (brainstorming colaborativo).
-**Estado:** Diseño aprobado por el usuario. Pendiente spec-review y plan de implementación (writing-plans).
+**Estado:** Implementado — doc vivo: [Métricas](../../modulos/metricas.md)
 **Relación con otros specs:**
 
 - Complementa `2026-04-19-metricas-rediseno-design.md` (rediseño UI general de 8 ejes → 3 tabs).

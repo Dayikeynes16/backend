@@ -2,7 +2,7 @@
 
 **Fecha**: 2026-04-17
 **Autor**: Brainstorming sesión (Sebastián + Claude)
-**Estado**: Aprobado para implementación (rev 2 — ajustes post-review)
+**Estado:** Implementado — doc vivo: [Pedidos Web](../../modulos/pedidos-web.md)
 **Módulo afectado**: Ventas / SaaS pública / Sucursales
 
 ---

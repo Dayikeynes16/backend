@@ -1,7 +1,7 @@
 # Retiros de efectivo para cajero + corte con desglose neto
 
 **Fecha:** 2026-07-02
-**Estado:** Aprobado (diseño)
+**Estado:** Implementado — doc vivo: [Corte de Caja](../../modulos/corte-de-caja.md)
 
 ## Contexto y problema
 

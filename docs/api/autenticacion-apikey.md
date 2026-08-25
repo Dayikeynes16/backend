@@ -1,6 +1,8 @@
 # Autenticación por API Key
 
-Toda la API pública (`/api/v1/*`) se autentica mediante una API Key enviada en el header `X-Api-Key`. No usa sesiones ni tokens JWT.
+Toda la API de básculas (`/api/v1/*`) se autentica mediante una API Key enviada en el header `X-Api-Key`. No usa sesiones ni tokens JWT.
+
+> ⚠️ **Esta superficie no admite cambios incompatibles**: hay básculas en producción que no se auto-actualizan. Antes de tocar cualquier cosa bajo `/api/v1/*`, lee la regla completa en [endpoints.md](endpoints.md).
 
 ## Responsabilidades
 
