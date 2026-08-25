@@ -1,23 +1,24 @@
-# El ecosistema: las cuatro aplicaciones
+# El ecosistema: las cinco aplicaciones
 
-Fuente de verdad del mapa del ecosistema. El producto no es una sola aplicación: son cuatro programas en cuatro repositorios que se reparten la operación de una carnicería, desde la báscula del mostrador hasta el panel del dueño.
+Fuente de verdad del mapa del ecosistema. El producto no es una sola aplicación: son cinco programas en cinco repositorios que se reparten la operación de una carnicería, desde la báscula del mostrador hasta el panel del dueño.
 
 Este documento describe **qué es cada aplicación, cómo se comunican y qué contratos no se pueden romper**. Los detalles de cada módulo viven en su doc propio; aquí solo está lo que se necesita para entender el conjunto.
 
 ## Responsabilidades
 
-- Describir las cuatro aplicaciones y el papel de cada una.
+- Describir las cinco aplicaciones y el papel de cada una.
 - Documentar los caminos por los que se comunican y con qué autenticación.
 - Fijar las reglas de compatibilidad entre repos, especialmente las que no se pueden romper.
 
 **No hace:** no documenta el funcionamiento interno de ningún módulo (eso está en `docs/modulos/`), ni el detalle de cada endpoint (eso está en `docs/api/`).
 
-## Las cuatro aplicaciones
+## Las cinco aplicaciones
 
 | Repo | Qué es | Stack | Corre en |
 |------|--------|-------|----------|
 | `carniceria-saas` | Aplicación web y backend. El centro del sistema. | Laravel 13 · PHP 8.5 · Vue 3 + Inertia 2 · PostgreSQL 18 · Reverb | Nube (Laravel Cloud) |
 | `carniceria-hub` | Hub local de sucursal, *offline-first*. Puente entre básculas y nube. | Electron · Vue 3 + Tailwind · Fastify · SQLite | PC de la sucursal |
+| `hub-android` | Hub de sucursal en Android. Mismo papel que `carniceria-hub`, en sucursales sin PC. | Kotlin · Ktor CIO · SQLite · núcleo JVM puro | Tablets Android |
 | `bascula` | Punto de venta de escritorio con báscula por puerto serie. | Electron · Vue 3 + Pinia + Tailwind · `serialport` | Tablets Surface (Windows) |
 | `bascula-android` | Punto de venta Android nativo con báscula por USB. | Kotlin · Jetpack Compose · Retrofit | Tablets Android |
 
@@ -36,6 +37,23 @@ Consume la API del hub (`/api/v1/hub/*`) con token Sanctum. Roles soportados: **
 **Dirección visual (decidida 2026-07-07):** la web es la fuente de verdad de UI/UX. El hub debe alcanzar paridad visual y de comportamiento con la web en todos los flujos compartidos; sus superficies exclusivamente locales (dispositivo, conexión, sincronización, básculas, impresoras, setup) se quedan, pero dentro del mismo sistema visual. **Material Design 3 quedó descartado** — no reintroducir `@material/web`.
 
 En el repo del hub: `carniceria-hub/docs/api-local.md` (el contrato con las básculas), `carniceria-hub/docs/sincronizacion.md` (la cola, el envío y la idempotencia), `carniceria-hub/docs/base-de-datos-local.md` (los respaldos) y `carniceria-hub/docs/direccion-visual.md` (el sistema visual).
+
+### `hub-android` — el hub de sucursal en Android
+
+Segunda implementación del hub, para sucursales donde no hay una PC. Una tablet Android hace de hub, y habla **el mismo protocolo que `carniceria-hub`**: puerto 4599, tipo de servicio mDNS `_carnihub._tcp.`, `protocol_version: 1` y los mismos 8 endpoints. Para una báscula es indistinguible cuál de los dos tiene enfrente, y esa indistinguibilidad es el punto.
+
+El código está partido en dos módulos, y la partición es deliberada:
+
+- **`:core` es JVM puro** — protocolo, outbox, política de reintentos, servidor Ktor, cliente de la nube. No importa nada de Android, así que el protocolo entero se prueba en la JVM sin emulador ni dispositivo.
+- **`:app`** aporta solo lo que existe únicamente en el teléfono: Foreground Service, `NsdManager`, `WifiLock`/`MulticastLock`, la SQLite del sistema y la interfaz en Compose.
+
+Corre como **Foreground Service de tipo `connectedDevice`**, no `dataSync`: Android 15 limita `dataSync` a seis horas diarias, lo que mataría el hub a media jornada.
+
+**Estado:** el núcleo está terminado y pasa la suite de conformidad completa contra sus dos respaldos (memoria y SQLite). Falta validarlo en la tablet durante una jornada real y comprobar que se levanta solo tras un reinicio.
+
+Ver `hub-android/docs/plan.md`, `hub-android/docs/instalacion.md` y `hub-android/docs/releases.md`.
+
+> El repositorio `hub-android-spike` **no es una aplicación del producto**: es el instrumento de medición con el que se comprobó que Android podía sostener un servicio durante una jornada completa (9,37 h sin reinicios del servicio, con Doze estirando los temporizadores ~1,9×). Se conserva como evidencia de esa medición, no como código a mantener.
 
 ### `bascula` — el POS de escritorio (Surface)
 
@@ -62,11 +80,12 @@ Aplicación nativa, **no** un envoltorio de WebView. Habla la misma Scale API qu
           │                        Scale API  │        │  por equipo)
           │                        X-Api-Key  │        │
           │                                   │        ▼
-          │                                   │   ┌─────────────────┐
-          │                                   │   │  carniceria-hub │
-          │                                   │   │  Fastify :4599  │
-          │                                   │   │  outbox SQLite  │
-          │                                   │   └────────┬────────┘
+          │                                   │   ┌──────────────────────────┐
+          │                                   │   │     hub de sucursal      │
+          │                                   │   │  carniceria-hub (PC)  ó  │
+          │                                   │   │  hub-android (tablet)    │
+          │                                   │   │   :4599 · outbox SQLite  │
+          │                                   │   └────────┬─────────────────┘
           │                                   │            │ API del hub
           │                                   │            │ Sanctum
           ▼                                   ▼            ▼
@@ -78,6 +97,8 @@ Aplicación nativa, **no** un envoltorio de WebView. Habla la misma Scale API qu
 
 Una báscula Android puede hablar con la nube, con el hub, o con ambos según su configuración. Las Surface hablan siempre directo con la nube.
 
+El hub de la sucursal es **una de dos implementaciones** — `carniceria-hub` sobre una PC o `hub-android` sobre una tablet — y la báscula no distingue cuál es. Las dos exponen la misma API local y se anuncian con el mismo tipo de servicio mDNS.
+
 ## Superficies de API
 
 Cuatro contratos distintos, con cuatro modelos de autenticación:
@@ -88,6 +109,8 @@ Cuatro contratos distintos, con cuatro modelos de autenticación:
 | **API del hub** | `/api/v1/hub/*` | Sanctum Bearer + middleware `hub.role` | 112 | `carniceria-hub` |
 | **API pública** | `/api/public/{tenant}/*` | Sin auth, con throttle y honeypot | 4 | Menú QR (tras `FEATURE_WEB_ORDERS`) |
 | **API local del hub** | `:4599/api/v1/*` | Token por equipo emparejado | 8 | Básculas de la sucursal |
+
+La API local la **sirven** dos implementaciones distintas (`carniceria-hub` y `hub-android`) contra el mismo contrato; las otras tres las sirve solo la web.
 
 Detalle en [endpoints.md](../api/endpoints.md), [hub.md](../api/hub.md) y [autenticacion-apikey.md](../api/autenticacion-apikey.md). La API local del hub está documentada en su propio repo: `carniceria-hub/docs/api-local.md`.
 
@@ -103,7 +126,8 @@ Otras reglas del conjunto:
 
 - **El hub no añade roles ni permisos propios.** Solo `admin-sucursal` y `cajero`, y ningún feature flag más allá de los de la web.
 - **Los pagos y las ventas del hub son idempotentes por `client_reference`** — es lo que hace seguro reintentar desde el outbox al reconectar. Sin eso, una venta cuya respuesta se perdía por el camino se creaba dos veces. Ver `carniceria-hub/docs/sincronizacion.md`.
-- **Las tres apps cliente se firman y publican por tag `vX.Y.Z`.** La versión sale del `package.json` (o del `build.gradle.kts`), no del tag: hay que bumpearla antes de tagear.
+- **Las dos implementaciones del hub hablan el mismo protocolo, y una suite lo verifica.** `carniceria-hub` y `hub-android` exponen la misma API local (`:4599`), el mismo `_carnihub._tcp.` y el mismo `protocol_version`. Lo que impide que se separen es la **suite de conformidad**: los mismos casos corridos contra cualquier implementación a través de un transporte abstracto. Un cambio en el protocolo se hace en las dos, o no se hace. La suite ya encontró una divergencia real —el estado `blocked` del outbox escapándose sin traducir hacia las básculas— antes de que llegara al mostrador.
+- **Las cuatro apps cliente se firman y publican por tag `vX.Y.Z`.** La versión sale del `package.json` (o del `build.gradle.kts`), no del tag: hay que bumpearla antes de tagear.
 
 ## Qué se rompe si cambias esto
 
@@ -118,26 +142,29 @@ Los cuatro repositorios comparten contratos, y nada avisa cuando uno cambia bajo
 | La autorización de un canal | Web y hub a la vez | El canal se autoriza con guard `web` y con `sanctum` |
 | Un feature flag de `branches` | La navegación de la web **y** la del hub | El hub los lee del login y oculta pantallas con ellos |
 | Un rol, o quién puede entrar al hub | `EnsureHubRole` | El hub solo admite `admin-sucursal` y `cajero` |
-| La API local del hub (`:4599`) | Las básculas emparejadas de esa sucursal | Mismo criterio aditivo que la Scale API |
+| La API local del hub (`:4599`) | Las básculas emparejadas **y las dos implementaciones del hub** | Mismo criterio aditivo que la Scale API, y la suite de conformidad debe pasar en ambas |
 | El esquema de `hub.sqlite` | Nada fuera del hub | Pero **una migración mal hecha pierde ventas sin sincronizar** |
+| El protocolo del hub (versión, TXT de mDNS, estados del outbox) | Las básculas **y** las dos implementaciones a la vez | Subir `protocol_version` solo si el cambio no puede ser aditivo |
 
 **Regla práctica:** un cambio que toque una fila de esta tabla debería probarse contra la aplicación que lo consume antes de publicarse, no solo contra sus propias pruebas.
 
 ## Publicación y auto-actualización
 
-Las tres aplicaciones cliente se publican con GitHub Actions al empujar un tag, suben el artefacto al bucket R2 y crean el Release. Las instalaciones existentes se actualizan solas.
+Las cuatro aplicaciones cliente se publican con GitHub Actions al empujar un tag, suben el artefacto al bucket R2 y crean el Release. Las instalaciones existentes se actualizan solas.
 
 | App | Artefacto | Ruta en R2 | Runbook |
 |-----|-----------|-----------|---------|
 | `bascula` | Instalador NSIS (Windows) | `bascula/win/` | `bascula/docs/releases.md` |
 | `bascula-android` | APK firmado (fuera de Play Store) | `android/` | `bascula-android/docs/releases.md` |
 | `carniceria-hub` | Instalador NSIS (Windows) | — | `carniceria-hub/docs/superpowers/` |
+| `hub-android` | APK firmado (fuera de Play Store) | `hub-android/` | `hub-android/docs/releases.md` |
 
 Notas operativas que cuestan caro descubrir a mano:
 
 - **Android:** instalar siempre desde la URL versionada — Laravel Cloud reescribe el `Cache-Control` de los `.apk`.
 - **`bascula`:** `perMachine` pasó de `true` a `false` para que el updater no pida permisos de administrador en cada actualización. Las Surface con la instalación vieja (HKLM) probablemente necesiten desinstalarla a mano una vez, o convivirán dos copias.
 - **Hub:** la versión del instalador sale de `package.json`, no del tag.
+- **`hub-android`:** el `versionCode` se deriva del `versionName` (1.2.3 → 10203), y firma con una llave propia, distinta de la de `bascula-android`. Android no deja actualizar un APK con otra llave: perder la llave obliga a desinstalar en cada tablet. Respaldarla es parte del procedimiento, no un extra.
 
 ## Decisiones estructurales
 
@@ -152,6 +179,8 @@ Las decisiones que explican por qué el sistema tiene esta forma:
 | Compras separado de Gastos | Costo de mercancía (CMV) contra gasto operativo (OPEX). Sin inventario todavía, por diseño. |
 | Broadcasting inmediato, sin colas | `ShouldBroadcastNow` por canal privado de sucursal: el cajero ve la venta en el momento. |
 | La web es la fuente de verdad visual del hub | Un solo lenguaje de interfaz para el personal que usa las dos. |
+| Dos implementaciones del hub, un solo protocolo | Hay sucursales con PC y sucursales sin ella. En vez de obligar a comprar una, el hub se implementó dos veces contra el mismo contrato; la suite de conformidad es lo que impide que diverjan. |
+| El núcleo del hub Android no depende de Android | Con `:core` en JVM puro, el protocolo y la sincronización se prueban sin emulador ni tablet. Lo específico de la plataforma queda aislado en `:app`. |
 
 ## Trabajo pospuesto
 

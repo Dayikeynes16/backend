@@ -9,7 +9,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 ## Arquitectura
 
-- **[El ecosistema: las cuatro aplicaciones](arquitectura/ecosistema.md)** — mapa de `carniceria-saas`, `carniceria-hub`, `bascula` y `bascula-android`: cómo se comunican, las cuatro superficies de API, las reglas de compatibilidad y las decisiones estructurales. **Empieza por aquí.**
+- **[El ecosistema: las cinco aplicaciones](arquitectura/ecosistema.md)** — mapa de `carniceria-saas`, `carniceria-hub`, `hub-android`, `bascula` y `bascula-android`: cómo se comunican, las cuatro superficies de API, las reglas de compatibilidad y las decisiones estructurales. **Empieza por aquí.**
 - [Modelo de datos](arquitectura/modelo-de-datos.md) — las 46 tablas por dominio y las convenciones que se repiten
 - [Multitenancy](arquitectura/multitenant.md) — TenantScope, ResolveTenant, aislamiento por columna
 - [Roles y permisos](arquitectura/roles-permisos.md) — 4 roles, 8 feature flags por sucursal, matriz por módulo
@@ -99,4 +99,5 @@ Verifica que los enlaces entre documentos resuelvan, que las rutas de archivo ci
 | Agenda | ✅ Completo |
 | Asistente IA conversacional | ✅ F0–F4 · ✅ mini-app móvil `/{tenant}/asistente` completa (F0–F5: cobro FIFO a clientes, pago a cuenta FIFO a proveedores, modo simple, cajero operativo, retiros y cambio de precios) · pendiente F5-config asistida y F6 parcial del spec original · TTS off en UI |
 | API del Hub (Electron, Sanctum, idempotencia) | ✅ Fase 1 backend · offline con cola en el cliente pendiente (repo `carniceria-hub`) |
+| Hub Android (`hub-android`) | 🟡 Núcleo completo · mismo protocolo que el hub Electron, verificado por la suite de conformidad · **pendiente de validación en tablet durante una jornada real** |
 | Inventario / stock | ❌ No iniciado (fase futura F-Inv1+) |
