@@ -130,16 +130,22 @@ Registra una venta. Dispara evento Reverb al cajero.
 
 Esto hace seguro el reintento del outbox del hub, que reintenta ante cualquier fallo de red o `5xx`. Antes de esto, una venta cuya respuesta se perdía por el camino se creaba **dos veces**. Garantizado en base de datos por un índice único `(branch_id, client_reference)` (migración `2026_08_11_134846_add_client_reference_to_sales_table.php`). Las básculas que no lo envían dejan la columna en `null` y no participan: siguen funcionando igual que antes.
 
+**Quién lo manda hoy:** el hub, la báscula Android y —desde 2026-08-23— la báscula Electron de las Surface, que hasta entonces no lo enviaba y por tanto no estaba protegida. Ahí la referencia identifica **el cobro, no el envío**: se genera al primer intento, se repite mientras el cajero reintenta con el mismo carrito, y se descarta cuando el cobro sale bien o el carrito cambia.
+
+> El reintento **vuelve a emitir `NewExternalSale`**. Llega justamente cuando el primer envío no terminó bien, que es cuando el aviso se pierde; sin repetirlo la venta queda guardada pero invisible en la mesa de trabajo hasta que alguien recargue. Repetirlo es seguro: el cliente deduplica por `id`.
+
 **Lógica:**
 
-1. Si viene `client_reference` y ya existe esa venta en la sucursal, la devuelve y termina.
+1. Si viene `client_reference` y ya existe esa venta en la sucursal, **re-emite `NewExternalSale`**, la devuelve y termina.
 2. Valida que todos los `product_id` existan y estén activos en la sucursal.
 3. Calcula subtotales: `quantity × price` (para todos los unit_type).
 4. Genera folio consecutivo por sucursal: `S-00001`, `S-00002`, etc.
-5. Crea `Sale` con `status=pending`, `origin=api`.
+5. Crea `Sale` con `status=active`, `origin=api`.
 6. Crea `SaleItem`s con snapshots del producto (nombre, precio, unit_type).
-7. Dispara `NewExternalSale` (broadcast vía Reverb).
+7. Dispara `NewExternalSale` (broadcast vía Reverb) **envuelto en `SafeBroadcast`**.
 8. Retorna 201 con la venta creada.
+
+> El paso 7 va envuelto desde 2026-08-23. Los eventos son `ShouldBroadcastNow`, así que la llamada a Reverb ocurre dentro de esta misma petición: si Reverb estaba caído, la excepción convertía en `500` una petición cuya venta **ya estaba confirmada en la base de datos**. Para la báscula eso es indistinguible de un fallo — reintenta, y sin `client_reference` acababa creando una venta gemela.
 
 **Respuesta 201:**
 

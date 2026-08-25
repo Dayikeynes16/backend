@@ -35,15 +35,15 @@ class ShiftCashOutCalculatorTest extends TestCase
         return $sub->id;
     }
 
-    private function makeShift(): CashRegisterShift
+    private function makeShift(array $attrs = []): CashRegisterShift
     {
-        return CashRegisterShift::create([
+        return CashRegisterShift::create(array_merge([
             'tenant_id' => $this->tenant->id,
             'branch_id' => $this->branch->id,
             'user_id' => $this->cajero->id,
             'opened_at' => now(),
             'opening_amount' => 1000,
-        ]);
+        ], $attrs));
     }
 
     private function makeCashExpense(CashRegisterShift $shift, float $amount, string $method = 'cash'): Expense
@@ -89,9 +89,13 @@ class ShiftCashOutCalculatorTest extends TestCase
 
     public function test_ignores_expenses_of_other_shifts(): void
     {
+        // El otro turno es el anterior del mismo cajero, ya cerrado: la base no
+        // admite dos turnos abiertos del mismo usuario (`shifts_user_open_unique`),
+        // y dos simultáneos tampoco ocurrían en la vida real.
+        $previo = $this->makeShift(['closed_at' => now()->subHour()]);
+        $this->makeCashExpense($previo, 400);
+
         $shift = $this->makeShift();
-        $other = $this->makeShift();
-        $this->makeCashExpense($other, 400);
 
         $result = (new ShiftCashOutCalculator)->forShift($shift, totalCash: 0, totalWithdrawals: 0);
 

@@ -155,4 +155,42 @@ class ShiftApiTest extends TestCase
         $this->assertEquals(-10, $rows['cash']['difference']);
         $this->assertEquals(0, $rows['card']['difference']);
     }
+
+    public function test_open_acepta_la_hora_real_de_apertura_del_hub(): void
+    {
+        $hace2h = now()->subHours(2);
+
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->postJson('/api/v1/hub/shift/open', [
+                'opening_amount' => 500,
+                'opened_at' => $hace2h->toIso8601String(),
+                'client_reference' => 'hub-ref-1',
+            ])
+            ->assertCreated();
+
+        $shift = CashRegisterShift::where('user_id', $this->cajero->id)->firstOrFail();
+
+        $this->assertEqualsWithDelta($hace2h->timestamp, $shift->opened_at->timestamp, 5);
+        $this->assertSame('hub-ref-1', $shift->client_reference);
+    }
+
+    public function test_open_repetido_con_la_misma_referencia_no_crea_otro_turno(): void
+    {
+        $token = $this->cajero->createToken('hub')->plainTextToken;
+        $payload = ['opening_amount' => 500, 'client_reference' => 'hub-ref-2'];
+
+        $this->withToken($token)->postJson('/api/v1/hub/shift/open', $payload)->assertCreated();
+
+        // El reintento del hub tras una respuesta perdida: no puede chocar con el 409.
+        $this->withToken($token)->postJson('/api/v1/hub/shift/open', $payload)->assertOk();
+
+        $this->assertSame(1, CashRegisterShift::where('user_id', $this->cajero->id)->count());
+    }
+
+    public function test_open_rechaza_una_fecha_invalida(): void
+    {
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->postJson('/api/v1/hub/shift/open', ['opened_at' => 'ayer por la tarde'])
+            ->assertStatus(422);
+    }
 }

@@ -45,6 +45,7 @@ use App\Http\Controllers\Empresa\SucursalController;
 use App\Http\Controllers\Empresa\TicketConfigController;
 use App\Http\Controllers\Empresa\UsuarioController as EmpresaUsuarioController;
 use App\Http\Controllers\ExpenseAttachmentController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseAttachmentController;
 use App\Http\Controllers\Sucursal\ApiKeyController;
@@ -126,6 +127,15 @@ Route::get('/dashboard', function () {
 })->middleware('auth')->name('dashboard'); // 'verified' deshabilitado: la verificación de correo es opcional por ahora.
 
 Route::middleware('auth')->group(function () {
+    /*
+     * Bandeja de avisos. Fuera del prefijo de tenant a propósito: el aislamiento
+     * lo da el propio usuario (`notifiable_id`), y la campana vive en los cuatro
+     * paneles, que cuelgan de prefijos distintos.
+     */
+    Route::get('/avisos', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::patch('/avisos/{notification}/leido', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::patch('/avisos/leidos', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

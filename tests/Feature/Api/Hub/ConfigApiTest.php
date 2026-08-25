@@ -103,4 +103,23 @@ class ConfigApiTest extends TestCase
             ->getJson('/api/v1/hub/config')
             ->assertStatus(403);
     }
+
+    public function test_el_cajero_puede_leer_los_metodos_de_pago_de_su_sucursal(): void
+    {
+        // El hub los cachea para poder cobrar sin internet: sin esto, el cobro
+        // offline solo podría ofrecer efectivo.
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/config/payment-methods')
+            ->assertOk()
+            ->assertJsonStructure(['payment_methods_enabled']);
+    }
+
+    public function test_la_config_completa_sigue_siendo_solo_de_admin(): void
+    {
+        // Se expone el mínimo, no se afloja `index()`: ahí viven las API keys y
+        // los datos de la empresa.
+        $this->withToken($this->cajero->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/config')
+            ->assertForbidden();
+    }
 }

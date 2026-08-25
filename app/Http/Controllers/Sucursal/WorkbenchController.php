@@ -19,14 +19,15 @@ use App\Services\AssignCustomerToSale;
 use App\Services\Customers\ResolveCustomerByPhone;
 use App\Services\OrderLinkService;
 use App\Services\RecalculateClosedShifts;
+use App\Services\SaleCancellationNotifier;
 use App\Services\WhatsappMessageService;
+use App\Support\SafeBroadcast;
 use App\Support\SaleItemSnapshot;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Enum;
 use Inertia\Inertia;
@@ -292,11 +293,11 @@ class WorkbenchController extends Controller
             }
         });
 
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         $msg = "Venta {$sale->folio} cancelada.";
         if ($wasCompleted) {
@@ -340,6 +341,16 @@ class WorkbenchController extends Controller
             'cancel_requested_by' => $user->id,
             'cancel_request_reason' => $validated['cancel_request_reason'],
         ]);
+
+        // Hasta ahora no salía ningún aviso: el administrador no se enteraba
+        // hasta entrar por su cuenta a la pantalla de cancelaciones.
+        app(SaleCancellationNotifier::class)->requested($sale, $user, $validated['cancel_request_reason']);
+
+        SafeBroadcast::dispatch(
+            fn () => SaleUpdated::dispatch($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         return back()->with('success', "Solicitud de cancelacion enviada para {$sale->folio}.");
     }
@@ -401,11 +412,11 @@ class WorkbenchController extends Controller
             }
         });
 
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         $msg = "Venta {$sale->folio} cancelada.";
         if ($wasCompleted) {
@@ -431,11 +442,11 @@ class WorkbenchController extends Controller
             $sale->update(['status' => SaleStatus::Active]);
         }
 
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         return back()->with('success', "Venta {$sale->folio} reactivada.");
     }
@@ -444,11 +455,11 @@ class WorkbenchController extends Controller
     {
         $sale->update(['status' => SaleStatus::Pending]);
 
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
 
         return back()->with('success', "Venta {$sale->folio} marcada como pendiente.");
     }

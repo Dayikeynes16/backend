@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import AgendaBell from '@/Components/Agenda/AgendaBell.vue';
+import NotificationBell from '@/Components/NotificationBell.vue';
 import VerifyEmailBanner from '@/Components/VerifyEmailBanner.vue';
 
 const page = usePage();
@@ -117,6 +118,7 @@ const isActive = (link) => {
                 <div class="flex flex-1 items-center justify-between">
                     <slot name="header" />
                     <div class="flex items-center gap-2">
+                        <NotificationBell />
                         <AgendaBell />
                         <span class="hidden rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 sm:inline-flex">Admin Empresa</span>
                     </div>

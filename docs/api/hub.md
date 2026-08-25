@@ -80,6 +80,7 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `config` | Datos de la sucursal + métodos de pago habilitados + lista de API keys |
+| GET | `config/payment-methods` | Métodos de pago habilitados de la sucursal. **Ambos roles**, a diferencia de `GET config` (solo admin: ahí viven las API keys). El hub lo cachea para poder cobrar sin red |
 | PUT | `config/payment-methods` | Actualiza `payment_methods_enabled` (body: `payment_methods[]`, mín. 1, subconjunto de los soportados) |
 | POST | `config/api-keys` | Genera una API key de báscula (body: `name`, `expires_in_days` opcional 1–365). Devuelve `raw_key` **una sola vez** (para el QR de vinculación); solo se persiste el hash |
 | DELETE | `config/api-keys/{id}` | Revoca (marca `inactive`) |
@@ -92,7 +93,7 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `shift/current` | Turno abierto del usuario (`data: null` si no hay) + `summary` de conciliación en vivo (esperado, totales por método, salidas, y `sales_generated` — "Vendido vs Cobrado") |
-| POST | `shift/open` | Abre turno (body: `opening_amount` opcional). `201`, o `409` si ya tiene uno abierto |
+| POST | `shift/open` | Abre turno (body: `opening_amount`, `opened_at` y `client_reference`, todos opcionales). `201` al crear, `200` si esa referencia ya produjo un turno, `409` si ya tiene uno abierto y no mandó referencia |
 | POST | `shift/close` | Cierra turno (body: `declared_amount`, `declared_card`, `declared_transfer`, `notes`, todos opcionales). Devuelve el corte completo: shift cerrado + `summary` + `verdict` (ShiftVerdictService: veredicto neto con compensación cruzada) + `whatsapp` (`{url, has_owner_whatsapp}` — reporte al dueño vía ShiftReportMessageService) |
 | GET | `shifts?from=&to=&page=` | Cortes históricos paginados (15). Admin: toda la sucursal; cajero: solo los suyos. Filas con totales, declarado y `difference_total` |
 | GET | `shifts/{id}` | Corte persistente: `data` + `summary` + `verdict` + `whatsapp`. Cajero solo los propios (403 ajeno); cross-branch 404 |
@@ -100,6 +101,14 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
 | POST | `shifts/{id}/reopen` | **admin-sucursal.** Reabre el turno (resetea el corte a valores neutros). `422` si ya está abierto o si el cajero tiene otro turno abierto |
 | POST | `shift/withdrawals` | Registra un retiro de efectivo sobre el turno abierto (body: `amount` > 0, `reason` ≤ 255). `201` con el retiro + `summary` fresco; `404` si no hay turno abierto. Controller: `Api\Hub\WithdrawalController` |
 | DELETE | `shift/withdrawals/{id}` | Elimina un retiro. El cajero dueño solo en su turno abierto; admin-sucursal también con turno cerrado; `403` fuera de la sucursal/tenant. Devuelve `summary` fresco (o `null` sin turno abierto) |
+
+**Abrir turno desde un hub que estuvo sin internet.** `POST shift/open` acepta dos campos opcionales: **`opened_at`** (ISO-8601, la hora real en que se abrió la caja) y **`client_reference`** (≤64, idempotencia).
+
+El servidor **acota** `opened_at` en vez de aceptarla o rechazarla: `min( max(propuesta, cierre del turno anterior, ahora − 6 h), ahora )`. No es una validación cosmética — la ventana del corte es `whereBetween(created_at, [opened_at, closed_at])` filtrada por usuario y **sin FK al turno**, así que dos ventanas solapadas contarían los mismos pagos dos veces; y `opened_at` es además frontera de autorización para editar comprobantes. Se acota y no se rechaza porque el hub está offline y no puede negociar: un `422` dejaría la caja sin abrir con gente esperando.
+
+La hora se convierte explícitamente de UTC a la zona de la app (`America/Mexico_City`), o se colarían seis horas de desfase en la columna que define la ventana del dinero.
+
+Un reintento con la misma `client_reference` devuelve **`200`** con el turno existente; **sin** referencia, dos aperturas siguen chocando con **`409`**. Spec: `carniceria-hub/docs/superpowers/specs/2026-08-21-cobrar-sin-internet-design.md`.
 
 Las reglas de retiros son las mismas que en la web: viven en `ShiftService::addWithdrawal` / `removeWithdrawal`, compartidas por `Sucursal\WithdrawalController` (web) y `Api\Hub\WithdrawalController` (hub).
 
@@ -347,7 +356,21 @@ Las de compra requieren además el toggle `branch_admin_purchase_products_enable
 | GET | `realtime/config` | Parámetros de conexión a Reverb: `key` (pública), `host`, `port`, `scheme`. Equivale a las `VITE_REVERB_*` de la web |
 | POST | `realtime/auth` | Autoriza la suscripción a un canal privado (`Broadcast::auth`). Es el reemplazo de `/broadcasting/auth` para clientes con token Bearer (sin sesión/CSRF) |
 
-El canal `sucursal.{branchId}` (`routes/channels.php`) autoriza con el guard por defecto de la ruta: `web` en Inertia, **`sanctum` en el hub** (la ruta corre tras `auth:sanctum`). La regla es la misma: `user->branch_id === branchId`. Por ese canal el hub recibe `NewExternalSale`, `SaleLocked`, `SaleUnlocked` y `SaleUpdated`. Los controllers del hub disparan los broadcasts de forma tolerante: si Reverb está caído, la operación no falla (solo se loguea un warning).
+El canal `sucursal.{branchId}` (`routes/channels.php`) autoriza con el guard por defecto de la ruta: `web` en Inertia, **`sanctum` en el hub** (la ruta corre tras `auth:sanctum`). La regla es la misma: `user->branch_id === branchId`. Los controllers del hub disparan los broadcasts de forma tolerante: si Reverb está caído, la operación no falla (solo se loguea un warning).
+
+Por ese canal el hub recibe:
+
+| Evento | Lo consume | Para qué |
+|--------|-----------|----------|
+| `NewExternalSale` | Mesa de Trabajo | Venta nueva de báscula o menú QR (suena el beep) |
+| `SaleUpdated` | Mesa de Trabajo · panel de Turno | Cualquier cambio en una venta existente |
+| `SaleLocked` · `SaleUnlocked` | Mesa de Trabajo | Bloqueo cooperativo de edición |
+| `CustomerGlobalPaymentChanged` | Mesa de Trabajo · panel de Turno | Un cobro global FIFO tocó N ventas de una vez |
+| `ShiftUpdated` | Panel de Turno | Apertura, cierre o retiro |
+
+> Los payloads llevan **identificadores, no cifras**: quien recibe vuelve a leer por HTTP con su propio token. `ShiftUpdated` en particular viaja por un canal que comparten todos los usuarios de la sucursal, y `shift/current` sólo devuelve el turno del usuario autenticado.
+
+El socket es el mecanismo principal, pero el hub conserva su sondeo como red de seguridad: 20 s / 4 s en la Mesa de Trabajo y 45 s / 12 s en el panel de Turno, según haya socket o no. Ver [arquitectura/reverb-websockets.md](../arquitectura/reverb-websockets.md).
 
 ## Códigos de error comunes
 

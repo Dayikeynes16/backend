@@ -128,7 +128,7 @@ final class CustomerGlobalPaymentDraftConfirmer implements DraftConfirmer
         // Estamos dentro de la transacción del draft controller: el broadcast
         // (ShouldBroadcastNow) debe salir después del commit.
         $affectedSaleIds = $result['affected_sale_ids'];
-        DB::afterCommit(fn () => $this->payments->broadcastSaleUpdates($affectedSaleIds));
+        DB::afterCommit(fn () => $this->payments->broadcastPaymentChange($cp, $affectedSaleIds));
 
         $applied = (float) $cp->amount_applied;
         $change = (float) $cp->change_given;

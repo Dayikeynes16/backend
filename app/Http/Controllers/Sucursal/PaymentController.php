@@ -12,11 +12,11 @@ use App\Models\Sale;
 use App\Services\AuditLogger;
 use App\Services\PaymentReceiptService;
 use App\Services\SalePaymentService;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class PaymentController extends Controller
@@ -231,13 +231,10 @@ class PaymentController extends Controller
      */
     private function broadcastSaleUpdate(Sale $sale): void
     {
-        try {
-            SaleUpdated::dispatch($sale->fresh());
-        } catch (\Throwable $e) {
-            Log::warning('SaleUpdated broadcast failed', [
-                'sale_id' => $sale->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        SafeBroadcast::toOthers(
+            new SaleUpdated($sale->fresh()),
+            'SaleUpdated',
+            ['sale_id' => $sale->id],
+        );
     }
 }

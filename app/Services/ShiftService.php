@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
+use App\Events\ShiftUpdated;
 use App\Exceptions\ShiftAlreadyOpenException;
 use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\CashWithdrawal;
 use App\Models\User;
+use App\Support\SafeBroadcast;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -28,24 +31,95 @@ class ShiftService
             ->first();
     }
 
+    /** Margen máximo hacia atrás para la hora que propone el hub. */
+    public const MAX_BACKDATE_HOURS = 6;
+
     /**
      * Abre un turno para el usuario.
      *
+     * `$requestedOpenedAt` viene del hub cuando la caja se abrió sin internet.
+     * NO se acepta tal cual: se acota entre el cierre del turno anterior y ahora
+     * (ver `clampOpenedAt`). `$clientReference` hace la apertura idempotente,
+     * para que un reintento del hub no choque contra el 409.
+     *
      * @throws ShiftAlreadyOpenException si ya hay uno abierto
      */
-    public function open(User $user, float $openingAmount = 0): CashRegisterShift
-    {
+    public function open(
+        User $user,
+        float $openingAmount = 0,
+        ?CarbonInterface $requestedOpenedAt = null,
+        ?string $clientReference = null
+    ): CashRegisterShift {
+        if ($clientReference !== null) {
+            $existing = CashRegisterShift::where('user_id', $user->id)
+                ->where('client_reference', $clientReference)
+                ->first();
+
+            if ($existing !== null) {
+                // Mismo criterio que la rama idempotente de las ventas: el
+                // reintento llega justamente cuando el primer envío no terminó
+                // bien, que es cuando el aviso se pierde. Repetirlo es seguro
+                // —quien lo recibe vuelve a leer su turno por HTTP— y sin él la
+                // apertura queda guardada sin que ninguna pantalla se entere.
+                $this->announce($existing, 'opened');
+
+                return $existing;
+            }
+        }
+
         if ($this->current($user) !== null) {
             throw new ShiftAlreadyOpenException;
         }
 
-        return CashRegisterShift::create([
+        $shift = CashRegisterShift::create([
             'tenant_id' => $user->tenant_id,
             'branch_id' => $user->branch_id,
             'user_id' => $user->id,
-            'opened_at' => now(),
+            'opened_at' => $this->clampOpenedAt($user, $requestedOpenedAt),
             'opening_amount' => $openingAmount,
+            'client_reference' => $clientReference,
         ]);
+
+        $this->announce($shift, 'opened');
+
+        return $shift;
+    }
+
+    /**
+     * Acota la hora propuesta, en vez de validarla y rechazarla.
+     *
+     * El corte agrega los pagos por `whereBetween(created_at, [opened_at, closed_at])`
+     * filtrando por usuario y sin FK al turno: dos ventanas solapadas cuentan los
+     * mismos pagos dos veces. Y `opened_at` es además frontera de autorización para
+     * editar comprobantes (`Sucursal\PaymentReceiptController`), así que una hora
+     * retroactiva libre devolvería permisos sobre turnos ya cerrados.
+     *
+     * Resultado: min( max(propuesta, cierre anterior, ahora − 6 h), ahora ).
+     */
+    private function clampOpenedAt(User $user, ?CarbonInterface $requested): CarbonInterface
+    {
+        $now = now();
+
+        if ($requested === null) {
+            return $now;
+        }
+
+        $floor = $now->copy()->subHours(self::MAX_BACKDATE_HOURS);
+
+        $lastClosed = CashRegisterShift::where('user_id', $user->id)
+            ->whereNotNull('closed_at')
+            ->orderByDesc('closed_at')
+            ->first()?->closed_at;
+
+        if ($lastClosed !== null && $lastClosed->greaterThan($floor)) {
+            $floor = $lastClosed;
+        }
+
+        if ($requested->lessThan($floor)) {
+            return $floor;
+        }
+
+        return $requested->greaterThan($now) ? $now : $requested;
     }
 
     /**
@@ -117,6 +191,8 @@ class ShiftService
             'notes' => $declared['notes'] ?? null,
         ]);
 
+        $this->announce($shift, 'closed');
+
         return $shift->refresh();
     }
 
@@ -131,13 +207,17 @@ class ShiftService
             ->whereNull('closed_at')
             ->firstOrFail();
 
-        return CashWithdrawal::create([
+        $withdrawal = CashWithdrawal::create([
             'shift_id' => $shift->id,
             'user_id' => $user->id,
             'amount' => $amount,
             'reason' => $reason,
             'created_at' => now(),
         ]);
+
+        $this->announce($shift, 'withdrawal');
+
+        return $withdrawal;
     }
 
     /**
@@ -181,7 +261,23 @@ class ShiftService
             app(RecalculateClosedShifts::class)->forShift($shift);
         }
 
+        $this->announce($shift, 'withdrawal');
+
         return $shift->refresh();
+    }
+
+    /**
+     * Avisa de que el turno cambió. Es un aviso, no un dato: quien lo recibe
+     * pide su propio turno por HTTP. Un fallo del transporte nunca puede tumbar
+     * una apertura o un corte que ya están guardados.
+     */
+    private function announce(CashRegisterShift $shift, string $reason): void
+    {
+        SafeBroadcast::dispatch(
+            fn () => ShiftUpdated::dispatch($shift, $reason),
+            'ShiftUpdated',
+            ['shift_id' => $shift->id, 'reason' => $reason],
+        );
     }
 
     /**
