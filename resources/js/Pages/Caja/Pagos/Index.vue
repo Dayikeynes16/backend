@@ -1,12 +1,13 @@
 <script setup>
 import CajeroLayout from '@/Layouts/CajeroLayout.vue';
-import DatePicker from '@/Components/DatePicker.vue';
+import DateRangeFilter from '@/Components/Metrics/DateRangeFilter.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import Modal from '@/Components/Modal.vue';
 import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
 import SaleHeaderBand from '@/Components/Pagos/SaleHeaderBand.vue';
 import CustomerPaymentSales from '@/Components/Pagos/CustomerPaymentSales.vue';
 import { Head, router } from '@inertiajs/vue3';
+import { useDateRangeFilter } from '@/composables/useDateRangeFilter';
 import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
@@ -30,7 +31,6 @@ const methodMeta = {
 };
 // --- Filters ---
 const method = ref(props.filters?.method || '');
-const date = ref(props.filters?.date || '');
 
 // --- Accumulated payments list ---
 const allPayments = ref([...props.payments.data]);
@@ -48,6 +48,17 @@ watch(() => props.payments, (newPayments) => {
     }
 });
 
+// El rango viaja como `preset` o como `from`/`to`; el servidor lo resuelve con
+// DateRange::fromRequest, igual que en Sucursal.
+const otrosFiltros = () => ({ method: method.value || undefined });
+
+const rango = useDateRangeFilter('caja.pagos', otrosFiltros, {
+    onNavigate: () => {
+        selectedId.value = null;
+        selected.value = null;
+    },
+});
+
 // --- Filter application ---
 let debounceTimer;
 const applyFilters = () => {
@@ -56,14 +67,13 @@ const applyFilters = () => {
         selectedId.value = null;
         selected.value = null;
         router.get(route('caja.pagos', props.tenant.slug), {
-            method: method.value || undefined,
-            date: date.value || undefined,
+            ...otrosFiltros(),
+            ...rango.rangeQuery(),
         }, { preserveState: true, replace: true });
     }, 300);
 };
 
 watch(method, () => { clearTimeout(debounceTimer); applyFilters(); });
-watch(date, () => { clearTimeout(debounceTimer); applyFilters(); });
 
 // --- Infinite scroll ---
 const loadMore = () => {
@@ -71,8 +81,8 @@ const loadMore = () => {
     loadingMore.value = true;
     router.get(route('caja.pagos', props.tenant.slug), {
         cursor: nextCursor.value,
-        method: method.value || undefined,
-        date: date.value || undefined,
+        ...otrosFiltros(),
+        ...rango.rangeQuery(),
     }, {
         preserveState: true, preserveScroll: true, only: ['payments'],
         onSuccess: () => {
@@ -157,16 +167,14 @@ const paidPct = computed(() => {
 
                 <!-- KPI Hero -->
                 <div class="border-b border-gray-100 px-6 py-5">
-                    <div class="flex items-center justify-between mb-3">
-                        <p class="text-xs font-medium uppercase tracking-wider text-gray-400">Total cobrado</p>
-                        <DatePicker v-model="date" />
-                    </div>
+                    <DateRangeFilter :filters="rango" class="mb-4" />
+                    <p class="mb-3 text-xs font-medium uppercase tracking-wider text-gray-400">Total cobrado</p>
                     <p class="font-mono text-3xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(totals?.total || 0).toFixed(2) }}</p>
 
                     <!-- Origen del dinero (split por antigüedad de la venta) -->
                     <div v-if="parseFloat(totals?.from_previous || 0) > 0" class="mt-3 grid grid-cols-2 gap-2">
                         <div class="rounded-lg bg-emerald-50 px-3 py-2">
-                            <p class="text-[10px] font-medium uppercase tracking-wide text-emerald-600">De ventas de hoy</p>
+                            <p class="text-[10px] font-medium uppercase tracking-wide text-emerald-600">Del mismo día</p>
                             <p class="mt-0.5 font-mono text-sm font-bold tabular-nums text-emerald-700">${{ parseFloat(totals?.from_today || 0).toFixed(2) }}</p>
                         </div>
                         <div class="rounded-lg bg-amber-50 px-3 py-2">

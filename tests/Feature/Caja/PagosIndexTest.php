@@ -45,6 +45,49 @@ class PagosIndexTest extends TestCase
         ], $attrs));
     }
 
+    public function test_el_rango_filtra_los_pagos_del_cajero(): void
+    {
+        $hoy = $this->makePayment(['user_id' => $this->cajero->id, 'amount' => 100, 'method' => 'cash']);
+        $viejo = $this->makePayment(['user_id' => $this->cajero->id, 'amount' => 300, 'method' => 'card']);
+        $viejo->forceFill(['created_at' => now()->subDays(4)->setTime(12, 0)])->save();
+
+        // Por defecto, hoy: el de hace cuatro días queda fuera.
+        $this->actingAs($this->cajero)
+            ->get(route('caja.pagos', $this->tenant->slug))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('payments.data', 1)
+                ->where('range.preset', 'today'));
+
+        // Con la ventana de siete días entran los dos.
+        $this->actingAs($this->cajero)
+            ->get(route('caja.pagos', $this->tenant->slug).'?preset=last_7_days')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('payments.data', 2));
+
+        // Y un rango a medida que solo cubre el día del pago viejo.
+        $dia = now()->subDays(4)->toDateString();
+        $this->actingAs($this->cajero)
+            ->get(route('caja.pagos', $this->tenant->slug)."?from={$dia}&to={$dia}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('payments.data', 1)
+                ->where('payments.data.0.id', $viejo->id));
+
+        $this->assertNotNull($hoy->id);
+    }
+
+    public function test_el_parametro_date_sigue_funcionando_en_caja(): void
+    {
+        $viejo = $this->makePayment(['user_id' => $this->cajero->id, 'amount' => 300, 'method' => 'card']);
+        $viejo->forceFill(['created_at' => now()->subDays(2)->setTime(12, 0)])->save();
+
+        $this->actingAs($this->cajero)
+            ->get(route('caja.pagos', $this->tenant->slug).'?date='.now()->subDays(2)->toDateString())
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('payments.data', 1));
+    }
+
     public function test_endpoint_responds_ok_and_uses_qualified_user_id_in_totals_join(): void
     {
         // Regresión: el endpoint hacía un JOIN a `sales` para los totales y el

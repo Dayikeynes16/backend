@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\Payment;
 use App\Models\User;
 use App\Services\DailySummaryService;
+use App\Services\Metrics\DateRange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -19,7 +20,16 @@ class PagosController extends Controller
         $user = Auth::user();
         $branchId = $user->branch_id;
         $tenantId = app('tenant')->id;
-        $date = $request->date ?: now()->toDateString();
+
+        // Rango en vez de un solo día. `date` se sigue admitiendo porque hay
+        // enlaces guardados y accesos directos que lo llevan: equivale al rango
+        // de ese día.
+        $legacyDate = $request->query('date');
+        $range = DateRange::fromRequest(
+            $request->query('preset'),
+            $request->query('from') ?: $legacyDate,
+            $request->query('to') ?: $legacyDate,
+        );
 
         // baseQuery aplica los filtros del usuario (method, user_id, customer)
         // sobre el listado. El resumen del día se filtra SÓLO por cajero
@@ -36,7 +46,7 @@ class PagosController extends Controller
         })
             ->when($request->method, fn ($q, $m) => $q->where('method', $m))
             ->when($request->user_id, fn ($q, $id) => $q->where('user_id', $id))
-            ->whereDate('payments.created_at', $date);
+            ->whereBetween('payments.created_at', [$range->start, $range->end]);
 
         // Un cobro global (FIFO) reparte un pago grande en varios pagos hijos
         // (mismo customer_payment_id). En la lista lo colapsamos a un solo
@@ -83,14 +93,12 @@ class PagosController extends Controller
         $paymentMethods = $branch->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
         $canEditPayments = $user->hasRole('admin-sucursal') || $user->hasRole('admin-empresa') || $user->hasRole('superadmin');
 
-        // Resumen del día vía servicio centralizado. Pasamos user_id sólo si
-        // viene en filtros, para que el resumen refleje "Total cobrado por X".
+        // Resumen del periodo vía servicio centralizado. Pasamos user_id sólo
+        // si viene en filtros, para que el resumen refleje "Total cobrado por X".
         $filterUserId = $request->user_id ? (int) $request->user_id : null;
-        $day = $summary->forDate($branchId, $tenantId, $date, $paymentMethods, $filterUserId);
-        $c = $day['collections'];
+        $c = $summary->collectionsForRange($range, $branchId, $tenantId, $paymentMethods, $filterUserId);
 
-        $dailySummary = [
-            'date' => $date,
+        $periodSummary = [
             'total_collected' => $c['total'],
             'collected_from_today' => $c['from_today'],
             'collected_from_previous' => $c['from_previous'],
@@ -102,11 +110,12 @@ class PagosController extends Controller
         return Inertia::render('Sucursal/Pagos/Index', [
             'payments' => $payments,
             'users' => $users,
-            'filters' => $request->only(['method', 'user_id', 'date', 'customer']),
+            'filters' => $request->only(['method', 'user_id', 'customer']),
+            'range' => $range->toArray(),
             'tenant' => app('tenant'),
             'canEditPayments' => $canEditPayments,
             'paymentMethods' => $paymentMethods,
-            'dailySummary' => $dailySummary,
+            'periodSummary' => $periodSummary,
             'paymentReceiptsEnabled' => (bool) ($branch->payment_receipts_enabled || $branch->payment_receipts_required),
         ]);
     }

@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\PaymentReceipt;
 use App\Models\Sale;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
@@ -62,6 +63,98 @@ class PagosSummaryTest extends TestCase
         return $payment;
     }
 
+    /**
+     * Tres pagos en tres días distintos, para ejercitar el rango.
+     *
+     * @return array{hoy: Payment, ayer: Payment, hace5: Payment}
+     */
+    private function seedTresDias(): array
+    {
+        $mk = function (string $method, float $amount, CarbonInterface $when): Payment {
+            $sale = $this->makeSale(['total' => $amount, 'created_at' => $when]);
+
+            return $this->makePayment([
+                'sale_id' => $sale->id,
+                'user_id' => $this->cajero->id,
+                'method' => $method,
+                'amount' => $amount,
+                'created_at' => $when,
+            ]);
+        };
+
+        return [
+            'hoy' => $mk('cash', 100, now()),
+            'ayer' => $mk('card', 200, now()->subDay()->setTime(12, 0)),
+            'hace5' => $mk('transfer', 400, now()->subDays(5)->setTime(12, 0)),
+        ];
+    }
+
+    private function pagosProps(string $query): array
+    {
+        $this->actingAs($this->adminSucursal);
+
+        return $this->get(route('sucursal.pagos.index', $this->tenant->slug).$query)
+            ->viewData('page')['props'];
+    }
+
+    public function test_un_rango_a_medida_suma_solo_los_dias_incluidos(): void
+    {
+        $this->seedTresDias();
+
+        $props = $this->pagosProps(
+            '?from='.now()->subDay()->toDateString().'&to='.now()->toDateString()
+        );
+
+        // Hoy (100) + ayer (200). El de hace 5 días queda fuera.
+        $this->assertSame(300.0, $props['periodSummary']['total_collected']);
+        $this->assertSame(2, $props['periodSummary']['payment_count']);
+        $this->assertCount(2, $props['payments']['data']);
+    }
+
+    public function test_el_preset_de_ayer_deja_fuera_lo_de_hoy(): void
+    {
+        $this->seedTresDias();
+
+        $props = $this->pagosProps('?preset=yesterday');
+
+        $this->assertSame(200.0, $props['periodSummary']['total_collected']);
+        $this->assertSame('yesterday', $props['range']['preset']);
+    }
+
+    public function test_sin_parametros_el_rango_es_hoy(): void
+    {
+        $this->seedTresDias();
+
+        $props = $this->pagosProps('');
+
+        // Mismo comportamiento que antes del rango: por defecto, el día en curso.
+        $this->assertSame(100.0, $props['periodSummary']['total_collected']);
+        $this->assertSame('today', $props['range']['preset']);
+    }
+
+    public function test_el_parametro_date_sigue_funcionando_como_rango_de_un_dia(): void
+    {
+        // Hay enlaces guardados y accesos directos que llevan `?date=`.
+        $this->seedTresDias();
+
+        $props = $this->pagosProps('?date='.now()->subDay()->toDateString());
+
+        $this->assertSame(200.0, $props['periodSummary']['total_collected']);
+    }
+
+    public function test_el_rango_convive_con_el_filtro_de_metodo(): void
+    {
+        $this->seedTresDias();
+
+        $props = $this->pagosProps(
+            '?preset=last_7_days&method=transfer'
+        );
+
+        // Los tres pagos caen en la ventana, pero solo uno es transferencia.
+        $this->assertCount(1, $props['payments']['data']);
+        $this->assertSame('transfer', $props['payments']['data'][0]['method']);
+    }
+
     public function test_daily_summary_includes_payments_made_today_for_old_sales(): void
     {
         // Venta de hace 3 días pagada hoy → DEBE aparecer en pagos de hoy
@@ -89,7 +182,7 @@ class PagosSummaryTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->get(route('sucursal.pagos.index', $this->tenant->slug).'?date='.now()->toDateString());
-        $summary = $response->viewData('page')['props']['dailySummary'];
+        $summary = $response->viewData('page')['props']['periodSummary'];
 
         // Total cobrado hoy = 800 (de venta vieja) + 200 (de venta de hoy) = 1000
         $this->assertSame(1000.0, $summary['total_collected']);
@@ -122,7 +215,7 @@ class PagosSummaryTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->get(route('sucursal.pagos.index', $this->tenant->slug).'?date='.now()->toDateString());
-        $summary = $response->viewData('page')['props']['dailySummary'];
+        $summary = $response->viewData('page')['props']['periodSummary'];
 
         $this->assertSame(50.0, $summary['total_collected']);
         $this->assertSame(1, $summary['payment_count']);
@@ -142,7 +235,7 @@ class PagosSummaryTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->get(route('sucursal.pagos.index', $this->tenant->slug).'?date='.now()->toDateString());
-        $summary = $response->viewData('page')['props']['dailySummary'];
+        $summary = $response->viewData('page')['props']['periodSummary'];
 
         $this->assertSame(0.0, $summary['total_collected']);
         $this->assertSame(0, $summary['payment_count']);
@@ -222,7 +315,7 @@ class PagosSummaryTest extends TestCase
 
         $this->actingAs($this->adminSucursal);
         $response = $this->get(route('sucursal.pagos.index', $this->tenant->slug).'?date='.now()->toDateString());
-        $summary = $response->viewData('page')['props']['dailySummary'];
+        $summary = $response->viewData('page')['props']['periodSummary'];
 
         $byMethod = collect($summary['by_method'])->keyBy('method');
         $this->assertEquals(100.0, $byMethod['cash']['total']);

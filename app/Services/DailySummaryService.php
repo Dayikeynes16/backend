@@ -79,6 +79,31 @@ final class DailySummaryService
     }
 
     /**
+     * Cobranza de un rango arbitrario.
+     *
+     * Pagos solo necesita esto del servicio: `forDate()` calcula además los
+     * agregados de venta y los del periodo anterior, dos consultas que esa
+     * pantalla tiraba a la basura.
+     *
+     * `from_today` / `from_previous` no dependen del rango: se calculan fila a
+     * fila comparando la fecha de la venta con la del pago, así que en un rango
+     * siguen significando lo mismo — cobrado el día de la venta frente a
+     * cobrado después.
+     *
+     * @param  list<string>  $paymentMethods
+     * @return array{total: float, from_today: float, from_previous: float, payment_count: int, by_method: list<array>}
+     */
+    public function collectionsForRange(
+        DateRange $range,
+        ?int $branchId,
+        int $tenantId,
+        array $paymentMethods = ['cash', 'card', 'transfer'],
+        ?int $userId = null,
+    ): array {
+        return $this->collections($range, $branchId, $tenantId, $paymentMethods, $userId);
+    }
+
+    /**
      * Ventas por hora del día (0–23) para el chart "ventas por hora" del
      * dashboard. Pass-through tipado sobre {@see SalesMetrics::hourlySeries()}.
      *

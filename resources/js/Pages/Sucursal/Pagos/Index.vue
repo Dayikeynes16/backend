@@ -1,6 +1,6 @@
 <script setup>
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
-import DatePicker from '@/Components/DatePicker.vue';
+import DateRangeFilter from '@/Components/Metrics/DateRangeFilter.vue';
 import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import EditPaymentForm from '@/Components/EditPaymentForm.vue';
 import FlashToast from '@/Components/FlashToast.vue';
@@ -10,13 +10,16 @@ import PaymentReceiptsPanel from '@/Components/PaymentReceiptsPanel.vue';
 import SaleHeaderBand from '@/Components/Pagos/SaleHeaderBand.vue';
 import CustomerPaymentSales from '@/Components/Pagos/CustomerPaymentSales.vue';
 import { Head, router } from '@inertiajs/vue3';
+import { useDateRangeFilter } from '@/composables/useDateRangeFilter';
+import { formatRangeLabel } from '@/composables/useDateRange';
 import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
     payments: Object, users: Array,
     filters: Object, tenant: Object,
     canEditPayments: Boolean, paymentMethods: Array,
-    dailySummary: Object,
+    periodSummary: Object,
+    range: Object,
     paymentReceiptsEnabled: { type: Boolean, default: false },
 });
 
@@ -24,32 +27,22 @@ const props = defineProps({
 // fecha allá, así que el salto funciona aunque la venta sea de otro día.
 const historyUrl = (folio) => route('sucursal.historial.index', { tenant: props.tenant.slug, search: folio });
 
-// --- Day summary helpers ---
-const summaryTitle = computed(() => {
-    if (!props.dailySummary?.date) return '';
-    const d = new Date(props.dailySummary.date + 'T00:00:00');
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const dCmp = new Date(d); dCmp.setHours(0, 0, 0, 0);
-    const isToday = dCmp.getTime() === today.getTime();
-    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
-    const isYesterday = dCmp.getTime() === yesterday.getTime();
-
-    const formatted = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const cap = formatted.charAt(0).toUpperCase() + formatted.slice(1);
-    if (isToday) return `Hoy · ${cap}`;
-    if (isYesterday) return `Ayer · ${cap}`;
-    return cap;
-});
+// --- Resumen del periodo ---
+// El título sale del mismo helper que Métricas: "Hoy · 1 de septiembre de 2026",
+// "Ayer · …", "Últimos 7 días" o el rango a medida.
+const summaryTitle = computed(() => formatRangeLabel(rango));
 
 const summaryKpis = computed(() => {
-    const s = props.dailySummary;
+    const s = props.periodSummary;
     if (!s) return [];
     const kpis = [
-        { label: 'Total cobrado', value: s.total_collected, format: 'currency', hint: 'Dinero ingresado el día' },
-        { label: 'De ventas de hoy', value: s.collected_from_today, format: 'currency' },
+        { label: 'Total cobrado', value: s.total_collected, format: 'currency', hint: 'Dinero ingresado en el periodo' },
+        // `from_today` compara la fecha de la venta con la del pago fila a fila,
+        // así que en un rango sigue siendo "se cobró el día de la venta".
+        { label: 'De ventas del mismo día', value: s.collected_from_today, format: 'currency' },
     ];
     // El KPI de cuentas anteriores aparece solo si hay abonos retroactivos —
-    // así el resumen no se siente vacío en días normales.
+    // así el resumen no se siente vacío en periodos normales.
     if (s.collected_from_previous > 0) {
         kpis.push({ label: 'Abonos a cuentas anteriores', value: s.collected_from_previous, format: 'currency' });
     }
@@ -91,9 +84,24 @@ const enabledMethods = computed(() =>
 // --- Filters ---
 const method = ref(props.filters?.method || '');
 const userId = ref(props.filters?.user_id || '');
-const date = ref(props.filters?.date || '');
 // customerFilter: '' = todos, 'with' = pagos de ventas con cliente, 'without' = de mostrador.
 const customerFilter = ref(props.filters?.customer || '');
+
+// El rango vive en la URL como `preset` o como `from`/`to`; el servidor lo
+// resuelve con DateRange::fromRequest. Los demás filtros viajan con él para no
+// perderse al cambiar de periodo.
+const otrosFiltros = () => ({
+    method: method.value || undefined,
+    user_id: userId.value || undefined,
+    customer: customerFilter.value || undefined,
+});
+
+const rango = useDateRangeFilter('sucursal.pagos.index', otrosFiltros, {
+    onNavigate: () => {
+        selectedId.value = null;
+        selected.value = null;
+    },
+});
 
 // --- Accumulated payments list ---
 const allPayments = ref([...props.payments.data]);
@@ -119,17 +127,14 @@ const applyFilters = () => {
         selectedId.value = null;
         selected.value = null;
         router.get(route('sucursal.pagos.index', props.tenant.slug), {
-            method: method.value || undefined,
-            user_id: userId.value || undefined,
-            date: date.value || undefined,
-            customer: customerFilter.value || undefined,
+            ...otrosFiltros(),
+            ...rango.rangeQuery(),
         }, { preserveState: true, replace: true });
     }, 300);
 };
 
 watch(method, () => { clearTimeout(debounceTimer); applyFilters(); });
 watch(userId, () => { clearTimeout(debounceTimer); applyFilters(); });
-watch(date, () => { clearTimeout(debounceTimer); applyFilters(); });
 watch(customerFilter, () => { clearTimeout(debounceTimer); applyFilters(); });
 
 // --- Infinite scroll ---
@@ -138,10 +143,8 @@ const loadMore = () => {
     loadingMore.value = true;
     router.get(route('sucursal.pagos.index', props.tenant.slug), {
         cursor: nextCursor.value,
-        method: method.value || undefined,
-        user_id: userId.value || undefined,
-        date: date.value || undefined,
-        customer: customerFilter.value || undefined,
+        ...otrosFiltros(),
+        ...rango.rangeQuery(),
     }, {
         preserveState: true, preserveScroll: true, only: ['payments'],
         onSuccess: () => {
@@ -236,21 +239,21 @@ const doDeletePayment = () => {
     <Head title="Pagos" />
     <SucursalLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-xl font-bold text-gray-900">Pagos</h1>
-                <DatePicker v-model="date" />
+                <DateRangeFilter :filters="rango" />
             </div>
         </template>
 
         <DaySummaryBar
-            v-if="dailySummary"
+            v-if="periodSummary"
             class="mb-4"
             storage-key="pagos"
             :default-collapsed="true"
             :title="summaryTitle"
-            legend="Incluye pagos recibidos en este día, aunque correspondan a ventas de días anteriores."
+            legend="Incluye los pagos recibidos en el periodo, aunque correspondan a ventas anteriores."
             :kpis="summaryKpis"
-            :by-method="dailySummary.by_method"
+            :by-method="periodSummary.by_method"
             :payment-methods="paymentMethods" />
 
         <div class="flex h-[calc(100vh-14rem)] gap-5">
