@@ -135,6 +135,43 @@ Alcanza cuatro pantallas: `Pages/Caja/Workbench.vue`, `Pages/Sucursal/Workbench.
 
 Spec: [2026-08-19-nombre-venta-vs-cliente-design.md](../superpowers/specs/2026-08-19-nombre-venta-vs-cliente-design.md).
 
+## Pagos por rango de fechas
+
+Las dos pantallas de Pagos —`Sucursal/Pagos` y `Caja/Pagos`— filtran por **rango**
+y no por un solo día. El control es el mismo `Components/Metrics/DateRangeFilter.vue`
+que usan las Métricas: atajos de **Hoy**, **Ayer** y **Últimos 7 días**, más un
+rango a medida, con la línea «Mostrando: …» que dice qué se está viendo.
+
+El rango viaja en la URL como `preset` **o** como el par `from`/`to`, nunca los dos,
+y el servidor lo resuelve con `DateRange::fromRequest()` — el mismo contrato de
+Métricas, Gastos y Compras. Sin parámetros, el rango es hoy: idéntico a como se
+comportaba antes.
+
+**`?date=` se sigue admitiendo** y equivale al rango de ese día. Hay enlaces
+guardados y accesos directos que lo llevan, y romperlos habría sido una regresión
+silenciosa. Los tests que ya existían lo usan, así que también sirven de prueba de
+que un rango de un día da los mismos números que la versión por día.
+
+En el frontend, `composables/useDateRangeFilter.js` produce el contrato que espera
+`DateRangeFilter` (preset, from, to, isCustom, setPreset, setCustom). Es aparte de
+`useMetricsFilters`, que hace lo mismo pero arrastra sucursal, estados de venta y
+la forma de las props de Métricas.
+
+### El resumen del periodo
+
+La banda superior de `Sucursal/Pagos` resume el rango, no el día, y llega en la
+prop `periodSummary` (antes `dailySummary`). Sale de
+`DailySummaryService::collectionsForRange()`, que expone lo que ese servicio ya
+hacía internamente sobre un `DateRange`.
+
+**`from_today` y `from_previous` no cambian de significado.** Se calculan fila a
+fila comparando la fecha de la venta con la del pago, así que en un rango siguen
+siendo «se cobró el día de la venta» frente a «se cobró después». Solo cambian las
+etiquetas: «De ventas del mismo día» y «Abonos a cuentas anteriores».
+
+De paso, Pagos dejó de pedir agregados que tiraba: `forDate()` calculaba las
+ventas del día y las del periodo anterior, y esa pantalla solo usaba la cobranza.
+
 ## Del pago a su venta
 
 Desde Pagos, la pregunta frente a un cobro es «¿de qué venta fue esto?». La banda de la venta —`Components/Pagos/SaleHeaderBand.vue`, compartida por caja y sucursal— lleva un botón **«Ver venta ↗»** que abre esa venta en el Historial. **Mismo comportamiento para admin-sucursal y cajero**: hasta 2026-08-21 el admin tenía el folio como enlace discreto y el cajero no tenía salida.

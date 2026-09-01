@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Caja;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Payment;
+use App\Services\Metrics\DateRange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,17 +19,22 @@ class PagosController extends Controller
         $user = Auth::user();
         $branchId = $user->branch_id;
 
+        // Rango en vez de un solo día, igual que en Sucursal. `date` se sigue
+        // admitiendo: equivale al rango de ese día.
+        $legacyDate = $request->query('date');
+        $range = DateRange::fromRequest(
+            $request->query('preset'),
+            $request->query('from') ?: $legacyDate,
+            $request->query('to') ?: $legacyDate,
+        );
+
         $baseQuery = Payment::whereHas('sale', fn ($q) => $q->where('branch_id', $branchId))
             // Calificamos `payments.user_id` porque el clone para `$totals`
             // hace JOIN a `sales` (que también tiene `user_id`) y sin prefijo
             // Postgres lanza "column reference 'user_id' is ambiguous".
             ->where('payments.user_id', $user->id) // Cajero solo ve sus propios cobros
             ->when($request->method, fn ($q, $m) => $q->where('method', $m))
-            ->when(
-                $request->date,
-                fn ($q, $d) => $q->whereDate('payments.created_at', $d),
-                fn ($q) => $q->whereDate('payments.created_at', today())
-            );
+            ->whereBetween('payments.created_at', [$range->start, $range->end]);
 
         // Totals con split de "ventas de hoy" vs "cuentas anteriores".
         // Necesitamos el JOIN a sales para clasificar por antigüedad.
@@ -83,7 +89,8 @@ class PagosController extends Controller
         return Inertia::render('Caja/Pagos/Index', [
             'payments' => $payments,
             'totals' => $totals,
-            'filters' => $request->only(['method', 'date']),
+            'filters' => $request->only(['method']),
+            'range' => $range->toArray(),
             'tenant' => app('tenant'),
             'paymentReceiptsEnabled' => (bool) ($branch->payment_receipts_enabled || $branch->payment_receipts_required),
         ]);
