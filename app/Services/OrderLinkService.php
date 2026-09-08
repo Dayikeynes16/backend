@@ -9,6 +9,7 @@ use App\Exceptions\OrderLink\IneligibleScaleSaleException;
 use App\Exceptions\OrderLink\IneligibleWebOrderException;
 use App\Exceptions\OrderLink\LockedScaleSaleException;
 use App\Models\Sale;
+use App\Support\SafeBroadcast;
 use App\Support\SaleTotals;
 use Illuminate\Support\Facades\DB;
 
@@ -55,10 +56,13 @@ class OrderLinkService
 
             $webOrder->status = SaleStatus::Fulfilled;
             $webOrder->save();
-
-            SaleUpdated::dispatch($scaleSale->fresh());
-            SaleUpdated::dispatch($webOrder->fresh());
         });
+
+        // Fuera de la transacción y a prueba de Reverb caído: los eventos son
+        // `ShouldBroadcastNow`, así que la llamada HTTP ocurría dentro de la
+        // transacción —alargándola con las filas bloqueadas— y una excepción
+        // del transporte revertía un emparejamiento que ya estaba bien hecho.
+        $this->announce($scaleSale, $webOrder);
     }
 
     public function unlink(Sale $scaleSale): void
@@ -69,7 +73,7 @@ class OrderLinkService
 
         $this->assertScaleSaleStillEditable($scaleSale);
 
-        DB::transaction(function () use ($scaleSale): void {
+        $webOrder = DB::transaction(function () use ($scaleSale): ?Sale {
             $webOrder = $scaleSale->linkedOrder;
 
             $scaleSale->linked_order_id = null;
@@ -90,12 +94,27 @@ class OrderLinkService
             if ($webOrder) {
                 $webOrder->status = SaleStatus::Pending;
                 $webOrder->save();
-
-                SaleUpdated::dispatch($webOrder->fresh());
             }
 
-            SaleUpdated::dispatch($scaleSale->fresh());
+            return $webOrder;
         });
+
+        $this->announce($scaleSale, $webOrder);
+    }
+
+    /**
+     * Avisa de que la venta (y el pedido, si lo hay) cambiaron. Best-effort:
+     * quien no reciba el aviso se pone al día leyendo por HTTP.
+     */
+    private function announce(Sale $scaleSale, ?Sale $webOrder): void
+    {
+        foreach (array_filter([$scaleSale, $webOrder]) as $sale) {
+            SafeBroadcast::dispatch(
+                fn () => SaleUpdated::dispatch($sale->fresh()),
+                'SaleUpdated',
+                ['sale_id' => $sale->id],
+            );
+        }
     }
 
     private function assertSameTenantAndBranch(Sale $a, Sale $b): void

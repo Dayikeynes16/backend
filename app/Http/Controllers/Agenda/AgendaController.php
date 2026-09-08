@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Agenda\AgendaAlertService;
 use App\Services\Agenda\AgendaCalendarService;
 use App\Services\Agenda\IcsBuilder;
+use App\Support\SafeBroadcast;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -122,7 +123,11 @@ class AgendaController extends Controller
         $item = AgendaItem::create($data);
 
         if ($item->assigned_to_user_id && $item->assigned_to_user_id !== $user->id) {
-            AgendaItemAssigned::dispatch($item, $item->assigned_to_user_id);
+            SafeBroadcast::dispatch(
+                fn () => AgendaItemAssigned::dispatch($item, $item->assigned_to_user_id),
+                'AgendaItemAssigned',
+                ['agenda_item_id' => $item->id],
+            );
         }
 
         return back()->with('success', 'Agregado a la agenda.');
