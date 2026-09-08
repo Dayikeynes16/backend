@@ -95,6 +95,10 @@ Ante la confirmación, el usuario tiene tres salidas: **asociar** (reenvía con 
 
 Los clientes creados automáticamente aparecen en el chip con **"Poner nombre"** (o "Sin nombre" si el rol no puede editar). Al guardarlo, `HandlesCustomers::update` apaga `name_pending`.
 
+Lo mismo desde el hub: `Api\Hub\CustomerController::update` apaga `name_pending` en cuanto el nombre deja de estar vacío, y `index`/`row` lo exponen para que la pantalla de Clientes marque **"falta nombre"** en la lista y arranque el campo vacío al editarlos.
+
+> 2026-09-08: el hub guardaba el nombre pero **no** apagaba la bandera, así que `saleNames` seguía tratándolo como placeholder y las ventas mostraban el teléfono. Desde el mostrador se veía como que poner el nombre no servía de nada — y, al no distinguirse en la lista, el cajero acababa intentando dar de alta a un cliente que ya existía y chocando contra *"Ya existe un cliente con ese teléfono en la sucursal"*.
+
 ## Roles y permisos
 
 | Acción | admin-empresa | admin-sucursal | cajero |

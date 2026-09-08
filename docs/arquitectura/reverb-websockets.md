@@ -134,6 +134,12 @@ En la mesa de trabajo, tres consumidores escuchan el mismo canal a la vez: `useS
 
 `Echo.leave()` abandona el canal **entero**, no los listeners de quien llama. Por eso ambos lados llevan cuenta de sus consumidores y sólo abandonan cuando se va el último. No es una precaución teórica: en la web `useSaleQueue` hacía `leave()` al desmontarse y dejaba mudos a los otros dos, y en el hub el `disconnect()` de la pantalla que se va llegaba después del `connect()` de la que llega, porque vue-router monta antes de desmontar.
 
+### Dónde falta envolver: se comprueba, no se confía
+
+`tests/Feature/BroadcastResilienceTest` sustituye el transporte por uno que siempre falla —un Reverb caído— y exige que la operación siga respondiendo bien: tomar y soltar el lock de una venta, asignar una tarea de agenda, y emparejar o desemparejar un pedido web. Es la red que atrapa un `dispatch()` suelto antes de que llegue al mostrador.
+
+> 2026-09-08: esos cinco caminos estaban sin envolver. Los dos de `OrderLinkService` además emitían **dentro** de la transacción, así que un fallo del transporte revertía un emparejamiento ya hecho y mantenía las filas bloqueadas durante la llamada HTTP; ahora se emiten después de confirmar. En agenda el evento ni siquiera lo consume nadie: se arriesgaba un 500 por un aviso que no escucha ningún cliente.
+
 ### El emisor no recibe su propio eco
 
 Los eventos de venta emitidos desde la web usan `SafeBroadcast::toOthers()`. Quien cobra ya recibe la venta actualizada en la respuesta de Inertia; su propio eco sólo disparaba una segunda recarga de los mismos datos. Laravel excluye al emisor por el `X-Socket-ID` que Echo inyecta en las peticiones de axios; si no hay socket id —el hub con token, una báscula, un comando— el evento llega a todos, como antes.
