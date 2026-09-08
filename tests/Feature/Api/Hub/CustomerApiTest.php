@@ -161,6 +161,55 @@ class CustomerApiTest extends TestCase
             ->assertJsonPath('data.status', 'inactive');
     }
 
+    /**
+     * Ponerle nombre a un cliente que nació de una venta (su `name` es el
+     * teléfono) lo deja de marcar como pendiente, igual que en la web. Sin
+     * esto el hub guardaba el nombre pero `saleNames` seguía tratándolo como
+     * placeholder: el cajero escribía el nombre y no lo veía en ningún lado.
+     */
+    public function test_putting_a_name_clears_name_pending(): void
+    {
+        $c = Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'name' => '661 000 4444',
+            'name_pending' => true,
+            'phone' => '6610004444',
+            'status' => 'active',
+        ]);
+
+        $this->withToken($this->adminToken())
+            ->patchJson("/api/v1/hub/customers/{$c->id}", [
+                'name' => 'Juan Pérez',
+                'phone' => '6610004444',
+                'status' => 'active',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Juan Pérez')
+            ->assertJsonPath('data.name_pending', false);
+
+        $this->assertFalse((bool) $c->refresh()->name_pending);
+    }
+
+    /** El listado marca a quién le falta nombre, para no darlo de alta otra vez. */
+    public function test_index_reports_name_pending(): void
+    {
+        Customer::create([
+            'tenant_id' => $this->tenant->id,
+            'branch_id' => $this->branch->id,
+            'name' => '661 000 5555',
+            'name_pending' => true,
+            'phone' => '6610005555',
+            'status' => 'active',
+        ]);
+
+        $res = $this->withToken($this->adminToken())
+            ->getJson('/api/v1/hub/customers?search=6610005555')
+            ->assertOk();
+
+        $this->assertTrue($res->json('data.0.name_pending'));
+    }
+
     public function test_destroy_deactivates_when_has_sales(): void
     {
         $c = $this->customer($this->branch->id, 'Con Ventas', '6610002222');

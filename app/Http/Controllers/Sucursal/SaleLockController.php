@@ -6,6 +6,7 @@ use App\Events\SaleLocked;
 use App\Events\SaleUnlocked;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +42,11 @@ class SaleLockController extends Controller
 
             foreach ($previouslyLocked as $prev) {
                 $prev->updateQuietly(['locked_by' => null, 'locked_at' => null]);
-                SaleUnlocked::dispatch($prev->id, $prev->branch_id);
+                SafeBroadcast::dispatch(
+                    fn () => SaleUnlocked::dispatch($prev->id, $prev->branch_id),
+                    'SaleUnlocked',
+                    ['sale_id' => $prev->id],
+                );
             }
 
             // Acquire the lock
@@ -50,7 +55,11 @@ class SaleLockController extends Controller
                 'locked_at' => now(),
             ]);
 
-            SaleLocked::dispatch($sale->id, $sale->branch_id, $user->id, $user->name);
+            SafeBroadcast::dispatch(
+                fn () => SaleLocked::dispatch($sale->id, $sale->branch_id, $user->id, $user->name),
+                'SaleLocked',
+                ['sale_id' => $sale->id],
+            );
 
             return response()->json(['ok' => true]);
         });
@@ -66,7 +75,11 @@ class SaleLockController extends Controller
                 'locked_at' => null,
             ]);
 
-            SaleUnlocked::dispatch($sale->id, $sale->branch_id);
+            SafeBroadcast::dispatch(
+                fn () => SaleUnlocked::dispatch($sale->id, $sale->branch_id),
+                'SaleUnlocked',
+                ['sale_id' => $sale->id],
+            );
         }
 
         return response()->json(['ok' => true]);

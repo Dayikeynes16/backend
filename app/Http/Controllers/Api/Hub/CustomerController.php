@@ -85,6 +85,11 @@ class CustomerController extends Controller
             return [
                 'id' => $c->id,
                 'name' => $c->name,
+                // El cliente nació de una venta y su `name` es el teléfono, no
+                // un nombre. El hub lo marca para que el cajero sepa a quién le
+                // falta nombre en vez de darlo de alta otra vez y chocar contra
+                // el teléfono duplicado.
+                'name_pending' => (bool) $c->name_pending,
                 'phone' => $c->phone,
                 'notes' => $c->notes,
                 'status' => $c->status,
@@ -142,6 +147,12 @@ class CustomerController extends Controller
 
         $found->update([
             'name' => $validated['name'],
+            // Ponerle nombre a un cliente creado automáticamente desde una venta
+            // lo deja de marcar como pendiente (paridad con HandlesCustomers de
+            // la web). Sin esto el hub guardaba el nombre pero `saleNames` seguía
+            // tratándolo como placeholder y mostrando el teléfono en las ventas:
+            // el cajero escribía el nombre y no lo veía aparecer en ningún lado.
+            'name_pending' => trim($validated['name']) !== '' ? false : $found->name_pending,
             'phone' => $validated['phone'] ?? null,
             'notes' => $validated['notes'] ?? null,
             'status' => $canChangeStatus ? $validated['status'] : $found->status,
@@ -323,6 +334,7 @@ class CustomerController extends Controller
         return [
             'id' => $c->id,
             'name' => $c->name,
+            'name_pending' => (bool) $c->name_pending,
             'phone' => $c->phone,
             'notes' => $c->notes,
             'status' => $c->status,

@@ -112,7 +112,9 @@ Un reintento con la misma `client_reference` devuelve **`200`** con el turno exi
 
 Las reglas de retiros son las mismas que en la web: viven en `ShiftService::addWithdrawal` / `removeWithdrawal`, compartidas por `Sucursal\WithdrawalController` (web) y `Api\Hub\WithdrawalController` (hub).
 
-El turno abierto es requisito para cobrar ventas, registrar gastos, registrar compras y pagos en efectivo a proveedores (`409` si no hay).
+El turno abierto es requisito para cobrar ventas, registrar gastos, registrar compras y pagos en efectivo a proveedores (`409` si no hay). Eso incluye los **dos** caminos de pago a proveedor —contra una compra (`purchases/{id}/payments`) y a cuenta (`providers/{id}/pagos`)—: es el mismo dinero del mismo cajón, así que ambos se atan al turno vía `cash_register_shift_id` y el corte los descuenta del efectivo esperado (`cashProviderPayments`).
+
+> 2026-09-08: el pago **a cuenta** no exigía turno ni se ataba a él. El dinero salía del cajón sin que el corte se enterara y quien cerraba aparecía con un faltante por ese importe. La web (Empresa/Sucursal) y el asistente IA no cambian: ahí el pago a cuenta lo hacen roles administrativos, que no tienen turno.
 
 ## Ventas y cobros
 
@@ -162,6 +164,8 @@ Requiere turno abierto (`409` si no). `422` si la venta está `completed` o `can
 - `client_reference`: opcional, string máx. 64. **Clave de idempotencia generada por el hub.**
 
 **Idempotencia por `(sale_id, client_reference)`:** si ya existe un pago de esa venta con ese `client_reference`, el endpoint devuelve **el pago existente sin crear otro** — respuesta `200` (con `change: 0.0`) en lugar de `201`. Esto hace seguro el reintento del outbox del hub tras timeouts o cortes de red. Está garantizado en base de datos por un índice único parcial (migración `2026_06_01_000001_add_client_reference_to_payments_table.php`: `UNIQUE (sale_id, client_reference) WHERE client_reference IS NOT NULL`); los pagos de la web Inertia dejan la columna en `null` y no participan.
+
+Esa garantía cubre también los **reintentos simultáneos**: si dos peticiones con la misma referencia llegan a la vez, ninguna ve a la otra en la consulta previa —la primera aún no ha confirmado— y ambas llegan al `INSERT`. El índice frena a la segunda, y el controlador lo trata como lo que es (el mismo cobro llegando dos veces): captura la violación de unicidad, relee el pago ya registrado y responde `200`. Antes salía un `500` que el hub leía como fallo del servidor y volvía a reintentar un cobro ya hecho.
 
 **Respuesta 201 (pago nuevo):**
 
@@ -303,7 +307,7 @@ En la columna **Rol**, «módulo» significa admin-sucursal siempre, y cajero so
 | GET | `providers/{id}/compras` | Compras al proveedor en la sucursal, paginadas (20) |
 | GET | `providers/{id}/pagos` | Pagos al proveedor en la sucursal, paginados (20) |
 | GET | `providers/{id}/productos` | Agregado por concepto/unidad de lo comprado (top 100 por importe) |
-| POST | `providers/{id}/pagos` | **Pago a cuenta**: FIFO sobre las compras pendientes del proveedor en la sucursal (`amount`, `payment_method`, `reference`, `notes`). `201` con `applied_count` |
+| POST | `providers/{id}/pagos` | **Pago a cuenta**: FIFO sobre las compras pendientes del proveedor en la sucursal (`amount`, `payment_method`, `reference`, `notes`). `201` con `applied_count`. En efectivo exige turno abierto (`409`) y ata cada pago generado a ese turno |
 
 ## Tiempo real (Reverb/Echo)
 
