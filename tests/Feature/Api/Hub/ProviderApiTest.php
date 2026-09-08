@@ -3,7 +3,9 @@
 namespace Tests\Feature\Api\Hub;
 
 use App\Enums\PurchaseStatus;
+use App\Models\CashRegisterShift;
 use App\Models\Provider;
+use App\Models\ProviderPayment;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\Tenant;
@@ -231,21 +233,97 @@ class ProviderApiTest extends TestCase
             ->assertStatus(403);
     }
 
+    private function openShift(string $token, float $opening = 0): void
+    {
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/shift/open', ['opening_amount' => $opening])
+            ->assertCreated();
+    }
+
     public function test_account_payment_reduces_debt_fifo(): void
     {
         $provider = $this->makeProvider();
         $this->makePurchase($provider, 100); // más antigua
         $this->makePurchase($provider, 50);
 
-        $this->withToken($this->adminToken())
+        $token = $this->adminToken();
+        $this->openShift($token);
+
+        $this->withToken($token)
             ->postJson("/api/v1/hub/providers/{$provider->id}/pagos", ['amount' => 120, 'payment_method' => 'cash'])
             ->assertCreated()
             ->assertJsonPath('applied_count', 2);
 
-        $res = $this->withToken($this->adminToken())
+        $res = $this->withToken($token)
             ->getJson("/api/v1/hub/providers/{$provider->id}")
             ->assertOk();
         $this->assertEquals(30, $res->json('resumen.deuda_actual'));
+    }
+
+    /**
+     * Un pago a cuenta en efectivo sale del mismo cajón que un pago a una
+     * compra concreta: exige turno abierto, igual que PurchaseController.
+     */
+    public function test_account_payment_in_cash_requires_an_open_shift(): void
+    {
+        $provider = $this->makeProvider();
+        $this->makePurchase($provider, 100);
+
+        $this->withToken($this->adminToken())
+            ->postJson("/api/v1/hub/providers/{$provider->id}/pagos", ['amount' => 50, 'payment_method' => 'cash'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Abre un turno antes de registrar un pago en efectivo.');
+
+        $this->assertSame(0, ProviderPayment::withoutGlobalScopes()->count());
+    }
+
+    /** Con tarjeta el dinero no sale del cajón: no hace falta turno. */
+    public function test_account_payment_by_card_does_not_need_a_shift(): void
+    {
+        $provider = $this->makeProvider();
+        $this->makePurchase($provider, 100);
+
+        $this->withToken($this->adminToken())
+            ->postJson("/api/v1/hub/providers/{$provider->id}/pagos", ['amount' => 50, 'payment_method' => 'card'])
+            ->assertCreated();
+
+        $this->assertNull(ProviderPayment::withoutGlobalScopes()->first()->cash_register_shift_id);
+    }
+
+    /**
+     * El pago a cuenta en efectivo se ata al turno y el corte lo descuenta del
+     * efectivo esperado. Sin esto el dinero salía del cajón sin que el corte se
+     * enterara y quien cerraba el turno aparecía con un faltante por ese importe.
+     */
+    public function test_account_payment_in_cash_is_tied_to_the_shift_and_lowers_expected_cash(): void
+    {
+        $provider = $this->makeProvider();
+        $this->makePurchase($provider, 100);
+        $this->makePurchase($provider, 100);
+
+        $token = $this->adminToken();
+        $this->openShift($token, 1000);
+
+        $this->withToken($token)
+            ->postJson("/api/v1/hub/providers/{$provider->id}/pagos", ['amount' => 150, 'payment_method' => 'cash'])
+            ->assertCreated();
+
+        $shift = CashRegisterShift::withoutGlobalScopes()
+            ->where('user_id', $this->adminSucursal->id)->whereNull('closed_at')->firstOrFail();
+
+        $this->assertSame(
+            0,
+            ProviderPayment::withoutGlobalScopes()->whereNull('cash_register_shift_id')->count(),
+            'Todo pago a cuenta en efectivo debe quedar atado al turno.'
+        );
+        $this->assertSame(
+            2,
+            ProviderPayment::withoutGlobalScopes()->where('cash_register_shift_id', $shift->id)->count()
+        );
+
+        $res = $this->withToken($token)->getJson('/api/v1/hub/shift/current')->assertOk();
+        $this->assertEquals(150, $res->json('summary.cash_out.provider_payments'));
+        $this->assertEquals(850, $res->json('summary.expected_cash'));
     }
 
     public function test_compras_and_productos_listing(): void

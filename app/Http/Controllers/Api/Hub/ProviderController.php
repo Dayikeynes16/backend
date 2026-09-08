@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\HandlesProviderWrites;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Hub\HubProviderResource;
 use App\Models\Branch;
+use App\Models\CashRegisterShift;
 use App\Models\Provider;
 use App\Models\ProviderPayment;
 use App\Models\Purchase;
@@ -262,6 +263,19 @@ class ProviderController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
+        // Un pago en efectivo sale del cajón → exige turno abierto y se ata a
+        // él, igual que PurchaseController::addPayment. Es el mismo dinero del
+        // mismo cajón: sin esto el corte no lo descuenta del efectivo esperado
+        // y quien cierra el turno aparece con un faltante por ese importe.
+        $shiftId = null;
+        if ($validated['payment_method'] === 'cash') {
+            $shift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->first();
+            if (! $shift) {
+                return response()->json(['message' => 'Abre un turno antes de registrar un pago en efectivo.'], 409);
+            }
+            $shiftId = $shift->id;
+        }
+
         $created = $payments->applyAccountPayment($found, [
             'amount' => $validated['amount'],
             'payment_method' => $validated['payment_method'],
@@ -269,6 +283,7 @@ class ProviderController extends Controller
             'notes' => $validated['notes'] ?? null,
             'user_id' => $user->id,
             'branch_id' => $user->branch_id,
+            'cash_register_shift_id' => $shiftId,
         ]);
 
         return response()->json([

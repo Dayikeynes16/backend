@@ -209,6 +209,12 @@ final class PurchasePaymentService
      * Si sobra dinero después de saldar todas las compras pendientes, crea un
      * pago "huérfano" con `purchase_id = null` para registrar el sobrante.
      *
+     * `cash_register_shift_id` ata el pago al turno del que salió el dinero, y
+     * con él el corte lo descuenta del efectivo esperado (`cashProviderPayments`).
+     * Sin él, un pago en efectivo vacía el cajón sin que el corte se entere y el
+     * cajero aparece con faltante. Quien llama decide si aplica: los roles
+     * administrativos de la web pagan desde la oficina, sin turno, y mandan null.
+     *
      * @param  array{
      *     amount: numeric,
      *     payment_method: string,
@@ -217,6 +223,7 @@ final class PurchasePaymentService
      *     notes?: string|null,
      *     user_id?: int|null,
      *     branch_id?: int|null,
+     *     cash_register_shift_id?: int|null,
      * }  $payload
      * @return array<int, ProviderPayment>
      */
@@ -255,6 +262,7 @@ final class PurchasePaymentService
                 $created[] = ProviderPayment::create([
                     'tenant_id' => $provider->tenant_id,
                     'branch_id' => $purchase->branch_id,
+                    'cash_register_shift_id' => $payload['cash_register_shift_id'] ?? null,
                     'provider_id' => $provider->id,
                     'purchase_id' => $purchase->id,
                     'paid_at' => $paidAt,
@@ -274,6 +282,7 @@ final class PurchasePaymentService
                 $created[] = ProviderPayment::create([
                     'tenant_id' => $provider->tenant_id,
                     'branch_id' => $payload['branch_id'] ?? $provider->branch_id ?? null,
+                    'cash_register_shift_id' => $payload['cash_register_shift_id'] ?? null,
                     'provider_id' => $provider->id,
                     'purchase_id' => null,
                     'paid_at' => $paidAt,
