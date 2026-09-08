@@ -8,6 +8,7 @@ use App\Models\CustomerPayment;
 use App\Models\Payment;
 use App\Models\Sale;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
 
@@ -193,6 +194,53 @@ class PaymentApiTest extends TestCase
 
         $this->assertSame(1, Payment::where('sale_id', $sale->id)->count());
         $this->assertSame($first->json('payment.id'), $second->json('payment.id'));
+    }
+
+    /**
+     * Dos reintentos del hub a la vez: el primero aún no ha confirmado cuando
+     * el segundo consulta, así que ninguno ve al otro y ambos llegan al INSERT.
+     * El índice único (sale_id, client_reference) frena al segundo — y eso NO
+     * es un error: es el mismo cobro llegando dos veces. Antes salía un 500 que
+     * el hub leía como fallo del servidor y volvía a reintentar un cobro hecho.
+     */
+    public function test_a_concurrent_retry_replays_the_payment_instead_of_failing(): void
+    {
+        $token = $this->token();
+        $this->openShift($token);
+        $sale = $this->activeSale($this->branch->id, 100);
+        $ref = 'pay-race-1';
+
+        // El gemelo: se cuela justo DESPUÉS de la consulta de idempotencia y
+        // ANTES de que se abra la transacción, que es exactamente la ventana en
+        // la que la petición A todavía no ha confirmado y B no puede verla. Al
+        // quedar fuera de esa transacción, sobrevive a su rollback igual que
+        // sobrevive el COMMIT de la otra petición en la vida real.
+        $twinId = null;
+        DB::listen(function ($query) use (&$twinId, $sale, $ref) {
+            if ($twinId !== null
+                || ! str_contains($query->sql, 'client_reference')
+                || ! str_starts_with(ltrim($query->sql), 'select')) {
+                return;
+            }
+            $twinId = DB::table('payments')->insertGetId([
+                'sale_id' => $sale->id,
+                'user_id' => $this->cajero->id,
+                'method' => 'cash',
+                'amount' => 50,
+                'client_reference' => $ref,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $res = $this->withToken($token)->postJson("/api/v1/hub/sales/{$sale->id}/payments", [
+            'method' => 'cash', 'amount' => 50, 'client_reference' => $ref,
+        ]);
+
+        $res->assertOk();
+        $this->assertNotNull($twinId, 'El gemelo debía insertarse para provocar el choque.');
+        $this->assertSame($twinId, $res->json('payment.id'), 'Debe devolver el cobro que sí quedó registrado.');
+        $this->assertSame(1, Payment::where('sale_id', $sale->id)->count(), 'El dinero no puede cobrarse dos veces.');
     }
 
     public function test_cannot_pay_other_branch_sale(): void

@@ -13,6 +13,7 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\SalePaymentService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -204,39 +205,43 @@ class PaymentController extends Controller
 
         // Idempotencia: si ya existe un pago con este (sale_id, client_reference),
         // devolverlo sin crear otro (reintento del hub).
-        if ($clientReference !== null) {
-            $existing = Payment::where('sale_id', $sale->id)
-                ->where('client_reference', $clientReference)
-                ->first();
-
-            if ($existing) {
-                $sale->load(['items', 'payments']);
-
-                return response()->json([
-                    'payment' => ['id' => $existing->id, 'method' => $existing->method, 'amount' => (float) $existing->amount],
-                    'change' => 0.0,
-                    'sale' => HubSaleResource::make($sale),
-                ], 200);
-            }
+        if ($clientReference !== null && $existing = $this->findByClientReference($sale, $clientReference)) {
+            return $this->replayResponse($sale, $existing);
         }
 
         $change = 0.0;
-        $payment = DB::transaction(function () use ($sale, $user, $validated, $clientReference, &$change) {
-            $actualPayment = min((float) $validated['amount'], (float) $sale->amount_pending);
 
-            $payment = Payment::create([
-                'sale_id' => $sale->id,
-                'user_id' => $user->id,
-                'method' => $validated['method'],
-                'amount' => round($actualPayment, 2),
-                'client_reference' => $clientReference,
-            ]);
+        try {
+            $payment = DB::transaction(function () use ($sale, $user, $validated, $clientReference, &$change) {
+                $actualPayment = min((float) $validated['amount'], (float) $sale->amount_pending);
 
-            $this->payments->recalculate($sale, $user);
-            $change = round((float) $validated['amount'] - $actualPayment, 2);
+                $payment = Payment::create([
+                    'sale_id' => $sale->id,
+                    'user_id' => $user->id,
+                    'method' => $validated['method'],
+                    'amount' => round($actualPayment, 2),
+                    'client_reference' => $clientReference,
+                ]);
 
-            return $payment;
-        });
+                $this->payments->recalculate($sale, $user);
+                $change = round((float) $validated['amount'] - $actualPayment, 2);
+
+                return $payment;
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            // Dos reintentos del hub a la vez: la consulta de arriba no vio nada
+            // y el índice único (sale_id, client_reference) frenó al segundo. El
+            // dinero no se duplicó, así que esto NO es un error — es el mismo
+            // cobro llegando dos veces. Sin esto salía un 500 que el hub leía
+            // como fallo del servidor y volvía a reintentar un cobro ya hecho.
+            $existing = $this->findByClientReference($sale, $clientReference);
+
+            if (! $existing) {
+                throw $e;
+            }
+
+            return $this->replayResponse($sale, $existing);
+        }
 
         $sale->load(['items', 'payments']);
 
@@ -245,6 +250,33 @@ class PaymentController extends Controller
             'change' => $change,
             'sale' => HubSaleResource::make($sale),
         ], 201);
+    }
+
+    /** El pago ya registrado para este (venta, referencia del cliente), si lo hay. */
+    private function findByClientReference(Sale $sale, ?string $clientReference): ?Payment
+    {
+        if ($clientReference === null) {
+            return null;
+        }
+
+        return Payment::where('sale_id', $sale->id)
+            ->where('client_reference', $clientReference)
+            ->first();
+    }
+
+    /**
+     * Respuesta de un reintento: el cobro ya estaba hecho. Va con 200 (no 201)
+     * y sin vuelto — el cambio se entregó en el intento que sí llegó.
+     */
+    private function replayResponse(Sale $sale, Payment $existing): JsonResponse
+    {
+        $sale->load(['items', 'payments']);
+
+        return response()->json([
+            'payment' => ['id' => $existing->id, 'method' => $existing->method, 'amount' => (float) $existing->amount],
+            'change' => 0.0,
+            'sale' => HubSaleResource::make($sale),
+        ], 200);
     }
 
     /**
