@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\ApiKey;
+use App\Models\Branch;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -24,7 +25,6 @@ class AuthenticateApiKey
 
         $apiKey = ApiKey::withoutGlobalScopes()
             ->where('key_hash', $hash)
-            ->with('branch.tenant')
             ->first();
 
         if (! $apiKey || $apiKey->status !== 'active') {
@@ -39,7 +39,18 @@ class AuthenticateApiKey
             ], 401);
         }
 
-        $branch = $apiKey->branch;
+        // Sin scopes: el tenant de ESTA key aún no está resuelto (es lo que
+        // esta pieza de código resuelve). Un `app('tenant')` ya vinculado de
+        // una request anterior en el mismo proceso (tests, Octane, colas) no
+        // debe filtrar la sucursal de esta otra API key.
+        $branch = Branch::withoutGlobalScopes()->find($apiKey->branch_id);
+
+        if (! $branch) {
+            return response()->json([
+                'message' => 'API Key inválida o inactiva.',
+            ], 401);
+        }
+
         $tenant = $branch->tenant;
 
         if ($branch->status !== 'active' || $tenant->status !== 'active') {
