@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\DeviceHeartbeatController;
 use App\Http\Controllers\Api\Hub\CancelRequestController as HubCancelRequestController;
 use App\Http\Controllers\Api\Hub\ConfigController as HubConfigController;
 use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
@@ -44,6 +45,10 @@ Route::prefix('v1')
 
         // Dictado del nombre de la venta desde la báscula (audio → texto).
         Route::post('transcribe', [TranscriptionController::class, 'store'])->name('api.transcribe');
+
+        // Latido de equipo (2026-09-12): la báscula se presenta y reporta batería,
+        // versión y red. Endpoint NUEVO: las básculas viejas no lo llaman.
+        Route::post('devices/heartbeat', [DeviceHeartbeatController::class, 'store'])->name('api.devices.heartbeat');
     });
 
 // Autenticación de usuario para el hub de escritorio (Sanctum token).
