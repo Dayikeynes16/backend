@@ -12,9 +12,12 @@ return new class extends Migration
             $table->string('kind', 32)->primary();
             $table->string('version', 32);
             // Desde cuándo se conoce ESTA versión: solo cambia cuando cambia `version`.
-            $table->timestamp('known_since');
+            // Precisión de microsegundos: si no, una comparación exacta contra el
+            // Carbon original en memoria (p. ej. en tests) nunca es igual tras el
+            // roundtrip a la base (Laravel trunca a segundos por defecto).
+            $table->timestamp('known_since', precision: 6);
             // Última consulta al feed, informativa.
-            $table->timestamp('checked_at');
+            $table->timestamp('checked_at', precision: 6);
         });
     }
 

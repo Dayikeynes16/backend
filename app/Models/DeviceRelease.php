@@ -17,6 +17,11 @@ class DeviceRelease extends Model
 
     protected $keyType = 'string';
 
+    // Con microsegundos: sin esto, Eloquent guarda "Y-m-d H:i:s" y una
+    // comparación exacta de `known_since` contra el Carbon original en memoria
+    // (p. ej. en tests) nunca es igual tras el roundtrip a la base.
+    protected $dateFormat = 'Y-m-d H:i:s.u';
+
     protected function casts(): array
     {
         return [
