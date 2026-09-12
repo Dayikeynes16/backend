@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
 use App\Http\Controllers\Api\Hub\CustomerPaymentController as HubCustomerPaymentController;
 use App\Http\Controllers\Api\Hub\CustomerPriceController as HubCustomerPriceController;
 use App\Http\Controllers\Api\Hub\DashboardController as HubDashboardController;
+use App\Http\Controllers\Api\Hub\DeviceHeartbeatController as HubDeviceHeartbeatController;
 use App\Http\Controllers\Api\Hub\ExpenseCategoryController as HubExpenseCategoryController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
 use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
@@ -80,6 +81,9 @@ Route::prefix('v1/hub')
         // Tiempo real (Reverb/Echo): parámetros de conexión + auth de canal privado vía Sanctum.
         Route::get('realtime/config', [HubRealtimeController::class, 'config'])->name('api.hub.realtime.config');
         Route::post('realtime/auth', [HubRealtimeController::class, 'authenticate'])->name('api.hub.realtime.auth');
+
+        // Latido de equipo (2026-09-12): el hub se reporta y reenvía el de sus básculas.
+        Route::post('devices/heartbeat', [HubDeviceHeartbeatController::class, 'store'])->name('api.hub.devices.heartbeat');
 
         // Configuración de negocio de la sucursal (admin-sucursal): métodos de pago + API keys.
         Route::get('config', [HubConfigController::class, 'index'])->name('api.hub.config.index');
