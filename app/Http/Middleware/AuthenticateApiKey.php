@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\ApiKey;
 use App\Models\Branch;
+use App\Scopes\TenantScope;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -39,11 +40,14 @@ class AuthenticateApiKey
             ], 401);
         }
 
-        // Sin scopes: el tenant de ESTA key aún no está resuelto (es lo que
-        // esta pieza de código resuelve). Un `app('tenant')` ya vinculado de
-        // una request anterior en el mismo proceso (tests, Octane, colas) no
-        // debe filtrar la sucursal de esta otra API key.
-        $branch = Branch::withoutGlobalScopes()->find($apiKey->branch_id);
+        // Sin el scope de tenant (aún no está resuelto: es lo que esta pieza
+        // de código resuelve), pero fijado al tenant DE ESTA KEY vía where
+        // explícito. Un `app('tenant')` ya vinculado de una request anterior
+        // en el mismo proceso (tests, Octane, colas) no debe filtrar la
+        // sucursal de esta otra API key.
+        $branch = Branch::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $apiKey->tenant_id)
+            ->find($apiKey->branch_id);
 
         if (! $branch) {
             return response()->json([
