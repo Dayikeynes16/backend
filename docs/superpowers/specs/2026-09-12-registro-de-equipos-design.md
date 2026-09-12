@@ -194,7 +194,10 @@ rol `admin-sucursal` y `branch_id` del equipo, más los `admin-empresa` del tena
 Misma forma que `SaleCancellationNotifier::branchAdmins`, y el mismo `guard`: un
 fallo al notificar se registra y no tumba el latido.
 
-Equipos con `muted_at` o `retired_at` no generan ningún aviso. El payload de cada
+Equipos con `muted_at` o `retired_at` no generan ningún aviso, pero las marcas
+(`battery_alert_level`, `silent_alerted_at`, `outdated_alert_version`) **se siguen
+actualizando igual**: solo se suprime el envío. Así, al reactivar un equipo
+silenciado no se dispara de golpe todo lo que pasó mientras estaba callado. El payload de cada
 aviso lleva `device_id`, `branch_id`, `name` y `level`, para que la campana pueda
 enlazar al panel.
 
@@ -213,8 +216,12 @@ u `outdated`, para la franja de arriba), `unregistered` (ver abajo), `tenant`.
 Tarjetas como el mockup: nombre y tipo, chip de estado con color (verde `online`,
 ámbar `battery_low`/`stale`, rojo `silent`), versión con chip "al día" / "atrasada",
 batería con barra y "cargando / sin cargar / enchufado", "reportó hace N", IP y
-"vía hub / vía nube", última venta. Tocar abre un panel lateral con el detalle y
-las tres acciones:
+un chip **"vende contra el hub / la nube"** que muestra `connection` (lo que el
+equipo declara), última venta. `via`, `os` y `model` **no van en la tarjeta**: se
+ven en el panel lateral de detalle, donde `via` se muestra como "reporta por el
+hub / por la nube" junto a `connection`, para que el caso divergente (vende contra
+la nube pero reporta por el hub) se lea completo. Tocar la tarjeta abre ese panel
+lateral con el detalle y las tres acciones:
 
 | Acción | Ruta | Efecto |
 |---|---|---|
@@ -274,7 +281,7 @@ Feature (`tests/Feature/Api/DeviceHeartbeatTest.php`, `tests/Feature/Hub/…`,
   `latest.json`; un feed roto no borra lo anterior; **la misma versión en dos
   corridas seguidas no toca `known_since`** (solo `checked_at`); una versión nueva
   sí lo reinicia.
-- `devices:check` un sábado a las 08:36 con un equipo callado desde el viernes →
+- `devices:check` un sábado a las 08:35 con un equipo callado desde el viernes →
   un aviso; el domingo → ninguno (sigue marcado); tras un latido y 31 min de
   silencio en ventana → otro.
 - Panel: el admin de sucursal solo ve los suyos; renombrar/silenciar/baja; 404 en
