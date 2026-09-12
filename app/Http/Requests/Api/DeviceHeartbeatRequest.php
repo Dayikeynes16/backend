@@ -23,7 +23,7 @@ class DeviceHeartbeatRequest extends FormRequest
         return [
             'device_id' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9._-]+$/'],
             'kind' => ['required', Rule::in(Device::KINDS)],
-            'name' => ['sometimes', 'string', 'max:100'],
+            'name' => ['sometimes', 'nullable', 'string', 'max:100'],
             'app_version' => ['sometimes', 'nullable', 'string', 'max:32'],
             'os' => ['sometimes', 'nullable', 'string', 'max:100'],
             'model' => ['sometimes', 'nullable', 'string', 'max:100'],

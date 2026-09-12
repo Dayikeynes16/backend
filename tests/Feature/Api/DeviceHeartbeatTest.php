@@ -112,6 +112,14 @@ class DeviceHeartbeatTest extends TestCase
         $this->assertNull($device->battery_charging);
     }
 
+    public function test_null_name_keeps_the_stored_name(): void
+    {
+        $this->beat($this->payload());
+        $this->beat($this->payload(['name' => null]))->assertOk();
+
+        $this->assertSame('Mostrador Surface', Device::withoutGlobalScopes()->first()->name);
+    }
+
     public function test_same_device_id_from_another_branch_moves_it(): void
     {
         $this->beat($this->payload());
