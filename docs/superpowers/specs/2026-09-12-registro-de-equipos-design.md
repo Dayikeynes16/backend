@@ -81,9 +81,9 @@ la lista del `CLAUDE.md` raíz).
 | `model` | string(100) nullable | p. ej. `Surface Go 3`, `SM-X230` |
 | `battery_level` | tinyint nullable | 0–100; `null` si el equipo no tiene batería o no la reporta |
 | `battery_charging` | bool nullable | |
-| `connection` | string(16) nullable | `cloud` · `hub` (a qué vende) |
+| `connection` | string(16) nullable | `cloud` · `hub`: a qué está vendiendo, lo declara el equipo |
 | `local_ip` | string(45) nullable | |
-| `via` | string(16) | `cloud` · `hub` (por dónde llegó el latido) |
+| `via` | string(16) | `cloud` · `hub`: por dónde llegó el latido, lo decide el servidor según el endpoint. Divergen legítimamente: una Android emparejada que cayó en respaldo vende contra la nube (`connection = cloud`) pero puede seguir reportando por el hub (`via = hub`), y al revés. No son redundantes. |
 | `last_seen_at` | timestamp | último latido |
 | `first_seen_at` | timestamp | |
 | `muted_at` | timestamp nullable | silenciado: no genera avisos |
@@ -153,9 +153,11 @@ servicio, mismo resultado.
 
 ### 3. Versión publicada por tipo
 
-Tabla `device_releases`: `kind` (pk), `version`, `fetched_at`. Comando
-`devices:sync-releases` (cada hora en `bootstrap/app.php`) lee los feeds públicos
-del bucket, los mismos que consumen los actualizadores:
+Tabla `device_releases`: `kind` (pk), `version`, `known_since` (desde cuándo se
+conoce **esta** versión: solo cambia cuando cambia `version`), `checked_at`
+(última consulta al feed, informativa). Comando `devices:sync-releases` (cada hora
+en `bootstrap/app.php`) lee los feeds públicos del bucket, los mismos que consumen
+los actualizadores:
 
 | `kind` | Feed |
 |---|---|
@@ -166,7 +168,9 @@ del bucket, los mismos que consumen los actualizadores:
 
 La URL base vive en `config/devices.php` (`releases_base_url`). Un feed que no
 responde no borra el valor anterior; se registra en el log y se sigue. Comparación
-con `version_compare`.
+con `version_compare`. **`known_since` no se toca si la versión leída es la misma
+que la guardada**; si se reescribiera en cada corrida, "lleva más de 24 h
+publicada" nunca sería cierto y el aviso de versión atrasada quedaría mudo.
 
 ### 4. Avisos
 
@@ -175,10 +179,10 @@ Cuatro `Notification` con `via() === ['database', 'broadcast']` y `level =
 
 | Notificación | `type` | Cuándo | Cuerpo |
 |---|---|---|---|
-| `DeviceBatteryLow` | `device.battery.low` | Latido con `level <= 20` sin cargar y `battery_alert_level` nulo → marca `20`. Latido con `level <= 10` sin cargar y `battery_alert_level == 20` → marca `10`. Latido cargando o `level > 20` → limpia. | "Balanza 2 está al 14 % y no está cargando." |
+| `DeviceBatteryLow` | `device.battery.low` | Latido sin cargar: si `level <= 10` y `battery_alert_level != 10` → un aviso y marca `10` (aunque venga directo de `null`: un solo aviso, no dos). Si `10 < level <= 20` y `battery_alert_level` nulo → un aviso y marca `20`. Latido cargando o `level > 20` → limpia la marca. | "Balanza 2 está al 14 % y no está cargando." |
 | `DeviceRegistered` | `device.registered` | Primer latido de un `device_id` desconocido en el tenant. | "Un equipo nuevo reporta en Centro: Balanza 3 (Android, 1.6.2)." |
-| `DeviceSilent` | `device.silent` | `devices:check`: `last_seen_at` hace más de 30 min, `silent_alerted_at` nulo, hora local entre 08:00 y 20:00, y `last_seen_at` dentro de las últimas 24 h (si lleva días apagado ya se avisó una vez). Marca `silent_alerted_at`. | "Mostrador Surface no reporta desde las 09:12." |
-| `DeviceOutdated` | `device.outdated` | `devices:check`: hay `device_releases` para su `kind`, `app_version` menor, la release lleva más de 24 h publicada (`fetched_at`), y `outdated_alert_version != version`. Marca la versión. | "Balanza 2 sigue en 1.6.1; la 1.6.2 lleva un día publicada." |
+| `DeviceSilent` | `device.silent` | `devices:check`, solo entre 08:00 y 20:00 hora local: el silencio se mide **dentro de la ventana**: `silencio = now - max(last_seen_at, inicio de la ventana de hoy)`. Si `silencio > 30 min` y `silent_alerted_at` nulo → un aviso y marca `silent_alerted_at`. Así una tablet apagada de noche no avisa a las 08:00; avisa a las 08:30 si nadie la encendió, y una sola vez por episodio: cualquier latido limpia la marca. Un equipo apagado desde el viernes avisa el lunes a las 08:30. | "Mostrador Surface no reporta desde las 09:12." |
+| `DeviceOutdated` | `device.outdated` | `devices:check`: hay `device_releases` para su `kind`, `app_version` menor, `known_since` hace más de 24 h, y `outdated_alert_version != version`. Marca la versión. | "Balanza 2 sigue en 1.6.1; la 1.6.2 lleva un día publicada." |
 
 Destinatarios (`DeviceAlertService::recipients(Device)`): usuarios del tenant con
 rol `admin-sucursal` y `branch_id` del equipo, más los `admin-empresa` del tenant.
@@ -214,7 +218,9 @@ las tres acciones:
 | Dar de baja | `DELETE …/{device}` | pone `retired_at`; desaparece del panel; si vuelve a reportar, reaparece |
 
 Todo con `BelongsToTenant` y comprobando `branch_id` del usuario (404 si no es de
-su sucursal).
+su sucursal). Las rutas caen en los grupos `role:admin-sucursal|superadmin` y
+`role:admin-empresa|superadmin` existentes, así que `superadmin` ve el panel: es
+lo esperado, igual que el resto de secciones.
 
 **"Última venta" y "sin registro".** `last_sale_at` por equipo =
 `max(sales.created_at)` con `sales.origin_name = device.name` y misma sucursal en
