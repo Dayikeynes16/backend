@@ -105,6 +105,11 @@ Estados derivados (accessor `status`, no columna):
 | `stale` | entre 10 y 30 min |
 | `retired` | `retired_at` no nulo |
 
+El estado del panel es la realidad en todo momento y **no depende de la ventana
+horaria**: un equipo apagado a medianoche se ve `silent` (rojo) y aparece en la
+franja de avisos activos del panel aunque la campana no haya sonado. La ventana
+solo decide cuándo se **notifica**; el panel siempre muestra lo que hay.
+
 ### 2. El latido
 
 **`POST /api/v1/devices/heartbeat`** — grupo `auth.apikey` existente (mismo
@@ -181,7 +186,7 @@ Cuatro `Notification` con `via() === ['database', 'broadcast']` y `level =
 |---|---|---|---|
 | `DeviceBatteryLow` | `device.battery.low` | Latido sin cargar: si `level <= 10` y `battery_alert_level != 10` → un aviso y marca `10` (aunque venga directo de `null`: un solo aviso, no dos). Si `10 < level <= 20` y `battery_alert_level` nulo → un aviso y marca `20`. Latido cargando o `level > 20` → limpia la marca. | "Balanza 2 está al 14 % y no está cargando." |
 | `DeviceRegistered` | `device.registered` | Primer latido de un `device_id` desconocido en el tenant. | "Un equipo nuevo reporta en Centro: Balanza 3 (Android, 1.6.2)." |
-| `DeviceSilent` | `device.silent` | `devices:check`, solo entre 08:00 y 20:00 hora local: el silencio se mide **dentro de la ventana**: `silencio = now - max(last_seen_at, inicio de la ventana de hoy)`. Si `silencio > 30 min` y `silent_alerted_at` nulo → un aviso y marca `silent_alerted_at`. Así una tablet apagada de noche no avisa a las 08:00; avisa a las 08:30 si nadie la encendió, y una sola vez por episodio: cualquier latido limpia la marca. Un equipo apagado desde el viernes avisa el lunes a las 08:30. | "Mostrador Surface no reporta desde las 09:12." |
+| `DeviceSilent` | `device.silent` | `devices:check`, solo entre 08:00 y 20:00 hora local: el silencio se mide **dentro de la ventana**: `silencio = now - max(last_seen_at, inicio de la ventana de hoy)`. Si `silencio > 30 min` y `silent_alerted_at` nulo → un aviso y marca `silent_alerted_at`. La ventana aplica **los siete días** (las carnicerías abren fines de semana); no hay noción de día hábil. Así una tablet apagada de noche no avisa a las 08:00; avisa en el primer chequeo pasados 30 min de ventana (hacia las 08:35, el cron es de 5 min) si nadie la encendió, y una sola vez por episodio: solo un latido limpia la marca. Un equipo apagado desde el viernes avisa el sábado por la mañana y no vuelve a avisar hasta que reporte y se calle otra vez. | "Mostrador Surface no reporta desde las 09:12." |
 | `DeviceOutdated` | `device.outdated` | `devices:check`: hay `device_releases` para su `kind`, `app_version` menor, `known_since` hace más de 24 h, y `outdated_alert_version != version`. Marca la versión. | "Balanza 2 sigue en 1.6.1; la 1.6.2 lleva un día publicada." |
 
 Destinatarios (`DeviceAlertService::recipients(Device)`): usuarios del tenant con
@@ -258,14 +263,20 @@ Feature (`tests/Feature/Api/DeviceHeartbeatTest.php`, `tests/Feature/Hub/…`,
   dado de baja; valida el payload; `battery: null` limpia.
 - **`ScaleLegacyContractTest` sigue verde sin tocarlo.**
 - Batería: 25 % → nada; 14 % → un aviso; 14 % otra vez → nada; 8 % → segundo
-  aviso; cargando → limpia; 14 % de nuevo → avisa otra vez. Silenciado → nada.
+  aviso; cargando → limpia; 14 % de nuevo → avisa otra vez. Primer latido directo
+  al 6 % → **un solo** aviso (marca `10`), y 6 % otra vez → nada. Silenciado → nada.
 - Equipo nuevo → aviso a admin de sucursal y de empresa, no al cajero ni a otra
   sucursal.
 - `devices:check`: silencio > 30 min dentro del horario → un aviso, no dos; fuera
   del horario → ninguno; versión atrasada con release de más de 24 h → un aviso
   por versión.
 - `devices:sync-releases` con feeds falsos (`Http::fake`): parsea `latest.yml` y
-  `latest.json`; un feed roto no borra lo anterior.
+  `latest.json`; un feed roto no borra lo anterior; **la misma versión en dos
+  corridas seguidas no toca `known_since`** (solo `checked_at`); una versión nueva
+  sí lo reinicia.
+- `devices:check` un sábado a las 08:36 con un equipo callado desde el viernes →
+  un aviso; el domingo → ninguno (sigue marcado); tras un latido y 31 min de
+  silencio en ventana → otro.
 - Panel: el admin de sucursal solo ve los suyos; renombrar/silenciar/baja; 404 en
   equipo de otra sucursal; "sin registro" aparece a partir de las ventas.
 
