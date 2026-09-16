@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import DeviceCard from '@/Components/Devices/DeviceCard.vue';
 import DeviceDetailPanel from '@/Components/Devices/DeviceDetailPanel.vue';
 
@@ -12,6 +12,13 @@ const props = defineProps({
 });
 
 const open = ref(null);
+
+// Un solo reloj para todas las tarjetas: los «hace N min» avanzan aunque el
+// servidor no haya mandado nada nuevo.
+const now = ref(Date.now());
+let clock = null;
+onMounted(() => { clock = setInterval(() => { now.value = Date.now(); }, 30000); });
+onBeforeUnmount(() => clearInterval(clock));
 
 // Tras renombrar o silenciar, Inertia trae props nuevas: el panel debe mostrar
 // el equipo actualizado, no la copia con la que se abrió.
@@ -51,7 +58,7 @@ const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-MX', { dateStyle: '
         </div>
 
         <div v-else-if="devices.length" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <DeviceCard v-for="d in devices" :key="d.id" :device="d" @open="open = $event" />
+            <DeviceCard v-for="d in devices" :key="d.id" :device="d" :now="now" @open="open = $event" />
         </div>
 
         <div v-if="unregistered.length" class="rounded-2xl bg-white p-5 ring-1 ring-gray-200">

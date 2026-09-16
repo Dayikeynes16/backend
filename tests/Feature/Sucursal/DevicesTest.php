@@ -49,19 +49,61 @@ class DevicesTest extends TestCase
             );
     }
 
-    public function test_unregistered_scales_come_from_sales(): void
+    public function test_unregistered_scales_come_from_scale_api_sales_only(): void
     {
-        $this->makeCompletedSale(['origin_name' => 'Bascula vieja']);
-        $this->makeCompletedSale(['origin_name' => 'Balanza 1']);
+        $this->makeCompletedSale(['origin' => 'api', 'origin_name' => 'Bascula vieja']);
+        $this->makeCompletedSale(['origin' => 'api', 'origin_name' => 'Balanza 1']);
+        $this->makeCompletedSale(['origin' => 'api', 'origin_name' => 'Retirada']);
+        // El mostrador y el hub firman como «Administrador»: no son básculas.
+        $this->makeCompletedSale(['origin' => 'admin', 'origin_name' => 'Administrador']);
         $this->device(['name' => 'Balanza 1']);
+        $this->device(['name' => 'Retirada', 'retired_at' => now()]);
 
         $this->actingAs($this->adminSucursal)
             ->get(route('sucursal.devices.index', $this->tenant->slug))
             ->assertInertia(fn (Assert $page) => $page
+                ->has('devices', 1)
                 ->has('unregistered', 1)
                 ->where('unregistered.0.name', 'Bascula vieja')
+                ->where('unregistered.0.last_sale_at', fn ($v) => is_string($v) && str_contains($v, 'T'))
+                ->where('devices.0.last_sale_at', fn ($v) => is_string($v) && str_contains($v, 'T'))
+            );
+    }
+
+    public function test_a_numeric_device_name_still_matches_its_sales(): void
+    {
+        $this->makeCompletedSale(['origin' => 'api', 'origin_name' => '2']);
+        $this->device(['name' => '2']);
+
+        $this->actingAs($this->adminSucursal)
+            ->get(route('sucursal.devices.index', $this->tenant->slug))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('devices', 1)
+                ->has('unregistered', 0)
                 ->where('devices.0.last_sale_at', fn ($v) => $v !== null)
             );
+    }
+
+    public function test_alias_zero_is_kept(): void
+    {
+        $device = $this->device();
+
+        $this->actingAs($this->adminSucursal)
+            ->patch(route('sucursal.devices.update', [$this->tenant->slug, $device]), ['display_name' => '0'])
+            ->assertRedirect();
+
+        $this->assertSame('0', $device->refresh()->display_name);
+    }
+
+    public function test_a_retired_device_cannot_be_touched(): void
+    {
+        $device = $this->device(['retired_at' => now()]);
+        $slug = $this->tenant->slug;
+
+        $this->actingAs($this->adminSucursal)->patch(route('sucursal.devices.update', [$slug, $device]), ['display_name' => 'x'])->assertNotFound();
+        $this->actingAs($this->adminSucursal)->patch(route('sucursal.devices.mute', [$slug, $device]))->assertNotFound();
+        $this->actingAs($this->adminSucursal)->delete(route('sucursal.devices.destroy', [$slug, $device]))->assertNotFound();
+        $this->assertNull($device->refresh()->muted_at);
     }
 
     public function test_rename_mute_and_retire(): void

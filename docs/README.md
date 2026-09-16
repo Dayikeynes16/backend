@@ -73,7 +73,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 ---
 
-## Estado del sistema (2026-08-23)
+## Estado del sistema (2026-09-16)
 
 | Área | Estado |
 |------|--------|

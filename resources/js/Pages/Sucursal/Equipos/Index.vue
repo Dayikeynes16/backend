@@ -1,6 +1,6 @@
 <script setup>
-import { computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { computed, onMounted, onBeforeUnmount } from 'vue';
+import { Head, router } from '@inertiajs/vue3';
 import SucursalLayout from '@/Layouts/SucursalLayout.vue';
 import FlashToast from '@/Components/FlashToast.vue';
 import DevicesBoard from '@/Components/Devices/DevicesBoard.vue';
@@ -16,6 +16,17 @@ const props = defineProps({
 const routes = { update: 'sucursal.devices.update', mute: 'sucursal.devices.mute', destroy: 'sucursal.devices.destroy' };
 
 const countLabel = computed(() => (props.devices.length === 1 ? '1 registrado' : `${props.devices.length} registrados`));
+
+// No hay evento de tiempo real para equipos: el tablero se refresca solo cada
+// 30 s mientras la pestaña está visible, para que un equipo que se apaga pase a
+// «Hace un rato» y «Sin reportar» sin recargar a mano.
+let poll = null;
+const refresh = () => {
+    if (document.visibilityState !== 'visible') return;
+    router.reload({ only: ['devices', 'alerts', 'unregistered'], preserveScroll: true, preserveState: true });
+};
+onMounted(() => { poll = setInterval(refresh, 30000); });
+onBeforeUnmount(() => clearInterval(poll));
 </script>
 
 <template>

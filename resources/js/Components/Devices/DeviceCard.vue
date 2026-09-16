@@ -3,6 +3,8 @@ import { computed } from 'vue';
 
 const props = defineProps({
     device: { type: Object, required: true },
+    // Reloj del tablero: sin él, «hace 3 min» se quedaría escrito para siempre.
+    now: { type: Number, default: () => Date.now() },
 });
 
 const emit = defineEmits(['open']);
@@ -16,12 +18,13 @@ const STATUS = {
     silent: { label: 'Sin reportar', chip: 'bg-red-100 text-red-800', dot: 'bg-red-500', ring: 'ring-red-200' },
     retired: { label: 'De baja', chip: 'bg-gray-200 text-gray-700', dot: 'bg-gray-400', ring: 'ring-gray-200' },
 };
+const UNKNOWN = { label: 'Desconocido', chip: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400', ring: 'ring-gray-200' };
 
-const status = computed(() => STATUS[props.device.status] ?? STATUS.online);
+const status = computed(() => STATUS[props.device.status] ?? UNKNOWN);
 
 const relative = (iso) => {
     if (!iso) return '—';
-    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    const mins = Math.round((props.now - new Date(iso).getTime()) / 60000);
     if (mins < 1) return 'ahora mismo';
     if (mins < 60) return `hace ${mins} min`;
     const h = Math.floor(mins / 60);

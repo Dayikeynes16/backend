@@ -15,7 +15,9 @@ const alias = ref('');
 const confirmRetire = ref(false);
 const busy = ref(false);
 
-watch(() => props.device, (d) => { alias.value = d?.display_name ?? ''; }, { immediate: true });
+// El alias se reinicia solo al abrir OTRO equipo. Tras silenciar o renombrar
+// llega el mismo equipo con props frescas y lo escrito no debe perderse.
+watch(() => props.device?.id, () => { alias.value = props.device?.display_name ?? ''; }, { immediate: true });
 
 const url = (name) => route(name, [props.tenantSlug, props.device.id]);
 const opts = (extra = {}) => ({

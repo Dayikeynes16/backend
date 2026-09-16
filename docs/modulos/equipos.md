@@ -49,7 +49,7 @@ Van por el circuito de [avisos persistentes](avisos.md) (`database` + `broadcast
 
 ## Panel
 
-- **Sucursal → Equipos** (`/{tenant}/sucursal/equipos`, `Sucursal\DeviceController`, `BranchDevicesQuery`): tarjetas por equipo con chip de estado, versión (con «al día» / «atrasada · hay X»), batería, último reporte, última venta, IP y contra qué vende. Arriba, la franja «Requieren atención» (batería baja, sin reportar, atrasados). Abajo, **«Sin registro»**: los `origin_name` de ventas contables de los últimos 30 días que no coinciden con el `name` de ningún equipo registrado. Es una deducción, no una identidad: dos básculas viejas con el mismo nombre se ven como una.
+- **Sucursal → Equipos** (`/{tenant}/sucursal/equipos`, `Sucursal\DeviceController`, `BranchDevicesQuery`): tarjetas por equipo con chip de estado, versión (con «al día» / «atrasada · hay X»), batería, último reporte, última venta, IP y contra qué vende. Arriba, la franja «Requieren atención» (batería baja, sin reportar, atrasados). Abajo, **«Sin registro»**: los `origin_name` de ventas de la Scale API (`origin = 'api'`) de los últimos 30 días que no coinciden con el `name` de ningún equipo conocido, activo o dado de baja. Es una deducción, no una identidad: dos básculas viejas con el mismo nombre se ven como una. Las ventas del mostrador y del hub (`origin_name = 'Administrador'`) no cuentan. El tablero se refresca solo cada 30 s mientras la pestaña está visible (no hay evento de tiempo real para equipos).
 - **Empresa → Equipos** (`/{tenant}/empresa/equipos`, `Empresa\DeviceController`): el mismo tablero, agrupado por sucursal.
 - Tocar una tarjeta abre el panel lateral con el detalle completo (`os`, `model`, «reporta por» / «vende contra») y las tres acciones:
 
@@ -59,7 +59,7 @@ Van por el circuito de [avisos persistentes](avisos.md) (`database` + `broadcast
 | Silenciar / reactivar avisos | `PATCH …/equipos/{device}/silencio` | alterna `muted_at` |
 | Dar de baja | `DELETE …/equipos/{device}` | pone `retired_at`; desaparece del panel; si vuelve a reportar, reaparece |
 
-En Sucursal, un equipo de otra sucursal da 404; en Empresa no hay restricción de sucursal. El `superadmin` entra a ambos paneles, como al resto de secciones.
+Las tres acciones viven en `Concerns\HandlesDeviceWrites`; cada controlador solo decide a qué equipos alcanza (`authorizeDevice`). Un equipo ya dado de baja responde 404 a las tres. En Sucursal, un equipo de otra sucursal da 404; en Empresa no hay restricción de sucursal. El `superadmin` entra a ambos paneles como al resto de secciones (en Sucursal, sin sucursal propia, lo ve vacío).
 
 Componentes: `resources/js/Components/Devices/{DeviceCard,DeviceDetailPanel,DevicesBoard}.vue`.
 
