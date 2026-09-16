@@ -1,7 +1,7 @@
 # Registro de equipos — nube y web (entrega 1 de 4)
 
 **Fecha:** 2026-09-12
-**Estado:** Aprobado en brainstorming, pendiente de plan
+**Estado:** Implementado en nube y web el 2026-09-16 (plan: `docs/superpowers/plans/2026-09-12-registro-de-equipos.md`; doc vivo: `docs/modulos/equipos.md`). Clientes pendientes (entregas 2–4).
 **Repo:** `carniceria-saas` (Laravel 13 + Vue 3 + Inertia)
 **Entregas siguientes:** 2 · báscula Surface (`bascula`), 3 · báscula Android (`bascula-android`), 4 · hubs (`carniceria-hub` y `hub-android`). Cada una con su spec y su PR.
 

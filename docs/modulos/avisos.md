@@ -58,6 +58,10 @@ Todas bajo `auth`, sin prefijo de tenant.
 |--------------|------|--------|
 | `SaleCancellationRequested` | Administradores de la sucursal de la venta | Un cajero pide cancelar |
 | `SaleCancellationResolved` | El cajero que la pidió | El administrador aprueba o rechaza |
+| `DeviceBatteryLow` | Administradores de la sucursal del equipo + admin-empresa | Un equipo baja del 20 % sin cargar (otra vez al 10 %) — [equipos](equipos.md) |
+| `DeviceRegistered` | Los mismos | Primer latido de un equipo nuevo |
+| `DeviceSilent` | Los mismos | Un equipo lleva > 30 min sin reportar dentro de la ventana 08–20 h |
+| `DeviceOutdated` | Los mismos | Un equipo sigue en una versión menor a la publicada hace > 24 h |
 
 Los cinco puntos de entrada del circuito de cancelaciones (mesa de sucursal, mesa de caja y la API del hub para las tres acciones) pasan por `SaleCancellationNotifier`, que resuelve destinatarios en un solo sitio. Repetir esa regla cinco veces es la forma habitual de que una de las cinco se quede sin avisar.
 
