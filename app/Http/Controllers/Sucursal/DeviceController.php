@@ -30,7 +30,7 @@ class DeviceController extends Controller
         $validated = $request->validate(['display_name' => ['nullable', 'string', 'max:100']]);
         $device->update(['display_name' => trim((string) ($validated['display_name'] ?? '')) ?: null]);
 
-        return back();
+        return back()->with('success', 'Nombre guardado.');
     }
 
     public function mute(Device $device): RedirectResponse
@@ -38,7 +38,7 @@ class DeviceController extends Controller
         $this->own($device);
         $device->update(['muted_at' => $device->isMuted() ? null : now()]);
 
-        return back();
+        return back()->with('success', $device->isMuted() ? 'Avisos silenciados para este equipo.' : 'Avisos reactivados para este equipo.');
     }
 
     public function destroy(Device $device): RedirectResponse
@@ -46,7 +46,7 @@ class DeviceController extends Controller
         $this->own($device);
         $device->update(['retired_at' => now()]);
 
-        return back();
+        return back()->with('success', 'Equipo dado de baja. Si vuelve a reportar, reaparece.');
     }
 
     private function own(Device $device): void
