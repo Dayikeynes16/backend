@@ -22,6 +22,7 @@ use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
+use App\Http\Controllers\Empresa\DeviceController as EmpresaDeviceController;
 use App\Http\Controllers\Empresa\ExpenseCategoryController as EmpresaExpenseCategoryController;
 use App\Http\Controllers\Empresa\ExpenseSubcategoryController as EmpresaExpenseSubcategoryController;
 use App\Http\Controllers\Empresa\GastoController as EmpresaGastoController;
@@ -177,6 +178,12 @@ Route::prefix('{tenant}')
 
                 Route::resource('sucursales', SucursalController::class)
                     ->parameters(['sucursales' => 'sucursal']);
+
+                // Equipos de todas las sucursales (básculas y hubs que reportan su estado).
+                Route::get('equipos', [EmpresaDeviceController::class, 'index'])->name('devices.index');
+                Route::patch('equipos/{device}', [EmpresaDeviceController::class, 'update'])->name('devices.update');
+                Route::patch('equipos/{device}/silencio', [EmpresaDeviceController::class, 'mute'])->name('devices.mute');
+                Route::delete('equipos/{device}', [EmpresaDeviceController::class, 'destroy'])->name('devices.destroy');
 
                 Route::resource('usuarios', EmpresaUsuarioController::class)
                     ->except('show');
