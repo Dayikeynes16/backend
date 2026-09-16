@@ -59,6 +59,7 @@ use App\Http\Controllers\Sucursal\CustomerPaymentReceiptController;
 use App\Http\Controllers\Sucursal\CustomerPriceController;
 use App\Http\Controllers\Sucursal\CustomerStatsController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
+use App\Http\Controllers\Sucursal\DeviceController as SucursalDeviceController;
 use App\Http\Controllers\Sucursal\ExpenseCategoryController as SucursalExpenseCategoryController;
 use App\Http\Controllers\Sucursal\ExpenseSubcategoryController as SucursalExpenseSubcategoryController;
 use App\Http\Controllers\Sucursal\GastoController as SucursalGastoController;
@@ -317,6 +318,12 @@ Route::prefix('{tenant}')
                 Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
                 Route::delete('api-keys/{api_key}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
                 Route::delete('api-keys/{api_key}/permanent', [ApiKeyController::class, 'forceDelete'])->name('api-keys.force-delete');
+
+                // Equipos de la sucursal (básculas y hubs que reportan su estado).
+                Route::get('equipos', [SucursalDeviceController::class, 'index'])->name('devices.index');
+                Route::patch('equipos/{device}', [SucursalDeviceController::class, 'update'])->name('devices.update');
+                Route::patch('equipos/{device}/silencio', [SucursalDeviceController::class, 'mute'])->name('devices.mute');
+                Route::delete('equipos/{device}', [SucursalDeviceController::class, 'destroy'])->name('devices.destroy');
 
                 // Turno (shift)
                 Route::get('turno', [CashShiftController::class, 'active'])->name('turno.active');
