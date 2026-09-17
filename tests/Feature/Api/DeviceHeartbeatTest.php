@@ -173,6 +173,17 @@ class DeviceHeartbeatTest extends TestCase
         $this->assertSame(0, Device::withoutGlobalScopes()->count());
     }
 
+    public function test_a_hub_relaying_by_api_key_can_declare_via_hub(): void
+    {
+        $this->beat($this->payload())->assertCreated();
+        $this->assertSame('cloud', Device::withoutGlobalScopes()->first()->via);
+
+        $this->beat($this->payload(['via' => 'hub']))->assertOk();
+        $this->assertSame('hub', Device::withoutGlobalScopes()->first()->via);
+
+        $this->beat($this->payload(['via' => 'lan']))->assertUnprocessable()->assertJsonValidationErrors(['via']);
+    }
+
     public function test_requires_api_key(): void
     {
         $this->postJson('/api/v1/devices/heartbeat', $this->payload())->assertUnauthorized();

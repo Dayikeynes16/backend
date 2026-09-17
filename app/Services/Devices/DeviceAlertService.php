@@ -42,7 +42,14 @@ class DeviceAlertService
     {
         $level = $device->battery_level;
 
-        if ($level === null || $device->battery_charging || $level > 20) {
+        // Sin lectura no se sabe nada: ni avisar ni rearmar. Si `null` rearmara,
+        // un equipo al 15 % que arranca sin haber leído aún su batería volvería
+        // a avisar en cada reinicio (p. ej. al auto-actualizarse).
+        if ($level === null) {
+            return;
+        }
+
+        if ($device->battery_charging || $level > 20) {
             if ($device->battery_alert_level !== null) {
                 $device->forceFill(['battery_alert_level' => null])->saveQuietly();
             }

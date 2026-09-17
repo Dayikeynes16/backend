@@ -340,7 +340,7 @@ El socket es el mecanismo principal, pero el hub conserva su sondeo como red de 
 |--------|------|-----|-------------|
 | POST | `devices/heartbeat` | ambos | El hub se reporta a sí mismo y reenvía el latido de las básculas emparejadas que no tienen credenciales de nube |
 
-Mismo body y misma respuesta que `POST /api/v1/devices/heartbeat` de la Scale API (ver [endpoints.md](endpoints.md#post-apiv1devicesheartbeat)); cambia quién lo firma: aquí la sucursal sale del usuario Sanctum y el equipo queda marcado con `via = hub`. Un hub reenvía el de cada báscula con el `device_id` y `kind` de esa báscula, no los suyos. Añadido el 2026-09-16. Módulo: [equipos.md](../modulos/equipos.md).
+Mismo body y misma respuesta que `POST /api/v1/devices/heartbeat` de la Scale API (ver [endpoints.md](endpoints.md#post-apiv1devicesheartbeat)); cambia quién lo firma: aquí la sucursal sale del usuario Sanctum y el equipo queda marcado con `via = hub` (el campo `via` del body se ignora). Un hub sin sesión reenvía por la Scale API con su API key y manda `via: "hub"` para que el panel lo muestre igual. Un hub reenvía el de cada báscula con el `device_id` y `kind` de esa báscula, no los suyos. Añadido el 2026-09-16. Módulo: [equipos.md](../modulos/equipos.md).
 
 ## Códigos de error comunes
 

@@ -32,6 +32,10 @@ class DeviceHeartbeatRequest extends FormRequest
             'battery.charging' => ['required_with:battery', 'boolean'],
             'connection' => ['sometimes', 'nullable', Rule::in(['cloud', 'hub'])],
             'local_ip' => ['sometimes', 'nullable', 'ip'],
+            // Por dónde llegó el latido. Solo lo lee la Scale API: un hub sin
+            // sesión que reenvía por API key dice `hub`. La superficie del hub
+            // lo fija siempre en `hub` y lo ignora.
+            'via' => ['sometimes', 'nullable', Rule::in(['cloud', 'hub'])],
         ];
     }
 }

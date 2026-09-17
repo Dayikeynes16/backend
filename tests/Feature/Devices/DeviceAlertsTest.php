@@ -75,6 +75,21 @@ class DeviceAlertsTest extends TestCase
         Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 3);
     }
 
+    public function test_an_unknown_battery_does_not_rearm_the_alert(): void
+    {
+        $this->beat(14);
+        Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 1);
+
+        // Un reinicio que aún no leyó la batería manda `battery: null`.
+        $this->heartbeats->record($this->tenant->id, $this->branch->id, [
+            'device_id' => 'tab-1', 'kind' => 'scale_android', 'battery' => null,
+        ], 'cloud');
+        $this->assertSame(20, Device::withoutGlobalScopes()->first()->battery_alert_level);
+
+        $this->beat(14);
+        Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 1);
+    }
+
     public function test_battery_arriving_directly_below_ten_gives_a_single_alert(): void
     {
         $this->beat(6);

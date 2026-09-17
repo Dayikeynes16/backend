@@ -13,7 +13,9 @@ use Illuminate\Http\JsonResponse;
  *
  * Endpoint nuevo y aditivo: las básculas viejas no lo llaman y nada de lo que
  * ellas usan cambia. La API key dice la sucursal; el `device_id`, cuál de sus
- * básculas es.
+ * básculas es. Un hub sin sesión de persona (el Hub Android, o el Electron
+ * sin cajero dentro) reenvía por aquí con su propia API key y declara
+ * `via = hub`; sin ese campo, el latido llegó directo.
  */
 class DeviceHeartbeatController extends Controller
 {
@@ -23,7 +25,7 @@ class DeviceHeartbeatController extends Controller
             (int) $request->input('tenant_id'),
             (int) $request->input('branch_id'),
             $request->validated(),
-            'cloud',
+            $request->validated('via') ?? 'cloud',
         );
 
         return self::respond($result);

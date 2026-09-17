@@ -235,6 +235,7 @@ Latido de equipo: la báscula se presenta y reporta versión, batería y red. A�
 - `battery`: opcional. Objeto `{ level: 0–100, charging: bool }`, o `null` para limpiar (equipo sin batería).
 - `connection`: opcional, `cloud` o `hub`: contra qué está vendiendo el equipo.
 - `local_ip`: opcional, IP válida.
+- `via`: opcional, `cloud` (por defecto) o `hub`. Por dónde llegó el latido. Lo manda un hub que reenvía el latido de una báscula (o el suyo) con su propia API key porque no tiene sesión de persona; una báscula que late directo no lo manda.
 
 **Respuesta** `201` la primera vez que se ve ese `device_id`, `200` después:
 
@@ -251,6 +252,8 @@ Latido de equipo: la báscula se presenta y reporta versión, batería y red. A�
 ```
 
 `display_name` es el alias puesto desde la web (o `null`); `status` es el estado derivado (`online`, `battery_low`, `stale`, `silent`).
+
+`battery: null` limpia nivel y carga, pero **no rearma** el aviso de batería baja: sin lectura no se sabe si el equipo cargó. Un cliente que aún no leyó su batería puede omitir el campo o mandarlo nulo; el aviso solo se rearma al cargar o al subir de 20 %.
 
 **Errores:** `401` sin API key válida · `422` `device_id` ausente o inválido, `kind` desconocido, `battery.level` fuera de 0–100 · `429` al exceder los 60 req/min.
 

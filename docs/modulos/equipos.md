@@ -18,7 +18,7 @@ La nube solo conocía la API key (la sucursal) y el `origin_name` de cada venta.
 
 ## Modelo
 
-`devices` (`BelongsToTenant`): `device_id`, `kind` (`scale_android` · `scale_windows` · `hub_windows` · `hub_android`), `name`, `display_name`, `app_version`, `os`, `model`, `battery_level`, `battery_charging`, `connection` (`cloud` · `hub`: contra qué vende), `via` (`cloud` · `hub`: por dónde llegó el latido), `local_ip`, `first_seen_at`, `last_seen_at`, `muted_at`, `retired_at` y las tres marcas de avisos. Único por `(tenant_id, device_id)`.
+`devices` (`BelongsToTenant`): `device_id`, `kind` (`scale_android` · `scale_windows` · `hub_windows` · `hub_android`), `name`, `display_name`, `app_version`, `os`, `model`, `battery_level`, `battery_charging`, `connection` (`cloud` · `hub`: contra qué vende), `via` (`cloud` · `hub`: por dónde llegó el latido; la superficie del hub lo fija en `hub` y la Scale API acepta que un hub sin sesión lo declare), `local_ip`, `first_seen_at`, `last_seen_at`, `muted_at`, `retired_at` y las tres marcas de avisos. Único por `(tenant_id, device_id)`.
 
 `device_releases`: última versión publicada por `kind` (`version`, `known_since`, `checked_at`). `known_since` solo cambia cuando cambia la versión: de ahí sale el margen de 24 h antes de avisar.
 
@@ -42,7 +42,7 @@ Van por el circuito de [avisos persistentes](avisos.md) (`database` + `broadcast
 
 | Aviso | `type` | Cuándo |
 |---|---|---|
-| Batería baja | `device.battery.low` | ≤ 20 % sin cargar; otra vez al ≤ 10 %; se rearma al cargar o subir de 20 % |
+| Batería baja | `device.battery.low` | ≤ 20 % sin cargar; otra vez al ≤ 10 %; se rearma al cargar o subir de 20 % (una lectura nula no rearma) |
 | Equipo nuevo | `device.registered` | primer latido de un `device_id` |
 | Sin reportar | `device.silent` | > 30 min de silencio dentro de la ventana, una vez por episodio (cualquier latido lo cierra) |
 | Versión atrasada | `device.outdated` | versión menor a la publicada hace > 24 h, una vez por versión publicada |
