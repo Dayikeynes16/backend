@@ -5,8 +5,10 @@ import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 
 const props = defineProps({
     device: { type: Object, default: null },
-    routes: { type: Object, required: true }, // { update, mute, destroy } — nombres de ruta
+    routes: { type: Object, default: null }, // { update, mute, destroy } — nombres de ruta
     tenantSlug: { type: String, required: true },
+    // El cajero ve el detalle pero no renombra, silencia ni da de baja.
+    readonly: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close']);
@@ -95,7 +97,7 @@ const against = (c) => (c === 'hub' ? 'el hub' : c === 'cloud' ? 'la nube' : '�
                                 <dt class="text-gray-400">Última venta</dt><dd class="text-gray-800">{{ fmt(device.last_sale_at) }}</dd>
                             </dl>
 
-                            <div class="border-t border-gray-100 pt-5">
+                            <div v-if="!readonly" class="border-t border-gray-100 pt-5">
                                 <label for="device-alias" class="block text-sm font-medium text-gray-700">Nombre en la web</label>
                                 <form class="mt-1.5 flex gap-2" @submit.prevent="rename">
                                     <input id="device-alias" v-model="alias" type="text" maxlength="100" :placeholder="device.name" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-red-400 focus:ring-red-300" />
@@ -105,7 +107,10 @@ const against = (c) => (c === 'hub' ? 'el hub' : c === 'cloud' ? 'la nube' : '�
                             </div>
                         </div>
 
-                        <div class="space-y-2 border-t border-gray-100 px-6 py-5">
+                        <div v-if="readonly" class="border-t border-gray-100 px-6 py-5">
+                            <p class="text-xs text-gray-500">Para renombrar, silenciar avisos o dar de baja este equipo, pídeselo a tu administrador.</p>
+                        </div>
+                        <div v-else class="space-y-2 border-t border-gray-100 px-6 py-5">
                             <button type="button" :disabled="busy" class="w-full rounded-lg border-2 border-gray-200 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50" @click="toggleMute">
                                 {{ device.muted ? 'Reactivar avisos' : 'Silenciar avisos' }}
                             </button>
@@ -120,7 +125,7 @@ const against = (c) => (c === 'hub' ? 'el hub' : c === 'cloud' ? 'la nube' : '�
         </Transition>
 
         <ConfirmDialog
-            v-if="confirmRetire && device"
+            v-if="!readonly && confirmRetire && device"
             title="¿Dar de baja este equipo?"
             :message="`${device.shown_name} desaparecerá del panel y dejará de generar avisos. Si vuelve a reportar, reaparece.`"
             confirm-label="Dar de baja"

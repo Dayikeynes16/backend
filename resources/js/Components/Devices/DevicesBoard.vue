@@ -7,8 +7,10 @@ const props = defineProps({
     devices: { type: Array, default: () => [] },
     alerts: { type: Array, default: () => [] },
     unregistered: { type: Array, default: () => [] },
-    routes: { type: Object, required: true },
+    // Nombres de ruta de las acciones; sin ellas (o con `readonly`) el panel solo muestra.
+    routes: { type: Object, default: null },
     tenantSlug: { type: String, required: true },
+    readonly: { type: Boolean, default: false },
 });
 
 const open = ref(null);
@@ -72,6 +74,6 @@ const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-MX', { dateStyle: '
             </ul>
         </div>
 
-        <DeviceDetailPanel :device="open" :routes="routes" :tenant-slug="tenantSlug" @close="open = null" />
+        <DeviceDetailPanel :device="open" :routes="routes" :tenant-slug="tenantSlug" :readonly="readonly || !routes" @close="open = null" />
     </div>
 </template>

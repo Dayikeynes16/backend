@@ -51,7 +51,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 - [Paneles Admin](modulos/paneles-admin.md) — dashboards por rol, navegación contextual
 - [Agenda](modulos/agenda.md) — pendientes/recordatorios por rol, recurrencia, ICS, captura IA
 - [Avisos](modulos/avisos.md) — notificaciones que se guardan además de emitirse; hoy, el circuito de cancelaciones
-- [Equipos](modulos/equipos.md) — registro de básculas y hubs por latido aditivo: versión, batería, estado y avisos; panel en Sucursal y Empresa
+- [Equipos](modulos/equipos.md) — registro de básculas y hubs por latido aditivo: versión, batería, estado y avisos; panel en Sucursal y Empresa, y en Caja solo lectura
 
 ### IA
 - [Asistente Conversacional](modulos/asistente-ia.md) — chat texto+voz, 9 tools de lectura, 6 de borrador con confirmación humana

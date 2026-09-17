@@ -1,7 +1,7 @@
 # Registro de equipos — nube y web (entrega 1 de 4)
 
 **Fecha:** 2026-09-12
-**Estado:** Implementado en nube y web el 2026-09-16 (plan: `docs/superpowers/plans/2026-09-12-registro-de-equipos.md`; doc vivo: `docs/modulos/equipos.md`). Clientes pendientes (entregas 2–4).
+**Estado:** Implementado en nube y web el 2026-09-16 (plan: `docs/superpowers/plans/2026-09-12-registro-de-equipos.md`; doc vivo: `docs/modulos/equipos.md`). Clientes pendientes (entregas 2–4). **Cambio posterior (2026-09-17):** el cajero también ve el panel, en solo lectura, en `/{tenant}/caja/equipos`; ver el doc vivo.
 **Repo:** `carniceria-saas` (Laravel 13 + Vue 3 + Inertia)
 **Entregas siguientes:** 2 · báscula Surface (`bascula`), 3 · báscula Android (`bascula-android`), 4 · hubs (`carniceria-hub` y `hub-android`). Cada una con su spec y su PR.
 

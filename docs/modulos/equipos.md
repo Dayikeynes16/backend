@@ -51,6 +51,7 @@ Van por el circuito de [avisos persistentes](avisos.md) (`database` + `broadcast
 
 - **Sucursal → Equipos** (`/{tenant}/sucursal/equipos`, `Sucursal\DeviceController`, `BranchDevicesQuery`): tarjetas por equipo con chip de estado, versión (con «al día» / «atrasada · hay X»), batería, último reporte, última venta, IP y contra qué vende. Arriba, la franja «Requieren atención» (batería baja, sin reportar, atrasados). Abajo, **«Sin registro»**: los `origin_name` de ventas de la Scale API (`origin = 'api'`) de los últimos 30 días que no coinciden con el `name` de ningún equipo conocido, activo o dado de baja. Es una deducción, no una identidad: dos básculas viejas con el mismo nombre se ven como una. Las ventas del mostrador y del hub (`origin_name = 'Administrador'`) no cuentan. El tablero se refresca solo cada 30 s mientras la pestaña está visible (no hay evento de tiempo real para equipos).
 - **Empresa → Equipos** (`/{tenant}/empresa/equipos`, `Empresa\DeviceController`): el mismo tablero, agrupado por sucursal.
+- **Caja → Equipos** (`/{tenant}/caja/equipos`, `Caja\DeviceController`): el mismo tablero de su sucursal, **solo lectura** (añadido el 2026-09-17). Quien está en el mostrador es quien primero nota una báscula apagada o sin batería. El panel lateral muestra el detalle pero no las acciones, y no hay rutas de escritura en el grupo `caja`. Los avisos de la campana siguen sin llegarle al cajero.
 - Tocar una tarjeta abre el panel lateral con el detalle completo (`os`, `model`, «reporta por» / «vende contra») y las tres acciones:
 
 | Acción | Ruta | Efecto |
@@ -61,7 +62,7 @@ Van por el circuito de [avisos persistentes](avisos.md) (`database` + `broadcast
 
 Las tres acciones viven en `Concerns\HandlesDeviceWrites`; cada controlador solo decide a qué equipos alcanza (`authorizeDevice`). Un equipo ya dado de baja responde 404 a las tres. En Sucursal, un equipo de otra sucursal da 404; en Empresa no hay restricción de sucursal. El `superadmin` entra a ambos paneles como al resto de secciones (en Sucursal, sin sucursal propia, lo ve vacío).
 
-Componentes: `resources/js/Components/Devices/{DeviceCard,DeviceDetailPanel,DevicesBoard}.vue`.
+Componentes: `resources/js/Components/Devices/{DeviceCard,DeviceDetailPanel,DevicesBoard}.vue`. `DevicesBoard` acepta `readonly` (o `routes` nulo) para esconder las acciones.
 
 ## Entregas siguientes
 
@@ -69,4 +70,4 @@ Cada cliente manda el latido al arrancar, cada 5 min, al cruzar 20 % / 10 % y al
 
 ## Tests
 
-`tests/Feature/Api/DeviceHeartbeatTest.php` (Scale API), `tests/Feature/Hub/DeviceHeartbeatTest.php` (hub), `tests/Feature/Devices/DeviceAlertsTest.php` (deduplicación de avisos), `tests/Feature/Console/DeviceCommandsTest.php` (comandos), `tests/Unit/DeviceStatusTest.php` (estados), `tests/Feature/Sucursal/DevicesTest.php` y `tests/Feature/Empresa/DevicesTest.php` (paneles). `ScaleLegacyContractTest` no se toca.
+`tests/Feature/Api/DeviceHeartbeatTest.php` (Scale API), `tests/Feature/Hub/DeviceHeartbeatTest.php` (hub), `tests/Feature/Devices/DeviceAlertsTest.php` (deduplicación de avisos), `tests/Feature/Console/DeviceCommandsTest.php` (comandos), `tests/Unit/DeviceStatusTest.php` (estados), `tests/Feature/Sucursal/DevicesTest.php`, `tests/Feature/Empresa/DevicesTest.php` y `tests/Feature/Caja/DevicesTest.php` (paneles). `ScaleLegacyContractTest` no se toca.

@@ -14,6 +14,7 @@ use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\CustomerController as CajaCustomerController;
 use App\Http\Controllers\Caja\CustomerPaymentController as CajaCustomerPaymentController;
 use App\Http\Controllers\Caja\CustomerStatsController as CajaCustomerStatsController;
+use App\Http\Controllers\Caja\DeviceController as CajaDeviceController;
 use App\Http\Controllers\Caja\GastoController as CajaGastoController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
@@ -635,6 +636,10 @@ Route::prefix('{tenant}')
 
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
+
+                // Equipos de la sucursal, solo lectura: el cajero ve el tablero,
+                // las acciones siguen siendo del administrador.
+                Route::get('equipos', [CajaDeviceController::class, 'index'])->name('devices.index');
 
                 // Clientes y cobros — módulo opcional, la empresa lo habilita por
                 // sucursal. El cajero consulta la cartera, da de alta/edita clientes
