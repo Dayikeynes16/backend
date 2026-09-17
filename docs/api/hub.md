@@ -334,6 +334,14 @@ Por ese canal el hub recibe:
 
 El socket es el mecanismo principal, pero el hub conserva su sondeo como red de seguridad: 20 s / 4 s en la Mesa de Trabajo y 45 s / 12 s en el panel de Turno, según haya socket o no. Ver [arquitectura/reverb-websockets.md](../arquitectura/reverb-websockets.md).
 
+## Equipos (latido)
+
+| Método | Ruta | Rol | Descripción |
+|--------|------|-----|-------------|
+| POST | `devices/heartbeat` | ambos | El hub se reporta a sí mismo y reenvía el latido de las básculas emparejadas que no tienen credenciales de nube |
+
+Mismo body y misma respuesta que `POST /api/v1/devices/heartbeat` de la Scale API (ver [endpoints.md](endpoints.md#post-apiv1devicesheartbeat)); cambia quién lo firma: aquí la sucursal sale del usuario Sanctum y el equipo queda marcado con `via = hub` (el campo `via` del body se ignora). Un hub sin sesión reenvía por la Scale API con su API key y manda `via: "hub"` para que el panel lo muestre igual. Un hub reenvía el de cada báscula con el `device_id` y `kind` de esa báscula, no los suyos. Añadido el 2026-09-16. Módulo: [equipos.md](../modulos/equipos.md).
+
 ## Códigos de error comunes
 
 | Código | Causa típica |

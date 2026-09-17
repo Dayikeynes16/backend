@@ -3,12 +3,14 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\DeviceHeartbeatController;
 use App\Http\Controllers\Api\Hub\CancelRequestController as HubCancelRequestController;
 use App\Http\Controllers\Api\Hub\ConfigController as HubConfigController;
 use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
 use App\Http\Controllers\Api\Hub\CustomerPaymentController as HubCustomerPaymentController;
 use App\Http\Controllers\Api\Hub\CustomerPriceController as HubCustomerPriceController;
 use App\Http\Controllers\Api\Hub\DashboardController as HubDashboardController;
+use App\Http\Controllers\Api\Hub\DeviceHeartbeatController as HubDeviceHeartbeatController;
 use App\Http\Controllers\Api\Hub\ExpenseCategoryController as HubExpenseCategoryController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
 use App\Http\Controllers\Api\Hub\HistoryController as HubHistoryController;
@@ -44,6 +46,10 @@ Route::prefix('v1')
 
         // Dictado del nombre de la venta desde la báscula (audio → texto).
         Route::post('transcribe', [TranscriptionController::class, 'store'])->name('api.transcribe');
+
+        // Latido de equipo (2026-09-12): la báscula se presenta y reporta batería,
+        // versión y red. Endpoint NUEVO: las básculas viejas no lo llaman.
+        Route::post('devices/heartbeat', [DeviceHeartbeatController::class, 'store'])->name('api.devices.heartbeat');
     });
 
 // Autenticación de usuario para el hub de escritorio (Sanctum token).
@@ -75,6 +81,9 @@ Route::prefix('v1/hub')
         // Tiempo real (Reverb/Echo): parámetros de conexión + auth de canal privado vía Sanctum.
         Route::get('realtime/config', [HubRealtimeController::class, 'config'])->name('api.hub.realtime.config');
         Route::post('realtime/auth', [HubRealtimeController::class, 'authenticate'])->name('api.hub.realtime.auth');
+
+        // Latido de equipo (2026-09-12): el hub se reporta y reenvía el de sus básculas.
+        Route::post('devices/heartbeat', [HubDeviceHeartbeatController::class, 'store'])->name('api.hub.devices.heartbeat');
 
         // Configuración de negocio de la sucursal (admin-sucursal): métodos de pago + API keys.
         Route::get('config', [HubConfigController::class, 'index'])->name('api.hub.config.index');

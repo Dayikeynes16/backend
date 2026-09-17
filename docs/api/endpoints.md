@@ -207,3 +207,56 @@ Existe aparte del endpoint de dictado del asistente (`{tenant}/asistente/transcr
 
 Detalle del flujo completo: [ventas.md](../modulos/ventas.md#nombre-de-la-venta-desde-la-báscula).
 
+## POST /api/v1/devices/heartbeat
+
+Latido de equipo: la báscula se presenta y reporta versión, batería y red. Añadido el 2026-09-16. **Aditivo:** las básculas que no lo llaman no cambian en nada; ningún endpoint existente se tocó.
+
+**Controller:** `Api\DeviceHeartbeatController@store` · **Validación:** `Api\DeviceHeartbeatRequest` (la misma que usa el hub)
+
+**Body (JSON):**
+
+```json
+{
+  "device_id": "a1b2c3d4-surface",
+  "kind": "scale_windows",
+  "name": "Caja 1",
+  "app_version": "0.4.1",
+  "os": "Windows 11",
+  "model": "Surface Go 3",
+  "battery": { "level": 63, "charging": false },
+  "connection": "cloud",
+  "local_ip": "192.168.100.21"
+}
+```
+
+- `device_id`: **requerido**, `[A-Za-z0-9._-]{1,64}`. Lo genera la app una vez y lo conserva; es la identidad del equipo dentro del tenant. La API key dice la sucursal.
+- `kind`: **requerido**, uno de `scale_android`, `scale_windows`, `hub_windows`, `hub_android`.
+- `name` (≤ 100), `app_version` (≤ 32), `os` (≤ 100), `model` (≤ 100): opcionales. **Lo que no viene no pisa lo guardado.**
+- `battery`: opcional. Objeto `{ level: 0–100, charging: bool }`, o `null` para limpiar (equipo sin batería).
+- `connection`: opcional, `cloud` o `hub`: contra qué está vendiendo el equipo.
+- `local_ip`: opcional, IP válida.
+- `via`: opcional, `cloud` (por defecto) o `hub`. Por dónde llegó el latido. Lo manda un hub que reenvía el latido de una báscula (o el suyo) con su propia API key porque no tiene sesión de persona; una báscula que late directo no lo manda.
+
+**Respuesta** `201` la primera vez que se ve ese `device_id`, `200` después:
+
+```json
+{
+  "data": {
+    "device_id": "a1b2c3d4-surface",
+    "name": "Caja 1",
+    "display_name": "Caja Norte",
+    "status": "online",
+    "server_time": "2026-09-16T10:12:00-06:00"
+  }
+}
+```
+
+`display_name` es el alias puesto desde la web (o `null`); `status` es el estado derivado (`online`, `battery_low`, `stale`, `silent`).
+
+`battery: null` limpia nivel y carga, pero **no rearma** el aviso de batería baja: sin lectura no se sabe si el equipo cargó. Un cliente que aún no leyó su batería puede omitir el campo o mandarlo nulo; el aviso solo se rearma al cargar o al subir de 20 %.
+
+**Errores:** `401` sin API key válida · `422` `device_id` ausente o inválido, `kind` desconocido, `battery.level` fuera de 0–100 · `429` al exceder los 60 req/min.
+
+**Cadencia esperada del cliente:** al arrancar, cada 5 min, al cruzar el 20 % y el 10 % de batería, y al enchufar o desenchufar. Un equipo dado de baja desde la web que vuelve a latir se reactiva solo. Un `device_id` que reporta desde otra sucursal del mismo tenant se muda de sucursal (no se duplica).
+
+Módulo completo: [equipos.md](../modulos/equipos.md).

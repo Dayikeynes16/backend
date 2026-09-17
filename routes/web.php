@@ -14,6 +14,7 @@ use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Caja\CustomerController as CajaCustomerController;
 use App\Http\Controllers\Caja\CustomerPaymentController as CajaCustomerPaymentController;
 use App\Http\Controllers\Caja\CustomerStatsController as CajaCustomerStatsController;
+use App\Http\Controllers\Caja\DeviceController as CajaDeviceController;
 use App\Http\Controllers\Caja\GastoController as CajaGastoController;
 use App\Http\Controllers\Caja\HistorialController as CajaHistorialController;
 use App\Http\Controllers\Caja\PagosController as CajaPagosController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
+use App\Http\Controllers\Empresa\DeviceController as EmpresaDeviceController;
 use App\Http\Controllers\Empresa\ExpenseCategoryController as EmpresaExpenseCategoryController;
 use App\Http\Controllers\Empresa\ExpenseSubcategoryController as EmpresaExpenseSubcategoryController;
 use App\Http\Controllers\Empresa\GastoController as EmpresaGastoController;
@@ -59,6 +61,7 @@ use App\Http\Controllers\Sucursal\CustomerPaymentReceiptController;
 use App\Http\Controllers\Sucursal\CustomerPriceController;
 use App\Http\Controllers\Sucursal\CustomerStatsController;
 use App\Http\Controllers\Sucursal\DashboardController as SucursalDashboardController;
+use App\Http\Controllers\Sucursal\DeviceController as SucursalDeviceController;
 use App\Http\Controllers\Sucursal\ExpenseCategoryController as SucursalExpenseCategoryController;
 use App\Http\Controllers\Sucursal\ExpenseSubcategoryController as SucursalExpenseSubcategoryController;
 use App\Http\Controllers\Sucursal\GastoController as SucursalGastoController;
@@ -176,6 +179,12 @@ Route::prefix('{tenant}')
 
                 Route::resource('sucursales', SucursalController::class)
                     ->parameters(['sucursales' => 'sucursal']);
+
+                // Equipos de todas las sucursales (básculas y hubs que reportan su estado).
+                Route::get('equipos', [EmpresaDeviceController::class, 'index'])->name('devices.index');
+                Route::patch('equipos/{device}', [EmpresaDeviceController::class, 'update'])->name('devices.update');
+                Route::patch('equipos/{device}/silencio', [EmpresaDeviceController::class, 'mute'])->name('devices.mute');
+                Route::delete('equipos/{device}', [EmpresaDeviceController::class, 'destroy'])->name('devices.destroy');
 
                 Route::resource('usuarios', EmpresaUsuarioController::class)
                     ->except('show');
@@ -317,6 +326,12 @@ Route::prefix('{tenant}')
                 Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
                 Route::delete('api-keys/{api_key}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
                 Route::delete('api-keys/{api_key}/permanent', [ApiKeyController::class, 'forceDelete'])->name('api-keys.force-delete');
+
+                // Equipos de la sucursal (básculas y hubs que reportan su estado).
+                Route::get('equipos', [SucursalDeviceController::class, 'index'])->name('devices.index');
+                Route::patch('equipos/{device}', [SucursalDeviceController::class, 'update'])->name('devices.update');
+                Route::patch('equipos/{device}/silencio', [SucursalDeviceController::class, 'mute'])->name('devices.mute');
+                Route::delete('equipos/{device}', [SucursalDeviceController::class, 'destroy'])->name('devices.destroy');
 
                 // Turno (shift)
                 Route::get('turno', [CashShiftController::class, 'active'])->name('turno.active');
@@ -621,6 +636,10 @@ Route::prefix('{tenant}')
 
                 Route::get('historial', [CajaHistorialController::class, 'index'])->name('historial');
                 Route::get('pagos', [CajaPagosController::class, 'index'])->name('pagos');
+
+                // Equipos de la sucursal, solo lectura: el cajero ve el tablero,
+                // las acciones siguen siendo del administrador.
+                Route::get('equipos', [CajaDeviceController::class, 'index'])->name('devices.index');
 
                 // Clientes y cobros — módulo opcional, la empresa lo habilita por
                 // sucursal. El cajero consulta la cartera, da de alta/edita clientes

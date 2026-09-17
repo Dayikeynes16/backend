@@ -51,6 +51,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 - [Paneles Admin](modulos/paneles-admin.md) — dashboards por rol, navegación contextual
 - [Agenda](modulos/agenda.md) — pendientes/recordatorios por rol, recurrencia, ICS, captura IA
 - [Avisos](modulos/avisos.md) — notificaciones que se guardan además de emitirse; hoy, el circuito de cancelaciones
+- [Equipos](modulos/equipos.md) — registro de básculas y hubs por latido aditivo: versión, batería, estado y avisos; panel en Sucursal y Empresa, y en Caja solo lectura
 
 ### IA
 - [Asistente Conversacional](modulos/asistente-ia.md) — chat texto+voz, 9 tools de lectura, 6 de borrador con confirmación humana
@@ -72,7 +73,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 ---
 
-## Estado del sistema (2026-08-23)
+## Estado del sistema (2026-09-16)
 
 | Área | Estado |
 |------|--------|
@@ -84,7 +85,8 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 | Compras + Proveedores + CxP (con captura IA) | ✅ Completo (sin inventario activo, por diseño) |
 | Métricas (9 ejes + Resumen con utilidad) | ✅ Completo |
 | Agenda | ✅ Completo · `AgendaItemAssigned` se emite pero ningún cliente lo escucha todavía |
-| Avisos persistentes | ✅ Circuito de cancelaciones (solicitud, aprobación, rechazo) · base lista para más ([doc](modulos/avisos.md)) |
+| Avisos persistentes | ✅ Circuito de cancelaciones (solicitud, aprobación, rechazo) · avisos de equipos (batería, silencio, versión, equipo nuevo) ([doc](modulos/avisos.md)) |
+| Equipos (registro de básculas/hubs, batería, avisos) | ✅ Nube y web (2026-09-16) · clientes pendientes: Surface, Android y hubs aún no mandan el latido ([doc](modulos/equipos.md)) |
 | Asistente IA conversacional | ✅ F0–F4 · ✅ mini-app móvil `/{tenant}/asistente` completa (F0–F5: cobro FIFO a clientes, pago a cuenta FIFO a proveedores, modo simple, cajero operativo, retiros y cambio de precios) · pendiente F5-config asistida y F6 parcial del spec original · TTS off en UI |
 | API del Hub (Electron, Sanctum, idempotencia) | ✅ Fase 1 backend · offline con cola en el cliente pendiente (repo `carniceria-hub`) |
 | Inventario / stock | ❌ No iniciado (fase futura F-Inv1+) |

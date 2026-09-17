@@ -1,6 +1,8 @@
 <?php
 
+use App\Console\Commands\CheckDevicesCommand;
 use App\Console\Commands\ExpireAiDraftsCommand;
+use App\Console\Commands\SyncDeviceReleasesCommand;
 use App\Http\Middleware\AuthenticateApiKey;
 use App\Http\Middleware\EnsureBranchFeature;
 use App\Http\Middleware\EnsureHubRole;
@@ -36,6 +38,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Limpia borradores de IA vencidos (asistente + tablas heredadas) y sus
         // archivos privados. Requiere cron `php artisan schedule:run` cada minuto.
         $schedule->command(ExpireAiDraftsCommand::class)->hourly();
+
+        // Registro de equipos (2026-09-12): silencio y versión atrasada cada 5 min;
+        // la última versión publicada por tipo, cada hora.
+        $schedule->command(CheckDevicesCommand::class)->everyFiveMinutes();
+        $schedule->command(SyncDeviceReleasesCommand::class)->hourly();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
