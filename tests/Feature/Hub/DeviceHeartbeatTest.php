@@ -52,4 +52,19 @@ class DeviceHeartbeatTest extends TestCase
         Sanctum::actingAs($this->adminEmpresa);
         $this->postJson('/api/v1/hub/devices/heartbeat', ['device_id' => 'x', 'kind' => 'hub_windows'])->assertForbidden();
     }
+
+    public function test_the_response_carries_the_branch_thresholds(): void
+    {
+        $this->branch->update(['battery_warn_threshold' => 35, 'battery_critical_threshold' => 15]);
+
+        Sanctum::actingAs($this->cajero);
+
+        $this->postJson('/api/v1/hub/devices/heartbeat', [
+            'device_id' => 'tablet-1',
+            'kind' => 'scale_android',
+            'name' => 'Balanza 1',
+        ])->assertSuccessful()
+            ->assertJsonPath('data.battery_alert.warn', 35)
+            ->assertJsonPath('data.battery_alert.critical', 15);
+    }
 }

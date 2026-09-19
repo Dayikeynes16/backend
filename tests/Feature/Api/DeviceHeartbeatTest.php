@@ -188,4 +188,18 @@ class DeviceHeartbeatTest extends TestCase
     {
         $this->postJson('/api/v1/devices/heartbeat', $this->payload())->assertUnauthorized();
     }
+
+    public function test_the_response_carries_the_branch_thresholds(): void
+    {
+        $this->branch->update(['battery_warn_threshold' => 35, 'battery_critical_threshold' => 15]);
+
+        $this->postJson('/api/v1/devices/heartbeat', [
+            'device_id' => 'surface-1',
+            'kind' => 'scale_windows',
+            'name' => 'Báscula 1',
+        ], ['X-Api-Key' => $this->rawKey])
+            ->assertSuccessful()
+            ->assertJsonPath('data.battery_alert.warn', 35)
+            ->assertJsonPath('data.battery_alert.critical', 15);
+    }
 }
