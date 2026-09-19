@@ -6,7 +6,7 @@ Qué equipos hay en cada sucursal, si están encendidos, qué versión tienen y 
 
 ## Por qué existe
 
-La nube solo conocía la API key (la sucursal) y el `origin_name` de cada venta. Para saber qué versión tenía cada Surface había que preguntar equipo por equipo. El 2026-09-12 se pidió control desde la web y aviso de batería baja, sin romper las básculas viejas que no se auto-actualizan. El umbral nació fijo en 20 % / 10 %; desde el 2026-09-19 cada sucursal lo decide (ver «Estados»), con esos mismos números de fábrica.
+La nube solo conocía la API key (la sucursal) y el `origin_name` de cada venta. Para saber qué versión tenía cada Surface había que preguntar equipo por equipo. El 2026-09-12 se pidió control desde la web y aviso de batería baja, sin romper las básculas viejas que no se auto-actualizan. El umbral nació fijo en 20 % / 10 %; la rama `feat/avisos-bateria` (2026-09-19, todavía sin fusionar) deja que cada sucursal lo decida (ver «Estados»), con esos mismos números de fábrica.
 
 ## Cómo funciona
 
@@ -91,7 +91,7 @@ Cada cliente manda el latido al arrancar, cada 5 min, al cruzar el 20 % y el 10 
 
 ## Entregas siguientes
 
-Los umbrales por sucursal y la franja de la web ya están en producción — entregas 1 y 2 del spec `docs/superpowers/specs/2026-09-19-avisos-de-bateria-design.md`. Quedan las entregas 3 y 4 de ese mismo spec: que cada equipo guarde el umbral que recibe en el latido y pinte su propia franja —Surface primero, probado en hardware real, que de paso es la primera vez que se comprueba a un equipo latiendo de verdad—, y que los hubs (Electron y Android) repliquen la franja, guarden la última lectura de batería de sus básculas emparejadas y devuelvan `battery_alert` en su propio endpoint LAN, verificado por la suite de conformidad.
+Los umbrales por sucursal y la franja de la web —entregas 1 y 2 del spec `docs/superpowers/specs/2026-09-19-avisos-de-bateria-design.md`— están implementados en la rama `feat/avisos-bateria`, pendientes de fusionar a `main` y desplegar. Quedan además las entregas 3 y 4 de ese mismo spec: que cada equipo guarde el umbral que recibe en el latido y pinte su propia franja —Surface primero, probado en hardware real, que de paso es la primera vez que se comprueba a un equipo latiendo de verdad—, y que los hubs (Electron y Android) repliquen la franja, guarden la última lectura de batería de sus básculas emparejadas y devuelvan `battery_alert` en su propio endpoint LAN, verificado por la suite de conformidad.
 
 ## Tests
 
