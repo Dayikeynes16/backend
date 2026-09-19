@@ -21,6 +21,7 @@ use App\Http\Controllers\Caja\PagosController as CajaPagosController;
 use App\Http\Controllers\Caja\PurchaseController as CajaPurchaseController;
 use App\Http\Controllers\Caja\TurnoController as CajaTurnoController;
 use App\Http\Controllers\Caja\WorkbenchController as CajaWorkbenchController;
+use App\Http\Controllers\DeviceAlertsController;
 use App\Http\Controllers\Empresa\ConfiguracionController;
 use App\Http\Controllers\Empresa\DashboardController as EmpresaDashboardController;
 use App\Http\Controllers\Empresa\DeviceController as EmpresaDeviceController;
@@ -705,6 +706,15 @@ Route::prefix('{tenant}')
                 Route::patch('{item}/cancelar', [AgendaController::class, 'cancel'])->name('cancel');
                 Route::patch('{item}/posponer', [AgendaController::class, 'snooze'])->name('snooze');
                 Route::patch('{item}/visto', [AgendaController::class, 'markReminderSeen'])->name('visto');
+            });
+
+        // Alertas de equipos: lo que pinta la franja de batería. Compartido por
+        // caja y sucursal, porque el layout de las dos la monta.
+        Route::middleware('role:admin-sucursal|cajero|superadmin')
+            ->prefix('equipos')
+            ->name('equipos.')
+            ->group(function () {
+                Route::get('alertas', [DeviceAlertsController::class, 'index'])->name('alertas');
             });
     });
 
