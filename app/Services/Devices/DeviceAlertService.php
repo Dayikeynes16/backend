@@ -40,16 +40,17 @@ class DeviceAlertService
 
     private function checkBattery(Device $device): void
     {
-        $level = $device->battery_level;
-
         // Sin lectura no se sabe nada: ni avisar ni rearmar. Si `null` rearmara,
         // un equipo al 15 % que arranca sin haber leído aún su batería volvería
         // a avisar en cada reinicio (p. ej. al auto-actualizarse).
-        if ($level === null) {
+        if ($device->battery_level === null) {
             return;
         }
 
-        if ($device->battery_charging || $level > 20) {
+        $severity = BatteryThresholds::fromBranch($device->branch)
+            ->severityFor($device->battery_level, (bool) $device->battery_charging);
+
+        if ($severity === null) {
             if ($device->battery_alert_level !== null) {
                 $device->forceFill(['battery_alert_level' => null])->saveQuietly();
             }
@@ -57,13 +58,15 @@ class DeviceAlertService
             return;
         }
 
-        $threshold = $level <= 10 ? 10 : 20;
-        if ($device->battery_alert_level === $threshold || ($threshold === 20 && $device->battery_alert_level === 10)) {
+        // Ya avisado a esta severidad, o a una peor: callar. Bajar del aviso al
+        // crítico sí vuelve a sonar; subir del crítico al aviso, no.
+        if ($device->battery_alert_level === $severity
+            || ($severity === 'warn' && $device->battery_alert_level === 'critical')) {
             return;
         }
 
-        $device->forceFill(['battery_alert_level' => $threshold])->saveQuietly();
-        $this->notify($device, new DeviceBatteryLow($device));
+        $device->forceFill(['battery_alert_level' => $severity])->saveQuietly();
+        $this->notify($device, new DeviceBatteryLow($device, $severity));
     }
 
     /**

@@ -84,7 +84,7 @@ class DeviceAlertsTest extends TestCase
         $this->heartbeats->record($this->tenant->id, $this->branch->id, [
             'device_id' => 'tab-1', 'kind' => 'scale_android', 'battery' => null,
         ], 'cloud');
-        $this->assertSame(20, Device::withoutGlobalScopes()->first()->battery_alert_level);
+        $this->assertSame('warn', Device::withoutGlobalScopes()->first()->battery_alert_level);
 
         $this->beat(14);
         Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 1);
@@ -95,7 +95,62 @@ class DeviceAlertsTest extends TestCase
         $this->beat(6);
         $this->beat(6);
         Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 1);
-        $this->assertSame(10, Device::withoutGlobalScopes()->first()->battery_alert_level);
+        $this->assertSame('critical', Device::withoutGlobalScopes()->first()->battery_alert_level);
+    }
+
+    public function test_it_alerts_at_the_branch_threshold_not_at_twenty(): void
+    {
+        $this->branch->update(['battery_warn_threshold' => 35, 'battery_critical_threshold' => 15]);
+
+        $device = $this->beat(30);
+
+        $this->assertSame('warn', $device->fresh()->battery_alert_level);
+        Notification::assertSentTo($this->adminSucursal, DeviceBatteryLow::class);
+    }
+
+    public function test_the_two_severities_are_two_alerts(): void
+    {
+        $this->branch->update(['battery_warn_threshold' => 30, 'battery_critical_threshold' => 15]);
+
+        $this->beat(25);
+        $this->beat(12);
+
+        Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 2);
+    }
+
+    public function test_raising_the_threshold_over_the_current_level_does_not_alert_again(): void
+    {
+        // Un equipo ya avisado al que le suben el umbral sigue estando avisado:
+        // la marca no se toca y la campana no vuelve a sonar.
+        $this->beat(18);
+        Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 1);
+
+        $this->branch->update(['battery_warn_threshold' => 40]);
+        $this->beat(18);
+
+        Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 1);
+    }
+
+    public function test_lowering_the_threshold_below_the_level_rearms_without_alerting(): void
+    {
+        $this->beat(18);
+        $this->branch->update(['battery_warn_threshold' => 10, 'battery_critical_threshold' => 5]);
+
+        $device = $this->beat(18);
+
+        $this->assertNull($device->fresh()->battery_alert_level);
+        Notification::assertSentToTimes($this->adminSucursal, DeviceBatteryLow::class, 1);
+    }
+
+    public function test_the_critical_alert_says_something_else(): void
+    {
+        $this->beat(6);
+
+        Notification::assertSentTo($this->adminSucursal, DeviceBatteryLow::class, function ($notification) {
+            $payload = $notification->toArray($this->adminSucursal);
+
+            return $payload['severity'] === 'critical' && $payload['title'] === 'Se va a apagar';
+        });
     }
 
     public function test_muted_device_updates_marks_but_sends_nothing(): void
@@ -106,7 +161,7 @@ class DeviceAlertsTest extends TestCase
         $this->beat(5);
 
         Notification::assertNotSentTo($this->adminSucursal, DeviceBatteryLow::class);
-        $this->assertSame(10, Device::withoutGlobalScopes()->first()->battery_alert_level);
+        $this->assertSame('critical', Device::withoutGlobalScopes()->first()->battery_alert_level);
     }
 
     public function test_silence_alerts_once_inside_the_window(): void
