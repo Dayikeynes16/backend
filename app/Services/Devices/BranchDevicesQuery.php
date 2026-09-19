@@ -89,9 +89,15 @@ class BranchDevicesQuery
             'status' => $d->status,
             // La calcula la consulta, no el componente: la consumen tres paneles
             // (Sucursal, Empresa y Caja) y si cada uno la dedujera, la deducirían
-            // distinto.
-            'severity' => BatteryThresholds::fromBranch($d->branch)
-                ->severityFor($d->battery_level, (bool) $d->battery_charging),
+            // distinto. Sale de `status`, no de `severityFor()` directo: un
+            // equipo `silent` con una lectura vieja de batería baja no está en
+            // alerta de batería —lo mismo que ya hace `BranchDeviceAlertsQuery`—,
+            // así que aquí no tiene severidad.
+            'severity' => match ($d->status) {
+                'battery_critical' => 'critical',
+                'battery_low' => 'warn',
+                default => null,
+            },
             'last_seen_at' => $d->last_seen_at->toIso8601String(),
             'first_seen_at' => $d->first_seen_at->toIso8601String(),
             'last_sale_at' => $lastSaleAt,

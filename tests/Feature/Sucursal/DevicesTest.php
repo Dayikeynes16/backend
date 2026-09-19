@@ -158,4 +158,21 @@ class DevicesTest extends TestCase
                 ->where('alerts.0.device_id', $device->device_id)
             );
     }
+
+    public function test_a_silent_device_has_no_severity_even_with_a_stale_low_reading(): void
+    {
+        // Media hora sin reportar con una última lectura del 5 %: el estado es
+        // "silent" (una lectura vieja no dice nada del presente), y `severity`
+        // debe salir de ese estado, no del número crudo — si no, la tarjeta
+        // pintaría la barra en rojo mientras el chip dice "Sin reportar".
+        $this->device(['battery_level' => 5, 'battery_charging' => false, 'last_seen_at' => now()->subMinutes(45)]);
+
+        $this->actingAs($this->adminSucursal)
+            ->get(route('sucursal.devices.index', $this->tenant->slug))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('devices.0.status', 'silent')
+                ->where('devices.0.severity', null)
+                ->has('alerts', 1)
+            );
+    }
 }
