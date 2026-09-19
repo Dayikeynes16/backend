@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Device;
+use App\Services\Devices\BatteryThresholds;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
@@ -62,5 +63,47 @@ class DeviceStatusTest extends TestCase
     {
         $this->assertSame('Balanza 1', $this->device(['name' => 'Balanza 1'])->displayName());
         $this->assertSame('Caja Norte', $this->device(['name' => 'Balanza 1', 'display_name' => 'Caja Norte'])->displayName());
+    }
+
+    public function test_battery_critical_below_the_critical_threshold(): void
+    {
+        $d = $this->device(['last_seen_at' => Carbon::now(), 'battery_level' => 8]);
+
+        $this->assertSame('battery_critical', $d->statusFor(new BatteryThresholds(20, 10)));
+    }
+
+    public function test_critical_wins_over_low(): void
+    {
+        $d = $this->device(['last_seen_at' => Carbon::now(), 'battery_level' => 10]);
+
+        $this->assertSame('battery_critical', $d->statusFor(new BatteryThresholds(20, 10)));
+    }
+
+    public function test_it_uses_the_thresholds_it_is_given(): void
+    {
+        $d = $this->device(['last_seen_at' => Carbon::now(), 'battery_level' => 30]);
+
+        $this->assertSame('online', $d->statusFor(new BatteryThresholds(20, 10)));
+        $this->assertSame('battery_low', $d->statusFor(new BatteryThresholds(35, 15)));
+    }
+
+    public function test_a_quiet_device_with_an_old_critical_reading_is_still_silent(): void
+    {
+        // Lo contrario abriría una franja roja imposible de cerrar por una
+        // lectura de hace media hora, que no dice nada del presente.
+        $d = $this->device(['last_seen_at' => Carbon::now()->subMinutes(45), 'battery_level' => 5]);
+
+        $this->assertSame('silent', $d->statusFor(new BatteryThresholds(20, 10)));
+    }
+
+    public function test_retired_still_wins_over_a_critical_battery(): void
+    {
+        $d = $this->device([
+            'last_seen_at' => Carbon::now(),
+            'battery_level' => 2,
+            'retired_at' => Carbon::now()->subDay(),
+        ]);
+
+        $this->assertSame('retired', $d->statusFor(new BatteryThresholds(20, 10)));
     }
 }
