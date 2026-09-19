@@ -114,6 +114,7 @@ Un apunte de compatibilidad: el campo `status`, que ya existe, empieza a poder d
 { "data": { "device_id": "…", "accepted": true, "battery_alert": { "warn": 25, "critical": 10 } } }
 ```
 
+- **No es un passthrough.** Ese 202 sale **antes** de hablar con la nube: el reenvío es fire‑and‑forget en las dos implementaciones, y la báscula no espera a internet para oír «recibido». El hub no puede reexpedir lo que la nube acaba de contestar porque todavía no ha contestado; sirve el umbral que **él** guardó de su propio latido a `/api/v1/hub/devices/heartbeat`.
 - **No se crea una capacidad nueva ni se sube `protocol_version`**: es un campo más en una respuesta que ya existe. Una báscula vieja que no lo lea sigue latiendo igual.
 - El hub sirve los últimos umbrales que le dio la nube. Los **guarda en su SQLite**, no en memoria: si solo vivieran en RAM, el escenario que este campo resuelve —el hub arrancando sin internet— sería justo el que lo perdería. Sin ninguno guardado, sirve 20/10.
 - Para pintar su franja sin internet, el hub **guarda la última lectura de batería de cada báscula emparejada** (nivel, si carga, cuándo llegó). Hoy reenvía el latido y no se queda nada, así que esto es una tabla nueva de una fila por equipo.
@@ -160,4 +161,4 @@ Cada entrega deja al día el doc vivo que toca (CLAUDE.md lo exige, y aquí son 
 - **Una franja que no se puede cerrar puede volverse ruido** si una sucursal deja un equipo desenchufado a propósito. La salida ya existe: silenciar ese equipo desde el panel.
 - **Un umbral alto llena la pantalla de franjas.** Por eso el tope es 95 % y el control va de 5 en 5: hay que quererlo.
 - **El hub sin internet no conoce los umbrales nuevos** hasta que vuelva a sincronizar. Usa los últimos que recibió, no los de fábrica.
-- **Los equipos en hardware todavía no se han visto latir.** El registro de equipos se publicó sin prueba de campo; si algo falla ahí, se nota al probar la entrega 3.
+- **Los equipos laten, pero nadie lo ha visto con sus ojos.** El registro de equipos se publicó el 2026-09-17 sin prueba de campo: sabemos que el código está desplegado, no que una Surface real esté mandando su porcentaje. Todo esto se apoya en que sí. **Antes de empezar la entrega 2**, mirar en producción que haya filas de `devices` con `battery_level` no nulo y `last_seen_at` reciente. Es una consulta y ahorra construir una franja sobre un dato que no llega.
