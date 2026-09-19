@@ -53,6 +53,12 @@ class DeviceHeartbeatTest extends TestCase
         $this->postJson('/api/v1/hub/devices/heartbeat', ['device_id' => 'x', 'kind' => 'hub_windows'])->assertForbidden();
     }
 
+    public function test_admin_empresa_cannot_use_the_hub_alerts_route(): void
+    {
+        Sanctum::actingAs($this->adminEmpresa);
+        $this->getJson('/api/v1/hub/devices/alerts')->assertForbidden();
+    }
+
     public function test_the_response_carries_the_branch_thresholds(): void
     {
         $this->branch->update(['battery_warn_threshold' => 35, 'battery_critical_threshold' => 15]);

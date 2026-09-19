@@ -5,6 +5,7 @@ import AgendaBell from '@/Components/Agenda/AgendaBell.vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
 import NotaRapidaModal from '@/Components/NotaRapida/NotaRapidaModal.vue';
 import VerifyEmailBanner from '@/Components/VerifyEmailBanner.vue';
+import DeviceAlertStrip from '@/Components/Devices/DeviceAlertStrip.vue';
 
 const page = usePage();
 const sidebarOpen = ref(false);
@@ -148,6 +149,7 @@ const iconPaths = {
                     </div>
                 </div>
             </header>
+            <DeviceAlertStrip />
             <VerifyEmailBanner />
             <main class="p-5 lg:p-8"><slot /></main>
         </div>
