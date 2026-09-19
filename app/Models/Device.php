@@ -115,20 +115,16 @@ class Device extends Model
     /**
      * Atajo para todo lo que ya escribía `$device->status`.
      *
-     * Carga la sucursal solo si hay una que cargar: así un `new Device([...])`
-     * de una prueba unitaria no dispara una consulta, y en producción nadie se
-     * queda con los umbrales de reserva por olvidar el eager load. Las consultas
-     * que presentan muchos equipos cargan `branch` explícitamente para no caer
-     * en un N+1.
+     * Sin guardia: Eloquent no consulta una relación `belongsTo` cuya clave
+     * foránea es nula, así que un `new Device([...])` sin `branch_id` (como
+     * en las pruebas unitarias) no dispara ninguna consulta. Con `branch_id`
+     * puesto sí la dispararía si nadie precargó la relación -por eso las
+     * consultas que presentan muchos equipos (`BranchDevicesQuery`,
+     * `BranchDeviceAlertsQuery`, el comando `devices:check`) cargan `branch`
+     * explícitamente con `with('branch')` y evitan un N+1.
      */
     protected function status(): Attribute
     {
-        return Attribute::get(function (): string {
-            if ($this->exists && $this->branch_id !== null) {
-                $this->loadMissing('branch');
-            }
-
-            return $this->statusFor(BatteryThresholds::fromBranch($this->branch));
-        });
+        return Attribute::get(fn (): string => $this->statusFor(BatteryThresholds::fromBranch($this->branch)));
     }
 }

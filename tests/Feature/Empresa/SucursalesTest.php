@@ -33,9 +33,12 @@ class SucursalesTest extends TestCase
 
     /**
      * Los dos umbrales son un par atómico: este formulario comparte
-     * request con el resto de ajustes de la sucursal y valida ambos
-     * campos como `sometimes`, así que un PUT que solo mande el urgente
-     * no debe colarse dejando roto el invariante urgente < aviso.
+     * request con el resto de ajustes de la sucursal, así que no pueden
+     * ser `required` a secas. Pero tampoco `sometimes` -eso dejaría pasar
+     * un PUT con solo el urgente y rompería el invariante «urgente <
+     * aviso»-. `BatteryThresholdRules` usa `required_with` cruzado: si
+     * llega uno de los dos, el otro pasa a obligatorio y este PUT, que
+     * solo manda el urgente, debe fallar en `battery_warn_threshold`.
      */
     public function test_company_admin_cannot_save_only_the_critical_threshold(): void
     {
