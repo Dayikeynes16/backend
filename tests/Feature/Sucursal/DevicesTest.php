@@ -143,4 +143,19 @@ class DevicesTest extends TestCase
     {
         $this->actingAs($this->cajero)->get(route('sucursal.devices.index', $this->tenant->slug))->assertForbidden();
     }
+
+    public function test_a_critical_device_is_presented_and_listed_in_the_alerts(): void
+    {
+        $this->branch->update(['battery_warn_threshold' => 30, 'battery_critical_threshold' => 15]);
+
+        $device = $this->device(['battery_level' => 9, 'battery_charging' => false, 'last_seen_at' => now()]);
+
+        $this->actingAs($this->adminSucursal)
+            ->get(route('sucursal.devices.index', $this->tenant->slug))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('devices.0.status', 'battery_critical')
+                ->where('devices.0.severity', 'critical')
+                ->where('alerts.0.device_id', $device->device_id)
+            );
+    }
 }
