@@ -20,7 +20,7 @@ Y aun así un cajero se puede quedar sin báscula a media venta, por tres razone
 | Quién se entera | Los administradores **y el cajero** | El que puede enchufarla es el del mostrador. El administrador puede estar en otra sucursal, o dormido. |
 | Cómo insiste | **Una franja fija** mientras dure el problema, más los dos avisos de campana de siempre | Repetir el aviso cada quince minutos enseña a ignorar la campana. Una franja que no se puede cerrar no se aprende a ignorar: estorba hasta que la enchufan. |
 | Dónde se configura | **Por sucursal**, dos porcentajes | Las pilas envejecen por equipo y por sucursal. Un solo número para toda la empresa obliga al peor caso. |
-| Cómo se configura | Dos controles de 5 en 5 en *Sucursal → Configuración* | Sin teclado y sin texto libre que validar en una tablet. |
+| Cómo se configura | Dos controles de 5 en 5, en *Sucursal → Configuración* (admin‑sucursal) y en *Empresa → Sucursales → Editar* (admin‑empresa) | Sin teclado y sin texto libre que validar en una tablet. Son dos superficies porque el admin‑empresa no entra al panel de sucursal; la regla de validación es una sola. |
 | Dónde se ve | Web de caja, hub (Electron y Android) y **el propio equipo** | Muchos cajeros trabajan en el hub, no en la web. Y el equipo conoce su propia pila sin preguntarle a nadie: avisa aunque no haya internet, que es cuando peor viene quedarse sin báscula. |
 | Cómo se entera la pantalla | **Consulta ligera cada 60 s** | Una batería cambia en minutos. 60 s de retraso no le importa a nadie, y no hay que meter un evento más en el canal `sucursal.{id}`, que ya comparten varios consumidores. |
 | Campana del cajero | **No se le abre** | Hoy el cajero no recibe ningún aviso persistente. La franja le dice lo que necesita; decidir qué más le llega a la campana es otra conversación. |
@@ -36,7 +36,7 @@ Dos columnas en `branches`:
 | `battery_warn_threshold` | `smallint` | `20` |
 | `battery_critical_threshold` | `smallint` | `10` |
 
-Validación: múltiplos de 5, entre 5 y 95, y `critical < warn` siempre. Con esos valores por omisión el comportamiento es idéntico al de hoy: ninguna sucursal nota un cambio hasta que decide tocarlo.
+Validación: múltiplos de 5, `warn` entre 10 y 95, `critical` entre 5 y 90, y `critical < warn` siempre. Los rangos no son simétricos a propósito: con `warn = 5` no existiría ningún `critical` válido y el control ofrecería un valor que ningún guardado puede aceptar. Con esos valores por omisión el comportamiento es idéntico al de hoy: ninguna sucursal nota un cambio hasta que decide tocarlo.
 
 `devices.battery_alert_level` **cambia de significado**: hoy guarda el número que disparó el aviso (`20` / `10`); pasa a guardar `warn` / `critical`. Si guardara el número, mover el umbral a media tarde dejaría la marca sin nada con qué compararse y el aviso se repetiría o se perdería. La migración convierte los datos existentes (`20 → warn`, `10 → critical`, nulo se queda nulo).
 
@@ -66,9 +66,10 @@ Hoy el `20` está escrito en **tres** sitios, no en uno: `DeviceAlertService::ch
 - **Un value object `BatteryThresholds`** (`warn`, `critical`) que se construye desde una `Branch` y cae a 20/10 si falta. Es el único que sabe comparar un nivel contra un umbral.
 - `Device::statusFor(BatteryThresholds $t)` es la forma con la que se decide de verdad. El accessor `status` se queda como atajo y hace `loadMissing('branch')`, para que ningún sitio existente deje de compilar; **las dos consultas cargan la sucursal explícitamente** (`with('branch')`) para no caer en un N+1 — el panel de Empresa presenta N sucursales y hoy no hace eager load.
 - `DeviceAlertService::checkBattery()` lee los mismos umbrales. Sigue siendo el único sitio donde se decide **a quién se avisa**.
-- `BranchDevicesQuery:50` arma la franja «Requieren atención» filtrando por `['battery_low', 'silent']`: hay que añadir `battery_critical` o un equipo crítico desaparecería justo de esa lista.
+- `BranchDevicesQuery:50` arma la franja «Requieren atención» filtrando por `['battery_low', 'silent']`: hay que añadir `battery_critical` o un equipo crítico desaparecería justo de esa lista. Su `present()` emite además la `severity` ya calculada, porque `DeviceCard.vue` solo ve ese array y los tres paneles —Sucursal, Empresa y Caja— lo consumen igual; si cada uno tuviera que deducirla, la deducirían distinto.
 - `DeviceBatteryLow` gana `severity` (`warn` | `critical`) en el payload; el título y el cuerpo cambian con ella («Batería baja» / «Se va a apagar»). Una sola clase de notificación: son el mismo hecho con distinta urgencia.
 - `BranchDeviceAlertsQuery`: equipos de una sucursal en `battery_low` o `battery_critical`, ni silenciados ni de baja. Devuelve lo mínimo — `device_id`, nombre mostrado, `battery_level`, `severity` — porque va a pintarse en una franja, no en un panel.
+- El filtro va en PHP después de cargar, como ya hace `BranchDevicesQuery`: `status` es un estado derivado, no una columna, y no existe ningún `where('status', …)` que valga.
 - `severity` sale del **estado derivado** (nivel vivo contra umbrales), no de la marca `battery_alert_level`, que solo sirve para no repetir la campana. Caso concreto: un equipo marcado `critical` que sube del 8 % al 15 % con umbrales 20/10 no vuelve a sonar en la campana (la marca sigue puesta) pero su franja pasa de roja a ámbar. Es lo que se quiere; queda escrito para que no se resuelva al revés.
 
 Dos puertas a la misma consulta:
