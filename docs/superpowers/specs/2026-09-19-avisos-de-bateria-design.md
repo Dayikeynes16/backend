@@ -1,6 +1,6 @@
 # Avisos de batería: que nadie se quede sin báscula por una pila
 
-**Estado:** diseño aprobado (2026-09-19) — sin implementar.
+**Estado:** entregas 1 y 2 implementadas (umbrales por sucursal, estado `battery_critical`, `severity` en la notificación, `battery_alert` en el latido, la franja en la web) — doc vivo: [equipos.md](../../modulos/equipos.md). Entregas 3 y 4 (Surface, Android y los hubs guardando el umbral y pintando su propia franja) pendientes.
 **Sobre:** [registro de equipos](2026-09-12-registro-de-equipos-design.md), publicado el 2026-09-17 · doc vivo: [equipos.md](../../modulos/equipos.md)
 
 ## El problema

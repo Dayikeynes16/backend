@@ -58,7 +58,7 @@ Todas bajo `auth`, sin prefijo de tenant.
 |--------------|------|--------|
 | `SaleCancellationRequested` | Administradores de la sucursal de la venta | Un cajero pide cancelar |
 | `SaleCancellationResolved` | El cajero que la pidió | El administrador aprueba o rechaza |
-| `DeviceBatteryLow` | Administradores de la sucursal del equipo + admin-empresa | Un equipo baja del 20 % sin cargar (otra vez al 10 %) — [equipos](equipos.md) |
+| `DeviceBatteryLow` | Administradores de la sucursal del equipo + admin-empresa | Un equipo baja del umbral de aviso de su sucursal sin cargar; otra vez al umbral urgente. El payload lleva `severity` — [equipos](equipos.md) |
 | `DeviceRegistered` | Los mismos | Primer latido de un equipo nuevo |
 | `DeviceSilent` | Los mismos | Un equipo lleva > 30 min sin reportar dentro de la ventana 08–20 h |
 | `DeviceOutdated` | Los mismos | Un equipo sigue en una versión menor a la publicada hace > 24 h |
