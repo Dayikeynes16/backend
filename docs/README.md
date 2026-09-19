@@ -86,7 +86,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 | Métricas (9 ejes + Resumen con utilidad) | ✅ Completo |
 | Agenda | ✅ Completo · `AgendaItemAssigned` se emite pero ningún cliente lo escucha todavía |
 | Avisos persistentes | ✅ Circuito de cancelaciones (solicitud, aprobación, rechazo) · avisos de equipos (batería, silencio, versión, equipo nuevo) ([doc](modulos/avisos.md)) |
-| Equipos (registro de básculas/hubs, batería, avisos) | ✅ Nube y web, con umbral de aviso configurable por sucursal (2026-09-19) · las cuatro apps cliente ya mandan el latido (2026-09-17), falta verlo en hardware real ([doc](modulos/equipos.md)) |
+| Equipos (registro de básculas/hubs, batería, avisos) | ✅ Nube y web, con umbral de aviso configurable por sucursal (2026-09-19) · las tres apps publicadas el 2026-09-17 ya mandan el latido (el hub Android tiene el código, sin release), con los umbrales todavía fijos en el cliente · falta verlo en hardware real ([doc](modulos/equipos.md)) |
 | Asistente IA conversacional | ✅ F0–F4 · ✅ mini-app móvil `/{tenant}/asistente` completa (F0–F5: cobro FIFO a clientes, pago a cuenta FIFO a proveedores, modo simple, cajero operativo, retiros y cambio de precios) · pendiente F5-config asistida y F6 parcial del spec original · TTS off en UI |
 | API del Hub (Electron, Sanctum, idempotencia) | ✅ Fase 1 backend · offline con cola en el cliente pendiente (repo `carniceria-hub`) |
 | Inventario / stock | ❌ No iniciado (fase futura F-Inv1+) |

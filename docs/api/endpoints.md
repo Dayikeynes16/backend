@@ -260,6 +260,6 @@ Latido de equipo: la báscula se presenta y reporta versión, batería y red. A�
 
 **Errores:** `401` sin API key válida · `422` `device_id` ausente o inválido, `kind` desconocido, `battery.level` fuera de 0–100 · `429` al exceder los 60 req/min.
 
-**Cadencia esperada del cliente:** al arrancar, cada 5 min, al cruzar el 20 % y el 10 % de batería, y al enchufar o desenchufar. Un equipo dado de baja desde la web que vuelve a latir se reactiva solo. Un `device_id` que reporta desde otra sucursal del mismo tenant se muda de sucursal (no se duplica).
+**Cadencia esperada del cliente:** al arrancar, cada 5 min, al cruzar el 20 % y el 10 % de batería (fijos en el cliente: el umbral de la sucursal viaja en `battery_alert`, pero las versiones publicadas aún no lo leen), y al enchufar o desenchufar. Un equipo dado de baja desde la web que vuelve a latir se reactiva solo. Un `device_id` que reporta desde otra sucursal del mismo tenant se muda de sucursal (no se duplica).
 
 Módulo completo: [equipos.md](../modulos/equipos.md).

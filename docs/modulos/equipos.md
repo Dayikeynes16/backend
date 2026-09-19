@@ -2,7 +2,7 @@
 
 Qué equipos hay en cada sucursal, si están encendidos, qué versión tienen y cuánta batería les queda. Y avisos cuando algo de eso va mal.
 
-**Estado:** nube y web implementadas. Las cuatro apps cliente ya mandan el latido — Surface 0.4.2, Android 1.6.3, hub Electron 1.2.1 y hub Android (con el código, aunque sin release publicada), publicadas el 2026-09-17. Lo que falta es verlo funcionar en hardware real: nadie ha visto todavía una Surface de verdad reportando su porcentaje de batería.
+**Estado:** nube y web implementadas. Las tres apps publicadas el 2026-09-17 —Surface 0.4.2, Android 1.6.3 y hub Electron 1.2.1— ya mandan el latido; el hub Android tiene el código mergeado pero todavía no tiene release. Lo que falta es verlo funcionar en hardware real: nadie ha visto todavía una Surface de verdad reportando su porcentaje de batería.
 
 ## Por qué existe
 
@@ -87,7 +87,7 @@ En los layouts de caja y de sucursal (`DeviceAlertStrip.vue` + `useDeviceAlerts.
 
 ## El latido de cada cliente
 
-Cada cliente manda el latido al arrancar, cada 5 min, al cruzar los umbrales de su sucursal y al enchufar o desenchufar. Surface (`bascula`) genera su `device_id` y lee `navigator.getBattery()`; Android reutiliza el `device_id` del emparejamiento y, sin nube, late al hub por LAN; los hubs (Electron y Android) se reportan y reenvían el de sus básculas con un endpoint local nuevo anunciado en `cap`, sin subir `protocol_version`. Contrato completo en el spec `docs/superpowers/specs/2026-09-12-registro-de-equipos-design.md` y plan en `docs/superpowers/plans/2026-09-12-registro-de-equipos.md`; ya implementado en las cuatro apps (2026-09-17).
+Cada cliente manda el latido al arrancar, cada 5 min, al cruzar el 20 % y el 10 % de batería y al enchufar o desenchufar. **Esos dos porcentajes siguen fijos dentro de cada app**: la respuesta del latido ya les dice cuáles son los de su sucursal, pero ninguna versión publicada los lee todavía — eso es la entrega 3. Surface (`bascula`) genera su `device_id` y lee `navigator.getBattery()`; Android reutiliza el `device_id` del emparejamiento y, sin nube, late al hub por LAN; los hubs (Electron y Android) se reportan y reenvían el de sus básculas con un endpoint local nuevo anunciado en `cap`, sin subir `protocol_version`. Contrato completo en el spec `docs/superpowers/specs/2026-09-12-registro-de-equipos-design.md` y plan en `docs/superpowers/plans/2026-09-12-registro-de-equipos.md`; implementado en las cuatro apps, tres de ellas publicadas el 2026-09-17.
 
 ## Entregas siguientes
 
