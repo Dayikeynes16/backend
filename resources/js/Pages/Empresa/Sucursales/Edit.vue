@@ -8,6 +8,7 @@ import HoursEditor from '@/Components/HoursEditor.vue';
 import PhoneFields from '@/Components/PhoneFields.vue';
 import DeliveryTiersEditor from '@/Components/DeliveryTiersEditor.vue';
 import TextInput from '@/Components/TextInput.vue';
+import BatteryThresholdFields from '@/Components/Devices/BatteryThresholdFields.vue';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/vue3';
 import { computed, watch } from 'vue';
 
@@ -47,6 +48,8 @@ const form = useForm({
     branch_admin_expense_categories_enabled: !!props.sucursal.branch_admin_expense_categories_enabled,
     payment_receipts_enabled: !!props.sucursal.payment_receipts_enabled,
     payment_receipts_required: !!props.sucursal.payment_receipts_required,
+    battery_warn_threshold: props.sucursal.battery_warn_threshold ?? 20,
+    battery_critical_threshold: props.sucursal.battery_critical_threshold ?? 10,
 });
 
 // "Exigir comprobante" implica "Comprobantes de transferencia" activo: si se
@@ -465,6 +468,22 @@ const copyMenuUrl = async () => {
                             <span class="text-sm font-semibold text-gray-700">{{ form.payment_receipts_required ? 'Activo' : 'Inactivo' }}</span>
                         </label>
                     </div>
+                </div>
+            </section>
+
+            <!-- Aviso de batería -->
+            <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-base font-bold text-gray-900">Aviso de batería</h2>
+                    <p class="mt-1 text-sm text-gray-500">A qué porcentaje quieres enterarte de que una báscula o tablet de esta sucursal se está quedando sin pila.</p>
+                </div>
+                <div class="p-6">
+                    <BatteryThresholdFields
+                        :warn="form.battery_warn_threshold"
+                        :critical="form.battery_critical_threshold"
+                        :errors="form.errors"
+                        @update:warn="form.battery_warn_threshold = $event"
+                        @update:critical="form.battery_critical_threshold = $event" />
                 </div>
             </section>
 
