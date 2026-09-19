@@ -46,7 +46,7 @@ const setCritical = (value) => {
                 <button type="button" :disabled="warn <= warnMin" @click="setWarn(warn - STEP)"
                     class="px-3.5 py-2 text-lg font-bold text-gray-500 transition hover:bg-gray-100 disabled:opacity-30" aria-label="Bajar el aviso">−</button>
                 <span class="min-w-[4.5rem] border-x border-gray-200 px-2 py-2 text-center text-sm font-bold tabular-nums text-gray-900">{{ warn }} %</span>
-                <button type="button" :disabled="warn >= 95" @click="setWarn(warn + STEP)"
+                <button type="button" :disabled="warn >= WARN_MAX" @click="setWarn(warn + STEP)"
                     class="px-3.5 py-2 text-lg font-bold text-gray-500 transition hover:bg-gray-100 disabled:opacity-30" aria-label="Subir el aviso">+</button>
             </div>
         </div>
@@ -57,7 +57,7 @@ const setCritical = (value) => {
                 <p class="mt-0.5 text-xs text-gray-500">La franja se pone roja: el equipo está por apagarse.</p>
             </div>
             <div class="inline-flex shrink-0 items-center overflow-hidden rounded-xl ring-1 ring-gray-200">
-                <button type="button" :disabled="critical <= 5" @click="setCritical(critical - STEP)"
+                <button type="button" :disabled="critical <= CRITICAL_MIN" @click="setCritical(critical - STEP)"
                     class="px-3.5 py-2 text-lg font-bold text-gray-500 transition hover:bg-gray-100 disabled:opacity-30" aria-label="Bajar el aviso urgente">−</button>
                 <span class="min-w-[4.5rem] border-x border-gray-200 px-2 py-2 text-center text-sm font-bold tabular-nums text-gray-900">{{ critical }} %</span>
                 <button type="button" :disabled="critical >= criticalMax" @click="setCritical(critical + STEP)"
