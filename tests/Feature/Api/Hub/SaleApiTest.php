@@ -193,6 +193,39 @@ class SaleApiTest extends TestCase
         $this->assertCount(1, $pending->json('data'));
     }
 
+    public function test_index_does_not_hide_sales_when_a_branch_accumulates(): void
+    {
+        // El 2026-09-20 una sucursal tenía 57 sin cobrar y el corte estaba en
+        // 50: las 7 más viejas no llegaban nunca al hub, porque el orden es por
+        // fecha descendente y siempre quedaban fuera. Eran justo las que más
+        // urgía cobrar.
+        for ($i = 0; $i < 57; $i++) {
+            $this->makeSale($this->branch->id, SaleStatus::Active);
+        }
+
+        $token = $this->cajero->createToken('hub')->plainTextToken;
+        $response = $this->withToken($token)->getJson('/api/v1/hub/sales')->assertOk();
+
+        $this->assertCount(57, $response->json('data'));
+        $this->assertSame(57, $response->json('counts.all'));
+    }
+
+    public function test_index_still_has_a_ceiling_and_counts_tell_the_truth(): void
+    {
+        // El tope existe para que una respuesta no crezca sin fin. Lo que no
+        // puede pasar es que el cliente crea que eso es todo: `counts.all`
+        // sigue diciendo cuántas hay de verdad.
+        for ($i = 0; $i < 205; $i++) {
+            $this->makeSale($this->branch->id, SaleStatus::Active);
+        }
+
+        $token = $this->cajero->createToken('hub')->plainTextToken;
+        $response = $this->withToken($token)->getJson('/api/v1/hub/sales')->assertOk();
+
+        $this->assertCount(200, $response->json('data'));
+        $this->assertSame(205, $response->json('counts.all'));
+    }
+
     public function test_update_status_pauses_and_reactivates(): void
     {
         $sale = $this->makeSaleWithItem(SaleStatus::Active);

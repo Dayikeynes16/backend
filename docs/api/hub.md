@@ -122,7 +122,7 @@ El turno abierto es requisito para cobrar ventas, registrar gastos, registrar co
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `sales?status=active\|pending\|all` | Ventas activas/pendientes de la sucursal (máx. 50) + `counts` por estado |
+| GET | `sales?status=active\|pending\|all` | Ventas activas/pendientes de la sucursal (máx. **200**, antes 50) + `counts` por estado |
 | GET | `sales/{id}` | Detalle con items/pagos/cliente. Incluye `payment_methods` habilitados de la sucursal y datos de `branch` (para el ticket) |
 | POST | `sales/{id}/payments` | Registra un pago (ver contrato abajo) |
 | PATCH | `sales/{id}/status` | Pausar/reactivar: el cajero solo puede transicionar `active` ↔ `pending` (`403` otra transición, `422` si el estado no lo permite) |
@@ -138,6 +138,8 @@ El turno abierto es requisito para cobrar ventas, registrar gastos, registrar co
 | POST | `sales/{id}/lock` | Adquiere el lock de concurrencia (5 min). `409` con `locked_by_name` si otro usuario lo tiene. Adquirir uno libera los locks previos del usuario |
 | POST | `sales/{id}/unlock` | Libera el lock (solo si es propio) |
 | POST | `sales/{id}/heartbeat` | Renueva `locked_at` (mantiene vivo el lock) |
+
+> **El tope subió de 50 a 200 el 2026-09-20, y no es un ajuste cosmético.** Una sucursal con 57 ventas sin cobrar sólo recibía 50, y como el orden es por fecha descendente, **las 7 más viejas no llegaban nunca** — justo las que más urge cobrar. Un hub recién instalado ahí no las habría visto jamás. `counts.all` sigue diciendo el total de verdad, así que el cliente puede saber si se quedó corto en vez de suponer que eso es todo.
 
 ### Solicitudes de cancelación (solo admin-sucursal)
 
