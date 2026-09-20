@@ -124,6 +124,20 @@ class SaleController extends Controller
         return $this->saleResponse($sale->refresh(), 201);
     }
 
+    /**
+     * Cuántas ventas sin cobrar devuelve la Mesa de una vez.
+     *
+     * **Estuvo en 50 y escondía ventas cobrables.** El 2026-09-20 una sucursal
+     * tenía 57 sin cobrar: las 7 más viejas —justo las que más urge cobrar— no
+     * llegaban nunca al hub, porque el orden es por fecha descendente y siempre
+     * quedaban fuera del corte. Un hub recién instalado ahí jamás las habría
+     * visto.
+     *
+     * `counts.all` sigue diciendo el total de verdad, así que el cliente puede
+     * saber si se quedó corto en vez de suponer que esto es todo.
+     */
+    private const TOPE_DE_LA_MESA = 200;
+
     public function index(Request $request): JsonResponse
     {
         $request->validate(['status' => 'nullable|in:active,pending,all']);
@@ -149,7 +163,7 @@ class SaleController extends Controller
 
         $sales = $query->with(['items', 'customer:id,name,name_pending,phone', 'lockedByUser:id,name'])
             ->orderByDesc('created_at')
-            ->limit(50)
+            ->limit(self::TOPE_DE_LA_MESA)
             ->get();
 
         return response()->json([
