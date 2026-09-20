@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\Hub\WithdrawalController as HubWithdrawalController
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\TranscriptionController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Public\DeliveryController as PublicDeliveryController;
 use App\Http\Controllers\Public\MenuController as PublicMenuController;
 use App\Http\Controllers\Public\OrderController as PublicOrderController;
@@ -88,6 +89,17 @@ Route::prefix('v1/hub')
 
         // Alertas de equipos: la misma franja de batería que la web, para el hub.
         Route::get('devices/alerts', [HubDeviceAlertsController::class, 'index'])->name('api.hub.devices.alerts');
+
+        /*
+         * Bandeja de avisos. Es el mismo controlador que la campana de la web,
+         * a propósito: sólo lee `$request->user()->notifications`, que ya está
+         * acotado por `notifiable_id`, así que sirve igual bajo Sanctum. Sin
+         * esto, un cajero solicita una cancelación desde la tablet y el
+         * administrador no se entera hasta que abre un navegador.
+         */
+        Route::get('notifications', [NotificationController::class, 'index'])->name('api.hub.notifications.index');
+        Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('api.hub.notifications.read');
+        Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('api.hub.notifications.read-all');
 
         // Configuración de negocio de la sucursal (admin-sucursal): métodos de pago + API keys.
         Route::get('config', [HubConfigController::class, 'index'])->name('api.hub.config.index');

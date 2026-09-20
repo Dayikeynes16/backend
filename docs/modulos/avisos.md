@@ -79,9 +79,9 @@ Los cinco puntos de entrada del circuito de cancelaciones (mesa de sucursal, mes
 
 - **La campana pide 20 y no pagina.** Suficiente hoy; si un usuario acumula muchos, los viejos sólo se ven marcando leídos.
 - **Nada las borra.** No hay limpieza programada de avisos antiguos.
-- **El hub no las muestra.** El circuito de cancelaciones sí avisa cuando la acción viene del hub, pero la app de escritorio no tiene campana propia todavía.
+- **El Hub Electron no las muestra.** El circuito de cancelaciones sí avisa cuando la acción viene del hub, pero la app de escritorio no tiene campana propia todavía. Desde el 2026-09-20 la bandeja está expuesta en `/api/v1/hub/notifications` (ver [api/hub.md](../api/hub.md#avisos)), así que lo que falta ahí es sólo la campana, no el dato.
 - **El admin-empresa las recibe si es destinatario**, pero hoy ninguna lo tiene como tal: las cancelaciones son cosa de sucursal.
 
 ## Tests
 
-`tests/Feature/NotificationInboxTest.php` (la bandeja sólo devuelve lo propio) y `tests/Feature/Sucursal/CancelacionAvisosTest.php` (los tres momentos del circuito, aislamiento entre sucursales y entre empresas, y que un fallo al notificar no rompe la solicitud).
+`tests/Feature/NotificationInboxTest.php` (la bandeja sólo devuelve lo propio), `tests/Feature/Hub/NotificationInboxTest.php` (la misma bandeja bajo Sanctum, con el aislamiento intacto) y `tests/Feature/Sucursal/CancelacionAvisosTest.php` (los tres momentos del circuito, aislamiento entre sucursales y entre empresas, y que un fallo al notificar no rompe la solicitud).

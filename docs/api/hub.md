@@ -334,6 +334,20 @@ Por ese canal el hub recibe:
 
 El socket es el mecanismo principal, pero el hub conserva su sondeo como red de seguridad: 20 s / 4 s en la Mesa de Trabajo y 45 s / 12 s en el panel de Turno, según haya socket o no. Ver [arquitectura/reverb-websockets.md](../arquitectura/reverb-websockets.md).
 
+## Avisos
+
+| Método | Ruta | Rol | Descripción |
+|--------|------|-----|-------------|
+| GET | `notifications` | ambos | Los 20 avisos más recientes del usuario del token, con `unread_count` |
+| PATCH | `notifications/{id}/read` | ambos | Marca uno como leído; devuelve el contador ya bajado |
+| PATCH | `notifications/read-all` | ambos | Apaga la insignia entera |
+
+Es **el mismo `NotificationController` que la campana de la web**, sin una copia para el hub. Puede serlo porque sólo toca `$request->user()->notifications()`, que ya está acotado por `notifiable_id`: no hay tenant que resolver ni sucursal que comprobar, y un token de cajero no alcanza los avisos de su administrador (`404`). Añadido el 2026-09-20.
+
+Sin estas rutas, un cajero solicitaba una cancelación desde la tablet y el administrador no se enteraba hasta abrir un navegador. El aviso ya se creaba —`SaleCancellationNotifier` es el mismo para los cinco puntos de entrada—, pero no había por dónde leerlo. Módulo: [avisos.md](../modulos/avisos.md).
+
+Cada elemento de `notifications` lleva `id`, `read_at`, `created_at` y, aplanados, los campos de `data` de la notificación (`type`, `level`, `title`, `body`, `folio`, `sale_id`, …). El `level` (`info` / `important` / `action`) es el que decide cuánto ruido merece.
+
 ## Equipos (latido)
 
 | Método | Ruta | Rol | Descripción |
