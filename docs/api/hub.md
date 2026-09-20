@@ -339,8 +339,21 @@ El socket es el mecanismo principal, pero el hub conserva su sondeo como red de 
 | Método | Ruta | Rol | Descripción |
 |--------|------|-----|-------------|
 | POST | `devices/heartbeat` | ambos | El hub se reporta a sí mismo y reenvía el latido de las básculas emparejadas que no tienen credenciales de nube |
+| GET | `devices/alerts` | ambos | Equipos de la sucursal del token en `battery_low` o `battery_critical`, la misma consulta que arma la franja de la web |
 
-Mismo body y misma respuesta que `POST /api/v1/devices/heartbeat` de la Scale API (ver [endpoints.md](endpoints.md#post-apiv1devicesheartbeat)); cambia quién lo firma: aquí la sucursal sale del usuario Sanctum y el equipo queda marcado con `via = hub` (el campo `via` del body se ignora). Un hub sin sesión reenvía por la Scale API con su API key y manda `via: "hub"` para que el panel lo muestre igual. Un hub reenvía el de cada báscula con el `device_id` y `kind` de esa báscula, no los suyos. Añadido el 2026-09-16. Módulo: [equipos.md](../modulos/equipos.md).
+Mismo body y misma respuesta que `POST /api/v1/devices/heartbeat` de la Scale API (ver [endpoints.md](endpoints.md#post-apiv1devicesheartbeat)); cambia quién lo firma: aquí la sucursal sale del usuario Sanctum y el equipo queda marcado con `via = hub` (el campo `via` del body se ignora). Un hub sin sesión reenvía por la Scale API con su API key y manda `via: "hub"` para que el panel lo muestre igual. Un hub reenvía el de cada báscula con el `device_id` y `kind` de esa báscula, no los suyos. Añadido el 2026-09-16. Desde el 2026-09-19 la respuesta lleva además `battery_alert` (**aditivo**), el par de umbrales de la sucursal (`{"warn": 20, "critical": 10}`, de fábrica), para que el equipo pueda avisar de su propia pila sin preguntarle a nadie, incluso sin internet. Módulo: [equipos.md](../modulos/equipos.md).
+
+**GET /api/v1/hub/devices/alerts** — sin parámetros; la sucursal sale del token. Respuesta `200`:
+
+```json
+{
+  "data": [
+    { "device_id": "a1b2c3d4-surface", "name": "Caja Norte", "battery_level": 8, "severity": "critical" }
+  ]
+}
+```
+
+Solo equipos activos y sin silenciar en `battery_low` o `battery_critical`; `severity` distingue cuál de los dos. Un usuario sin sucursal recibe `200` con `data: []`, no un error. Pensada para pintarse en una franja, no en un panel: por eso trae lo mínimo. Es la misma consulta que usa `GET /{tenant}/equipos/alertas` en la web (ver [equipos.md](../modulos/equipos.md)); el hub todavía no tiene su propia franja que la lea — está pendiente. Añadido el 2026-09-19.
 
 ## Códigos de error comunes
 

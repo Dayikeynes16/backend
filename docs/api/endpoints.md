@@ -246,17 +246,20 @@ Latido de equipo: la báscula se presenta y reporta versión, batería y red. A�
     "name": "Caja 1",
     "display_name": "Caja Norte",
     "status": "online",
+    "battery_alert": { "warn": 20, "critical": 10 },
     "server_time": "2026-09-16T10:12:00-06:00"
   }
 }
 ```
 
-`display_name` es el alias puesto desde la web (o `null`); `status` es el estado derivado (`online`, `battery_low`, `stale`, `silent`).
+`display_name` es el alias puesto desde la web (o `null`); `status` es el estado derivado (`online`, `battery_low`, `battery_critical`, `stale`, `silent`).
 
-`battery: null` limpia nivel y carga, pero **no rearma** el aviso de batería baja: sin lectura no se sabe si el equipo cargó. Un cliente que aún no leyó su batería puede omitir el campo o mandarlo nulo; el aviso solo se rearma al cargar o al subir de 20 %.
+`battery_alert` es el par de umbrales de la sucursal (2026-09-19, **aditivo**): a qué porcentaje avisar y a cuál avisar urgente, de fábrica 20/10. Así el equipo puede quejarse de su propia pila en su pantalla sin preguntarle a nadie, incluso sin internet. Un cliente que no lo lea lo ignora y sigue vendiendo igual.
+
+`battery: null` limpia nivel y carga, pero **no rearma** el aviso de batería baja: sin lectura no se sabe si el equipo cargó. Un cliente que aún no leyó su batería puede omitir el campo o mandarlo nulo; el aviso solo se rearma al cargar o al subir del umbral de aviso de la sucursal.
 
 **Errores:** `401` sin API key válida · `422` `device_id` ausente o inválido, `kind` desconocido, `battery.level` fuera de 0–100 · `429` al exceder los 60 req/min.
 
-**Cadencia esperada del cliente:** al arrancar, cada 5 min, al cruzar el 20 % y el 10 % de batería, y al enchufar o desenchufar. Un equipo dado de baja desde la web que vuelve a latir se reactiva solo. Un `device_id` que reporta desde otra sucursal del mismo tenant se muda de sucursal (no se duplica).
+**Cadencia esperada del cliente:** al arrancar, cada 5 min, al cruzar el 20 % y el 10 % de batería (fijos en el cliente: el umbral de la sucursal viaja en `battery_alert`, pero las versiones publicadas aún no lo leen), y al enchufar o desenchufar. Un equipo dado de baja desde la web que vuelve a latir se reactiva solo. Un `device_id` que reporta desde otra sucursal del mismo tenant se muda de sucursal (no se duplica).
 
 Módulo completo: [equipos.md](../modulos/equipos.md).

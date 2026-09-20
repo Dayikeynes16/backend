@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'payment_receipts_enabled', 'payment_receipts_required',
     'delivery_tiers', 'max_delivery_km', 'min_order_amount',
     'public_phone', 'hours',
+    'battery_warn_threshold', 'battery_critical_threshold',
 ])]
 class Branch extends Model
 {

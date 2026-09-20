@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Empresa;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Services\PhoneNormalizer;
+use App\Support\BatteryThresholdRules;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -139,7 +140,8 @@ class SucursalController extends Controller
             'hours.*.open' => 'nullable|date_format:H:i',
             'hours.*.close' => 'nullable|date_format:H:i',
             'sale_item_edit_reason_mode' => 'sometimes|in:disabled,optional,required',
-        ]);
+            ...BatteryThresholdRules::rules(optional: true),
+        ], BatteryThresholdRules::messages());
 
         $this->validateOnlineOrderingConfig($validated);
 

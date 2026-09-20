@@ -13,6 +13,7 @@ const emit = defineEmits(['open']);
 // mirar, rojo para actuar. El anillo de la tarjeta acompaña solo cuando importa.
 const STATUS = {
     online: { label: 'En línea', chip: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500', ring: 'ring-gray-200' },
+    battery_critical: { label: 'Se va a apagar', chip: 'bg-red-100 text-red-800', dot: 'bg-red-500', ring: 'ring-red-300' },
     battery_low: { label: 'Batería baja', chip: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500', ring: 'ring-amber-300' },
     stale: { label: 'Hace un rato', chip: 'bg-amber-100 text-amber-800', dot: 'bg-amber-400', ring: 'ring-gray-200' },
     silent: { label: 'Sin reportar', chip: 'bg-red-100 text-red-800', dot: 'bg-red-500', ring: 'ring-red-200' },
@@ -38,10 +39,10 @@ const hasBattery = computed(() => props.device.battery_level !== null && props.d
 const batteryColor = computed(() => {
     if (!hasBattery.value) return 'bg-gray-300';
     if (props.device.battery_charging) return 'bg-emerald-500';
-    const l = props.device.battery_level;
-    if (l <= 20) return 'bg-red-500';
-    if (l <= 40) return 'bg-amber-500';
-    return 'bg-emerald-500';
+    // La severidad la decide el servidor con los umbrales de la sucursal: aquí
+    // solo se pinta. El ámbar del 40 % es un degradado visual, no una alerta.
+    if (props.device.severity) return 'bg-red-500';
+    return props.device.battery_level <= 40 ? 'bg-amber-500' : 'bg-emerald-500';
 });
 
 const energy = computed(() => {

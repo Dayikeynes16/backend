@@ -5,6 +5,7 @@ import ConfirmDialog from '@/Components/ConfirmDialog.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
+import BatteryThresholdFields from '@/Components/Devices/BatteryThresholdFields.vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import QrcodeVue from 'qrcode.vue';
@@ -39,6 +40,17 @@ const noMethodsSelected = computed(() => form.payment_methods_enabled.length ===
 const submitConfig = () => {
     if (noMethodsSelected.value) return;
     form.put(route('sucursal.configuracion.update', props.tenant.slug));
+};
+
+// Aviso de batería: formulario propio, separado del de métodos de pago para
+// no arrastrar su validación (payment_methods_enabled required|array|min:1).
+const batteryForm = useForm({
+    battery_warn_threshold: props.branch.battery_warn_threshold ?? 20,
+    battery_critical_threshold: props.branch.battery_critical_threshold ?? 10,
+});
+
+const submitBattery = () => {
+    batteryForm.put(route('sucursal.configuracion.bateria', props.tenant.slug), { preserveScroll: true });
 };
 
 // Coordenadas: link a Google Maps si están configuradas.
@@ -204,6 +216,30 @@ const revokedKeys = computed(() => props.apiKeys?.filter(k => k.status !== 'acti
                     </div>
                     <div class="flex justify-end border-t border-gray-100 bg-gray-50/50 px-6 py-3">
                         <button type="submit" :disabled="form.processing || noMethodsSelected"
+                            class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-95 disabled:opacity-50">
+                            Guardar
+                        </button>
+                    </div>
+                </section>
+            </form>
+
+            <!-- Aviso de batería (editable por admin-sucursal) -->
+            <form @submit.prevent="submitBattery">
+                <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+                    <div class="border-b border-gray-100 px-6 py-5">
+                        <h2 class="text-base font-bold text-gray-900">Aviso de batería</h2>
+                        <p class="mt-1 text-sm text-gray-500">Cuando una báscula o tablet de esta sucursal baja de estos porcentajes sin estar cargando.</p>
+                    </div>
+                    <div class="p-6">
+                        <BatteryThresholdFields
+                            :warn="batteryForm.battery_warn_threshold"
+                            :critical="batteryForm.battery_critical_threshold"
+                            :errors="batteryForm.errors"
+                            @update:warn="batteryForm.battery_warn_threshold = $event"
+                            @update:critical="batteryForm.battery_critical_threshold = $event" />
+                    </div>
+                    <div class="flex justify-end border-t border-gray-100 bg-gray-50/50 px-6 py-3">
+                        <button type="submit" :disabled="batteryForm.processing"
                             class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-95 disabled:opacity-50">
                             Guardar
                         </button>

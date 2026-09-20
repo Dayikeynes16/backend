@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Sucursal;
 use App\Http\Controllers\Controller;
 use App\Models\ApiKey;
 use App\Models\Branch;
+use App\Support\BatteryThresholdRules;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -67,6 +68,25 @@ class ConfiguracionController extends Controller
         $branch->update($validated);
 
         return back()->with('success', 'Métodos de pago actualizados.');
+    }
+
+    /**
+     * Ruta aparte de `update` a propósito: aquella exige
+     * `payment_methods_enabled` (`required|array|min:1`) y se caería al mandar
+     * solo los umbrales.
+     */
+    public function updateBattery(Request $request): RedirectResponse
+    {
+        $branch = Branch::withoutGlobalScopes()->findOrFail(Auth::user()->branch_id);
+
+        $validated = $request->validate(
+            BatteryThresholdRules::rules(),
+            BatteryThresholdRules::messages(),
+        );
+
+        $branch->update($validated);
+
+        return back()->with('success', 'Aviso de batería actualizado.');
     }
 
     /**

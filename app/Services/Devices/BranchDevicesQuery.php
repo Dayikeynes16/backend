@@ -39,15 +39,19 @@ class BranchDevicesQuery
             ->get()
             ->mapWithKeys(fn ($row) => [(string) $row->origin_name => Carbon::parse($row->last_sale_at)->toIso8601String()]);
 
+        // `with('branch')`: el estado de cada equipo se compara contra los
+        // umbrales de su sucursal, y el panel de Empresa presenta N sucursales
+        // de una vez. Sin esto, una consulta por equipo.
         $devices = Device::query()
             ->active()
             ->forBranch($branchId)
+            ->with('branch')
             ->orderBy('name')
             ->get()
             ->map(fn (Device $d) => $this->present($d, $releases->get($d->kind), $lastSales->get((string) $d->name)))
             ->values();
 
-        $alerts = $devices->filter(fn ($d) => in_array($d['status'], ['battery_low', 'silent'], true) || $d['outdated'])->values();
+        $alerts = $devices->filter(fn ($d) => in_array($d['status'], ['battery_low', 'battery_critical', 'silent'], true) || $d['outdated'])->values();
 
         // También los dados de baja: si uno vendió ayer y hoy se retira, no debe
         // volver a aparecer abajo como si fuera una báscula vieja distinta.
@@ -83,6 +87,17 @@ class BranchDevicesQuery
             'via' => $d->via,
             'local_ip' => $d->local_ip,
             'status' => $d->status,
+            // La calcula la consulta, no el componente: la consumen tres paneles
+            // (Sucursal, Empresa y Caja) y si cada uno la dedujera, la deducirían
+            // distinto. Sale de `status`, no de `severityFor()` directo: un
+            // equipo `silent` con una lectura vieja de batería baja no está en
+            // alerta de batería —lo mismo que ya hace `BranchDeviceAlertsQuery`—,
+            // así que aquí no tiene severidad.
+            'severity' => match ($d->status) {
+                'battery_critical' => 'critical',
+                'battery_low' => 'warn',
+                default => null,
+            },
             'last_seen_at' => $d->last_seen_at->toIso8601String(),
             'first_seen_at' => $d->first_seen_at->toIso8601String(),
             'last_sale_at' => $lastSaleAt,

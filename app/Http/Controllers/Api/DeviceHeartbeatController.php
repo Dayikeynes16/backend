@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\DeviceHeartbeatRequest;
+use App\Services\Devices\BatteryThresholds;
 use App\Services\Devices\DeviceHeartbeatService;
 use App\Services\Devices\HeartbeatResult;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +35,8 @@ class DeviceHeartbeatController extends Controller
     public static function respond(HeartbeatResult $result): JsonResponse
     {
         $device = $result->device;
+        $device->loadMissing('branch');
+        $thresholds = BatteryThresholds::fromBranch($device->branch);
 
         return response()->json([
             'data' => [
@@ -41,6 +44,13 @@ class DeviceHeartbeatController extends Controller
                 'name' => $device->name,
                 'display_name' => $device->display_name,
                 'status' => $device->status,
+                // Para que el equipo pueda quejarse de su propia pila sin
+                // preguntarle a nadie, también sin internet. Campo nuevo en una
+                // respuesta: quien no lo entienda lo ignora y sigue vendiendo.
+                'battery_alert' => [
+                    'warn' => $thresholds->warn,
+                    'critical' => $thresholds->critical,
+                ],
                 'server_time' => now()->toIso8601String(),
             ],
         ], $result->wasNew ? 201 : 200);

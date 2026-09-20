@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Devices\BatteryThresholds;
 use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -85,30 +86,45 @@ class Device extends Model
 
     /**
      * Estado derivado de cuándo reportó y de su batería. `retired` gana a todo.
-     * `battery_low` solo si está en línea: una batería vieja de un equipo callado
-     * no dice nada del presente.
+     * Las dos alertas de batería solo cuentan si está en línea: una lectura
+     * vieja de un equipo callado no dice nada del presente.
+     */
+    public function statusFor(BatteryThresholds $thresholds): string
+    {
+        if ($this->retired_at !== null) {
+            return 'retired';
+        }
+
+        $seen = $this->last_seen_at instanceof Carbon ? $this->last_seen_at : Carbon::parse($this->last_seen_at);
+        $minutes = $seen->diffInMinutes(Carbon::now());
+
+        if ($minutes >= config('devices.silence_minutes', 30)) {
+            return 'silent';
+        }
+        if ($minutes >= config('devices.online_minutes', 10)) {
+            return 'stale';
+        }
+
+        return match ($thresholds->severityFor($this->battery_level, (bool) $this->battery_charging)) {
+            'critical' => 'battery_critical',
+            'warn' => 'battery_low',
+            default => 'online',
+        };
+    }
+
+    /**
+     * Atajo para todo lo que ya escribía `$device->status`.
+     *
+     * Sin guardia: Eloquent no consulta una relación `belongsTo` cuya clave
+     * foránea es nula, así que un `new Device([...])` sin `branch_id` (como
+     * en las pruebas unitarias) no dispara ninguna consulta. Con `branch_id`
+     * puesto sí la dispararía si nadie precargó la relación -por eso las
+     * consultas que presentan muchos equipos (`BranchDevicesQuery`,
+     * `BranchDeviceAlertsQuery`, el comando `devices:check`) cargan `branch`
+     * explícitamente con `with('branch')` y evitan un N+1.
      */
     protected function status(): Attribute
     {
-        return Attribute::get(function (): string {
-            if ($this->retired_at !== null) {
-                return 'retired';
-            }
-
-            $seen = $this->last_seen_at instanceof Carbon ? $this->last_seen_at : Carbon::parse($this->last_seen_at);
-            $minutes = $seen->diffInMinutes(Carbon::now());
-
-            if ($minutes >= config('devices.silence_minutes', 30)) {
-                return 'silent';
-            }
-            if ($minutes >= config('devices.online_minutes', 10)) {
-                return 'stale';
-            }
-            if ($this->battery_level !== null && $this->battery_level <= 20 && ! $this->battery_charging) {
-                return 'battery_low';
-            }
-
-            return 'online';
-        });
+        return Attribute::get(fn (): string => $this->statusFor(BatteryThresholds::fromBranch($this->branch)));
     }
 }

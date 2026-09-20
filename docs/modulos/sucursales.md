@@ -52,6 +52,16 @@ porque tocan catálogos compartidos por todo el tenant.
 `false` porque no quita nada — es una capacidad nueva que nadie tenía. Que
 cada empresa la encienda en las sucursales donde el hub tenga báscula.
 
+## Umbrales de batería
+
+Cada sucursal también guarda sus propios `battery_warn_threshold` (20 % de
+fábrica) y `battery_critical_threshold` (10 % de fábrica) — de 5 en 5, aviso
+entre 10 % y 95 %, urgente entre 5 % y 90 % y siempre menor que el aviso. Se
+editan desde **Sucursal → Configuración** y, con el mismo par de campos,
+desde este formulario (**Empresa → Sucursales → Editar**). Qué son, cómo se
+usan para derivar el estado de cada equipo y el detalle de las dos reglas de
+validación: [equipos.md](equipos.md#los-dos-umbrales).
+
 ## Controller (`app/Http/Controllers/Empresa/SucursalController.php`)
 
 Accesible por admin-empresa. Rutas bajo `/{tenant}/empresa/sucursales`.
@@ -72,3 +82,4 @@ Accesible por admin-empresa. Rutas bajo `/{tenant}/empresa/sucursales`.
 - `phone`: nullable, string, max 20
 - `schedule`: nullable, string, max 255
 - `status` (solo update): required, in:active,inactive
+- `battery_warn_threshold` / `battery_critical_threshold` (solo update): opcionales pero atados entre sí (`required_with` cruzado) — ver [equipos.md](equipos.md#los-dos-umbrales)

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Hub\CustomerController as HubCustomerController;
 use App\Http\Controllers\Api\Hub\CustomerPaymentController as HubCustomerPaymentController;
 use App\Http\Controllers\Api\Hub\CustomerPriceController as HubCustomerPriceController;
 use App\Http\Controllers\Api\Hub\DashboardController as HubDashboardController;
+use App\Http\Controllers\Api\Hub\DeviceAlertsController as HubDeviceAlertsController;
 use App\Http\Controllers\Api\Hub\DeviceHeartbeatController as HubDeviceHeartbeatController;
 use App\Http\Controllers\Api\Hub\ExpenseCategoryController as HubExpenseCategoryController;
 use App\Http\Controllers\Api\Hub\ExpenseController as HubExpenseController;
@@ -84,6 +85,9 @@ Route::prefix('v1/hub')
 
         // Latido de equipo (2026-09-12): el hub se reporta y reenvía el de sus básculas.
         Route::post('devices/heartbeat', [HubDeviceHeartbeatController::class, 'store'])->name('api.hub.devices.heartbeat');
+
+        // Alertas de equipos: la misma franja de batería que la web, para el hub.
+        Route::get('devices/alerts', [HubDeviceAlertsController::class, 'index'])->name('api.hub.devices.alerts');
 
         // Configuración de negocio de la sucursal (admin-sucursal): métodos de pago + API keys.
         Route::get('config', [HubConfigController::class, 'index'])->name('api.hub.config.index');

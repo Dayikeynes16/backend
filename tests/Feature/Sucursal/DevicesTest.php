@@ -143,4 +143,36 @@ class DevicesTest extends TestCase
     {
         $this->actingAs($this->cajero)->get(route('sucursal.devices.index', $this->tenant->slug))->assertForbidden();
     }
+
+    public function test_a_critical_device_is_presented_and_listed_in_the_alerts(): void
+    {
+        $this->branch->update(['battery_warn_threshold' => 30, 'battery_critical_threshold' => 15]);
+
+        $device = $this->device(['battery_level' => 9, 'battery_charging' => false, 'last_seen_at' => now()]);
+
+        $this->actingAs($this->adminSucursal)
+            ->get(route('sucursal.devices.index', $this->tenant->slug))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('devices.0.status', 'battery_critical')
+                ->where('devices.0.severity', 'critical')
+                ->where('alerts.0.device_id', $device->device_id)
+            );
+    }
+
+    public function test_a_silent_device_has_no_severity_even_with_a_stale_low_reading(): void
+    {
+        // Media hora sin reportar con una última lectura del 5 %: el estado es
+        // "silent" (una lectura vieja no dice nada del presente), y `severity`
+        // debe salir de ese estado, no del número crudo — si no, la tarjeta
+        // pintaría la barra en rojo mientras el chip dice "Sin reportar".
+        $this->device(['battery_level' => 5, 'battery_charging' => false, 'last_seen_at' => now()->subMinutes(45)]);
+
+        $this->actingAs($this->adminSucursal)
+            ->get(route('sucursal.devices.index', $this->tenant->slug))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('devices.0.status', 'silent')
+                ->where('devices.0.severity', null)
+                ->has('alerts', 1)
+            );
+    }
 }
