@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -104,6 +105,70 @@ class ConfigController extends Controller
         $branch->update(['payment_methods_enabled' => $methods]);
 
         return response()->json(['payment_methods_enabled' => $methods]);
+    }
+
+    /**
+     * La llave de **un equipo**: la del propio hub, o la de una báscula que
+     * acaba de emparejar.
+     *
+     * Existe aparte de [storeApiKey] por dos motivos, y los dos importan:
+     *
+     * 1. **La puede pedir un cajero.** Crear llaves sueltas sigue siendo de
+     *    admin-sucursal, porque una API key vende sin sesión y no caduca. Pero
+     *    atar la llave a un equipo concreto acota el riesgo: lo que sale de
+     *    aquí sirve para esa báscula y se revoca sola cuando se revoca ella.
+     *    Sin esto, un hub instalado en una sucursal donde sólo hay cajeros no
+     *    conseguía llave nunca, se quedaba sin catálogo y las básculas que
+     *    emparejaba no recibían productos.
+     * 2. **Es idempotente por equipo.** `storeApiKey` crea una llave nueva en
+     *    cada llamada; pedirla en cada arranque llenaría la sucursal de llaves
+     *    huérfanas.
+     *
+     * Si el equipo ya tenía llave, **se revoca y se emite otra**. El `raw_key`
+     * no se guarda —sólo su hash—, así que devolver la anterior es imposible; y
+     * revocarla es justo lo que se quiere si la báscula se perdió y alguien la
+     * está reinstalando.
+     */
+    public function deviceApiKey(Request $request, string $deviceId): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $deviceId = trim($deviceId);
+        if ($deviceId === '') {
+            return response()->json(['message' => 'Falta el identificador del equipo.'], 422);
+        }
+
+        $rawKey = 'csa_'.Str::random(40);
+        $rotada = false;
+
+        DB::transaction(function () use ($user, $deviceId, $validated, $rawKey, &$rotada) {
+            // La anterior deja de servir en el mismo momento en que nace la
+            // nueva: dos llaves vivas para un equipo es una que nadie recuerda
+            // revocar.
+            $rotada = ApiKey::withoutGlobalScopes()
+                ->where('branch_id', $user->branch_id)
+                ->where('device_id', $deviceId)
+                ->delete() > 0;
+
+            ApiKey::create([
+                'tenant_id' => $user->tenant_id,
+                'branch_id' => $user->branch_id,
+                'device_id' => $deviceId,
+                'name' => $validated['name'],
+                'key_hash' => hash('sha256', $rawKey),
+            ]);
+        });
+
+        // Como en `storeApiKey`: el `raw_key` viaja una vez y no se persiste.
+        return response()->json([
+            'raw_key' => $rawKey,
+            'device_id' => $deviceId,
+            'rotated' => $rotada,
+        ], 201);
     }
 
     public function storeApiKey(Request $request): JsonResponse

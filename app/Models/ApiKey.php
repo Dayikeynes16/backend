@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['tenant_id', 'branch_id', 'name', 'key_hash', 'status', 'expires_at'])]
+#[Fillable(['tenant_id', 'branch_id', 'device_id', 'name', 'key_hash', 'status', 'expires_at'])]
 #[Hidden(['key_hash'])]
 class ApiKey extends Model
 {
