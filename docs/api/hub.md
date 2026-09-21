@@ -336,6 +336,25 @@ Por ese canal el hub recibe:
 
 El socket es el mecanismo principal, pero el hub conserva su sondeo como red de seguridad: 20 s / 4 s en la Mesa de Trabajo y 45 s / 12 s en el panel de Turno, según haya socket o no. Ver [arquitectura/reverb-websockets.md](../arquitectura/reverb-websockets.md).
 
+## La llave de un equipo
+
+| Método | Ruta | Rol | Descripción |
+|--------|------|-----|-------------|
+| POST | `devices/{deviceId}/api-key` | **ambos** | La API Key de ese equipo: la del propio hub, o la de una báscula recién emparejada |
+
+Body: `{"name": "Balanza 1"}`. Respuesta `201`: `{"raw_key": "csa_…", "device_id": "…", "rotated": false}`.
+
+Existe aparte de `config/api-keys` por dos motivos, y los dos importan:
+
+1. **La puede pedir un cajero.** Crear llaves *sueltas* sigue siendo de `admin-sucursal`, porque una API Key vende sin sesión y no caduca. Atarla a un equipo concreto acota lo que sale de ahí: sirve para esa báscula y se revoca con ella. Sin esto, **un hub instalado en una sucursal donde sólo hay cajeros no conseguía llave nunca**: se quedaba sin catálogo, y las básculas que emparejaba no recibían productos. Pasó en Estrellas el 2026-09-20.
+2. **Es idempotente por equipo.** `config/api-keys` crea una llave nueva en cada llamada; pedirla en cada arranque llenaría la sucursal de llaves huérfanas.
+
+**Si el equipo ya tenía llave, se revoca y se emite otra** (`rotated: true`). El `raw_key` no se guarda —sólo su hash—, así que devolver la anterior es imposible; y revocarla es justo lo que se quiere si la báscula se perdió y alguien la está reinstalando.
+
+> **Una llave por equipo es también una mejora de seguridad.** Hasta ahora todas las básculas de una sucursal compartían llave: perder una tablet obligaba a revocar la de todas y reconfigurarlas una por una. Ahora se revoca la de esa y las demás siguen vendiendo.
+
+La columna `api_keys.device_id` es **nullable**: las llaves que ya existen no pertenecen a ningún equipo y siguen funcionando igual. **La Scale API no cambia** — sólo se le emite una llave que ya sabe aceptar.
+
 ## Avisos
 
 | Método | Ruta | Rol | Descripción |

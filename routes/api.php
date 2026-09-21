@@ -107,6 +107,14 @@ Route::prefix('v1/hub')
         Route::get('config/payment-methods', [HubConfigController::class, 'paymentMethods'])->name('api.hub.config.payment-methods.index');
         Route::put('config/payment-methods', [HubConfigController::class, 'updatePaymentMethods'])->name('api.hub.config.payment-methods');
         Route::post('config/api-keys', [HubConfigController::class, 'storeApiKey'])->name('api.hub.config.api-keys.store');
+        /*
+         * La llave de un equipo: la del propio hub, o la de una báscula recién
+         * emparejada. **La puede pedir un cajero**, a diferencia de la de
+         * arriba: atarla a un equipo acota lo que sale de aquí, y sin esto un
+         * hub en una sucursal donde sólo hay cajeros no conseguía llave nunca.
+         * Idempotente por equipo: si ya tenía, se revoca y se emite otra.
+         */
+        Route::post('devices/{deviceId}/api-key', [HubConfigController::class, 'deviceApiKey'])->name('api.hub.devices.api-key');
         Route::delete('config/api-keys/{apiKey}', [HubConfigController::class, 'revokeApiKey'])->whereNumber('apiKey')->name('api.hub.config.api-keys.revoke');
         Route::delete('config/api-keys/{apiKey}/force', [HubConfigController::class, 'deleteApiKey'])->whereNumber('apiKey')->name('api.hub.config.api-keys.delete');
 
