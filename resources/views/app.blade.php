@@ -15,6 +15,13 @@
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        {{-- Outfit es la tipografía de titulares de la landing y no se usa en
+             ninguna otra pantalla: cargarla siempre sería cobrarle una petición
+             a cada cajero en cada turno para algo que solo ve quien visita la
+             página pública. --}}
+        @if (($page['component'] ?? null) === 'Welcome')
+        <link href="https://fonts.bunny.net/css?family=outfit:600,700,800&display=swap" rel="stylesheet" />
+        @endif
 
         <!-- Google Maps (for MapPicker in branch config) -->
         @if(config('services.google_matrix.key'))
