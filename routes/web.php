@@ -91,17 +91,16 @@ use App\Http\Controllers\Sucursal\SaleLockController;
 use App\Http\Controllers\Sucursal\UsuarioController as SucursalUsuarioController;
 use App\Http\Controllers\Sucursal\WithdrawalController;
 use App\Http\Controllers\Sucursal\WorkbenchController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
+    // La landing solo necesita saber si hay dónde iniciar sesión. Las versiones
+    // de Laravel y PHP venían de la plantilla de Jetstream y acababan como
+    // atributos sueltos en el HTML público.
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
     ]);
 });
 
