@@ -12,6 +12,8 @@ use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\DailySummaryService;
+use App\Services\Metrics\DateRange;
 use App\Services\SalePaymentService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -28,12 +30,18 @@ class PaymentController extends Controller
      * admin-sucursal ve TODOS los cobros de la sucursal y puede filtrar por
      * cajero (`user_id`); el cajero solo ve los suyos (Caja\PagosController).
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, DailySummaryService $summary): JsonResponse
     {
         $request->validate([
             'method' => 'nullable|string',
             'date' => 'nullable|date',
             'user_id' => 'nullable|integer',
+            // `DateRange::fromRequest` se traga cualquier problema y devuelve
+            // `today` con un 200: datos que nadie pidió, y nadie se entera.
+            // `required_with` es lo que de verdad cierra el «sólo mandé from».
+            'preset' => 'nullable|in:'.implode(',', DateRange::PRESETS),
+            'from' => 'nullable|date|required_with:to',
+            'to' => 'nullable|date|required_with:from|after_or_equal:from',
             // 'with' = pagos de ventas con cliente; 'without' = de mostrador
             // (misma semántica que Sucursal\PagosController).
             'customer' => 'nullable|in:with,without',
@@ -44,7 +52,16 @@ class PaymentController extends Controller
 
         $branchId = $user->branch_id;
         $isAdmin = $user->hasRole('admin-sucursal');
-        $date = $request->date ?: today()->toDateString();
+        // `date` se sigue admitiendo y equivale al rango de ese día: hay
+        // tablets con la 1.4.0 instalada que sólo saben mandar eso.
+        $legacyDate = $request->date;
+        $range = DateRange::fromRequest(
+            $request->input('preset'),
+            $request->input('from') ?: $legacyDate,
+            $request->input('to') ?: $legacyDate,
+        );
+        $branch = Branch::withoutGlobalScopes()->find($branchId);
+        $methods = $branch?->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
 
         $baseQuery = Payment::whereHas('sale', function ($q) use ($branchId, $request) {
             $q->where('branch_id', $branchId);
@@ -55,7 +72,7 @@ class PaymentController extends Controller
             }
         })
             ->when($request->method, fn ($q, $m) => $q->where('method', $m))
-            ->whereDate('payments.created_at', $date);
+            ->whereBetween('payments.created_at', [$range->start, $range->end]);
 
         if ($isAdmin) {
             $baseQuery->when($request->user_id, fn ($q, $id) => $q->where('payments.user_id', $id));
@@ -63,18 +80,16 @@ class PaymentController extends Controller
             $baseQuery->where('payments.user_id', $user->id);
         }
 
-        // Totales con split "de hoy" vs "cuentas anteriores" (JOIN a sales).
-        $totals = (clone $baseQuery)
-            ->join('sales as s', 's.id', '=', 'payments.sale_id')
-            ->selectRaw("
-                COALESCE(SUM(payments.amount), 0) AS total,
-                COALESCE(SUM(CASE WHEN payments.method = 'cash' THEN payments.amount END), 0) AS cash,
-                COALESCE(SUM(CASE WHEN payments.method = 'card' THEN payments.amount END), 0) AS card,
-                COALESCE(SUM(CASE WHEN payments.method = 'transfer' THEN payments.amount END), 0) AS transfer,
-                COALESCE(SUM(CASE WHEN DATE(s.created_at) = DATE(payments.created_at) THEN payments.amount END), 0) AS from_today,
-                COALESCE(SUM(CASE WHEN DATE(s.created_at) < DATE(payments.created_at) THEN payments.amount END), 0) AS from_previous
-            ")
-            ->first();
+        // El resumen responde al rango y al cajero; **nunca al método ni al
+        // cliente**. Las pastillas de método enseñan el importe de cada uno, y
+        // filtrarlas por el método elegido las pondría en cero: ya no habría
+        // con qué comparar. Es la semántica de la web, a propósito.
+        //
+        // Y «al cajero» es distinto según quién pregunte: el admin filtra por
+        // quien haya pedido; un cajero **siempre por sí mismo, lo pida o no**.
+        // La consulta de la lista ya se lo fuerza; el servicio no sabe de roles.
+        $resumenUserId = $isAdmin ? $request->user_id : $user->id;
+        $c = $summary->collectionsForRange($range, $branchId, $user->tenant_id, $methods, $resumenUserId);
 
         // Un cobro global (FIFO) reparte UN pago grande en varios pagos hijos
         // (mismo customer_payment_id). En la lista lo colapsamos a un solo
@@ -144,8 +159,6 @@ class PaymentController extends Controller
             ];
         })->values();
 
-        $branch = Branch::withoutGlobalScopes()->find($branchId);
-
         return response()->json([
             'data' => $data,
             'meta' => [
@@ -154,15 +167,23 @@ class PaymentController extends Controller
                 'total' => $payments->total(),
             ],
             'summary' => [
-                'date' => $date,
-                'total' => (float) $totals->total,
-                'by_method' => [
-                    'cash' => (float) $totals->cash,
-                    'card' => (float) $totals->card,
-                    'transfer' => (float) $totals->transfer,
-                ],
-                'from_today' => (float) $totals->from_today,
-                'from_previous' => (float) $totals->from_previous,
+                // `date` conserva su forma —una cadena `yyyy-MM-dd`, el primer
+                // día del rango— porque las tablets con la 1.4.0 ya la leen
+                // así. `from`/`to` se añaden al lado.
+                'date' => $range->start->toDateString(),
+                'from' => $range->start->toDateString(),
+                'to' => $range->end->toDateString(),
+                'total' => (float) $c['total'],
+                // El servicio devuelve una LISTA de objetos; aquí se emite el
+                // mapa de siempre. Enchufarlo directo dejaría las pastillas de
+                // método en $0 en toda tablet ya instalada.
+                'by_method' => collect($c['by_method'])
+                    ->mapWithKeys(fn (array $m) => [$m['method'] => (float) $m['total']])
+                    ->all(),
+                'from_today' => (float) $c['from_today'],
+                'from_previous' => (float) $c['from_previous'],
+                // Filas de la lista, con el cobro a cuenta ya colapsado: el
+                // servicio cuenta cada pago hijo y la cabecera diría de más.
                 'payment_count' => $payments->total(),
             ],
             'users' => $isAdmin
