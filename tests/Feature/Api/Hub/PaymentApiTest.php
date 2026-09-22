@@ -370,4 +370,32 @@ class PaymentApiTest extends TestCase
         $this->assertCount(1, $semana->json('data'));
         $this->assertEquals(80, $semana->json('summary.total'));
     }
+
+    public function test_cada_cobro_trae_los_demas_cobros_de_su_venta(): void
+    {
+        // Viendo un cobro de $340 hay que poder saber si fue el único o si
+        // hubo otros antes: es lo que se viene a mirar cuando algo no cuadra.
+        $venta = $this->activeSale($this->branch->id, 300);
+        Payment::create(['sale_id' => $venta->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 200]);
+        Payment::create([
+            'sale_id' => $venta->id, 'user_id' => $this->cajero->id, 'method' => 'card',
+            'amount' => 100, 'updated_by' => $this->adminSucursal->id,
+        ]);
+
+        $res = $this->withToken($this->token())->getJson('/api/v1/hub/payments')->assertOk();
+
+        $hermanos = collect($res->json('data'))->firstWhere('sale.id', $venta->id)['sale']['payments'];
+
+        $this->assertCount(2, $hermanos);
+        $this->assertEqualsCanonicalizing([200, 100], collect($hermanos)->pluck('amount')->all());
+
+        $tarjeta = collect($hermanos)->firstWhere('method', 'card');
+        $this->assertSame($this->cajero->name, $tarjeta['user']['name']);
+        // Quién lo corrigió, que es la insignia «Editado».
+        $this->assertSame($this->adminSucursal->name, $tarjeta['updated_by_user']['name']);
+        // De esto depende que se ofrezca corregirlo: un pago hijo de un cobro
+        // a cuenta no se edita suelto.
+        $this->assertArrayHasKey('customer_payment_id', $tarjeta);
+        $this->assertNull($tarjeta['customer_payment_id']);
+    }
 }

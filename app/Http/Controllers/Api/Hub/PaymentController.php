@@ -106,6 +106,10 @@ class PaymentController extends Controller
             ->with([
                 'sale:id,folio,total,status,branch_id,amount_paid,amount_pending,created_at,customer_id',
                 'sale.customer:id,name',
+                // Los demás cobros de esa venta: sin ellos el panel no puede
+                // decir si el que se está mirando fue el único. La web ya los
+                // cargaba; aquí faltaban.
+                'sale.payments' => fn ($q) => $q->with(['user:id,name', 'updatedByUser:id,name']),
                 'user:id,name',
                 'updatedByUser:id,name',
                 'customerPayment:id,folio,customer_id,amount_applied,method,user_id,created_at',
@@ -155,6 +159,20 @@ class PaymentController extends Controller
                     // Para el chip "Venta de ayer/del DD-mmm" en pagos retroactivos.
                     'created_at' => $p->sale->created_at?->toIso8601String(),
                     'customer' => $p->sale->customer ? ['id' => $p->sale->customer->id, 'name' => $p->sale->customer->name] : null,
+                    // Misma forma que en HubSaleResource, incluido
+                    // customer_payment_id: es lo que decide si el botón de
+                    // corregir aparece.
+                    'payments' => $p->sale->payments->map(fn (Payment $sp) => [
+                        'id' => $sp->id,
+                        'method' => $sp->method,
+                        'amount' => (float) $sp->amount,
+                        'created_at' => $sp->created_at?->toIso8601String(),
+                        'customer_payment_id' => $sp->customer_payment_id,
+                        'user' => $sp->relationLoaded('user') && $sp->user
+                            ? ['id' => $sp->user->id, 'name' => $sp->user->name] : null,
+                        'updated_by_user' => $sp->relationLoaded('updatedByUser') && $sp->updatedByUser
+                            ? ['id' => $sp->updatedByUser->id, 'name' => $sp->updatedByUser->name] : null,
+                    ])->values(),
                 ] : null,
             ];
         })->values();
