@@ -64,8 +64,13 @@ const onRegisterPayment = () => {
     if (!canRegisterPayment.value) return;
     showPaymentModal.value = true;
 };
+const financesTab = ref(null);
 const onPaymentSuccess = () => {
     showPaymentModal.value = false;
+    // Recargar sólo las props de Inertia no basta: la deuda, los pagos y las
+    // ventas de la ficha salen de peticiones propias (`useCustomerStats` y la
+    // pestaña), y el cliente sigue siendo el mismo, así que nada las repetía.
+    financesTab.value?.refresh();
     router.reload({ only: ['customer', 'statsSeed'], preserveScroll: true });
 };
 
@@ -119,6 +124,7 @@ const submitEdit = () => {
                 @edit="openEdit" />
 
             <CustomerFinancesTab
+                ref="financesTab"
                 :customer-id="customer.id"
                 :tenant-slug="tenant.slug"
                 :payments="payments"
@@ -134,6 +140,7 @@ const submitEdit = () => {
                 :allow-item-edits="false"
                 :can-cancel-payment="false"
                 @load="() => loadPayments()"
+                @changed="() => loadStats()"
                 @register-payment="onRegisterPayment" />
         </div>
 

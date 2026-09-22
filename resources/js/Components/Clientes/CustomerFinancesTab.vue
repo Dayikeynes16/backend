@@ -26,7 +26,9 @@ const props = defineProps({
     canCancelPayment: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['load', 'register-payment']);
+// `changed`: algo movió la deuda (se cobró o se deshizo un cobro). El padre
+// relee sus números; `load` sólo relee los pagos.
+const emit = defineEmits(['load', 'register-payment', 'changed']);
 
 // --- Carga de pagos (lo trae el composable padre) ---
 onMounted(() => emit('load'));
@@ -172,8 +174,14 @@ const onReceiptsChanged = () => emit('load');
 
 const refreshAll = () => {
     emit('load');
+    emit('changed');
     resetSales();
 };
+
+// El cobro a cuenta se registra en un modal del padre, fuera de esta pestaña:
+// sin esto la deuda, los pagos y el estado de las ventas se quedaban como
+// antes de cobrar hasta recargar la página.
+defineExpose({ refresh: refreshAll });
 </script>
 
 <template>
