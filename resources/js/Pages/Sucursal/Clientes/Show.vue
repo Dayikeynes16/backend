@@ -66,9 +66,13 @@ const onRegisterPayment = () => {
     if (!canRegisterPayment.value) return;
     showPaymentModal.value = true;
 };
+const financesTab = ref(null);
 const onPaymentSuccess = () => {
     showPaymentModal.value = false;
-    // Recarga stats y la página entera (para que sales del customer reflejen).
+    // Recargar sólo las props de Inertia no basta: la deuda, los pagos y las
+    // ventas de la ficha salen de peticiones propias (`useCustomerStats` y la
+    // pestaña), y el cliente sigue siendo el mismo, así que nada las repetía.
+    financesTab.value?.refresh();
     router.reload({ only: ['customer', 'statsSeed'], preserveScroll: true });
 };
 
@@ -150,6 +154,7 @@ const submitEdit = () => {
                 :products="products" />
 
             <CustomerFinancesTab
+                ref="financesTab"
                 :customer-id="customer.id"
                 :tenant-slug="tenant.slug"
                 :payments="payments"
@@ -164,6 +169,7 @@ const submitEdit = () => {
                 :sale-item-edit-reason-mode="saleItemEditReasonMode"
                 :payment-receipts-enabled="paymentReceiptsEnabled"
                 @load="() => loadPayments()"
+                @changed="() => loadStats()"
                 @register-payment="onRegisterPayment" />
         </div>
 
