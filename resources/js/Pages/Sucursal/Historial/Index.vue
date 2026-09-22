@@ -182,6 +182,10 @@ const paidPct = computed(() => {
 // --- Selection ---
 const selectedId = ref(null);
 const selected = ref(null);
+// Va antes de `selectSale`: `autoSelectSingleResult()` corre al montar y lo toca.
+// Declarado más abajo, llegar desde Pagos con un folio tronaba la página entera
+// (`Cannot access 'editingPaymentId' before initialization`).
+const editingPaymentId = ref(null);
 const selectSale = (sale) => { selectedId.value = sale.id; selected.value = sale; editingPaymentId.value = null; };
 
 // Llegar desde Pagos con un folio y tener que clickear la única fila es un paso
@@ -196,7 +200,6 @@ const autoSelectSingleResult = () => {
 autoSelectSingleResult();
 
 // --- Payment editing ---
-const editingPaymentId = ref(null);
 const startEditPayment = (p) => { editingPaymentId.value = p.id; };
 const editPaymentRoute = (paymentId) => route('sucursal.workbench.payment.update', [props.tenant.slug, selected.value.id, paymentId]);
 
