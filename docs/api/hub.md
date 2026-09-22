@@ -361,7 +361,7 @@ Por ese canal el hub recibe:
 | `NewExternalSale` | Mesa de Trabajo | Venta nueva de báscula o menú QR (suena el beep) |
 | `SaleUpdated` | Mesa de Trabajo · panel de Turno | Cualquier cambio en una venta existente |
 | `SaleLocked` · `SaleUnlocked` | Mesa de Trabajo | Bloqueo cooperativo de edición |
-| `CustomerGlobalPaymentChanged` | Mesa de Trabajo · panel de Turno | Un cobro global FIFO tocó N ventas de una vez |
+| `CustomerGlobalPaymentChanged` | Mesa de Trabajo · panel de Turno · Clientes | Un cobro global FIFO tocó N ventas de una vez (`action: applied`), o se deshizo (`reverted`). Lo emiten igual la web, el asistente y `POST`/`DELETE customers/{id}/payments` del hub: **un solo aviso**, no un `SaleUpdated` por venta |
 | `ShiftUpdated` | Panel de Turno | Apertura, cierre o retiro |
 
 > Los payloads llevan **identificadores, no cifras**: quien recibe vuelve a leer por HTTP con su propio token. `ShiftUpdated` en particular viaja por un canal que comparten todos los usuarios de la sucursal, y `shift/current` sólo devuelve el turno del usuario autenticado.

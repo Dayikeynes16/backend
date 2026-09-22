@@ -3,13 +3,17 @@
 namespace Tests\Feature\Api\Hub;
 
 use App\Enums\SaleStatus;
+use App\Events\CustomerGlobalPaymentChanged;
+use App\Events\SaleUpdated;
 use App\Models\CashRegisterShift;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Services\SalePaymentService;
+use Illuminate\Contracts\Broadcasting\Factory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Tests\Concerns\SeedsMetricsData;
 use Tests\TestCase;
 
@@ -323,5 +327,68 @@ class CustomerPaymentApiTest extends TestCase
         $this->withToken($this->token('cajero'))
             ->deleteJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}", ['cancel_reason' => 'error'])
             ->assertStatus(403);
+    }
+
+    /**
+     * El hub anuncia el cobro con el mismo aviso que la web. Antes mandaba un
+     * `SaleUpdated` por venta, y la pantalla de Clientes —que escucha
+     * `CustomerGlobalPaymentChanged`— nunca se enteraba de un cobro hecho
+     * desde otra caja.
+     */
+    public function test_global_payment_announces_once_like_the_web(): void
+    {
+        $this->openShift();
+        $first = $this->pendingSale(100, now()->subDays(2));
+        $second = $this->pendingSale(50, now()->subDay());
+
+        Event::fake([CustomerGlobalPaymentChanged::class, SaleUpdated::class]);
+
+        $this->withToken($this->token('admin'))
+            ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
+                'amount_received' => 150,
+                'method' => 'cash',
+            ])
+            ->assertCreated();
+
+        Event::assertDispatchedTimes(CustomerGlobalPaymentChanged::class, 1);
+        Event::assertDispatched(CustomerGlobalPaymentChanged::class, fn ($e) => $e->action === 'applied'
+            && collect($e->saleIds)->sort()->values()->all() === collect([$first->id, $second->id])->sort()->values()->all());
+        Event::assertNotDispatched(SaleUpdated::class);
+    }
+
+    public function test_cancelling_a_global_payment_announces_the_reversal(): void
+    {
+        $sale = $this->pendingSale(100, now()->subDay());
+        $cp = $this->appliedGlobalPayment($sale);
+
+        Event::fake([CustomerGlobalPaymentChanged::class, SaleUpdated::class]);
+
+        $this->withToken($this->token('admin'))
+            ->deleteJson("/api/v1/hub/customers/{$this->customer->id}/payments/{$cp->id}", ['cancel_reason' => 'cobro equivocado'])
+            ->assertOk();
+
+        Event::assertDispatched(CustomerGlobalPaymentChanged::class, fn ($e) => $e->action === 'reverted' && $e->saleIds === [$sale->id]);
+        Event::assertNotDispatched(SaleUpdated::class);
+    }
+
+    /** Con Reverb caído el cobro ya está hecho: responder 500 invitaría a repetirlo. */
+    public function test_a_broken_reverb_does_not_turn_the_collection_into_an_error(): void
+    {
+        $this->openShift();
+        $sale = $this->pendingSale(100, now()->subDay());
+
+        $this->mock(Factory::class, function ($mock) {
+            $mock->shouldReceive('queue')->andThrow(new \RuntimeException('reverb down'));
+            $mock->shouldReceive('event')->andThrow(new \RuntimeException('reverb down'));
+        });
+
+        $this->withToken($this->token('admin'))
+            ->postJson("/api/v1/hub/customers/{$this->customer->id}/payments", [
+                'amount_received' => 100,
+                'method' => 'cash',
+            ])
+            ->assertCreated();
+
+        $this->assertEquals(0, (float) $sale->refresh()->amount_pending);
     }
 }
