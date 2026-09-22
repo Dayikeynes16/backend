@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\Hub;
 
 use App\Enums\SaleStatus;
-use App\Events\SaleUpdated;
 use App\Http\Controllers\Concerns\AuthorizesHubCustomerManagement;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
@@ -19,7 +18,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 /**
@@ -217,9 +215,12 @@ class CustomerPaymentController extends Controller
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        $this->broadcast($result['affected_sale_ids']);
-
         $cp = $result['customer_payment'];
+
+        // Un solo aviso para las N ventas, como la web: es el que escuchan las
+        // pantallas de Clientes y de Pagos de los hubs. Va por SafeBroadcast:
+        // si Reverb cae, el cobro ya está hecho y no puede responder 500.
+        $this->globalPayments->broadcastPaymentChange($cp, $result['affected_sale_ids']);
 
         return response()->json([
             'customer_payment' => [
@@ -277,7 +278,7 @@ class CustomerPaymentController extends Controller
                 app(RecalculateClosedShifts::class)->forSale($sale);
             }
         }
-        $this->broadcast($affected);
+        $this->globalPayments->broadcastPaymentChange($cp, $affected, 'reverted');
 
         return response()->json(['message' => "Cobro {$cp->folio} cancelado.", 'affected_sale_ids' => $affected]);
     }
@@ -287,21 +288,5 @@ class CustomerPaymentController extends Controller
         return Customer::withoutGlobalScopes()
             ->where('branch_id', $request->user()->branch_id)
             ->findOrFail($customer);
-    }
-
-    /** @param  array<int, int>  $saleIds */
-    private function broadcast(array $saleIds): void
-    {
-        foreach ($saleIds as $saleId) {
-            $sale = Sale::withoutGlobalScopes()->find($saleId);
-            if (! $sale) {
-                continue;
-            }
-            try {
-                SaleUpdated::dispatch($sale);
-            } catch (\Throwable $e) {
-                Log::warning('SaleUpdated broadcast failed', ['sale_id' => $saleId, 'error' => $e->getMessage()]);
-            }
-        }
     }
 }
