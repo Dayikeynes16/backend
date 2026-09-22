@@ -228,4 +228,75 @@ class HistoryApiTest extends TestCase
         $this->assertSame(2, $res->json('summary.count'));
         $this->assertEquals(200, $res->json('summary.total'));
     }
+
+    public function test_date_sigue_significando_ese_dia(): void
+    {
+        // La garantía de compatibilidad: hay tablets con la 1.4.0 que sólo
+        // saben mandar `date`. Si esto se rompe, se quedan sin historial.
+        $ayer = $this->sale($this->branch->id, 50);
+        $ayer->forceFill(['created_at' => now()->subDay(), 'completed_at' => now()->subDay()])->save();
+        $hoy = $this->sale($this->branch->id, 70);
+
+        $res = $this->withToken($this->adminSucursal->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history?date='.now()->subDay()->toDateString())
+            ->assertOk();
+
+        $folios = collect($res->json('data'))->pluck('folio');
+        $this->assertTrue($folios->contains($ayer->folio));
+        $this->assertFalse($folios->contains($hoy->folio));
+    }
+
+    public function test_preset_de_siete_dias_incluye_lo_de_hace_seis_y_no_lo_de_hace_ocho(): void
+    {
+        $dentro = $this->sale($this->branch->id, 10);
+        $dentro->forceFill(['created_at' => now()->subDays(6), 'completed_at' => now()->subDays(6)])->save();
+
+        $fuera = $this->sale($this->branch->id, 20);
+        $fuera->forceFill(['created_at' => now()->subDays(8), 'completed_at' => now()->subDays(8)])->save();
+
+        $res = $this->withToken($this->adminSucursal->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history?preset=last_7_days')
+            ->assertOk();
+
+        $folios = collect($res->json('data'))->pluck('folio');
+        $this->assertTrue($folios->contains($dentro->folio));
+        $this->assertFalse($folios->contains($fuera->folio));
+    }
+
+    public function test_con_rango_de_varios_dias_no_viene_el_resumen_del_dia(): void
+    {
+        // `day_summary` es de UN día. Sumar siete y seguir llamándolo «el día»
+        // sería una cifra que no corresponde a ninguna jornada.
+        $token = $this->adminSucursal->createToken('hub')->plainTextToken;
+
+        $varios = $this->withToken($token)->getJson('/api/v1/hub/history?preset=last_7_days')->assertOk();
+        $this->assertNull($varios->json('day_summary'));
+
+        $unDia = $this->withToken($token)->getJson('/api/v1/hub/history?preset=today')->assertOk();
+        $this->assertNotNull($unDia->json('day_summary'));
+    }
+
+    public function test_un_rango_imposible_es_422_y_no_los_datos_de_hoy(): void
+    {
+        // `DateRange::fromRequest` se traga el error y devuelve hoy. Un 200 con
+        // datos que nadie pidió es el peor de los fallos: nadie se entera.
+        $token = $this->adminSucursal->createToken('hub')->plainTextToken;
+
+        $this->withToken($token)->getJson('/api/v1/hub/history?from=2026-09-20&to=2026-09-18')->assertStatus(422);
+        $this->withToken($token)->getJson('/api/v1/hub/history?from=2026-09-20')->assertStatus(422);
+        $this->withToken($token)->getJson('/api/v1/hub/history?to=2026-09-20')->assertStatus(422);
+        $this->withToken($token)->getJson('/api/v1/hub/history?preset=last_century')->assertStatus(422);
+    }
+
+    public function test_un_rango_a_medida_toma_los_dos_extremos(): void
+    {
+        $dentro = $this->sale($this->branch->id, 33);
+        $dentro->forceFill(['created_at' => now()->subDays(3), 'completed_at' => now()->subDays(3)])->save();
+
+        $res = $this->withToken($this->adminSucursal->createToken('hub')->plainTextToken)
+            ->getJson('/api/v1/hub/history?from='.now()->subDays(4)->toDateString().'&to='.now()->subDays(2)->toDateString())
+            ->assertOk();
+
+        $this->assertTrue(collect($res->json('data'))->pluck('folio')->contains($dentro->folio));
+    }
 }

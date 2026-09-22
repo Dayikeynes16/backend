@@ -9,8 +9,10 @@ use App\Models\Branch;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Services\DailySummaryService;
+use App\Services\Metrics\DateRange;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class HistoryController extends Controller
 {
@@ -34,12 +36,27 @@ class HistoryController extends Controller
             'product' => 'nullable|string|max:100',
             'min_total' => 'nullable|numeric|min:0',
             'max_total' => 'nullable|numeric|min:0',
+            // `DateRange::fromRequest` se traga cualquier problema y devuelve
+            // `today` con un 200: datos que nadie pidió, y nadie se entera.
+            // `required_with` es lo que de verdad cierra el «sólo mandé from».
+            'preset' => 'nullable|in:'.implode(',', DateRange::PRESETS),
+            'from' => 'nullable|date|required_with:to',
+            'to' => 'nullable|date|required_with:from|after_or_equal:from',
         ]);
 
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
 
-        $date = $request->input('date') ?: today()->toDateString();
+        // `date` se sigue admitiendo y equivale al rango de ese día: hay
+        // tablets con la 1.4.0 instalada que sólo saben mandar eso, y no se
+        // actualizan solas.
+        $legacyDate = $request->input('date');
+        $range = DateRange::fromRequest(
+            $request->input('preset'),
+            $request->input('from') ?: $legacyDate,
+            $request->input('to') ?: $legacyDate,
+        );
+        $date = $range->start->toDateString();
         $search = trim((string) $request->input('search', ''));
         $product = trim((string) $request->input('product', ''));
         $minTotal = $request->input('min_total');
@@ -68,7 +85,10 @@ class HistoryController extends Controller
                     ->when(
                         $search !== '',
                         fn ($q) => $q->where('folio', 'ilike', "%{$search}%"),
-                        fn ($q) => $q->whereRaw('DATE(COALESCE(completed_at, created_at)) = ?', [$date])
+                        fn ($q) => $q->whereBetween(
+                            DB::raw('COALESCE(completed_at, created_at)'),
+                            [$range->start, $range->end]
+                        )
                             ->whereIn('status', [
                                 SaleStatus::Completed->value,
                                 SaleStatus::Pending->value,
@@ -85,7 +105,7 @@ class HistoryController extends Controller
                     ->when(
                         $search !== '',
                         fn ($q) => $q->where('folio', 'ilike', "%{$search}%"),
-                        fn ($q) => $q->whereDate('created_at', $date),
+                        fn ($q) => $q->whereBetween('created_at', [$range->start, $range->end]),
                     )
             );
         }
@@ -114,7 +134,10 @@ class HistoryController extends Controller
         // vía la fuente única de verdad (DailySummaryService). Al buscar por
         // folio no aplica (la búsqueda ignora la fecha).
         $richSummary = null;
-        if ($isAdmin && $search === '') {
+        // `day_summary` es de UN día. Con un rango de varios no se manda:
+        // sumarlos y seguir llamándolo «el día» sería una cifra que no
+        // corresponde a ninguna jornada.
+        if ($isAdmin && $search === '' && $range->start->isSameDay($range->end)) {
             $branch = Branch::withoutGlobalScopes()->find($user->branch_id);
             $methods = $branch?->payment_methods_enabled ?? ['cash', 'card', 'transfer'];
             $day = $daySummary->forDate($user->branch_id, $user->tenant_id, $date, $methods);

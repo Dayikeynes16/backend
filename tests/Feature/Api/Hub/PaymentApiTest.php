@@ -253,4 +253,149 @@ class PaymentApiTest extends TestCase
             ->postJson("/api/v1/hub/sales/{$other->id}/payments", ['method' => 'cash', 'amount' => 100])
             ->assertStatus(404);
     }
+
+    /** Un cobro a cuenta de tres ventas: un renglón en la lista, tres pagos hijos. */
+    private function cobroACuentaDeTresVentas(): void
+    {
+        $cliente = Customer::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'name' => 'Don Beto', 'status' => 'active',
+        ]);
+        $cp = CustomerPayment::create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $this->branch->id,
+            'customer_id' => $cliente->id, 'user_id' => $this->cajero->id,
+            'folio' => 'CG-00099', 'method' => 'cash',
+            'amount_received' => 300, 'amount_applied' => 300,
+            'change_given' => 0, 'sales_affected_count' => 3,
+        ]);
+        foreach ([100, 100, 100] as $monto) {
+            $venta = $this->activeSale($this->branch->id, $monto);
+            $venta->forceFill(['customer_id' => $cliente->id])->save();
+            Payment::create([
+                'sale_id' => $venta->id, 'user_id' => $this->cajero->id,
+                'method' => 'cash', 'amount' => $monto, 'customer_payment_id' => $cp->id,
+            ]);
+        }
+    }
+
+    public function test_by_method_sigue_siendo_un_mapa(): void
+    {
+        // El servicio lo devuelve como lista de objetos. Emitirlo tal cual
+        // dejaría a las tablets con la 1.4.0 con $0 en todas las pastillas de
+        // método: lo leen como mapa. Ya pasó una vez con day_summary.
+        $venta = $this->activeSale($this->branch->id, 100);
+        Payment::create(['sale_id' => $venta->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 100]);
+
+        $res = $this->withToken($this->token())->getJson('/api/v1/hub/payments')->assertOk();
+
+        $this->assertEquals(100, $res->json('summary.by_method.cash'));
+        $this->assertArrayHasKey('card', $res->json('summary.by_method'));
+        $this->assertArrayHasKey('transfer', $res->json('summary.by_method'));
+    }
+
+    public function test_payment_count_cuenta_las_filas_de_la_lista(): void
+    {
+        // Un cobro a cuenta se colapsa a un renglón. Si el conteo viniera del
+        // servicio, la cabecera diría «3 cobros» sobre una lista de 1.
+        $this->cobroACuentaDeTresVentas();
+
+        $res = $this->withToken($this->token())->getJson('/api/v1/hub/payments')->assertOk();
+
+        $this->assertCount(1, $res->json('data'));
+        $this->assertSame(1, $res->json('summary.payment_count'));
+        // El total sí suma los tres hijos: son dinero que entró.
+        $this->assertEquals(300, $res->json('summary.total'));
+    }
+
+    public function test_el_resumen_de_un_cajero_es_solo_suyo(): void
+    {
+        // El alcance del cajero lo fuerza la consulta de la lista. El servicio
+        // no sabe de roles: si se le pasara el user_id sólo cuando lo piden,
+        // un cajero vería la cobranza de toda la sucursal en sus tres cifras.
+        $mio = $this->activeSale($this->branch->id, 40);
+        Payment::create(['sale_id' => $mio->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 40]);
+        $ajeno = $this->activeSale($this->branch->id, 500);
+        Payment::create(['sale_id' => $ajeno->id, 'user_id' => $this->adminSucursal->id, 'method' => 'cash', 'amount' => 500]);
+
+        $res = $this->withToken($this->token())->getJson('/api/v1/hub/payments')->assertOk();
+
+        $this->assertEquals(40, $res->json('summary.total'));
+        $this->assertEquals(40, $res->json('summary.by_method.cash'));
+    }
+
+    public function test_el_resumen_no_responde_al_filtro_de_metodo(): void
+    {
+        // Las pastillas enseñan el importe de cada método: si el resumen se
+        // filtrara por método, elegir «Efectivo» pondría las otras en cero y
+        // ya no habría con qué comparar. Es la semántica de la web, a propósito.
+        $a = $this->activeSale($this->branch->id, 100);
+        Payment::create(['sale_id' => $a->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 100]);
+        $b = $this->activeSale($this->branch->id, 60);
+        Payment::create(['sale_id' => $b->id, 'user_id' => $this->cajero->id, 'method' => 'card', 'amount' => 60]);
+
+        $res = $this->withToken($this->token())->getJson('/api/v1/hub/payments?method=cash')->assertOk();
+
+        $this->assertCount(1, $res->json('data'));
+        $this->assertEquals(160, $res->json('summary.total'));
+        $this->assertEquals(60, $res->json('summary.by_method.card'));
+    }
+
+    public function test_rango_y_su_validacion(): void
+    {
+        $token = $this->token();
+
+        $this->withToken($token)->getJson('/api/v1/hub/payments?preset=last_7_days')->assertOk();
+        $this->withToken($token)->getJson('/api/v1/hub/payments?from=2026-09-20&to=2026-09-18')->assertStatus(422);
+        $this->withToken($token)->getJson('/api/v1/hub/payments?from=2026-09-20')->assertStatus(422);
+        $this->withToken($token)->getJson('/api/v1/hub/payments?to=2026-09-20')->assertStatus(422);
+        $this->withToken($token)->getJson('/api/v1/hub/payments?preset=nunca')->assertStatus(422);
+
+        $res = $this->withToken($token)->getJson('/api/v1/hub/payments?preset=today')->assertOk();
+        // `date` conserva su forma —una cadena— y `from`/`to` se añaden al lado.
+        $this->assertSame(today()->toDateString(), $res->json('summary.date'));
+        $this->assertSame(today()->toDateString(), $res->json('summary.from'));
+        $this->assertSame(today()->toDateString(), $res->json('summary.to'));
+    }
+
+    public function test_un_rango_de_varios_dias_toma_los_cobros_de_todos(): void
+    {
+        $venta = $this->activeSale($this->branch->id, 80);
+        $pago = Payment::create(['sale_id' => $venta->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 80]);
+        $pago->forceFill(['created_at' => now()->subDays(3)])->save();
+
+        $hoy = $this->withToken($this->token())->getJson('/api/v1/hub/payments')->assertOk();
+        $this->assertCount(0, $hoy->json('data'));
+
+        $semana = $this->withToken($this->token())->getJson('/api/v1/hub/payments?preset=last_7_days')->assertOk();
+        $this->assertCount(1, $semana->json('data'));
+        $this->assertEquals(80, $semana->json('summary.total'));
+    }
+
+    public function test_cada_cobro_trae_los_demas_cobros_de_su_venta(): void
+    {
+        // Viendo un cobro de $340 hay que poder saber si fue el único o si
+        // hubo otros antes: es lo que se viene a mirar cuando algo no cuadra.
+        $venta = $this->activeSale($this->branch->id, 300);
+        Payment::create(['sale_id' => $venta->id, 'user_id' => $this->cajero->id, 'method' => 'cash', 'amount' => 200]);
+        Payment::create([
+            'sale_id' => $venta->id, 'user_id' => $this->cajero->id, 'method' => 'card',
+            'amount' => 100, 'updated_by' => $this->adminSucursal->id,
+        ]);
+
+        $res = $this->withToken($this->token())->getJson('/api/v1/hub/payments')->assertOk();
+
+        $hermanos = collect($res->json('data'))->firstWhere('sale.id', $venta->id)['sale']['payments'];
+
+        $this->assertCount(2, $hermanos);
+        $this->assertEqualsCanonicalizing([200, 100], collect($hermanos)->pluck('amount')->all());
+
+        $tarjeta = collect($hermanos)->firstWhere('method', 'card');
+        $this->assertSame($this->cajero->name, $tarjeta['user']['name']);
+        // Quién lo corrigió, que es la insignia «Editado».
+        $this->assertSame($this->adminSucursal->name, $tarjeta['updated_by_user']['name']);
+        // De esto depende que se ofrezca corregirlo: un pago hijo de un cobro
+        // a cuenta no se edita suelto.
+        $this->assertArrayHasKey('customer_payment_id', $tarjeta);
+        $this->assertNull($tarjeta['customer_payment_id']);
+    }
 }

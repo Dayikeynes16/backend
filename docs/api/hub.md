@@ -187,7 +187,13 @@ Esa garantía cubre también los **reintentos simultáneos**: si dos peticiones 
 |--------|------|-----|-------------|
 | GET | `history` | ambos | Historial de ventas de la sucursal (alcance por rol) |
 
-`Api\Hub\HistoryController`. Query params: `date` (default hoy), `product` (búsqueda en el nombre de las partidas), `min_total`, `max_total`. Paginado (20) + `summary` (`count`, `total`) sobre todo el conjunto filtrado.
+`Api\Hub\HistoryController`. Query params: **`preset`** (`today`, `yesterday`, `last_7_days`), **`from`/`to`** (`yyyy-MM-dd`), `date`, `search` (folio), `product` (búsqueda en el nombre de las partidas), `min_total`, `max_total`. Paginado (20) + `summary` (`count`, `total`) sobre todo el conjunto filtrado.
+
+**El rango (2026-09-22).** Se resuelve con el mismo `DateRange` que la web. **`date` se sigue admitiendo** y equivale al rango de ese día: hay tablets con la 1.4.0 instalada que sólo saben mandarlo. Sin nada, hoy.
+
+`preset` inválido, `from` sin `to` (o al revés), fechas ilegibles o `from` posterior a `to` → **422**. Se validan a propósito: `DateRange::fromRequest` se los traga y devuelve los datos de hoy con un 200, que es un fallo que nadie ve.
+
+**`day_summary` sólo viene cuando el rango es de un día** (y para el admin, y sin búsqueda por folio). Con un rango de varios se omite: es un resumen *del día*, y sumar siete no corresponde a ninguna jornada. Ojo con su `by_method`: viaja como **lista de objetos** (`method`, `label`, `total`, `count`, `from_today`, `from_previous`), no como mapa.
 
 **Alcance por rol (paridad con la web):**
 
@@ -195,6 +201,32 @@ Esa garantía cubre también los **reintentos simultáneos**: si dos peticiones 
 - **cajero** → solo las ventas donde registró al menos un pago. Espeja `Caja\HistorialController`.
 
 Así la búsqueda por producto de la admin opera sobre todo el historial de la sucursal, no solo sobre las ventas que ella cobró.
+
+## Cobros (la pantalla «Pagos»)
+
+| Método | Ruta | Rol | Descripción |
+|--------|------|-----|-------------|
+| GET | `payments` | ambos | El dinero que entró en el rango: quién cobró qué y a qué venta fue |
+
+`Api\Hub\PaymentController@index`. Query params: **`preset`**, **`from`/`to`**, `date`, `method`, `user_id` (solo admin), `customer` (`with` = ventas con cliente, `without` = mostrador). Paginado (20). Rango y validación, idénticos a `history`.
+
+**Alcance por rol:** el cajero ve solo los cobros que él registró; el admin, los de toda la sucursal, y puede filtrar por persona.
+
+**Un cobro a cuenta se colapsa a un renglón.** Un cobro global FIFO reparte un pago grande entre N ventas (N filas en `payments` con el mismo `customer_payment_id`); la lista deja un representante con `type: "global"`, su folio `CG-…`, el `amount_applied` del padre y su cliente. Los de una venta llevan `type: "sale"`. El `id` va prefijado (`p-501`, `cg-41`) para que los dos tipos convivan en una lista.
+
+Cada cobro de venta trae su `sale` completa —total, pagado, pendiente, estado, fecha, cliente— **y `sale.payments`**: los demás cobros de esa venta, con su `user`, su `updated_by_user` y su `customer_payment_id` (2026-09-22). Sin eso no se puede saber si el cobro que se mira fue el único de su venta.
+
+### El `summary` responde al rango y al cajero, nunca al método
+
+Sale de `DailySummaryService::collectionsForRange()`, el mismo servicio que la web. **No respeta los filtros de método ni de cliente, y es a propósito:** la pantalla enseña el importe de cada método en su pastilla, y si el resumen se filtrara, elegir «Efectivo» pondría las otras dos en cero y ya no habría con qué comparar.
+
+«Al cajero» significa dos cosas según quién pregunte: para un **admin**, el `user_id` que haya pedido; para un **cajero**, **siempre el suyo**, lo pida o no — el servicio no sabe de roles, y sin forzarlo vería la cobranza de toda la sucursal en sus cifras.
+
+Formas que conviene no romper, porque hay tablets con la 1.4.0 leyéndolas:
+
+- **`by_method` es un mapa** (`{"cash": …, "card": …, "transfer": …}`), aunque el servicio lo devuelva como lista de objetos. Se traduce antes de responder.
+- **`payment_count` cuenta filas de la lista**, con el cobro a cuenta ya colapsado — no pagos de la base.
+- **`summary.date`** sigue siendo una cadena `yyyy-MM-dd` (el primer día del rango); `from` y `to` se añaden al lado.
 
 ## Edición de items de venta (solo admin-sucursal)
 
