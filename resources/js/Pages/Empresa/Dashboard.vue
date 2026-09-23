@@ -62,23 +62,24 @@ watch(statuses, navigate, { deep: true });
     <Head title="Dashboard" />
     <EmpresaLayout>
         <template #header>
-            <div class="flex flex-1 items-center justify-between gap-3">
-                <h1 class="text-xl font-bold text-gray-900">Dashboard</h1>
-                <div class="flex items-center gap-2">
-                    <!-- Pill iOS para sucursal -->
-                    <div class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white px-1 py-1 ring-1 ring-gray-200 shadow-sm">
-                        <svg class="ml-2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614" /></svg>
-                        <select v-model="branchId"
-                            class="h-8 rounded-lg border-0 bg-transparent pl-1 pr-7 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-0">
-                            <option value="">Todas las sucursales</option>
-                            <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
-                        </select>
-                    </div>
-                    <StatusFilterChips :filters="statusFilters" compact />
-                    <DatePicker v-model="date" />
-                </div>
-            </div>
+            <h1 class="truncate text-xl font-bold text-gray-900">Dashboard</h1>
         </template>
+
+        <!-- Filtros fuera del encabezado global: ahí no caben en tablet (el encabezado
+             comparte fila con las campanas). Aquí pueden bajar de renglón sin montarse. -->
+        <div class="mb-6 flex flex-wrap items-center gap-2">
+            <!-- Pill iOS para sucursal -->
+            <div class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white px-1 py-1 ring-1 ring-gray-200 shadow-sm">
+                <svg class="ml-2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614" /></svg>
+                <select v-model="branchId"
+                    class="h-8 rounded-lg border-0 bg-transparent pl-1 pr-7 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-0">
+                    <option value="">Todas las sucursales</option>
+                    <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+                </select>
+            </div>
+            <StatusFilterChips :filters="statusFilters" compact />
+            <DatePicker v-model="date" />
+        </div>
 
         <AgendaTodayWidget class="mb-6" :tenant-slug="tenant.slug" />
 

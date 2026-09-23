@@ -87,15 +87,15 @@ const isActive = (link) => {
         <!-- Main -->
         <div class="lg:pl-[264px]">
             <!-- Top bar -->
-            <header class="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-gray-200 bg-white px-5 lg:px-8">
-                <button @click="sidebarOpen = true" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden">
+            <header class="sticky top-0 z-30 flex min-h-16 items-center gap-4 border-b border-gray-200 bg-white px-5 py-2 lg:px-8">
+                <button @click="sidebarOpen = true" class="shrink-0 rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                     </svg>
                 </button>
-                <div class="flex flex-1 items-center justify-between">
-                    <slot name="header" />
-                    <span class="hidden rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white shadow-sm sm:inline-flex">
+                <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
+                    <div class="min-w-0 flex-1"><slot name="header" /></div>
+                    <span class="hidden rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white shadow-sm shrink-0 xl:inline-flex">
                         Superadmin
                     </span>
                 </div>

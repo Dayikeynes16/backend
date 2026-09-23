@@ -82,7 +82,7 @@ const formatFee = (fee) => {
             </button>
         </div>
 
-        <div v-else class="overflow-hidden rounded-2xl ring-1 ring-gray-100">
+        <div v-else class="overflow-x-auto rounded-2xl ring-1 ring-gray-100">
             <table class="min-w-full divide-y divide-gray-100">
                 <thead class="bg-gray-50/60">
                     <tr>

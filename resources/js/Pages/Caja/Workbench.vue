@@ -128,7 +128,7 @@ const submitCancelRequest = (reason) => {
     <CajeroLayout>
         <template #header><h1 class="text-xl font-bold text-gray-900">Mesa de Trabajo</h1></template>
 
-        <div class="h-[calc(100vh-7rem)]">
+        <div class="h-[calc(100dvh-7rem)]">
             <!-- Lista de ventas (ancho completo) -->
             <div class="flex h-full flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">

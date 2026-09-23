@@ -301,9 +301,9 @@ const {
             :by-method="daySummary.by_method"
             :payment-methods="paymentMethods" />
 
-        <div class="flex h-[calc(100vh-14rem)] gap-5">
+        <div class="flex h-[calc(100dvh-14rem)] gap-5">
             <!-- LEFT: Sales list -->
-            <div class="flex w-[420px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex w-2/5 min-w-[300px] shrink-0 flex-col xl:w-[420px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="space-y-3 border-b border-gray-100 px-5 py-4">
                     <div class="flex gap-3">
                         <div class="relative flex-1">
@@ -385,7 +385,7 @@ const {
             </div>
 
             <!-- RIGHT: Detail -->
-            <div class="flex flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div v-if="!selected" class="flex flex-1 items-center justify-center">
                     <div class="text-center">
                         <svg class="mx-auto h-12 w-12 text-gray-200" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
@@ -446,7 +446,7 @@ const {
                         <!-- Items -->
                         <div>
                             <h3 class="mb-3 text-sm font-bold text-gray-700">Productos</h3>
-                            <div class="overflow-hidden rounded-lg ring-1 ring-gray-100">
+                            <div class="overflow-x-auto rounded-lg ring-1 ring-gray-100">
                                 <table class="min-w-full divide-y divide-gray-50">
                                     <thead><tr class="bg-gray-50">
                                         <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">Producto</th>
@@ -469,7 +469,7 @@ const {
                         <!-- Summary -->
                         <div class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
                             <div class="px-5 py-4">
-                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                <div class="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-4 mb-4">
                                     <div class="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
                                         <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Total</p>
                                         <p class="font-mono text-lg font-bold tabular-nums text-gray-900">${{ parseFloat(selected.total).toFixed(2) }}</p>

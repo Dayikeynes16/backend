@@ -56,6 +56,7 @@ defineProps({ tenants: Array, stats: Object });
                         Nueva Empresa
                     </Link>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-100">
                     <thead><tr class="bg-gray-50">
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Empresa</th>
@@ -82,6 +83,7 @@ defineProps({ tenants: Array, stats: Object });
                         <tr v-if="tenants.length === 0"><td colspan="6" class="px-6 py-16 text-center text-sm text-gray-400">No hay empresas registradas.</td></tr>
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
     </AdminLayout>

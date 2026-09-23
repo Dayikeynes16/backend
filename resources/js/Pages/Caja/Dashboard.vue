@@ -63,7 +63,7 @@ const formatTime = (iso) => {
                 </div>
 
                 <!-- Recent sales -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                <div class="overflow-x-auto bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6">
                         <h3 class="mb-4 text-lg font-semibold text-gray-900">Ventas recientes</h3>
                         <table class="min-w-full divide-y divide-gray-200">

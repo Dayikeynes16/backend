@@ -201,7 +201,8 @@ const chipToneHero = (d) => {
             <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <h3 class="text-base font-bold text-gray-900">Productos que más aportan</h3>
                 <p class="mt-0.5 text-xs text-gray-500">Por utilidad bruta en el período</p>
-                <table class="mt-3 w-full">
+                <div class="mt-3 overflow-x-auto">
+                <table class="w-full">
                     <thead>
                         <tr class="border-b border-gray-100 text-[10px] uppercase tracking-wide text-gray-400">
                             <th class="py-2 text-left font-bold">Producto</th>
@@ -225,6 +226,7 @@ const chipToneHero = (d) => {
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </div>
 
             <div v-if="scope === 'empresa' && branches.length" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">

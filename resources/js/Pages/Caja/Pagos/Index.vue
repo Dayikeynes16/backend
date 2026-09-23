@@ -161,9 +161,9 @@ const paidPct = computed(() => {
             <h1 class="text-xl font-bold text-gray-900">Mis Pagos</h1>
         </template>
 
-        <div class="flex h-[calc(100vh-7rem)] gap-5">
+        <div class="flex h-[calc(100dvh-7rem)] gap-5">
             <!-- LEFT PANEL -->
-            <div class="flex w-[440px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex w-2/5 min-w-[300px] shrink-0 flex-col xl:w-[440px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 
                 <!-- KPI Hero -->
                 <div class="border-b border-gray-100 px-6 py-5">
@@ -281,7 +281,7 @@ const paidPct = computed(() => {
             </div>
 
             <!-- RIGHT PANEL: Detail -->
-            <div class="flex flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <!-- Empty state -->
                 <div v-if="!selected" class="flex flex-1 items-center justify-center">
                     <div class="text-center">
@@ -369,7 +369,7 @@ const paidPct = computed(() => {
                         <div v-if="selected.sale && !selected.customer_payment" class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
                             <SaleHeaderBand :sale="selected.sale" :history-url="historyUrl(selected.sale.folio)" />
                             <div class="px-5 py-4">
-                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                <div class="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-4 mb-4">
                                     <div class="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
                                         <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Total</p>
                                         <p class="font-mono text-lg font-bold tabular-nums text-gray-900">${{ parseFloat(selected.sale.total).toFixed(2) }}</p>

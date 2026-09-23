@@ -143,7 +143,7 @@ const iaRoutes = { iaStore: 'sucursal.compras.ia.store' };
             <div v-if="flash.success" class="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ flash.success }}</div>
             <div v-if="flash.error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{{ flash.error }}</div>
 
-            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
