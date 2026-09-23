@@ -294,7 +294,7 @@ En la columna **Rol**, «módulo» significa admin-sucursal siempre, y cajero so
 | POST | `/api/v1/hub/expense-categories/ai-draft` | Borrador de categoría por IA: `input_text` (máx. 2000) y/o `audio` (voz, máx. 10 MB; **sin imágenes**, como la web). Devuelve `{draft_id, status, proposal, audio_transcription}`; `proposal.action` ∈ crear_categoria/usar_existente/crear_subcategoria/necesita_aclaracion. Reusa `AiCategoryDraftService` (Whisper + gpt-4o) |
 | POST | `/api/v1/hub/expense-categories/ai-apply` | Aplica la propuesta revisada. Payload idéntico al web (`mode` create_new/use_existing + `category`/`category_updates` + `subcategories` máx. 8). Reuso literal de `HandlesExpenseCategoryWrites::storeFromAiDraft` |
 
-## Gastos (requiere toggle `cashier_expenses_enabled`)
+## Gastos (requiere `cashier_expenses_enabled` para el cajero; el admin-sucursal siempre)
 
 **Controller:** `Api\Hub\ExpenseController`. Reglas por rol (paridad web, 2026-07-11): el gasto del **cajero** es siempre **en efectivo** y queda ligado a su turno abierto (afecta el corte); el **admin-sucursal** registra sin turno, con `payment_method` opcional (cash/card/transfer, vacío = sin especificar) y sin atar el gasto a un turno. Desde 2026-07-14 el alta delega en **`ExpenseWriter`** (el mismo servicio de dominio que `Sucursal\GastoController`): creación + adjuntos del borrador IA + consumo del draft ocurren en una sola transacción y con las mismas reglas que la web, sin lógica duplicada.
 

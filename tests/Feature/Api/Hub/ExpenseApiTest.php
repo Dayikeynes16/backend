@@ -458,6 +458,12 @@ class ExpenseApiTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.concept', 'Renta de septiembre');
+
+        // ai-draft también pasa la bandera: con payload vacío (sin llamar a
+        // OpenAI) llega a la validación de "aporta algo" y responde 422, no 403.
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses/ai-draft', [])
+            ->assertStatus(422);
     }
 
     public function test_cashier_is_still_blocked_with_the_flag_off(): void
@@ -471,6 +477,10 @@ class ExpenseApiTest extends TestCase
             ->postJson('/api/v1/hub/expenses', [
                 'concept' => 'Hielo', 'amount' => 180, 'expense_subcategory_id' => $this->subcategory->id,
             ])
+            ->assertForbidden();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses/ai-draft', [])
             ->assertForbidden();
     }
 }
