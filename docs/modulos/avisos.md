@@ -79,7 +79,7 @@ Los cinco puntos de entrada del circuito de cancelaciones (mesa de sucursal, mes
 
 - **La campana pide 20 y no pagina.** Suficiente hoy; si un usuario acumula muchos, los viejos sólo se ven marcando leídos.
 - **Nada las borra.** No hay limpieza programada de avisos antiguos.
-- **El Hub Electron no las muestra.** El circuito de cancelaciones sí avisa cuando la acción viene del hub, pero la app de escritorio no tiene campana propia todavía. Desde el 2026-09-20 la bandeja está expuesta en `/api/v1/hub/notifications` (ver [api/hub.md](../api/hub.md#avisos)), así que lo que falta ahí es sólo la campana, no el dato.
+- **El Hub Electron las muestra desde la 1.3.0** con su «isla» (ver `carniceria-hub/docs/avisos.md`). La campana web, en cambio, pierde el enlace de los avisos que llegan en vivo: el evento trae el `type` pisado por el nombre de clase (`BroadcastNotificationCreated::broadcastType()`), así que `linkFor()` no los reconoce hasta recargar. Pendiente: `broadcastType()` en las notificaciones, y que `linkFor()` conozca `sale.cancellation.approved`/`rejected`.
 - **El admin-empresa las recibe si es destinatario**, pero hoy ninguna lo tiene como tal: las cancelaciones son cosa de sucursal.
 
 ## Tests
