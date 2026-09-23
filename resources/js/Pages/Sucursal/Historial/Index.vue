@@ -303,7 +303,7 @@ const {
 
         <div class="flex h-[calc(100dvh-14rem)] gap-5">
             <!-- LEFT: Sales list -->
-            <div class="flex w-2/5 min-w-[300px] shrink-0 flex-col xl:w-[420px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex w-full shrink-0 flex-col md:w-2/5 md:min-w-[300px] xl:w-[420px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="space-y-3 border-b border-gray-100 px-5 py-4">
                     <div class="flex gap-3">
                         <div class="relative flex-1">
@@ -385,7 +385,10 @@ const {
             </div>
 
             <!-- RIGHT: Detail -->
-            <div class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <!-- Teléfono: sin espacio para dos columnas, el detalle se abre a pantalla
+                 completa encima de la lista (que sigue montada y conserva su scroll). -->
+            <div :class="selected ? 'max-md:fixed max-md:inset-0 max-md:z-40 max-md:rounded-none' : 'max-md:hidden'"
+                class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div v-if="!selected" class="flex flex-1 items-center justify-center">
                     <div class="text-center">
                         <svg class="mx-auto h-12 w-12 text-gray-200" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
@@ -394,6 +397,11 @@ const {
                 </div>
 
                 <template v-else>
+                    <button type="button" @click="selected = null; selectedId = null"
+                        class="flex shrink-0 items-center gap-1.5 border-b border-gray-100 px-5 py-3 text-sm font-semibold text-red-600 md:hidden">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+                        Volver a la lista
+                    </button>
                     <!-- Header -->
                     <div class="border-b border-gray-100 px-6 py-4">
                         <div class="flex items-center justify-between">

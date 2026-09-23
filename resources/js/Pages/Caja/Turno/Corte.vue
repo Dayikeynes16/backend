@@ -150,7 +150,7 @@ const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.v
 
             <!-- Header info -->
             <div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-                <div class="grid grid-cols-3 divide-x divide-gray-100">
+                <div class="grid grid-cols-1 divide-y divide-gray-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                     <div class="px-5 py-4">
                         <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Cajero</p>
                         <p class="mt-1 text-sm font-bold text-gray-900">{{ shift.user?.name }}</p>
@@ -164,7 +164,7 @@ const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.v
                         <p class="mt-1 font-mono text-xl font-extrabold tabular-nums text-gray-900">{{ shift.sale_count }}</p>
                     </div>
                 </div>
-                <div class="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
+                <div class="border-t border-gray-100 px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                     <span class="text-xs text-gray-400">Fondo inicial: <span class="font-semibold text-gray-600">{{ money(shift.opening_amount) }}</span></span>
                     <div class="flex items-center gap-4">
                         <p class="text-xs text-gray-400">Vendido: <span class="font-mono font-semibold tabular-nums text-gray-700">{{ money(shift.sales_generated_amount) }}</span></p>
@@ -179,8 +179,8 @@ const totalCashOut = computed(() => withdrawalsTotal.value + cashExpensesTotal.v
                     <h2 class="text-sm font-bold text-gray-900">Resumen por metodo</h2>
                 </div>
                 <div class="divide-y divide-gray-100">
-                    <div v-for="m in conciliation" :key="m.key" class="grid grid-cols-4 items-center gap-3 px-6 py-4">
-                        <p class="text-sm font-semibold text-gray-900">{{ m.label }}</p>
+                    <div v-for="m in conciliation" :key="m.key" class="grid grid-cols-3 items-center gap-3 px-4 py-4 sm:grid-cols-4 sm:px-6">
+                        <p class="col-span-3 text-sm font-semibold text-gray-900 sm:col-span-1">{{ m.label }}</p>
                         <div class="text-right">
                             <p class="text-[10px] uppercase tracking-wider text-gray-400">Esperado</p>
                             <p class="font-mono text-sm font-bold tabular-nums text-gray-700">{{ money(m.expected) }}</p>

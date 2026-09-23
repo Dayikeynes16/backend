@@ -177,7 +177,7 @@ const {
         <template #header><h1 class="text-xl font-bold text-gray-900">Mis Ventas Cobradas</h1></template>
 
         <div class="flex h-[calc(100dvh-7rem)] gap-5">
-            <div class="flex w-2/5 min-w-[300px] shrink-0 flex-col xl:w-[380px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex w-full shrink-0 flex-col md:w-2/5 md:min-w-[300px] xl:w-[380px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-5 py-4 space-y-3">
                     <!-- Buscar por folio: ignora la fecha en el backend, así que el
                          selector de día se retira mientras hay búsqueda activa —dejarlo
@@ -252,9 +252,17 @@ const {
                 </div>
             </div>
 
-            <div class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <!-- Teléfono: sin espacio para dos columnas, el detalle se abre a pantalla
+                 completa encima de la lista (que sigue montada y conserva su scroll). -->
+            <div :class="selected ? 'max-md:fixed max-md:inset-0 max-md:z-40 max-md:rounded-none' : 'max-md:hidden'"
+                class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div v-if="!selected" class="flex flex-1 items-center justify-center"><p class="text-sm text-gray-400">Selecciona una venta</p></div>
                 <template v-else>
+                    <button type="button" @click="selected = null"
+                        class="flex shrink-0 items-center gap-1.5 border-b border-gray-100 px-5 py-3 text-sm font-semibold text-red-600 md:hidden">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+                        Volver a la lista
+                    </button>
                     <div class="border-b border-gray-100 px-6 py-4">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">

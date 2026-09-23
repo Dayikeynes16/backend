@@ -457,19 +457,19 @@ const submitUnlink = () => {
         <div v-if="hasPending" class="shrink-0 border-t-2 border-gray-200 bg-gray-50/80">
             <!-- Summary row -->
             <div class="grid grid-cols-3 divide-x divide-gray-200 border-b border-gray-200">
-                <div class="px-4 py-3 text-center">
+                <div class="px-2 py-3 text-center sm:px-4">
                     <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Pendiente</p>
-                    <p class="mt-0.5 font-mono text-2xl font-extrabold tabular-nums text-amber-600">${{ pendingAmount.toFixed(2) }}</p>
+                    <p class="mt-0.5 font-mono text-lg sm:text-2xl font-extrabold tabular-nums text-amber-600">${{ pendingAmount.toFixed(2) }}</p>
                 </div>
-                <div class="px-4 py-3 text-center">
+                <div class="px-2 py-3 text-center sm:px-4">
                     <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Recibido</p>
-                    <p class="mt-0.5 font-mono text-2xl font-extrabold tabular-nums" :class="enteredAmount > 0 ? 'text-gray-900' : 'text-gray-300'">
+                    <p class="mt-0.5 font-mono text-lg sm:text-2xl font-extrabold tabular-nums" :class="enteredAmount > 0 ? 'text-gray-900' : 'text-gray-300'">
                         ${{ enteredAmount > 0 ? enteredAmount.toFixed(2) : '0.00' }}
                     </p>
                 </div>
-                <div class="px-4 py-3 text-center">
+                <div class="px-2 py-3 text-center sm:px-4">
                     <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Cambio</p>
-                    <p class="mt-0.5 font-mono text-2xl font-extrabold tabular-nums" :class="changeAmount > 0 ? 'text-green-600' : 'text-gray-300'">
+                    <p class="mt-0.5 font-mono text-lg sm:text-2xl font-extrabold tabular-nums" :class="changeAmount > 0 ? 'text-green-600' : 'text-gray-300'">
                         ${{ changeAmount.toFixed(2) }}
                     </p>
                 </div>
@@ -480,7 +480,7 @@ const submitUnlink = () => {
                 <div class="flex gap-2">
                     <button v-for="m in enabledMethods" :key="m.id" type="button"
                         @click="paymentForm.method = m.id"
-                        :class="['flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all',
+                        :class="['flex flex-1 flex-col items-center justify-center gap-1 rounded-xl py-2.5 text-xs font-bold transition-all sm:flex-row sm:gap-2 sm:py-3 sm:text-sm',
                             paymentForm.method === m.id
                                 ? 'bg-red-600 text-white shadow-sm'
                                 : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50 active:bg-gray-100']">

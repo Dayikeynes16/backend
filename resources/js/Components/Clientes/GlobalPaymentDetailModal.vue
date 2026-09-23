@@ -167,15 +167,15 @@ const statusBadge = (status) => {
 
             <!-- Totals -->
             <div class="grid grid-cols-3 gap-0 border-b border-gray-100">
-                <div class="px-5 py-4 text-center">
+                <div class="px-2 py-4 text-center sm:px-5">
                     <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500">Recibido</p>
                     <p class="mt-1 text-lg font-bold tabular-nums text-gray-900">{{ money(data.amount_received) }}</p>
                 </div>
-                <div class="border-x border-gray-100 bg-green-50/40 px-5 py-4 text-center">
+                <div class="border-x border-gray-100 bg-green-50/40 px-2 py-4 text-center sm:px-5">
                     <p class="text-[11px] font-bold uppercase tracking-wide text-green-700">Aplicado</p>
                     <p class="mt-1 text-lg font-bold tabular-nums text-green-700">{{ money(data.amount_applied) }}</p>
                 </div>
-                <div :class="['px-5 py-4 text-center', data.change_given > 0 ? 'bg-amber-50/40' : '']">
+                <div :class="['px-2 py-4 text-center sm:px-5', data.change_given > 0 ? 'bg-amber-50/40' : '']">
                     <p :class="['text-[11px] font-bold uppercase tracking-wide', data.change_given > 0 ? 'text-amber-700' : 'text-gray-500']">Cambio</p>
                     <p :class="['mt-1 text-lg font-bold tabular-nums', data.change_given > 0 ? 'text-amber-700' : 'text-gray-400']">{{ money(data.change_given) }}</p>
                 </div>
