@@ -189,7 +189,7 @@ const toneOf = (v) => verdictTone[v?.tone] ?? verdictTone.neutral;
 
             <!-- Header info -->
             <div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-                <div class="grid grid-cols-4 divide-x divide-gray-100">
+                <div class="grid grid-cols-1 divide-y divide-gray-100 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
                     <div class="px-5 py-4">
                         <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Cajero</p>
                         <p class="mt-1 text-sm font-bold text-gray-900">{{ shift.user?.name }}</p>
@@ -235,7 +235,7 @@ const toneOf = (v) => verdictTone[v?.tone] ?? verdictTone.neutral;
                                     <span v-else-if="m.diff > 0" class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-inset ring-amber-500/20">Sobrante</span>
                                     <span v-else class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 ring-1 ring-inset ring-red-600/20">Faltante</span>
                                 </div>
-                                <div class="grid grid-cols-3 gap-3">
+                                <div class="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
                                     <div :class="['rounded-lg px-3 py-2.5 text-center', m.key === 'cash' ? 'bg-emerald-50' : m.key === 'card' ? 'bg-blue-50' : 'bg-violet-50']">
                                         <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Esperado</p>
                                         <p :class="['font-mono text-base font-bold tabular-nums', m.textColor]">${{ m.expected.toFixed(2) }}</p>

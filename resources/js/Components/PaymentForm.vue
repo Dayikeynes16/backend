@@ -63,7 +63,7 @@ const submit = () => {
                 <div class="mt-2 flex gap-2">
                     <button v-for="m in availableMethods" :key="m.id" type="button"
                         @click="form.method = m.id"
-                        :class="['flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all',
+                        :class="['flex flex-1 flex-col items-center justify-center gap-1 rounded-xl py-2.5 text-xs font-bold transition-all sm:flex-row sm:gap-2 sm:py-3 sm:text-sm',
                             form.method === m.id
                                 ? 'bg-red-600 text-white shadow-sm'
                                 : 'bg-gray-50 text-gray-600 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200']">

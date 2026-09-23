@@ -1,8 +1,8 @@
-# Layouts y pantallas medianas (tablet)
+# Layouts en tablet y teléfono
 
 > Estado: vigente desde 2026-09-23.
 
-La web se usa en tablets (iPad, Surface), no solo en escritorio. Este doc
+La web se usa en tablets (iPad, Surface) y teléfonos, no solo en escritorio. Este doc
 explica por qué se rompía la interfaz en ese tamaño y las reglas para que no
 vuelva a pasar.
 
@@ -58,3 +58,25 @@ Toda `<table>` va dentro de un contenedor con `overflow-x-auto` (no
 `overflow-hidden`): en tablet la tabla se desplaza de lado en vez de aplastar
 columnas o ensanchar la página. `overflow-x-auto` también recorta las esquinas
 redondeadas, así que sustituye a `overflow-hidden` sin cambiar el aspecto.
+
+## Teléfono (menos de 640px)
+
+La regla es no inventar pantallas nuevas: en teléfono se reacomoda lo mismo.
+
+- **Lista + detalle (Pagos, Historial):** bajo `md` (768px) la lista ocupa
+  todo el ancho y el detalle se abre a pantalla completa encima
+  (`max-md:fixed max-md:inset-0 max-md:z-40`), con un botón "Volver a la lista"
+  (`md:hidden`). La lista sigue montada debajo, así que conserva su scroll.
+  Es el mismo patrón del detalle de venta en la Mesa de Trabajo
+  (`SaleDetailModalShell`, pantalla completa bajo `sm`).
+- **Rejillas con montos:** una rejilla de 3 o 4 columnas deja ~100px por
+  columna en 375px. Si trae montos o fechas, en teléfono va a 1 o 2 columnas
+  (`grid-cols-1 sm:grid-cols-3`), o conserva las 3 con cifra más chica
+  (`text-lg sm:text-2xl`) cuando el trío es lo que el cajero mira de un
+  vistazo (Pendiente / Recibido / Cambio). Calendarios y selectores de hora
+  se quedan como están.
+- **Cierre de turno (`CierreTurnoPanel`):** en teléfono el monto declarado va
+  primero y a todo el ancho; Esperado y Diferencia quedan debajo.
+- **Botones de método de pago:** en teléfono el ícono va arriba del texto
+  ("Transferencia" no cabe al lado del ícono en un tercio de pantalla).
+- **Filas de filtros/botones:** siempre con `flex-wrap`.

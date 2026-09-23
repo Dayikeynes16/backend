@@ -172,7 +172,7 @@ const cancelSale = (reason) => {
                     <div class="flex items-center gap-3">
                         <h2 class="text-sm font-bold text-gray-900">Ventas</h2>
                         <RealtimeStatusChip :live="live" :recovering="recovering" />
-                        <div class="flex gap-1.5">
+                        <div class="flex flex-wrap gap-1.5">
                             <button v-for="f in [{v:'active',l:'Activas'},{v:'pending',l:'Pendientes'},{v:'all',l:'Todas'}]"
                                 :key="f.v" @click="statusFilter = f.v"
                                 :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', statusFilter === f.v ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">

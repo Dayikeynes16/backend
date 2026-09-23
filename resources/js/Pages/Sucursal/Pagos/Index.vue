@@ -258,7 +258,7 @@ const doDeletePayment = () => {
 
         <div class="flex h-[calc(100dvh-14rem)] gap-5">
             <!-- LEFT PANEL -->
-            <div class="flex w-2/5 min-w-[300px] shrink-0 flex-col xl:w-[440px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex w-full shrink-0 flex-col md:w-2/5 md:min-w-[300px] xl:w-[440px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 
                 <!-- Filters -->
                 <div class="border-b border-gray-100 px-5 py-3 space-y-2.5">
@@ -367,7 +367,10 @@ const doDeletePayment = () => {
             </div>
 
             <!-- RIGHT PANEL -->
-            <div class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <!-- Teléfono: sin espacio para dos columnas, el detalle se abre a pantalla
+                 completa encima de la lista (que sigue montada y conserva su scroll). -->
+            <div :class="selected ? 'max-md:fixed max-md:inset-0 max-md:z-40 max-md:rounded-none' : 'max-md:hidden'"
+                class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div v-if="!selected" class="flex flex-1 items-center justify-center">
                     <div class="text-center">
                         <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-50">
@@ -378,6 +381,11 @@ const doDeletePayment = () => {
                 </div>
 
                 <template v-else>
+                    <button type="button" @click="selected = null; selectedId = null"
+                        class="flex shrink-0 items-center gap-1.5 border-b border-gray-100 px-5 py-3 text-sm font-semibold text-red-600 md:hidden">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+                        Volver a la lista
+                    </button>
                     <!-- Detail header -->
                     <div class="border-b border-gray-100 px-6 py-5">
                         <div class="flex items-center justify-between">

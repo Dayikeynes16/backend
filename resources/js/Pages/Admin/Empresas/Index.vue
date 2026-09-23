@@ -30,7 +30,7 @@ const barColor = (pct) => pct >= 90 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' 
 
         <div class="space-y-8">
             <!-- Stats -->
-            <div class="grid grid-cols-3 gap-5">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
                 <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
                     <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Total empresas</p>
                     <p class="mt-2 text-3xl font-bold text-gray-900">{{ stats.total }}</p>

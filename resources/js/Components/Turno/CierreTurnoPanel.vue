@@ -223,7 +223,9 @@ const statusPill = {
                     </span>
                 </div>
 
-                <div class="mt-5 grid grid-cols-3 gap-3">
+                <!-- Teléfono: el monto declarado va primero y a todo el ancho (es lo que se
+                     teclea); Esperado y Diferencia quedan lado a lado debajo. -->
+                <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     <!-- Esperado -->
                     <div :class="[colorMap[m.color].soft, 'rounded-xl px-3 py-3 text-center']">
                         <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Esperado</p>
@@ -231,7 +233,7 @@ const statusPill = {
                     </div>
 
                     <!-- Declarado (input protagonista) -->
-                    <div class="text-center">
+                    <div class="order-first col-span-2 text-center sm:order-none sm:col-span-1">
                         <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Declarado</p>
                         <div class="relative mt-1">
                             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">$</span>

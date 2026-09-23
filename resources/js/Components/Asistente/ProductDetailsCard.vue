@@ -28,7 +28,7 @@ const margin = (price, cost) => {
                 <span class="rounded-full bg-white px-2 py-0.5 text-xs text-gray-600 shadow-sm">{{ data.products[0].category || 'sin categoría' }}</span>
             </div>
             <p v-if="data.products[0].description" class="text-sm text-gray-700">{{ data.products[0].description }}</p>
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div>
                     <div class="text-xs font-medium uppercase text-gray-500">Precio</div>
                     <div class="text-xl font-bold text-gray-900">{{ fmt(data.products[0].price) }}</div>
