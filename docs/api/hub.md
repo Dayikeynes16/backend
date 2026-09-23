@@ -54,7 +54,7 @@ Ambos grupos viven en `routes/api.php` y son independientes de la sesión web In
 - **Middleware `hub.role`** (`App\Http\Middleware\EnsureHubRole`): todo `/api/v1/hub/*` exige rol `cajero` o `admin-sucursal`. Otros roles → `403`. `admin-empresa` y `superadmin` operan solo por web.
 - **Scoping por sucursal:** los controllers del hub no usan `ResolveTenant` (no hay slug en la URL). Resuelven los recursos con `withoutGlobalScopes()` filtrando por el `branch_id` del usuario del token; un recurso de otra sucursal devuelve `404`. Para modelos con `TenantScope` que se reusan de la web (ApiKey, Provider, Expense…), el controller fija `app()->instance('tenant', $user->tenant)`.
 - **Endpoints solo admin-sucursal** (el cajero recibe `403`): toda la sección Config, toda la sección Proveedores y la cancelación de cobros globales de fiado.
-- **Toggles por sucursal:** Gastos requiere `cashier_expenses_enabled`, Compras `cashier_purchases_enabled`, y crear/editar proveedores `branch_admin_providers_enabled` (todos en `branches`; si están apagados → `403`).
+- **Toggles por sucursal:** Gastos requiere `cashier_expenses_enabled` **para el cajero**; el admin-sucursal siempre lo tiene, como en la web (desde 2026-09-22; antes el hub le respondía `403` también a él), Compras `cashier_purchases_enabled`, y crear/editar proveedores `branch_admin_providers_enabled` (todos en `branches`; si están apagados → `403`).
 
 ## Dashboard
 
