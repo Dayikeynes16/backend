@@ -52,7 +52,7 @@ const doDelete = () => {
             <button @click="openCreate" class="rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-red-700">+ Nueva categoría</button>
         </div>
 
-        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>

@@ -84,7 +84,7 @@ const copyKey = () => {
                 </div>
 
                 <!-- Keys list -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                <div class="overflow-x-auto bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead>

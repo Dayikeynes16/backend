@@ -61,7 +61,7 @@ const toggleHistory = (id) => {
     <Head title="Cancelaciones" />
     <SucursalLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <h1 class="text-xl font-bold text-gray-900">Cancelaciones</h1>
                 <Link :href="route('sucursal.metricas.cancelaciones', tenant.slug)"
                     class="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:text-red-700">

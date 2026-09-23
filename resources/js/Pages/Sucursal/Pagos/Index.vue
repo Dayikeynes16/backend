@@ -256,9 +256,9 @@ const doDeletePayment = () => {
             :by-method="periodSummary.by_method"
             :payment-methods="paymentMethods" />
 
-        <div class="flex h-[calc(100vh-14rem)] gap-5">
+        <div class="flex h-[calc(100dvh-14rem)] gap-5">
             <!-- LEFT PANEL -->
-            <div class="flex w-[440px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex w-2/5 min-w-[300px] shrink-0 flex-col xl:w-[440px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 
                 <!-- Filters -->
                 <div class="border-b border-gray-100 px-5 py-3 space-y-2.5">
@@ -367,7 +367,7 @@ const doDeletePayment = () => {
             </div>
 
             <!-- RIGHT PANEL -->
-            <div class="flex flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div v-if="!selected" class="flex flex-1 items-center justify-center">
                     <div class="text-center">
                         <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-50">
@@ -416,7 +416,7 @@ const doDeletePayment = () => {
                                         <p class="text-xs text-gray-400">Monto cobrado</p>
                                         <p class="font-mono text-2xl font-extrabold tabular-nums text-gray-900">${{ parseFloat(selected.customer_payment ? selected.customer_payment.amount_applied : selected.amount).toFixed(2) }}</p>
                                     </div>
-                                    <div class="grid grid-cols-3 gap-4">
+                                    <div class="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-4">
                                         <div>
                                             <p class="text-xs text-gray-400">Metodo</p>
                                             <div class="mt-0.5 flex items-center gap-1.5">
@@ -488,7 +488,7 @@ const doDeletePayment = () => {
                                 </template>
                             </SaleHeaderBand>
                             <div class="px-5 py-4">
-                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                <div class="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-4 mb-4">
                                     <div class="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
                                         <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Total</p>
                                         <p class="font-mono text-lg font-bold tabular-nums text-gray-900">${{ parseFloat(selected.sale.total).toFixed(2) }}</p>

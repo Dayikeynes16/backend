@@ -60,6 +60,7 @@ Stack: Laravel 13 · Vue 3 · Inertia v2 · PostgreSQL · Laravel Reverb · Open
 
 - [Cola de Ventas](frontend/cola-ventas.md) — composables useSaleQueue / useBranchRealtime, canal compartido, UI de cobro
 - [Pantallas del Cajero](frontend/pantallas-cajero.md) — OpenShift, Queue, Dashboard, Shift
+- [Layouts y tablet](frontend/layouts-responsivo.md) — encabezado global flexible, filtros fuera del header, lista+detalle y tablas en pantallas medianas
 
 ## Guías
 

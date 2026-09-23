@@ -279,7 +279,7 @@ const avatarInitials = computed(() => {
                     <!-- Tarifas de envío -->
                     <div v-if="deliveryEnabled && sortedTiers.length > 0">
                         <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Tarifas de envío</p>
-                        <div class="mt-2 overflow-hidden rounded-xl ring-1 ring-gray-100">
+                        <div class="mt-2 overflow-x-auto rounded-xl ring-1 ring-gray-100">
                             <table class="min-w-full text-sm">
                                 <thead class="bg-gray-50/60">
                                     <tr>

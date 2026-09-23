@@ -60,15 +60,16 @@ watch(statuses, reload, { deep: true });
     <Head title="Dashboard" />
     <SucursalLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
-                <h1 class="text-xl font-bold text-gray-900">Dashboard</h1>
-                <div class="flex flex-wrap items-center gap-3">
-                    <StatusFilterChips :filters="statusFilters" compact />
-                    <DatePicker v-model="date" />
-                </div>
-                <!-- El chip "Admin Sucursal" lo pinta SucursalLayout en el header global; no se duplica aquí. -->
-            </div>
+            <!-- El chip "Admin Sucursal" lo pinta SucursalLayout en el header global; no se duplica aquí. -->
+            <h1 class="truncate text-xl font-bold text-gray-900">Dashboard</h1>
         </template>
+
+        <!-- Filtros fuera del encabezado global: ahí no caben en tablet (el encabezado
+             comparte fila con las campanas). Aquí pueden bajar de renglón sin montarse. -->
+        <div class="mb-6 flex flex-wrap items-center gap-3">
+            <StatusFilterChips :filters="statusFilters" compact />
+            <DatePicker v-model="date" />
+        </div>
 
         <AgendaTodayWidget class="mb-6" :tenant-slug="tenant.slug" />
 

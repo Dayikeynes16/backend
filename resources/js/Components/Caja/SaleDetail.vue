@@ -398,7 +398,7 @@ const submitUnlink = () => {
         <!-- Scrollable content -->
         <div class="flex-1 overflow-y-auto p-6 space-y-5">
             <!-- Items table -->
-            <div class="overflow-hidden rounded-lg ring-1 ring-gray-100">
+            <div class="overflow-x-auto rounded-lg ring-1 ring-gray-100">
                 <table class="min-w-full divide-y divide-gray-50">
                     <thead><tr class="bg-gray-50">
                         <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">Producto</th>

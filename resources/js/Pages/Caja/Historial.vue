@@ -176,8 +176,8 @@ const {
     <CajeroLayout>
         <template #header><h1 class="text-xl font-bold text-gray-900">Mis Ventas Cobradas</h1></template>
 
-        <div class="flex h-[calc(100vh-7rem)] gap-5">
-            <div class="flex w-[380px] shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+        <div class="flex h-[calc(100dvh-7rem)] gap-5">
+            <div class="flex w-2/5 min-w-[300px] shrink-0 flex-col xl:w-[380px] rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div class="border-b border-gray-100 px-5 py-4 space-y-3">
                     <!-- Buscar por folio: ignora la fecha en el backend, así que el
                          selector de día se retira mientras hay búsqueda activa —dejarlo
@@ -252,7 +252,7 @@ const {
                 </div>
             </div>
 
-            <div class="flex flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div class="flex min-w-0 flex-1 flex-col rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
                 <div v-if="!selected" class="flex flex-1 items-center justify-center"><p class="text-sm text-gray-400">Selecciona una venta</p></div>
                 <template v-else>
                     <div class="border-b border-gray-100 px-6 py-4">
@@ -301,7 +301,7 @@ const {
                     </div>
                     <div class="flex-1 overflow-y-auto p-6 space-y-5">
                         <!-- Items -->
-                        <div class="overflow-hidden rounded-lg ring-1 ring-gray-100">
+                        <div class="overflow-x-auto rounded-lg ring-1 ring-gray-100">
                             <table class="min-w-full divide-y divide-gray-50">
                                 <thead><tr class="bg-gray-50">
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">Producto</th>
@@ -321,7 +321,7 @@ const {
                         <!-- Summary -->
                         <div class="rounded-xl ring-1 ring-gray-200/50 overflow-hidden">
                             <div class="px-5 py-4">
-                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                <div class="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-4 mb-4">
                                     <div class="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
                                         <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Total</p>
                                         <p class="font-mono text-lg font-bold tabular-nums text-gray-900">${{ parseFloat(selected.total).toFixed(2) }}</p>

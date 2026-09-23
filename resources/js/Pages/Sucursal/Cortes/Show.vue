@@ -112,13 +112,13 @@ const toneOf = (v) => verdictTone[v?.tone] ?? verdictTone.neutral;
     <Head title="Detalle de Corte" />
     <SucursalLayout>
         <template #header>
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2 text-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2 text-sm">
                     <Link :href="route('sucursal.cortes.index', tenant.slug)" class="text-gray-400 transition hover:text-gray-600">Cortes</Link>
                     <svg class="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                     <span class="font-bold text-gray-900">Corte de {{ shift.user?.name }}</span>
                 </div>
-                <div v-if="isAdmin" class="flex items-center gap-2">
+                <div v-if="isAdmin" class="flex shrink-0 items-center gap-2">
                     <button @click="recalculate" :disabled="recalculating"
                         class="rounded-lg bg-orange-100 px-3 py-1.5 text-xs font-semibold text-orange-700 transition hover:bg-orange-200 disabled:opacity-50">
                         {{ recalculating ? 'Recalculando...' : 'Recalcular totales' }}
