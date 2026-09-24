@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'tenant_id', 'type', 'title', 'body', 'scope', 'branch_id', 'user_id',
     'assigned_to_user_id', 'starts_at', 'ends_at', 'all_day', 'remind_at',
     'completed_at', 'priority', 'recurrence', 'recurrence_until',
-    'cancelled_at', 'cancel_reason', 'reminder_seen_at',
+    'cancelled_at', 'cancel_reason', 'reminder_seen_at', 'reminder_notified_at',
 ])]
 class AgendaItem extends Model
 {
@@ -40,6 +40,7 @@ class AgendaItem extends Model
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'reminder_seen_at' => 'datetime',
+            'reminder_notified_at' => 'datetime',
             'recurrence_until' => 'date',
             'all_day' => 'boolean',
         ];
