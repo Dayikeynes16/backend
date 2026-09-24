@@ -34,8 +34,19 @@ class DeviceRegistered extends Notification
         ];
     }
 
+    /**
+     * El `type` que viaja por el socket. Sin esto Laravel pone el nombre de la
+     * clase y el aviso en vivo no coincide con el guardado.
+     */
+    public function broadcastType(): string
+    {
+        return 'device.registered';
+    }
+
     public function toBroadcast(object $notifiable): BroadcastMessage
     {
-        return new BroadcastMessage($this->toArray($notifiable));
+        // Síncrono: BroadcastNotificationCreated es ShouldBroadcast (encolado) y
+        // producción no corre colas, así que sin esto el aviso no salía en vivo.
+        return (new BroadcastMessage($this->toArray($notifiable)))->onConnection('sync');
     }
 }

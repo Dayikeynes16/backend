@@ -150,15 +150,31 @@ class DeviceAlertService
         }
 
         try {
-            foreach ($this->recipients($device) as $user) {
-                $user->notify($notification);
-            }
+            $recipients = $this->recipients($device);
         } catch (Throwable $e) {
             Log::warning('No se pudo avisar sobre un equipo', [
                 'device_id' => $device->device_id,
                 'notification' => $notification::class,
                 'error' => $e->getMessage(),
             ]);
+
+            return;
+        }
+
+        // Guardia por destinatario, no alrededor del bucle: el broadcast es
+        // síncrono y un Reverb caído lanzaría en el primero, dejando a los
+        // demás sin fila con la marca del equipo ya puesta (sin reintento).
+        foreach ($recipients as $user) {
+            try {
+                $user->notify($notification);
+            } catch (Throwable $e) {
+                Log::warning('No se pudo avisar sobre un equipo', [
+                    'device_id' => $device->device_id,
+                    'notification' => $notification::class,
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
     }
 }
