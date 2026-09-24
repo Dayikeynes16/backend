@@ -1,8 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import AgendaBell from '@/Components/Agenda/AgendaBell.vue';
-import NotificationBell from '@/Components/NotificationBell.vue';
+import NotificationIsland from '@/Components/Notifications/NotificationIsland.vue';
 import VerifyEmailBanner from '@/Components/VerifyEmailBanner.vue';
 
 const page = usePage();
@@ -114,15 +113,16 @@ const isActive = (link) => {
         </aside>
 
         <div class="lg:pl-[264px]">
-            <header class="sticky top-0 z-30 flex min-h-16 items-center gap-4 border-b border-gray-200 bg-white px-5 py-2 lg:px-8">
+            <!-- `sticky` ya es contenedor posicionado: la isla centrada se ubica respecto de él. -->
+            <header data-island-header class="sticky top-0 z-30 flex min-h-16 items-center gap-4 border-b border-gray-200 bg-white px-5 py-2 lg:px-8">
                 <button @click="sidebarOpen = true" class="shrink-0 rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                 </button>
                 <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
-                    <div class="min-w-0 flex-1"><slot name="header" /></div>
+                    <div data-island-title class="min-w-0 flex-1"><slot name="header" /></div>
                     <div class="flex shrink-0 items-center gap-2">
-                        <NotificationBell />
-                        <AgendaBell />
+                        <!-- La isla de avisos va primera en el grupo: acoplada ocupa aquí su hueco; centrada, flota sobre el encabezado. -->
+                        <NotificationIsland />
                         <span class="hidden rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 xl:inline-flex">Admin Empresa</span>
                     </div>
                 </div>
