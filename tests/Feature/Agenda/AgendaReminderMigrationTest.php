@@ -49,4 +49,15 @@ class AgendaReminderMigrationTest extends TestCase
         $this->assertNull($marked($future));
         $this->assertNull($marked($none));
     }
+
+    public function test_the_pending_reminders_index_exists(): void
+    {
+        // El comando corre cada minuto: sin este índice la consulta recorrería
+        // toda la agenda.
+        $exists = \Illuminate\Support\Facades\DB::selectOne(
+            "SELECT 1 AS ok FROM pg_indexes WHERE tablename = 'agenda_items' AND indexname = 'agenda_items_pending_reminders_idx'"
+        );
+
+        $this->assertNotNull($exists);
+    }
 }
