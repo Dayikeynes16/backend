@@ -68,15 +68,17 @@ Uno solo, siempre del mismo tenant que el ítem. Vive en `AgendaReminderNotifier
 
 ### 3.4 Cerrar el aviso cuando el ítem se atiende
 
-Cuando un ítem se **completa, cancela, pospone, marca visto o borra** —desde la isla, la pantalla Agenda o el asistente—, se marcan como leídos los avisos `agenda.reminder.due` sin leer de ese ítem. Así, atenderlo en la pantalla Agenda apaga también la isla.
+Cuando un ítem se **completa, cancela, pospone, marca visto, borra o cambia de asignado** —todo pasa por `AgendaController`; el asistente sólo prellena el modal y guarda por `store()`—, se marcan como leídos los avisos `agenda.reminder.due` sin leer de ese ítem. Así, atenderlo en la pantalla Agenda apaga también la isla.
 
 - `notifications.data` es `text` en PostgreSQL (migración `2026_08_23_212248`): la consulta usa `whereRaw("(data::jsonb->>'item_id')::bigint = ?", [$item->id])` junto a `type = AgendaReminderDue::class`. `where('data->item_id', …)` no sirve sobre `text`.
 - **Posponer** y **editar `remind_at`** (en `AgendaController::update()`) limpian `reminder_notified_at` y `reminder_seen_at`, para que el comando vuelva a avisar al nuevo vencimiento.
+- **Cambiar el asignado** en `update()` hace lo mismo: cierra los avisos del ítem (el asignado anterior ya no puede actuar; sus botones darían 403) y limpia `reminder_notified_at` / `reminder_seen_at`, así el comando se lo avisa al nuevo si ya venció.
+- `update()` es un `PUT` que siempre valida `remind_at` y `assigned_to_user_id`: rearmar, cerrar y notificar la asignación sólo cuando el valor **cambió de verdad** (`wasChanged()` tras guardar), no porque venga en la petición.
 - **Recurrencia:** el clon que crea `complete()` excluye `reminder_notified_at` y `reminder_seen_at` del `replicate()`.
 
 ### 3.4 bis Reglas de fallo
 
-Toda llamada a `notify()` de avisos —las nuevas y las existentes (`SaleCancellationNotifier`, los avisos de equipos)— pasa por un guardia `try/catch` que registra y sigue, como `SaleCancellationNotifier::guard()` hoy. Con D7 el broadcast es síncrono y **puede lanzar**; sin guardia, un Reverb caído convertiría en 500 una acción ya guardada (la misma razón de `SafeBroadcast`). El plan revisa cada punto de envío.
+Toda llamada a `notify()` de avisos —las nuevas y las existentes (`SaleCancellationNotifier`, `DeviceAlertService`)— lleva su guardia `try/catch` que registra y sigue, **por destinatario, no alrededor del bucle**. Hoy los dos guardias envuelven el `foreach` entero, lo que era inocuo mientras el broadcast iba a la cola; con D7 el primer broadcast que falla cortaría el bucle y los siguientes destinatarios se quedarían **sin fila**, con la marca del equipo (`battery_alert_level`, `silent_alerted_at`, `outdated_alert_version`) ya puesta y sin reintento. Con D7 el broadcast es síncrono y **puede lanzar**; sin guardia, un Reverb caído convertiría en 500 una acción ya guardada (la misma razón de `SafeBroadcast`). El plan revisa cada punto de envío.
 
 ### 3.5 Las notificaciones existentes
 
@@ -100,12 +102,12 @@ Estados reposo / anunciando / bandeja, niveles (`action` se queda, `important` 6
 | `type` | Destino | Condición |
 |---|---|---|
 | `sale.cancellation.requested` | `sucursal.cancelaciones.index` | `admin-sucursal` |
-| `sale.cancellation.approved` / `rejected` | mesa de trabajo del rol (`caja.…` / `sucursal.…`; nombres exactos al planear) | — |
-| `device.*` | panel de equipos del rol | — |
+| `sale.cancellation.approved` / `rejected` | `caja.workbench` (cajero) / `sucursal.workbench` (admin-sucursal) | — |
+| `device.*` | `empresa.devices.index` / `sucursal.devices.index` / `caja.devices.index` según el rol | — |
 | `agenda.reminder.due`, `agenda.item.assigned` | `agenda.index` | — |
 | otro | sin destino («Entendido») | — |
 
-Mesa de trabajo: `caja.workbench` (cajero) / `sucursal.workbench` (admin-sucursal). Equipos: `empresa.devices.index` / `sucursal.devices.index` / `caja.devices.index`. **Sin `tenant_slug`** (el superadmin en `Profile/Edit` con `AuthenticatedLayout`): ningún aviso tiene destino y no se muestran las acciones de agenda.
+**Sin `tenant_slug`** (el superadmin en `Profile/Edit` con `AuthenticatedLayout`): ningún aviso tiene destino y no se muestran las acciones de agenda.
 
 - **Acciones del recordatorio:** en el anuncio y en la fila, tres botones — **Hecho** (`agenda.complete`), **+30 min** (`agenda.snooze`, `minutes: 30`), **Visto** (`agenda.visto`); por D8 quien recibe el aviso siempre puede usarlos — con `router.patch(..., { preserveScroll: true, preserveState: true })`. Tras cualquiera, la isla recoge el anuncio y relee la bandeja (el backend ya marcó leídos los avisos del ítem, §3.4). Tocar el cuerpo lleva a Agenda.
 - **Teléfono** (`< sm`): la isla va acoplada al grupo derecho siempre; anunciando y bandeja ocupan el ancho de la pantalla menos 16 px por lado; la bandeja con alto máximo `min(480px, 100dvh - 5rem)`.
@@ -115,12 +117,14 @@ Mesa de trabajo: `caja.workbench` (cajero) / `sucursal.workbench` (admin-sucursa
 
 - `resources/js/lib/notificationsCore.js` (puro; copia adaptada del hub) y `resources/js/lib/notificationRoutes.js`.
 - `resources/js/lib/chime.js`.
-- `resources/js/composables/useNotifications.js` — motor `createNotificationCenter(deps)` + singleton, mismas firmas que el hub más `ensureStarted(user)`; deps: `api` (fetch), `listenUser` (Echo), `chime`, `isLive`, `isWindowActive`, y sin `notifier` nativo (se pasa un doble vacío). El `user` que usa `routeFor` se arma con `page.props.auth.role` y `auth.user.id`.
+- `resources/js/composables/useNotifications.js` — motor `createNotificationCenter(deps)` + singleton, mismas firmas que el hub más `ensureStarted(user)`; deps: `api` (fetch), `listenUser` (Echo), `chime`, `isLive`, `isWindowActive`, y sin `notifier` nativo (se pasa un doble vacío). El `user` que usa `routeFor` se arma con `page.props.auth.role`, `auth.user.id` y `auth.tenant_slug` (nulo → sin destino).
 - `resources/js/Components/Notifications/NotificationIsland.vue` y `NotificationRow.vue`.
 - Se monta en `EmpresaLayout`, `SucursalLayout`, `CajeroLayout` y `AuthenticatedLayout`, donde hoy están las campanas.
 - **Se borran** `NotificationBell.vue`, `Agenda/AgendaBell.vue` y `composables/useUserNotifications.js`. `DeviceAlertStrip` se queda. El endpoint `agenda.notificaciones` se **retira** (su único consumidor era `AgendaBell`) junto con su método `notifications()` y sus casos en `tests/Feature/Agenda/AgendaNotificationsTest.php` (los de posponer, visto, cancelar e historial se conservan); `agenda.alerts` sigue para el widget.
 
 ## 5. Qué no hace
+
+- No añade timeout al cliente de Reverb. Con D7 hay más broadcasts síncronos, y un Reverb que cuelga (en vez de rechazar) sumaría latencia a cada envío; es la misma exposición que ya tiene `SafeBroadcast`. Se anota como riesgo en `avisos.md`.
 
 - No mete alertas calculadas ni tareas atrasadas en la isla (D2).
 - No añade notificación del sistema del navegador.
@@ -139,7 +143,9 @@ Sin cambios obligatorios: lee la misma bandeja, así que los avisos de agenda le
 - Destinatario: el asignado si lo hay; si no, el creador. Nunca un usuario de otro tenant.
 - Completar, cancelar, posponer, marcar visto y borrar marcan leídos los avisos de ese ítem y no tocan avisos de otros ítems (con la consulta `jsonb` sobre PostgreSQL).
 - La migración marca como avisados los recordatorios de hace más de 24 h y deja los recientes.
-- Asignar (al crear y al reasignar) crea `AgendaItemAssignedNotice` para el asignado y no para quien asigna.
+- Asignar (al crear y al reasignar) crea `AgendaItemAssignedNotice` para el asignado y no para quien asigna; un `PUT` que no cambia el asignado ni `remind_at` no notifica ni rearma.
+- Reasignar un ítem con recordatorio ya avisado cierra el aviso del anterior y el comando se lo avisa al nuevo.
+- Varios destinatarios con el broadcast fallando (cancelación a varios admins, avisos de equipo): **todos** reciben su fila.
 - Cada notificación: `broadcastType()` coincide con `toArray()['type']` y `toBroadcast()` va por `sync`.
 - Un broadcast que falla no rompe la petición que lo dispara (cancelación, latido de equipo) y la fila queda guardada.
 - `Route::has('agenda.notificaciones')` es falso; `agenda.alerts` sigue respondiendo.
