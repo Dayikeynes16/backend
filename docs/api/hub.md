@@ -395,7 +395,7 @@ La columna `api_keys.device_id` es **nullable**: las llaves que ya existen no pe
 | PATCH | `notifications/{id}/read` | ambos | Marca uno como leído; devuelve el contador ya bajado |
 | PATCH | `notifications/read-all` | ambos | Apaga la insignia entera |
 
-Es **el mismo `NotificationController` que la campana de la web**, sin una copia para el hub. Puede serlo porque sólo toca `$request->user()->notifications()`, que ya está acotado por `notifiable_id`: no hay tenant que resolver ni sucursal que comprobar, y un token de cajero no alcanza los avisos de su administrador (`404`). Añadido el 2026-09-20.
+Es **el mismo `NotificationController` que la isla de avisos de la web**, sin una copia para el hub. Puede serlo porque sólo toca `$request->user()->notifications()`, que ya está acotado por `notifiable_id`: no hay tenant que resolver ni sucursal que comprobar, y un token de cajero no alcanza los avisos de su administrador (`404`). Añadido el 2026-09-20.
 
 Sin estas rutas, un cajero solicitaba una cancelación desde la tablet y el administrador no se enteraba hasta abrir un navegador. El aviso ya se creaba —`SaleCancellationNotifier` es el mismo para los cinco puntos de entrada—, pero no había por dónde leerlo. Módulo: [avisos.md](../modulos/avisos.md).
 

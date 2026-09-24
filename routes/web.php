@@ -701,7 +701,6 @@ Route::prefix('{tenant}')
                 Route::delete('{item}', [AgendaController::class, 'destroy'])->name('destroy');
                 Route::get('{item}/ics', [AgendaController::class, 'ics'])->name('ics');
                 Route::get('completadas', [AgendaController::class, 'completed'])->name('completadas');
-                Route::get('notificaciones', [AgendaController::class, 'notifications'])->name('notificaciones');
                 Route::patch('{item}/cancelar', [AgendaController::class, 'cancel'])->name('cancel');
                 Route::patch('{item}/posponer', [AgendaController::class, 'snooze'])->name('snooze');
                 Route::patch('{item}/visto', [AgendaController::class, 'markReminderSeen'])->name('visto');

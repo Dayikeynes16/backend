@@ -61,7 +61,9 @@ class SaleCancellationNotifier
             }
 
             foreach ($admins as $admin) {
-                $admin->notify(new SaleCancellationRequested($sale, $requestedBy->name, $reason));
+                // Guardia por destinatario: con el broadcast síncrono, un Reverb
+                // caído lanzaría en el primero y los demás se quedarían sin fila.
+                $this->guard(fn () => $admin->notify(new SaleCancellationRequested($sale, $requestedBy->name, $reason)), 'requested', $sale);
             }
         }, 'requested', $sale);
     }

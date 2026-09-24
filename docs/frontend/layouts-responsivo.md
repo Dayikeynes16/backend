@@ -12,7 +12,7 @@ vuelva a pasar.
   La tablet recibe el diseño de escritorio sin tener su espacio.
 - En `lg:` aparece la barra lateral de 264px. Un iPad horizontal (1024px) deja
   **~696px** de contenido: menos que un iPad vertical sin barra lateral.
-- El encabezado global comparte fila con nota rápida, campanas y chip de rol
+- El encabezado global comparte fila con nota rápida, avisos y chip de rol
   (~240px). A la página le quedan **~450px** en tablet.
 
 ## El encabezado global (`Layouts/*Layout.vue`)
@@ -25,6 +25,13 @@ Los cuatro layouts (Admin, Empresa, Sucursal, Cajero) comparten la misma forma:
   íconos de la derecha llevan `shrink-0` y no se aplastan.
 - El chip del rol solo aparece desde `xl:` (1280px): en tablet se cede ese
   espacio a la página.
+- La isla de avisos (`Components/Notifications/NotificationIsland.vue`, desde
+  2026-09-24, sustituye a las dos campanas) va como primer hijo del grupo de la
+  derecha. El layout marca el encabezado con `data-island-header` (y
+  `relative`) y el contenedor del slot con `data-island-title`: la isla mide con
+  esos atributos si cabe centrada o se acopla dentro del grupo derecho. Un
+  layout nuevo que los omita la deja siempre acoplada. Ver
+  [avisos](../modulos/avisos.md#la-isla-en-la-web).
 
 ### Reglas para el slot `#header`
 

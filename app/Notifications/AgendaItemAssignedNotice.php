@@ -2,17 +2,21 @@
 
 namespace App\Notifications;
 
-use App\Models\Device;
+use App\Models\AgendaItem;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-/** Un equipo nuevo se presentó por primera vez. Persistente: si nadie estaba mirando, lo encuentra al entrar. */
-class DeviceRegistered extends Notification
+/**
+ * Alguien le asignó una tarea de agenda a este usuario. Sustituye al evento
+ * `AgendaItemAssigned`, que se emitía y nadie escuchaba: como aviso guardado,
+ * llega en vivo y además queda en la bandeja si no estaba conectado.
+ */
+class AgendaItemAssignedNotice extends Notification
 {
     use Queueable;
 
-    public function __construct(public Device $device) {}
+    public function __construct(public AgendaItem $item, public string $assignedBy) {}
 
     /** @return array<int, string> */
     public function via(object $notifiable): array
@@ -24,13 +28,12 @@ class DeviceRegistered extends Notification
     public function toArray(object $notifiable): array
     {
         return [
-            'type' => 'device.registered',
+            'type' => 'agenda.item.assigned',
             'level' => 'important',
-            'title' => 'Equipo nuevo',
-            'body' => "Un equipo nuevo reporta en {$this->device->branch->name}: {$this->device->displayName()} ({$this->device->kindLabel()}, {$this->device->app_version}).",
-            'device_id' => $this->device->device_id,
-            'branch_id' => $this->device->branch_id,
-            'name' => $this->device->displayName(),
+            'title' => 'Te asignaron una tarea',
+            'body' => "{$this->assignedBy}: {$this->item->title}",
+            'item_id' => $this->item->id,
+            'assigned_by' => $this->assignedBy,
         ];
     }
 
@@ -40,7 +43,7 @@ class DeviceRegistered extends Notification
      */
     public function broadcastType(): string
     {
-        return 'device.registered';
+        return 'agenda.item.assigned';
     }
 
     public function toBroadcast(object $notifiable): BroadcastMessage

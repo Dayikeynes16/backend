@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\CheckDevicesCommand;
+use App\Console\Commands\DispatchAgendaRemindersCommand;
 use App\Console\Commands\ExpireAiDraftsCommand;
 use App\Console\Commands\SyncDeviceReleasesCommand;
 use App\Http\Middleware\AuthenticateApiKey;
@@ -43,6 +44,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // la última versión publicada por tipo, cada hora.
         $schedule->command(CheckDevicesCommand::class)->everyFiveMinutes();
         $schedule->command(SyncDeviceReleasesCommand::class)->hourly();
+
+        // Isla de avisos (2026-09-24): recordatorios de agenda vencidos. Cada
+        // minuto para que el aviso llegue a su hora; sin solapes por si una
+        // ejecución se alarga.
+        $schedule->command(DispatchAgendaRemindersCommand::class)->everyMinute()->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [

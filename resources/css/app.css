@@ -7,3 +7,57 @@
     .print\:block { display: block !important; }
     @page { margin: 0; size: auto; }
 }
+
+/*
+ * Isla de avisos (copia del hub, `src/renderer/app.css`). El latido marca que
+ * llegó un `info` sin interrumpir; el pulso acompaña al punto rojo mientras haya
+ * un `action` sin atender. Los dos animan sólo transform y opacity.
+ */
+@keyframes island-beat {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+    40% {
+        transform: scale(1.12);
+    }
+}
+
+.island-beat {
+    animation: island-beat 400ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@keyframes island-ping {
+    0% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(2.6);
+        opacity: 0;
+    }
+}
+
+.island-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: inherit;
+    animation: island-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/*
+ * «Reducir movimiento». El hub lo resuelve con una regla global; la web no la
+ * tiene y no se añade aquí (cambiaría todas las pantallas), así que se limita a
+ * la isla: los cambios ocurren, sólo que instantáneos, y el punto queda fijo.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .island-box,
+    .island-box *,
+    .island-dot::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+    }
+}

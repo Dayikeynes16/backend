@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Agenda;
 
 use App\Enums\AgendaRecurrence;
-use App\Events\AgendaItemAssigned;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Agenda\StoreAgendaItemRequest;
 use App\Http\Requests\Agenda\UpdateAgendaItemRequest;
@@ -12,8 +11,8 @@ use App\Models\Branch;
 use App\Models\User;
 use App\Services\Agenda\AgendaAlertService;
 use App\Services\Agenda\AgendaCalendarService;
+use App\Services\Agenda\AgendaReminderNotifier;
 use App\Services\Agenda\IcsBuilder;
-use App\Support\SafeBroadcast;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -108,7 +107,7 @@ class AgendaController extends Controller
         return response()->json(['alerts' => $alerts->for(Auth::user())]);
     }
 
-    public function store(StoreAgendaItemRequest $request): RedirectResponse
+    public function store(StoreAgendaItemRequest $request, AgendaReminderNotifier $reminders): RedirectResponse
     {
         $user = Auth::user();
         $data = $request->validated();
@@ -122,18 +121,13 @@ class AgendaController extends Controller
 
         $item = AgendaItem::create($data);
 
-        if ($item->assigned_to_user_id && $item->assigned_to_user_id !== $user->id) {
-            SafeBroadcast::dispatch(
-                fn () => AgendaItemAssigned::dispatch($item, $item->assigned_to_user_id),
-                'AgendaItemAssigned',
-                ['agenda_item_id' => $item->id],
-            );
-        }
+        // Aviso guardado (isla) al asignado; nunca a quien se la asigna a sí mismo.
+        $reminders->assigned($item, $user);
 
         return back()->with('success', 'Agregado a la agenda.');
     }
 
-    public function update(UpdateAgendaItemRequest $request, AgendaItem $item): RedirectResponse
+    public function update(UpdateAgendaItemRequest $request, AgendaItem $item, AgendaReminderNotifier $reminders): RedirectResponse
     {
         $user = Auth::user();
         $data = $request->validated();
@@ -143,16 +137,36 @@ class AgendaController extends Controller
             $data['branch_id'] = $user->branch_id;
         }
 
+        $remindBefore = $item->remind_at?->format('Y-m-d H:i');
+
         $item->update($data);
+
+        // PUT siempre trae los campos: sólo cuenta lo que cambió de verdad. La
+        // hora se compara al minuto porque el modal (datetime-local) la manda
+        // sin segundos y un posponer la dejó con ellos: guardar el título no
+        // debe reavisar un recordatorio que no se movió.
+        $reassigned = $item->wasChanged('assigned_to_user_id');
+        $rescheduled = $remindBefore !== $item->remind_at?->format('Y-m-d H:i');
+
+        if ($reassigned || $rescheduled) {
+            // El aviso viejo ya no vale (otra hora, u otro destinatario al que
+            // sus botones darían 403); el comando avisará de nuevo si toca.
+            $reminders->close($item);
+            $reminders->rearm($item);
+        }
+        if ($reassigned) {
+            $reminders->assigned($item, $user);
+        }
 
         return back()->with('success', 'Actualizado.');
     }
 
-    public function complete(AgendaItem $item): RedirectResponse
+    public function complete(AgendaItem $item, AgendaReminderNotifier $reminders): RedirectResponse
     {
         $this->authorize('complete', $item);
 
         $item->update(['completed_at' => now()]);
+        $reminders->close($item);
 
         // Recurrencia: genera la siguiente ocurrencia viva.
         $recurrence = $item->recurrence ?? AgendaRecurrence::None;
@@ -160,7 +174,9 @@ class AgendaController extends Controller
             $next = $recurrence->advance($item->starts_at);
             $until = $item->recurrence_until?->copy()->endOfDay();
             if (! $until || $next->lte($until)) {
-                $clone = $item->replicate(['completed_at']);
+                // La siguiente ocurrencia nace sin avisar ni ver: su recordatorio
+                // es otro y el comando debe avisarlo a su hora.
+                $clone = $item->replicate(['completed_at', 'reminder_notified_at', 'reminder_seen_at']);
                 $clone->completed_at = null;
                 $clone->starts_at = $next;
                 if ($item->remind_at && $item->starts_at) {
@@ -174,10 +190,11 @@ class AgendaController extends Controller
         return back()->with('success', 'Marcado como hecho.');
     }
 
-    public function destroy(AgendaItem $item): RedirectResponse
+    public function destroy(AgendaItem $item, AgendaReminderNotifier $reminders): RedirectResponse
     {
         $this->authorize('delete', $item);
         $item->delete();
+        $reminders->close($item);
 
         return back()->with('success', 'Eliminado.');
     }
@@ -193,7 +210,7 @@ class AgendaController extends Controller
         ]);
     }
 
-    public function cancel(Request $request, AgendaItem $item): RedirectResponse
+    public function cancel(Request $request, AgendaItem $item, AgendaReminderNotifier $reminders): RedirectResponse
     {
         $this->authorize('cancel', $item);
         $validated = $request->validate(['cancel_reason' => 'nullable|string|max:255']);
@@ -201,26 +218,30 @@ class AgendaController extends Controller
             'cancelled_at' => now(),
             'cancel_reason' => $validated['cancel_reason'] ?? null,
         ]);
+        $reminders->close($item);
 
         return back()->with('success', 'Tarea cancelada.');
     }
 
-    public function snooze(Request $request, AgendaItem $item): RedirectResponse
+    public function snooze(Request $request, AgendaItem $item, AgendaReminderNotifier $reminders): RedirectResponse
     {
         $this->authorize('complete', $item);
         $validated = $request->validate(['minutes' => 'required|integer|min:1|max:10080']);
-        $item->update([
-            'remind_at' => now()->addMinutes($validated['minutes']),
-            'reminder_seen_at' => null,
-        ]);
+        $item->update(['remind_at' => now()->addMinutes($validated['minutes'])]);
+
+        // El aviso de ahora se apaga y el comando vuelve a avisar a la nueva
+        // hora (rearm también limpia reminder_seen_at).
+        $reminders->close($item);
+        $reminders->rearm($item);
 
         return back()->with('success', 'Recordatorio pospuesto.');
     }
 
-    public function markReminderSeen(AgendaItem $item): RedirectResponse
+    public function markReminderSeen(AgendaItem $item, AgendaReminderNotifier $reminders): RedirectResponse
     {
         $this->authorize('view', $item);
         $item->update(['reminder_seen_at' => now()]);
+        $reminders->close($item);
 
         return back();
     }
@@ -234,39 +255,6 @@ class AgendaController extends Controller
             ->paginate(30);
 
         return response()->json(['items' => $items]);
-    }
-
-    public function notifications(AgendaAlertService $alerts): JsonResponse
-    {
-        $user = Auth::user();
-
-        $due = AgendaItem::visibleTo($user)->active()
-            ->whereNotNull('remind_at')->where('remind_at', '<=', now())
-            ->whereNull('reminder_seen_at')
-            ->orderBy('remind_at')->limit(20)->get();
-
-        $overdue = AgendaItem::visibleTo($user)->overdue()
-            ->orderBy('starts_at')->limit(10)->get();
-
-        $financial = $alerts->for($user);
-
-        $map = fn ($i) => [
-            'id' => $i->id, 'title' => $i->title, 'type' => $i->type->value,
-            'starts_at' => optional($i->starts_at)->toIso8601String(),
-            'remind_at' => optional($i->remind_at)->toIso8601String(),
-        ];
-
-        return response()->json([
-            'due_reminders' => $due->map($map)->values(),
-            'overdue' => $overdue->map($map)->values(),
-            'alerts' => $financial,
-            'counts' => [
-                'due_reminders' => $due->count(),
-                'overdue' => $overdue->count(),
-                'alerts' => count($financial),
-                'total' => $due->count() + $overdue->count() + count($financial),
-            ],
-        ]);
     }
 
     /** @return array<int, array{id:int,name:string}> */

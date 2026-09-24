@@ -26,21 +26,6 @@ class AgendaNotificationsTest extends TestCase
         ], $attrs));
     }
 
-    public function test_notifications_lists_due_reminders_and_overdue(): void
-    {
-        $this->make(['remind_at' => now()->subMinute()]);          // due reminder
-        $this->make(['starts_at' => now()->subDay()]);             // overdue
-        $this->make(['starts_at' => now()->addDay()]);             // pending (no aparece)
-        $this->make(['remind_at' => now()->subMinute(), 'reminder_seen_at' => now()]); // ya visto
-
-        $res = $this->actingAs($this->cajero)
-            ->getJson(route('agenda.notificaciones', $this->tenant->slug));
-
-        $res->assertOk();
-        $res->assertJsonPath('counts.due_reminders', 1);
-        $res->assertJsonPath('counts.overdue', 1);
-    }
-
     public function test_cancel_sets_reason_and_excludes_from_active(): void
     {
         $item = $this->make(['starts_at' => now()->addDay()]);
