@@ -15,6 +15,19 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            // Tokens de movimiento de la isla de avisos, los mismos del hub
+            // (`carniceria-hub/tailwind.config.js`). Sin tocar `DEFAULT`: el
+            // resto de la web conserva sus transiciones de siempre.
+            transitionDuration: {
+                fast: '120ms',
+                normal: '180ms',
+                slow: '240ms',
+            },
+            transitionTimingFunction: {
+                enter: 'cubic-bezier(0.25, 1, 0.5, 1)',
+                exit: 'cubic-bezier(0.5, 0, 0.75, 0)',
+                state: 'cubic-bezier(0.4, 0, 0.2, 1)',
+            },
         },
     },
 

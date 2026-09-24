@@ -1,8 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import AgendaBell from '@/Components/Agenda/AgendaBell.vue';
-import NotificationBell from '@/Components/NotificationBell.vue';
+import NotificationIsland from '@/Components/Notifications/NotificationIsland.vue';
 import NotaRapidaModal from '@/Components/NotaRapida/NotaRapidaModal.vue';
 import VerifyEmailBanner from '@/Components/VerifyEmailBanner.vue';
 import DeviceAlertStrip from '@/Components/Devices/DeviceAlertStrip.vue';
@@ -136,19 +135,19 @@ const iconPaths = {
                  así la franja queda siempre debajo del encabezado al hacer scroll,
                  sin importar la altura de este (h-16 aquí, h-14 en CajeroLayout). -->
             <div class="sticky top-0 z-30">
-                <header class="flex min-h-16 items-center gap-4 border-b border-gray-200 bg-white px-5 py-2 lg:px-8">
+                <header data-island-header class="relative flex min-h-16 items-center gap-4 border-b border-gray-200 bg-white px-5 py-2 lg:px-8">
                     <button @click="sidebarOpen = true" class="shrink-0 rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                     </button>
                     <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
-                        <div class="min-w-0 flex-1"><slot name="header" /></div>
+                        <div data-island-title class="min-w-0 flex-1"><slot name="header" /></div>
                         <div class="flex shrink-0 items-center gap-2">
+                            <!-- La isla de avisos va primera en el grupo: acoplada ocupa aquí su hueco; centrada, flota sobre el encabezado. -->
+                            <NotificationIsland />
                             <button type="button" @click="notaRapidaOpen = true" title="Nota rápida"
                                 class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                             </button>
-                            <NotificationBell />
-                            <AgendaBell />
                             <span class="hidden rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 xl:inline-flex">Admin Sucursal</span>
                         </div>
                     </div>
