@@ -26,13 +26,12 @@ Laravel Reverb da los WebSockets del sistema. Es lo que hace que la venta aparez
 
 ## Canales
 
-Los tres se declaran en `routes/channels.php`.
+Los dos se declaran en `routes/channels.php`.
 
 | Canal | Quién puede suscribirse | Para qué |
 |-------|-------------------------|----------|
 | `sucursal.{branchId}` | Usuarios cuyo `branch_id` coincide | Todo el movimiento de ventas y turnos de esa sucursal |
-| `agenda.user.{userId}` | El propio usuario | Pendientes que le asignan |
-| `App.Models.User.{id}` | El propio usuario | Avisos personales (notificaciones de Laravel) |
+| `App.Models.User.{id}` | El propio usuario | Avisos personales (notificaciones de Laravel). Lo escuchan la isla de la web y la del hub |
 
 ```php
 // El guard por defecto de la ruta decide: 'web' en la app Inertia,
@@ -45,11 +44,13 @@ Broadcast::channel('sucursal.{branchId}', function ($user, $branchId) {
 
 > **El aislamiento entre empresas se apoya en que `branches.id` es único global.** El canal no lleva `tenant_id`: dos empresas no pueden colisionar porque no comparten ids de sucursal. Es correcto, pero es una invariante implícita — si algún día las sucursales pasan a numerarse por empresa, este canal se rompe en silencio.
 
+> El canal `agenda.user.{userId}` se retiró el 2026-09-24 junto con el evento `AgendaItemAssigned`, que nadie escuchaba: la asignación de tareas es ahora un aviso por `App.Models.User.{id}`.
+
 > **El admin-empresa no tiene `branch_id`**, así que no puede suscribirse a ningún canal de sucursal. Cualquier tiempo real para el nivel empresa exigiría un canal nuevo (`empresa.{tenantId}`), que hoy no existe a propósito.
 
 Para el hub hay dos endpoints propios: `GET /api/v1/hub/realtime/config` le entrega los parámetros de conexión, y `POST /api/v1/hub/realtime/auth` autoriza la suscripción con el token Sanctum. Ver [api/hub.md](../api/hub.md).
 
-## Los siete eventos
+## Los seis eventos
 
 Todos implementan `ShouldBroadcastNow` y viven en `app/Events/`.
 
@@ -96,18 +97,11 @@ El turno de caja se abrió, se cerró, o entró o salió un retiro.
 
 > Lo que mueve el esperado en caja minuto a minuto son los cobros, y ésos ya emiten `SaleUpdated`. El panel de turno escucha los dos; no hacía falta un evento por cobro.
 
-### `AgendaItemAssigned` → `agenda.user.{userId}`
-
-A un usuario le asignaron un pendiente.
-
-**Carga:** `{ id, title, type }`.
-**Lo dispara:** `Agenda\AgendaController`.
-
-> ⚠️ **Se emite pero nadie lo escucha.** Ningún cliente se suscribe a `agenda.user.{userId}`. Está pendiente decidir si se consume o se retira; mientras tanto es código que parece funcionalidad y no lo es.
-
 ### Notificaciones (`BroadcastNotificationCreated`) → `App.Models.User.{id}`
 
-Las notificaciones con canal `broadcast` viajan solas por este canal. Ver [modulos/avisos.md](../modulos/avisos.md).
+Las notificaciones con canal `broadcast` viajan solas por este canal: cancelaciones, equipos y, desde 2026-09-24, los recordatorios y asignaciones de la agenda. Ver [modulos/avisos.md](../modulos/avisos.md).
+
+> **Salen síncronas a propósito.** `BroadcastNotificationCreated` es `ShouldBroadcast` (encolado) y aquí no hay colas, así que cada notificación fija `toBroadcast()->onConnection('sync')`. Hasta el 2026-09-24 no lo hacía y ningún aviso llegaba en vivo. Como con `SafeBroadcast`, el envío síncrono puede lanzar: cada `notify()` lleva su guardia por destinatario. Cada una declara además `broadcastType()`, para que el `type` en vivo sea el mismo que el guardado.
 
 ## Resiliencia: el socket se cae
 
@@ -136,9 +130,9 @@ En la mesa de trabajo, tres consumidores escuchan el mismo canal a la vez: `useS
 
 ### Dónde falta envolver: se comprueba, no se confía
 
-`tests/Feature/BroadcastResilienceTest` sustituye el transporte por uno que siempre falla —un Reverb caído— y exige que la operación siga respondiendo bien: tomar y soltar el lock de una venta, asignar una tarea de agenda, y emparejar o desemparejar un pedido web. Es la red que atrapa un `dispatch()` suelto antes de que llegue al mostrador.
+`tests/Feature/BroadcastResilienceTest` sustituye el transporte por uno que siempre falla —un Reverb caído— y exige que la operación siga respondiendo bien: tomar y soltar el lock de una venta, asignar una tarea de agenda (hoy un aviso, con su propia guardia), y emparejar o desemparejar un pedido web. Es la red que atrapa un `dispatch()` suelto antes de que llegue al mostrador.
 
-> 2026-09-08: esos cinco caminos estaban sin envolver. Los dos de `OrderLinkService` además emitían **dentro** de la transacción, así que un fallo del transporte revertía un emparejamiento ya hecho y mantenía las filas bloqueadas durante la llamada HTTP; ahora se emiten después de confirmar. En agenda el evento ni siquiera lo consume nadie: se arriesgaba un 500 por un aviso que no escucha ningún cliente.
+> 2026-09-08: esos cinco caminos estaban sin envolver. Los dos de `OrderLinkService` además emitían **dentro** de la transacción, así que un fallo del transporte revertía un emparejamiento ya hecho y mantenía las filas bloqueadas durante la llamada HTTP; ahora se emiten después de confirmar. En agenda el evento ni siquiera lo consumía nadie: se arriesgaba un 500 por un aviso que no escuchaba ningún cliente (el evento se retiró el 2026-09-24).
 
 ### El emisor no recibe su propio eco
 
@@ -151,7 +145,7 @@ Los eventos de venta emitidos desde la web usan `SafeBroadcast::toOthers()`. Qui
 | `useSaleQueue` | `NewExternalSale` | Inserta la venta en la cola y suena el beep |
 | `useSaleLock` | `SaleLocked` · `SaleUnlocked` | Marca la venta como ocupada o libre |
 | `useBranchRealtime` (las dos mesas) | `SaleUpdated` · `CustomerGlobalPaymentChanged` | Recarga parcial de Inertia, agrupada |
-| `useUserNotifications` (la campana) | notificaciones | Añade el aviso y sube el contador |
+| `useNotifications` (la isla de avisos) | notificaciones de `App.Models.User.{id}` | Las trata como señal: relee `GET /avisos` y anuncia lo nuevo. Sondea 20 s / 4 s según el socket |
 | Hub `SalesView` | los cuatro de venta + `CustomerGlobalPaymentChanged` | Refresca la lista, agrupado |
 | Hub `ShiftView` | `ShiftUpdated` · `SaleUpdated` · `CustomerGlobalPaymentChanged` | Refresca el esperado, salvo si el cajero está capturando |
 
@@ -200,9 +194,9 @@ En desarrollo los valores de `APP_ID`/`KEY`/`SECRET` pueden ser cualquiera, pero
 - **Nada se persiste en el socket.** Quien estaba desconectado no recupera los eventos perdidos; su pantalla se pone al día leyendo por HTTP. Lo que no se puede perder va además a `notifications`.
 - **Una operación que cambia una venta y no emite `SaleUpdated`** deja al resto de las pantallas con datos obsoletos hasta el siguiente sondeo.
 - **El bloqueo de venta no es una garantía transaccional**, es un aviso cooperativo de 5 minutos: reduce colisiones, no las hace imposibles.
-- **`AgendaItemAssigned` no tiene consumidor** (ver arriba).
+- **Un Reverb que cuelga suma latencia.** Todos los envíos son síncronos (eventos y notificaciones): un Reverb caído que rechaza se absorbe con las guardias, pero uno que no responde retrasa la petición que emite. No hay timeout propio en el cliente.
 
 ## Tests
 
-- PHP: `tests/Feature/Api/SaleIdempotencyTest.php` (Reverb caído y reintentos), `tests/Feature/Ventas/CobroGlobalBroadcastTest.php`, `tests/Feature/Turnos/ShiftUpdatedBroadcastTest.php`, `tests/Feature/Sucursal/CancelacionAvisosTest.php`.
-- JS (`npm test`, vitest): `tests/js/realtimeState.test.js` (caída y recuperación del socket) y `tests/js/branchChannel.test.js` (canal compartido). En el hub, `test/realtimeState.test.js` y `test/realtimeChannelSharing.test.js`.
+- PHP: `tests/Feature/Api/SaleIdempotencyTest.php` (Reverb caído y reintentos), `tests/Feature/Ventas/CobroGlobalBroadcastTest.php`, `tests/Feature/Turnos/ShiftUpdatedBroadcastTest.php`, `tests/Feature/Sucursal/CancelacionAvisosTest.php`, `tests/Feature/Notifications/NotificationBroadcastTest.php` (notificaciones por `sync`, `broadcastType()` y guardia por destinatario).
+- JS (`npm test`, vitest): `tests/js/realtimeState.test.js` (caída y recuperación del socket) y `tests/js/branchChannel.test.js` (canal compartido) y `tests/js/useNotifications.test.js` (el motor de la isla). En el hub, `test/realtimeState.test.js` y `test/realtimeChannelSharing.test.js`.

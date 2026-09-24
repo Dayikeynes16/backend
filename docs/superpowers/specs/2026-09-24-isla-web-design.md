@@ -1,6 +1,6 @@
 # La isla en la web, y la agenda como fuente de avisos
 
-- **Estado:** Diseño aprobado (2026-09-24), pendiente de plan.
+- **Estado:** Implementado (2026-09-24, rama `feat/isla-web`). Doc vivo: [docs/modulos/avisos.md](../../modulos/avisos.md) (y [agenda.md](../../modulos/agenda.md)). Donde el código difiere de este spec, manda el código: el comando recorre con `lazyById`, `update()` compara `remind_at` al minuto, hay un índice parcial `agenda_items_pending_reminders_idx`, Tailwind escanea `resources/js/**/*.js` y la isla se acopla dentro del grupo derecho.
 - **Fecha:** 2026-09-24
 - **Repos afectados:** `carniceria-saas` (backend + frontend web). `carniceria-hub`: **sin cambios obligatorios** (§6). `bascula`, `bascula-android`, `hub-android`: sin cambios.
 - **Viene de:** la isla del hub (`carniceria-hub/docs/superpowers/specs/2026-09-23-avisos-isla-design.md`, PR hub#36). Este spec la lleva a la web con **las mismas reglas** y no las repite: donde dice «como en el hub», manda ese spec.
