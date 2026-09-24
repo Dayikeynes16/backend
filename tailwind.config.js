@@ -8,6 +8,8 @@ export default {
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
         './resources/js/**/*.vue',
+        // Clases que viven en JS (p. ej. LEVEL_STYLE de la isla de avisos).
+        './resources/js/**/*.js',
     ],
 
     theme: {
