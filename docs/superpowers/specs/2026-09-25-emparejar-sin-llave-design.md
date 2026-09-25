@@ -1,140 +1,137 @@
-# Emparejar una báscula con un hub que no tiene API Key
+# Emparejar una báscula con un hub Windows recién instalado
 
 - **Estado:** Diseño aprobado (2026-09-25), pendiente de plan.
 - **Fecha:** 2026-09-25
-- **Repos afectados:** `carniceria-saas` (backend, aditivo), `carniceria-hub`, `bascula-android`. `bascula` (Surface) y `hub-android`: sin cambios (§7).
+- **Repos afectados:** `carniceria-hub` (hub Windows) y `bascula-android`. **Backend: cero cambios** (lo que hace falta existe desde el 2026-09-21). `hub-android`: sin cambios — es la referencia. `bascula` (Surface): sin cambios.
 - **Viene de:** un reporte real del 2026-09-25. Se reinstaló una tablet y el hub Windows, se entró al hub **sólo como cajero**, se autorizó la báscula en el hub (que la mostró conectada) y la tablet dijo **«Error del servidor (503)»** y no se conectó.
 
 ---
 
 ## 1. Qué pasó
 
-1. El emparejamiento funciona: la báscula pide permiso, en el hub se autoriza y el hub le entrega su token (`GET /api/v1/pairing/{deviceId}`), **una sola vez** (`token_delivered_at`).
+1. El emparejamiento funciona: la báscula pide permiso, en el hub se autoriza y el hub le entrega su **token local** (`GET /api/v1/pairing/{deviceId}`), **una sola vez** (`token_delivered_at`).
 2. La báscula valida pidiendo la sucursal al hub (`GET /api/v1/branches/me`) **antes** de guardar el token (`SetupViewModel.saveHubAndEnter`).
-3. El hub sirve eso desde **su copia del catálogo**, y esa copia la baja de la nube **con la API Key de la sucursal** (`BackendClient.fetchCatalog`, `X-Api-Key`). Nunca con la sesión.
-4. Un hub recién instalado en el que sólo entró un cajero **no tiene API Key** (el campo vive en Configuración, sólo visible para admin-sucursal), así que no tiene catálogo y responde `503 «Hub sin catálogo…»` (`localApiServer.js`).
-5. La báscula convierte cualquier código que no sea 401/429 en «Error del servidor (503)» (`Api.kt`) y **descarta el token**. El hub la da por autorizada; ella ya no puede recuperarlo sin que la revoquen en el hub.
+3. El hub sirve eso desde **su copia del catálogo**, que baja de la nube **con su API Key** (`BackendClient.fetchCatalog`, `X-Api-Key`).
+4. Un hub recién instalado en el que sólo entró un cajero **no tiene API Key**, así que no tiene catálogo y responde `503 «Hub sin catálogo…»` (`localApiServer.js`).
+5. La báscula convierte ese 503 en «Error del servidor (503)» (`Api.kt`) y **descarta el token**. El hub la da por autorizada; ella ya no puede recuperarlo sin que la revoquen.
+
+Y una causa más de fondo: **el hub Windows se quedó atrás** en un cambio que el resto del ecosistema ya hizo el 2026-09-21:
+
+| Pieza | Estado |
+|---|---|
+| Backend `POST /api/v1/hub/devices/{deviceId}/api-key` — la llave **de un equipo**, la puede pedir **un cajero**, idempotente por equipo (rota la anterior) | ✅ `2e201b9`, documentado en `docs/api/hub.md` |
+| `hub-android`: al entrar alguien, pide **su propia** llave (`LlaveDeLaSucursal`); al **aprobar** una báscula pide **la de ella** y se la entrega con el token (`LlaveDeLaBascula`, `ServidorLocal`) | ✅ |
+| `bascula-android`: recibe `api_key` + `cloud_url` en el acuse del emparejamiento y los guarda como su credencial de nube | ✅ `a91eba9` |
+| **Hub Windows** | ❌ ni pide su llave ni la de las básculas |
+
+Consecuencias: el hub Windows sin admin nunca tiene catálogo (el 503), y ninguna báscula emparejada con él tiene **llave de nube propia**, así que si el hub se apaga no puede pasarse a la nube.
 
 Aparte, en la báscula «Desemparejar este hub» (`AdvancedSettingsScreen`) aparece aunque no haya ningún hub emparejado.
 
-## 2. Decisiones
+## 2. Dos llaves distintas
+
+| | Token local del hub | Llave de nube (API Key, `X-Api-Key`) |
+|---|---|---|
+| Lo emite | El hub, al autorizar | El backend |
+| Sirve para | Hablar **con el hub** por la LAN | Vender **directo a la nube** |
+| Se usa | Con el hub encendido | Si el hub se apaga (respaldo `CLOUD_FALLBACK`) |
+
+Este spec arregla las dos: que el token no se pierda y que la llave de nube llegue.
+
+## 3. Decisiones
 
 | # | Decisión | Por qué |
 |---|----------|---------|
-| D1 | **Sin API Key, el hub baja el catálogo con la sesión** abierta (cajero o admin-sucursal). | Reinstalar y entrar como cajero tiene que bastar para emparejar. Pedir un admin en cada reinstalación es justo lo que falló. |
-| D2 | **La API Key, si existe, manda.** | Funciona sin nadie con sesión (el hub arranca oculto con Windows). La sesión es el respaldo, no al revés. |
-| D3 | **El backend expone los mismos controladores de catálogo bajo la API del hub** (`/api/v1/hub/catalog/*`), no unos nuevos. | La respuesta es idéntica byte a byte a la Scale API: el hub la guarda y la sirve a las básculas sin traducir. Dos formatos se desincronizan. |
-| D4 | **La báscula guarda el token en cuanto lo recibe**, antes de validar. | El token se entrega una sola vez. Validar primero y descartarlo si falla deja a la báscula huérfana por un problema que no es suyo. |
-| D5 | **«Hub sin catálogo» no es un fallo de emparejamiento**: la báscula queda emparejada, lo dice claro y reintenta sola. | Es un estado transitorio del hub, no un rechazo. |
-| D6 | **La báscula muestra el mensaje del hub**, no «Error del servidor (N)». | El hub ya decía qué pasaba; la báscula lo tapaba. |
-| D7 | **«Desemparejar este hub» sólo si hay un hub emparejado.** | Un botón que no aplica confunde. |
+| D1 | **El hub Windows hace lo mismo que `hub-android`**: su propia llave al iniciar sesión, y la de cada báscula al aprobarla. | Ya está diseñado, probado y en producción del lado de `hub-android`, backend y báscula. La regla del ecosistema: un cambio de protocolo se hace en los dos hubs. |
+| D2 | **Cualquiera de los dos roles** del hub (cajero o admin-sucursal) consigue las llaves. | El backend ya lo permite para llaves **de equipo**: acotadas a una tablet y revocables con ella. Un hub con sólo cajeros tiene que poder trabajar. |
+| D3 | La llave de una báscula se pide **al aprobar**, no al solicitar. | Si no, cualquiera en la red podría hacer que se emitan llaves. |
+| D4 | La llave de la báscula se entrega **una vez**, con el token, y **se borra del hub** al entregarla. | Igual que el token: el `raw_key` no debe quedar escrito más de lo necesario. |
+| D5 | Que falle la llave **no rompe el emparejamiento**: la báscula queda emparejada con su token y sin respaldo, y el hub lo dice. | Emparejar es lo importante; la llave es el respaldo. |
+| D6 | **La báscula guarda el token en cuanto lo recibe**, antes de validar. | Se entrega una sola vez. |
+| D7 | «Hub sin catálogo» **no es un fallo de emparejamiento**; la báscula muestra **el mensaje del hub**. | Es transitorio, y el hub ya decía qué pasaba. |
+| D8 | «Desemparejar este hub» **sólo si hay un hub emparejado**. | Un botón que no aplica confunde. |
 
-## 3. Backend (aditivo)
+## 4. Hub Windows
 
-- Rutas nuevas dentro del grupo `Route::prefix('v1/hub')->middleware(['auth:sanctum', 'hub.role'])`:
+### 4.1 Su propia llave (port de `LlaveDeLaSucursal`)
 
-  | Método | Ruta | Controlador | Nombre |
-  |---|---|---|---|
-  | GET | `catalog/branch` | `Api\BranchController@me` | `api.hub.catalog.branch` |
-  | GET | `catalog/categories` | `Api\CategoryController@index` | `api.hub.catalog.categories` |
-  | GET | `catalog/products` | `Api\ProductController@index` | `api.hub.catalog.products` |
+- Tras un **login correcto** (y al restaurar sesión al arrancar), si `config.apiKey` está vacío: `POST /api/v1/hub/devices/{hubId}/api-key` con `{ name: hubName }` usando la sesión (API del hub, Bearer).
+  - `201` con `raw_key` → `config.set('apiKey', raw_key)` y `refresher.refresh()` en el momento (el catálogo llega en segundos).
+  - `403` → no reintenta (nube vieja); `401`/red/otro → reintenta en el siguiente login o arranque, no en bucle.
+  - Si ya hay llave, **no** se pide (rotarla dejaría fuera a quien la esté usando).
+- `hubId` es el identificador que el hub ya anuncia (`hub.id`, el mismo de `/branches/me` y mDNS). Pieza nueva: `src/main/sync/ownApiKey.js` (lógica pura con el cliente inyectado, testeable), cableada en el flujo de login de `index.js`/`ipc.js`.
+- Configuración (admin) sigue permitiendo pegar una llave a mano; si alguien la pega, manda.
 
-  con un middleware nuevo **`hub.catalog`** (`App\Http\Middleware\HubCatalogContext`) sólo en esas tres.
-- `HubCatalogContext` hace, desde el usuario del token, lo mismo que `AuthenticateApiKey` hace desde la llave: resuelve su `Branch` (`withoutGlobalScope(TenantScope::class)` + `where('tenant_id', $user->tenant_id)`), comprueba sucursal y empresa activas (si no, 403 con el mismo mensaje), enlaza `app()->instance('tenant', $tenant)` y hace `$request->merge(['branch_id' => …, 'tenant_id' => …])` con las mismas claves que los controladores leen hoy. Usuario sin `branch_id` → 403.
-- **Sin rate limit por API Key** (no hay llave); aplica el throttle normal del grupo del hub.
-- La Scale API (`/api/v1/branches/me`, `categories`, `products`) **no cambia**.
-- Docs: `docs/api/hub.md` (sección nueva «Catálogo») y `docs/arquitectura/ecosistema.md` (el hub puede alimentar su catálogo por cualquiera de las dos superficies).
+### 4.2 La llave de cada báscula (port de `LlaveDeLaBascula` + `ServidorLocal`)
 
-## 4. Hub
+- Columna nueva **`api_key`** (nullable) en la tabla local de dispositivos del hub (migración de SQLite como las existentes).
+- **Al aprobar** una báscula (`hub:devices:approve`), tras marcarla aprobada: `POST /api/v1/hub/devices/{deviceId}/api-key` con `{ name: <nombre de la báscula> }` usando la sesión.
+  - `raw_key` → se guarda en `api_key` de esa fila.
+  - Falla → la aprobación **sigue valiendo**; el IPC devuelve el motivo (`«Hace falta una sesión abierta en el hub para darle llave propia.»`, `«No se pudo hablar con la nube.»`, `«La nube no devolvió ninguna llave.»`) y Básculas lo muestra en la fila («Sin respaldo en la nube: …») con **Reintentar** (vuelve a pedirla mientras el token no se haya entregado; si ya se entregó, reintentar exige re-emparejar y se dice así).
+- **Al entregar el token** (`GET /api/v1/pairing/{deviceId}`, rama `approved && !token_delivered_at`): la respuesta añade **`api_key`** y **`cloud_url`** (= `config.backendUrl`) **sólo si hay llave**; después se marca entregado y se **borra** `api_key` de la fila. Campos **aditivos**: una báscula vieja los ignora.
+- **Revocar** una báscula en el hub no llama a la nube (igual que `hub-android`): la llave de nube de esa tablet se revoca desde la web (Sucursal → API Keys, aparece con el nombre del equipo). Se dice en el diálogo de revocar.
 
-### 4.1 De dónde sale el catálogo
+### 4.3 Mientras no haya catálogo
 
-`BackendClient.fetchCatalog()` elige la credencial:
-
-1. **API Key** configurada → como hoy (`X-Api-Key`, rutas de la Scale API).
-2. Si no, **token de sesión** (el del cajero/admin que entró) → `Authorization: Bearer`, rutas `/api/v1/hub/catalog/{branch,categories,products}` (misma paginación que `products`).
-3. Si no hay ninguna → no pide nada y conserva lo último (como hoy sin backend).
-
-`fetchCatalog()` devuelve además con qué se pidió (`via: 'apikey' | 'session' | null`) para que Dispositivo lo diga. El token se lee en cada intento (mismo criterio que las demás llamadas: puede aparecer o caducar con el hub abierto). Un 401 por sesión no borra el catálogo.
-
-### 4.2 Cuándo se refresca
-
-Además del intervalo y de los disparadores actuales: **al iniciar sesión** (login correcto) se llama a `refresher.refresh()` en el momento, sin esperar el siguiente ciclo. Así reinstalar + entrar deja el catálogo listo en segundos.
-
-### 4.3 Decirlo
-
-- Mientras **no haya catálogo** (`catalog.get('branch')` vacío), franja en **Inicio** y en **Básculas**: «Este hub todavía no tiene el catálogo de la sucursal: las básculas no pueden vender. Necesita internet y una sesión abierta (o la API Key en Configuración).» con botón **Reintentar** (`refreshCatalog`). Sólo el texto de la API Key se omite para el cajero.
-- **Dispositivo** dice de dónde salió el último catálogo: «con la API Key» / «con la sesión de {nombre}».
-
-### 4.4 El 503 dice qué es
-
-Los dos `503` de `localApiServer.js` (catálogo y `branches/me`) añaden `code: 'no_catalog'` al cuerpo (**aditivo**; el `message` se conserva). Aplica a `hub-android` sólo si se quiere paridad de mensaje; no cambia `protocol_version` (§7).
+- Franja en **Inicio** y **Básculas** mientras `catalog.get('branch')` esté vacío: «Este hub todavía no tiene el catálogo de la sucursal: las básculas no pueden vender. Necesita internet y una sesión abierta.» con **Reintentar** (pide la llave propia si falta y refresca el catálogo).
+- Los dos `503` de `localApiServer.js` añaden **`code: 'no_catalog'`** al cuerpo (aditivo; el `message` se conserva).
 
 ## 5. Báscula Android
 
 ### 5.1 El token no se pierde
 
-En `SetupViewModel.saveHubAndEnter`, al recibir `PairingOutcome.Approved`:
+`SetupViewModel.saveHubAndEnter`, al recibir `PairingOutcome.Approved`:
 
-1. **Guardar primero** `configStore.saveHub(ServerCredentials(baseUrl, token), hubId)` y el nombre del equipo (y la llave propia si vino, como hoy).
-2. Después validar con `ApiHelper.validateConnection(baseUrl, token)`:
-   - `ok` → como hoy (entra a vender).
-   - `failure = NO_CATALOG` (503 con `code: 'no_catalog'`) → **queda emparejada**: pantalla de espera «Emparejada con {hub}. El hub todavía no tiene el catálogo: pide que inicien sesión en el hub.» con **Reintentar** y reintento automático cada 15 s mientras la pantalla esté abierta; al conseguirlo entra a vender.
-   - `UNAUTHORIZED` (401) → el token no sirve: se borra (`forgetHub()`) y se muestra el fallo, como hoy.
-   - cualquier otro error (red, 5xx sin code) → queda emparejada con el mensaje del hub y Reintentar (no se descarta el token).
+1. **Guardar primero** el hub (`configStore.saveHub(...)`), el nombre del equipo y la llave de nube si vino (esto último ya existe).
+2. Después validar (`ApiHelper.validateConnection`):
+   - `ok` → como hoy.
+   - `NO_CATALOG` → **queda emparejada**: «Emparejada con {hub}. El hub todavía no tiene el catálogo: pide que inicien sesión en el hub.» con **Reintentar** y reintento cada 15 s mientras la pantalla esté abierta; al conseguirlo entra.
+   - `UNAUTHORIZED` (401) → el token no sirve: `forgetHub()` y fallo, como hoy.
+   - otro (red, 5xx sin `code`) → queda emparejada con el mensaje y Reintentar.
 
 ### 5.2 El mensaje del hub
 
-`Api.kt` (`validateConnection` y el helper de la línea ~232): ante un `HttpException`, leer `message` y `code` del cuerpo JSON (`e.response()?.errorBody()`); si hay `message`, mostrarlo tal cual; `code == 'no_catalog'` → `ConnectionFailure.NO_CATALOG`. Sin cuerpo legible, el genérico de siempre.
+`Api.kt` (`validateConnection` y el helper de la línea ~232): ante un `HttpException`, leer `message` y `code` del cuerpo JSON; si hay `message`, mostrarlo; `code == 'no_catalog'` → `ConnectionFailure.NO_CATALOG`. Sin cuerpo legible, el genérico.
 
-### 5.3 Con el hub guardado pero sin catálogo
+### 5.3 Hub guardado pero sin catálogo
 
-Guardar el token antes de validar (D4) significa que la báscula puede arrancar con un hub emparejado que aún no tiene catálogo. Hoy eso se leería como «el hub no responde»: `ServerSelector.choose` sólo elige el hub si `hubHealthy == true`, y la pantalla Conexión sólo distingue `OK / UNREACHABLE / REVOKED / NOT_PAIRED` (`ConnectionState.kt`).
-
-- `HubStatus` gana **`NO_CATALOG`**: el hub se encontró y contesta, pero responde 503 `no_catalog`. La sonda que hoy clasifica el hub (la de `ConnectionViewModel` / `HubLocator`) lo distingue de `UNREACHABLE` leyendo el `code` del cuerpo.
-- En Conexión: subtítulo «El hub todavía no tiene el catálogo · pide que inicien sesión en el hub», tarjeta **no seleccionable** (como `REVOKED`), y la báscula sigue con la nube si el respaldo está activo, igual que con un hub caído (`ServerSelector` no cambia: `NO_CATALOG` no es sano).
-- El reintento de la sonda ya existente basta para pasar a `OK` en cuanto el hub baje el catálogo.
+`HubStatus` gana **`NO_CATALOG`** (la sonda de `ConnectionViewModel`/`HubLocator` lo distingue de `UNREACHABLE` por el `code`). En Conexión: «El hub todavía no tiene el catálogo · pide que inicien sesión en el hub», tarjeta no seleccionable (como `REVOKED`). `ServerSelector` no cambia: no es sano, así que si hay llave de nube y respaldo activo, la báscula vende por la nube mientras tanto.
 
 ### 5.4 Desemparejar sólo si hay hub
 
-`AdvancedSettingsScreen`: la tarjeta «Hub» muestra «Desemparejar este hub» **sólo si** `config.hub` tiene credenciales. Si no, dice «Sin hub emparejado» (texto gris) y ninguna acción: la de buscar ya está en la tarjeta de arriba (`HubDiscoveryCard`). El estado se lee del `ConfigStore` en el ViewModel (`state.hubPaired`), refrescado al entrar a la pantalla.
+`AdvancedSettingsScreen`: la tarjeta «Hub» muestra «Desemparejar este hub» sólo si hay un hub guardado (`state.hubPaired`, leído del `ConfigStore` al entrar). Si no, «Sin hub emparejado» y ninguna acción (buscar ya está en `HubDiscoveryCard`).
 
 ## 6. Qué no hace
 
-- **No** entrega a la báscula su propia llave de nube al emparejarse (lo que `bascula-android` ya espera desde `a91eba9`, «D» del diagnóstico): el hub no la manda todavía. Es el respaldo «si el hub se cae, la báscula vende sola» y va en su propio spec.
-- **No** genera la API Key del hub automáticamente.
-- **No** toca la Surface (`bascula`) ni `hub-android` (§7).
+- No toca el backend ni `hub-android`.
+- No revoca en la nube la llave de una báscula al revocarla en el hub (§4.2).
+- No cambia `protocol_version`: sólo campos aditivos (`api_key`, `cloud_url` en el acuse — los que `hub-android` ya manda —, y `code` en un 503).
 
-## 7. Compatibilidad
+## 7. Compatibilidad y conformidad
 
-- **Scale API:** sin cambios. Básculas en producción no se enteran.
-- **Protocolo LAN:** sólo un campo **aditivo** (`code`) en un cuerpo de error; `protocol_version` sigue en 1. Una báscula vieja sigue viendo el `message` (o su genérico). `hub-android` sigue funcionando con API Key; alimentar su catálogo con la sesión queda como siguiente paso (misma ruta del backend) y se anota en `ecosistema.md`.
-- **Coordinación:** la rama `feat/desemparejar-de-verdad` del hub (otro trabajo en curso) toca `localApiServer.js`. El plan parte de `origin/main` y resuelve el choque al fusionar, sin tocar esa rama.
+- La suite de conformidad (`carniceria-hub/scripts/conformidad.mjs`) corre los mismos casos contra los dos hubs: si tiene (o se añade) un caso de «el acuse trae `api_key`/`cloud_url` cuando hay llave», el hub Windows debe pasarlo. El plan lo revisa.
+- La rama `feat/desemparejar-de-verdad` del hub (trabajo en curso de otra sesión) toca `localApiServer.js`: el plan parte de `origin/main` y resuelve el choque al fusionar, sin tocar esa rama.
 
 ## 8. Pruebas
 
-**Backend (PHPUnit)**
-- Las tres rutas con token de cajero y de admin-sucursal devuelven **el mismo JSON** que la Scale API con la API Key de esa sucursal.
-- Nunca datos de otra sucursal ni de otra empresa (dos tenants, dos sucursales).
-- Sin token → 401; token de `admin-empresa` → 403 (`hub.role`); usuario sin sucursal → 403; sucursal inactiva → 403.
-
 **Hub (Vitest)**
-- `fetchCatalog`: con API Key usa `X-Api-Key` y la Scale API; sin llave y con token usa Bearer y `/hub/catalog/*`; sin nada no pide; devuelve `via`.
-- Login correcto dispara `refresh()`.
+- Llave propia: sin llave + login → pide `devices/{hubId}/api-key`, guarda y refresca; con llave → no pide; 403 → no reintenta; fallo → se reintenta en el siguiente login.
+- Aprobar una báscula pide su llave y la guarda; si falla, la aprobación queda y devuelve el motivo.
+- Entregar el token incluye `api_key` + `cloud_url` sólo si hay llave, una sola vez, y borra la llave de la fila.
 - Los 503 llevan `code: 'no_catalog'`.
 
 **Báscula Android (JUnit)**
-- Aprobado + `no_catalog`: el token queda guardado y el estado es «emparejada, esperando catálogo».
-- Aprobado + 401: el token se borra.
-- El `message` del cuerpo llega al texto de error; sin cuerpo, el genérico.
+- Aprobado + `no_catalog`: token guardado, estado «emparejada, esperando catálogo»; aprobado + 401: token borrado.
+- El `message` del cuerpo llega al texto; sin cuerpo, el genérico.
+- 503 `no_catalog` en la sonda → `HubStatus.NO_CATALOG`.
 - `hubPaired = false` oculta «Desemparejar este hub».
-- Un 503 con `code: 'no_catalog'` en la sonda da `HubStatus.NO_CATALOG`, no `UNREACHABLE`; `ServerSelector` no elige el hub en ese estado.
 
 **A mano (Surface/tablet reales)**
-1. Hub reinstalado, sin API Key, entrar como cajero → en segundos Inicio deja de mostrar la franja; emparejar una tablet funciona.
-2. Hub sin catálogo (sin red al entrar) → la tablet queda «emparejada, esperando catálogo»; al volver la red y reintentar, entra.
-3. Tablet recién instalada sin hub → Avanzada no ofrece desemparejar.
+1. Hub reinstalado, entrar **como cajero** → Configuración/Dispositivo muestra que ya tiene llave y catálogo; sin copiar nada.
+2. Emparejar una tablet recién instalada → entra a vender; en su Conexión aparece la nube como respaldo disponible.
+3. Apagar el hub → la tablet sigue vendiendo por la nube (respaldo).
+4. Tablet sin hub → Avanzada no ofrece desemparejar.
 
 ## 9. Documentación al implementar
 
-`docs/api/hub.md`, `docs/arquitectura/ecosistema.md`, `carniceria-hub/docs/api-local.md` (el `code` del 503) y su doc de sincronización/catálogo, `bascula-android/README.md` (emparejamiento), y este spec → Implementado.
+`carniceria-hub/docs/api-local.md` (acuse con `api_key`/`cloud_url`, `code` del 503), la doc del hub sobre catálogo/sincronización y `releases.md`, `bascula-android/README.md` (emparejamiento), `carniceria-saas/docs/arquitectura/ecosistema.md` (el hub Windows alcanza a `hub-android`), y este spec → Implementado.
