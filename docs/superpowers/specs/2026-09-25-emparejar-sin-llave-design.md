@@ -87,7 +87,15 @@ En `SetupViewModel.saveHubAndEnter`, al recibir `PairingOutcome.Approved`:
 
 `Api.kt` (`validateConnection` y el helper de la línea ~232): ante un `HttpException`, leer `message` y `code` del cuerpo JSON (`e.response()?.errorBody()`); si hay `message`, mostrarlo tal cual; `code == 'no_catalog'` → `ConnectionFailure.NO_CATALOG`. Sin cuerpo legible, el genérico de siempre.
 
-### 5.3 Desemparejar sólo si hay hub
+### 5.3 Con el hub guardado pero sin catálogo
+
+Guardar el token antes de validar (D4) significa que la báscula puede arrancar con un hub emparejado que aún no tiene catálogo. Hoy eso se leería como «el hub no responde»: `ServerSelector.choose` sólo elige el hub si `hubHealthy == true`, y la pantalla Conexión sólo distingue `OK / UNREACHABLE / REVOKED / NOT_PAIRED` (`ConnectionState.kt`).
+
+- `HubStatus` gana **`NO_CATALOG`**: el hub se encontró y contesta, pero responde 503 `no_catalog`. La sonda que hoy clasifica el hub (la de `ConnectionViewModel` / `HubLocator`) lo distingue de `UNREACHABLE` leyendo el `code` del cuerpo.
+- En Conexión: subtítulo «El hub todavía no tiene el catálogo · pide que inicien sesión en el hub», tarjeta **no seleccionable** (como `REVOKED`), y la báscula sigue con la nube si el respaldo está activo, igual que con un hub caído (`ServerSelector` no cambia: `NO_CATALOG` no es sano).
+- El reintento de la sonda ya existente basta para pasar a `OK` en cuanto el hub baje el catálogo.
+
+### 5.4 Desemparejar sólo si hay hub
 
 `AdvancedSettingsScreen`: la tarjeta «Hub» muestra «Desemparejar este hub» **sólo si** `config.hub` tiene credenciales. Si no, dice «Sin hub emparejado» (texto gris) y ninguna acción: la de buscar ya está en la tarjeta de arriba (`HubDiscoveryCard`). El estado se lee del `ConfigStore` en el ViewModel (`state.hubPaired`), refrescado al entrar a la pantalla.
 
@@ -120,6 +128,7 @@ En `SetupViewModel.saveHubAndEnter`, al recibir `PairingOutcome.Approved`:
 - Aprobado + 401: el token se borra.
 - El `message` del cuerpo llega al texto de error; sin cuerpo, el genérico.
 - `hubPaired = false` oculta «Desemparejar este hub».
+- Un 503 con `code: 'no_catalog'` en la sonda da `HubStatus.NO_CATALOG`, no `UNREACHABLE`; `ServerSelector` no elige el hub en ese estado.
 
 **A mano (Surface/tablet reales)**
 1. Hub reinstalado, sin API Key, entrar como cajero → en segundos Inicio deja de mostrar la franja; emparejar una tablet funciona.
