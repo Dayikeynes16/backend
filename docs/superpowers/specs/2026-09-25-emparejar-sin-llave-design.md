@@ -2,7 +2,7 @@
 
 - **Estado:** Diseño aprobado (2026-09-25), pendiente de plan.
 - **Fecha:** 2026-09-25
-- **Repos afectados:** `carniceria-hub` (hub Windows) y `bascula-android`. **Backend: cero cambios** (lo que hace falta existe desde el 2026-09-21). `hub-android`: sin cambios — es la referencia. `bascula` (Surface): sin cambios.
+- **Repos afectados:** `carniceria-hub` (hub Windows), `bascula-android` y `carniceria-saas` (**una ruta aditiva**, §4.4; lo demás existe desde el 2026-09-21). `hub-android`: sin cambios en este spec — es la referencia; adoptar la revocación de §4.4 queda pendiente para él. `bascula` (Surface): sin cambios.
 - **Viene de:** un reporte real del 2026-09-25. Se reinstaló una tablet y el hub Windows, se entró al hub **sólo como cajero**, se autorizó la báscula en el hub (que la mostró conectada) y la tablet dijo **«Error del servidor (503)»** y no se conectó.
 
 ---
@@ -50,6 +50,8 @@ Este spec arregla las dos: que el token no se pierda y que la llave de nube lleg
 | D6 | **La báscula guarda el token en cuanto lo recibe**, antes de validar. | Se entrega una sola vez. |
 | D7 | «Hub sin catálogo» **no es un fallo de emparejamiento**; la báscula muestra **el mensaje del hub**. | Es transitorio, y el hub ya decía qué pasaba. |
 | D8 | «Desemparejar este hub» **sólo si hay un hub emparejado**. | Un botón que no aplica confunde. |
+| D9 | **Revocar una báscula en el hub revoca también su llave de nube.** Sin red, la revocación en la nube queda pendiente y se reintenta. | Revocar es retirar la confianza (tablet perdida, robada, de alguien que se fue). Con la llave viva, esa tablet seguiría vendiendo en la nube. Una sola acción, y sin llaves huérfanas. |
+| D10 | **Desemparejar desde la báscula no toca su llave.** | Es cambiar de modo (dejar el hub y seguir en la nube), no retirar la confianza. Es el terreno de `feat/desemparejar-de-verdad`; aquí sólo se deja escrito para que no choque. |
 
 ## 4. Hub Windows
 
@@ -69,12 +71,33 @@ Este spec arregla las dos: que el token no se pierda y que la llave de nube lleg
   - `raw_key` → se guarda en `api_key` de esa fila.
   - Falla → la aprobación **sigue valiendo**; el IPC devuelve el motivo (`«Hace falta una sesión abierta en el hub para darle llave propia.»`, `«No se pudo hablar con la nube.»`, `«La nube no devolvió ninguna llave.»`) y Básculas lo muestra en la fila («Sin respaldo en la nube: …») con **Reintentar** (vuelve a pedirla mientras el token no se haya entregado; si ya se entregó, reintentar exige re-emparejar y se dice así).
 - **Al entregar el token** (`GET /api/v1/pairing/{deviceId}`, rama `approved && !token_delivered_at`): la respuesta añade **`api_key`** y **`cloud_url`** (= `config.backendUrl`) **sólo si hay llave**; después se marca entregado y se **borra** `api_key` de la fila. Campos **aditivos**: una báscula vieja los ignora.
-- **Revocar** una báscula en el hub no llama a la nube (igual que `hub-android`): la llave de nube de esa tablet se revoca desde la web (Sucursal → API Keys, aparece con el nombre del equipo). Se dice en el diálogo de revocar.
+- **Revocar** una báscula en el hub revoca también su llave de nube (D9, §4.4).
 
 ### 4.3 Mientras no haya catálogo
 
 - Franja en **Inicio** y **Básculas** mientras `catalog.get('branch')` esté vacío: «Este hub todavía no tiene el catálogo de la sucursal: las básculas no pueden vender. Necesita internet y una sesión abierta.» con **Reintentar** (pide la llave propia si falta y refresca el catálogo).
 - Los dos `503` de `localApiServer.js` añaden **`code: 'no_catalog'`** al cuerpo (aditivo; el `message` se conserva).
+
+### 4.4 Revocar la báscula revoca su llave de nube (D9)
+
+**Backend (aditivo).** Ruta nueva en el grupo del hub (`auth:sanctum` + `hub.role`), junto a la de crear:
+
+| Método | Ruta | Nombre | Roles |
+|---|---|---|---|
+| DELETE | `devices/{deviceId}/api-key` | `api.hub.devices.api-key.revoke` | cajero y admin-sucursal |
+
+- Borra (mismo criterio que `deviceApiKey`, que ya hace `->delete()` al rotar) las `ApiKey` con ese `device_id` **en la sucursal del usuario** (`branch_id` del token). Nunca toca llaves sin `device_id` (las sueltas de admin) ni de otra sucursal o empresa.
+- **Idempotente:** si no había llave, `200` con `{ "revoked": 0 }`; si había, `{ "revoked": N }`. Así el reintento sin red es seguro.
+- Misma justificación que la de crear: acotada a un equipo concreto, por eso la puede pedir un cajero (revocar llaves sueltas sigue siendo de admin).
+- Docs: `docs/api/hub.md`, fila junto a `POST devices/{deviceId}/api-key`.
+
+**Hub Windows.**
+- `hub:devices:revoke` (tras revocar localmente, como hoy): borra la `api_key` de la fila si aún estaba (token no entregado) y llama a `DELETE /api/v1/hub/devices/{deviceId}/api-key` con la sesión.
+  - `2xx` → listo.
+  - Sin red, `5xx` o sin sesión → marca la fila con **`cloud_key_revoke_pending = 1`** (columna nueva, junto a `api_key`) y **no** bloquea la revocación local.
+- **Reintento:** al volver la conexión (`onOnline`) y al iniciar sesión, recorre las filas con `cloud_key_revoke_pending = 1` y repite el `DELETE`; con `2xx` limpia la marca. `401/403` persistentes se dejan marcados y se reintentan en el siguiente login (otra sesión puede tenerlos).
+- **UI:** el diálogo de revocar dice «La báscula dejará de poder conectarse a este hub **y a la nube**.» La fila revocada con la marca muestra «Llave de nube: pendiente de revocar (sin conexión)».
+- **Re-emparejar** la misma tablet después funciona igual: al aprobar se pide una llave nueva (§4.2) y la marca pendiente de esa fila, si existía, se resuelve antes de pedirla (primero el `DELETE`, luego el `POST`), para no revocar la nueva por un reintento atrasado.
 
 ## 5. Báscula Android
 
@@ -104,7 +127,8 @@ Este spec arregla las dos: que el token no se pierda y que la llave de nube lleg
 ## 6. Qué no hace
 
 - No toca el backend ni `hub-android`.
-- No revoca en la nube la llave de una báscula al revocarla en el hub (§4.2).
+- No revoca la llave de nube al **desemparejar desde la báscula** (D10).
+- `hub-android` no adopta la revocación de §4.4 en este spec: la ruta del backend le sirve igual y queda anotado como siguiente paso.
 - No cambia `protocol_version`: sólo campos aditivos (`api_key`, `cloud_url` en el acuse — los que `hub-android` ya manda —, y `code` en un 503).
 
 ## 7. Compatibilidad y conformidad
@@ -119,6 +143,13 @@ Este spec arregla las dos: que el token no se pierda y que la llave de nube lleg
 - Aprobar una báscula pide su llave y la guarda; si falla, la aprobación queda y devuelve el motivo.
 - Entregar el token incluye `api_key` + `cloud_url` sólo si hay llave, una sola vez, y borra la llave de la fila.
 - Los 503 llevan `code: 'no_catalog'`.
+- Revocar llama al `DELETE` con el `deviceId`; sin red deja `cloud_key_revoke_pending = 1` y la revocación local ocurre igual; al volver la red se reintenta y limpia la marca; re-emparejar con marca pendiente hace primero el `DELETE` y después el `POST`.
+
+**Backend (PHPUnit)**
+- `DELETE devices/{deviceId}/api-key` con cajero y con admin-sucursal borra sólo las llaves de ese equipo en su sucursal; no toca llaves sueltas, de otro equipo, de otra sucursal ni de otra empresa.
+- Idempotente: segunda llamada → `revoked: 0`, 200.
+- Sin token → 401; admin-empresa → 403 (`hub.role`).
+- Tras revocar, esa llave recibe 401 en la Scale API.
 
 **Báscula Android (JUnit)**
 - Aprobado + `no_catalog`: token guardado, estado «emparejada, esperando catálogo»; aprobado + 401: token borrado.
@@ -130,8 +161,9 @@ Este spec arregla las dos: que el token no se pierda y que la llave de nube lleg
 1. Hub reinstalado, entrar **como cajero** → Configuración/Dispositivo muestra que ya tiene llave y catálogo; sin copiar nada.
 2. Emparejar una tablet recién instalada → entra a vender; en su Conexión aparece la nube como respaldo disponible.
 3. Apagar el hub → la tablet sigue vendiendo por la nube (respaldo).
+5. Revocar la tablet en el hub → ya no vende ni por el hub ni por la nube; en la web su llave desapareció. Repetir sin internet → queda «pendiente de revocar» y se resuelve al volver la red.
 4. Tablet sin hub → Avanzada no ofrece desemparejar.
 
 ## 9. Documentación al implementar
 
-`carniceria-hub/docs/api-local.md` (acuse con `api_key`/`cloud_url`, `code` del 503), la doc del hub sobre catálogo/sincronización y `releases.md`, `bascula-android/README.md` (emparejamiento), `carniceria-saas/docs/arquitectura/ecosistema.md` (el hub Windows alcanza a `hub-android`), y este spec → Implementado.
+`carniceria-saas/docs/api/hub.md` (la ruta `DELETE`), `carniceria-hub/docs/api-local.md` (acuse con `api_key`/`cloud_url`, `code` del 503), la doc del hub sobre catálogo/sincronización y `releases.md`, `bascula-android/README.md` (emparejamiento), `carniceria-saas/docs/arquitectura/ecosistema.md` (el hub Windows alcanza a `hub-android`), y este spec → Implementado.
