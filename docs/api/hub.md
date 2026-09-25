@@ -373,6 +373,7 @@ El socket es el mecanismo principal, pero el hub conserva su sondeo como red de 
 | Método | Ruta | Rol | Descripción |
 |--------|------|-----|-------------|
 | POST | `devices/{deviceId}/api-key` | **ambos** | La API Key de ese equipo: la del propio hub, o la de una báscula recién emparejada |
+| DELETE | `devices/{deviceId}/api-key` | **ambos** | Revoca la llave de nube de ese equipo en la sucursal del token. Respuesta `200` `{"revoked": N}`; idempotente (`{"revoked": 0}` si no había) |
 
 Body: `{"name": "Balanza 1"}`. Respuesta `201`: `{"raw_key": "csa_…", "device_id": "…", "rotated": false}`.
 
@@ -384,6 +385,8 @@ Existe aparte de `config/api-keys` por dos motivos, y los dos importan:
 **Si el equipo ya tenía llave, se revoca y se emite otra** (`rotated: true`). El `raw_key` no se guarda —sólo su hash—, así que devolver la anterior es imposible; y revocarla es justo lo que se quiere si la báscula se perdió y alguien la está reinstalando.
 
 > **Una llave por equipo es también una mejora de seguridad.** Hasta ahora todas las básculas de una sucursal compartían llave: perder una tablet obligaba a revocar la de todas y reconfigurarlas una por una. Ahora se revoca la de esa y las demás siguen vendiendo.
+
+**Revocar una báscula en el hub revoca también su llave de nube** (`DELETE`, añadido el 2026-09-25): si no, una tablet perdida seguiría vendiendo directo contra la nube aunque el hub ya no la acepte. La puede pedir un cajero por la misma razón que la de crear, y sólo borra llaves con ese `device_id` en la sucursal del token: nunca las sueltas (sin equipo), ni las de otra sucursal o empresa —el `device_id` lo inventa el equipo y no es único global—. Es **idempotente** porque el hub la reintenta al volver la red: si no había llave responde `200` con `revoked: 0`, no `404`. Spec: [emparejar-sin-llave](../superpowers/specs/2026-09-25-emparejar-sin-llave-design.md) §4.4.
 
 La columna `api_keys.device_id` es **nullable**: las llaves que ya existen no pertenecen a ningún equipo y siguen funcionando igual. **La Scale API no cambia** — sólo se le emite una llave que ya sabe aceptar.
 

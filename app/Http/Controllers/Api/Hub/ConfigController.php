@@ -171,6 +171,40 @@ class ConfigController extends Controller
         ], 201);
     }
 
+    /**
+     * Revoca la llave de nube de **un equipo** en la sucursal del usuario.
+     *
+     * Es la otra mitad de [deviceApiKey]: cuando en el hub se revoca una
+     * báscula, su llave de nube tiene que morir con ella, o una tablet perdida
+     * seguiría vendiendo directo contra la nube aunque el hub ya no la acepte.
+     *
+     * - **La puede pedir un cajero**, por la misma razón que la de crear: está
+     *   acotada a un equipo concreto de su sucursal. Revocar llaves sueltas
+     *   (sin `device_id`) sigue siendo de admin y aquí nunca se tocan.
+     * - **Es idempotente.** Si no había llave responde `revoked: 0` con 200, no
+     *   404: el hub marca la revocación como pendiente cuando no hay red y la
+     *   reintenta después, y ese reintento no puede fallar por llegar tarde.
+     */
+    public function revokeDeviceApiKey(Request $request, string $deviceId): JsonResponse
+    {
+        $user = $request->user();
+
+        $deviceId = trim($deviceId);
+        if ($deviceId === '') {
+            return response()->json(['message' => 'Falta el identificador del equipo.'], 422);
+        }
+
+        // Mismo filtro que la rotación de `deviceApiKey`: el `device_id` lo
+        // inventa el equipo y no es único global, así que la sucursal del
+        // token es lo que impide tocar llaves de otra sucursal o empresa.
+        $revocadas = ApiKey::withoutGlobalScopes()
+            ->where('branch_id', $user->branch_id)
+            ->where('device_id', $deviceId)
+            ->delete();
+
+        return response()->json(['revoked' => $revocadas]);
+    }
+
     public function storeApiKey(Request $request): JsonResponse
     {
         $user = $request->user();

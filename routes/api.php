@@ -115,6 +115,12 @@ Route::prefix('v1/hub')
          * Idempotente por equipo: si ya tenía, se revoca y se emite otra.
          */
         Route::post('devices/{deviceId}/api-key', [HubConfigController::class, 'deviceApiKey'])->name('api.hub.devices.api-key');
+        /*
+         * Su contraparte: revocar en el hub una báscula revoca también su
+         * llave de nube. Mismo motivo para abrirla al cajero (acotada a un
+         * equipo) e idempotente, porque el hub la reintenta al volver la red.
+         */
+        Route::delete('devices/{deviceId}/api-key', [HubConfigController::class, 'revokeDeviceApiKey'])->name('api.hub.devices.api-key.revoke');
         Route::delete('config/api-keys/{apiKey}', [HubConfigController::class, 'revokeApiKey'])->whereNumber('apiKey')->name('api.hub.config.api-keys.revoke');
         Route::delete('config/api-keys/{apiKey}/force', [HubConfigController::class, 'deleteApiKey'])->whereNumber('apiKey')->name('api.hub.config.api-keys.delete');
 
