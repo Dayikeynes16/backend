@@ -11,6 +11,7 @@ use App\Models\Branch;
 use App\Models\CashRegisterShift;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\User;
 use App\Services\Ai\AiExpenseDraftService;
 use App\Services\ExpenseAttachmentService;
 use App\Services\Expenses\ExpenseWriter;
@@ -40,7 +41,7 @@ class ExpenseController extends Controller
 
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
-        $this->ensureModuleEnabled($user->branch_id);
+        $this->ensureModuleEnabled($user);
 
         $search = trim((string) $request->input('search', ''));
 
@@ -122,7 +123,7 @@ class ExpenseController extends Controller
     {
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
-        $this->ensureModuleEnabled($user->branch_id);
+        $this->ensureModuleEnabled($user);
 
         $found = $this->findOwnExpense($request, $expense);
         $this->assertCanMutate($request, $found);
@@ -263,7 +264,7 @@ class ExpenseController extends Controller
     {
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
-        $this->ensureModuleEnabled($user->branch_id);
+        $this->ensureModuleEnabled($user);
 
         $isAdmin = $user->hasRole('admin-sucursal');
         $shift = CashRegisterShift::where('user_id', $user->id)->whereNull('closed_at')->first();
@@ -333,7 +334,7 @@ class ExpenseController extends Controller
     {
         $user = $request->user();
         app()->instance('tenant', $user->tenant);
-        $this->ensureModuleEnabled($user->branch_id);
+        $this->ensureModuleEnabled($user);
 
         $maxAudioKb = (int) (config('ai.expenses.max_audio_bytes', 10 * 1024 * 1024) / 1024);
 
@@ -385,10 +386,17 @@ class ExpenseController extends Controller
             ->first();
     }
 
-    private function ensureModuleEnabled(?int $branchId): void
+    /**
+     * Paridad web: la bandera es del cajero (Caja\GastoController); el
+     * admin-sucursal siempre tiene Gastos (Sucursal\GastoController no la mira).
+     */
+    private function ensureModuleEnabled(User $user): void
     {
-        $branch = Branch::withoutGlobalScopes()->find($branchId);
+        if ($user->hasRole('admin-sucursal')) {
+            return;
+        }
 
+        $branch = Branch::withoutGlobalScopes()->find($user->branch_id);
         abort_unless(
             $branch && $branch->cashier_expenses_enabled,
             403,

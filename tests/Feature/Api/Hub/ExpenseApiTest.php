@@ -427,4 +427,60 @@ class ExpenseApiTest extends TestCase
             ->postJson('/api/v1/hub/expenses/ai-draft', [])
             ->assertStatus(422);
     }
+
+    private function adminToken(): string
+    {
+        return $this->adminSucursal->createToken('hub')->plainTextToken;
+    }
+
+    /**
+     * Paridad web: la bandera es del cajero (Caja\GastoController). El admin
+     * siempre tiene Gastos (Sucursal\GastoController no la mira), y el guard
+     * del Hub Electron ya lo deja entrar: sin esto le respondía 403 todo.
+     */
+    public function test_admin_uses_expenses_with_the_flag_off(): void
+    {
+        $this->branch->forceFill(['cashier_expenses_enabled' => false])->save();
+        $token = $this->adminToken();
+
+        $this->withToken($token)->getJson('/api/v1/hub/expenses')->assertOk();
+
+        $id = $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses', [
+                'concept' => 'Renta', 'amount' => 1500, 'expense_subcategory_id' => $this->subcategory->id,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->withToken($token)
+            ->patchJson("/api/v1/hub/expenses/{$id}", [
+                'concept' => 'Renta de septiembre', 'amount' => 1500, 'expense_subcategory_id' => $this->subcategory->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.concept', 'Renta de septiembre');
+
+        // ai-draft también pasa la bandera: con payload vacío (sin llamar a
+        // OpenAI) llega a la validación de "aporta algo" y responde 422, no 403.
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses/ai-draft', [])
+            ->assertStatus(422);
+    }
+
+    public function test_cashier_is_still_blocked_with_the_flag_off(): void
+    {
+        $this->branch->forceFill(['cashier_expenses_enabled' => false])->save();
+        $token = $this->token();
+        $this->openShift($token);
+
+        $this->withToken($token)->getJson('/api/v1/hub/expenses')->assertForbidden();
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses', [
+                'concept' => 'Hielo', 'amount' => 180, 'expense_subcategory_id' => $this->subcategory->id,
+            ])
+            ->assertForbidden();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/hub/expenses/ai-draft', [])
+            ->assertForbidden();
+    }
 }
